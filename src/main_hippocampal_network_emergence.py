@@ -89,6 +89,7 @@ class MouseSession:
 
         self.spike_struct.set_spike_trains_from_spike_nums()
 
+
 class HNESpikeStructure:
 
     def __init__(self, mouse_session, labels=None, spike_nums=None, spike_trains=None,
@@ -250,14 +251,12 @@ class CoordClass:
         self.img_contours = test_img
 
 
-
-
 def compute_and_plot_clusters_raster_sarah_s_way(spike_struct, spike_nums_to_use, data_descr, mouse_session,
                                                  sliding_window_duration, sce_times_numbers,
                                                  SCE_times):
     ms = mouse_session
     param = ms.param
-
+    n_cells = len(spike_struct.spike_trains)
 
     # sigma=sliding_window_duration/2
     # current_cluster = [[[[[[[[[[[0, 4], 1], 2], 3], 5], 17], 18], 16],
@@ -282,13 +281,13 @@ def compute_and_plot_clusters_raster_sarah_s_way(spike_struct, spike_nums_to_use
     #
 
     merge_history, current_cluster = functional_clustering_algorithm(spike_struct.spike_trains, nsurrogate=20,
-                                                                     sigma=0.1,
+                                                                     sigma=0.2,
                                                                      early_stop=False,
                                                                      rolling_surrogate=False)
 
     min_scale, max_scale = fca.get_min_max_scale_from_merge_history(merge_history)
     cluster_tree = fca.ClusterTree(clusters_lists=current_cluster[0], merge_history_list=merge_history, father=None,
-                                   n_cells=22, max_scale_value=max_scale, non_significant_color="white")
+                                   n_cells=n_cells, max_scale_value=max_scale, non_significant_color="white")
 
     n_cluster = len(cluster_tree.cluster_nb_list)
     # each index correspond to a cell index, and the value is the cluster the cell belongs,
@@ -357,6 +356,7 @@ def compute_and_plot_clusters_raster_sarah_s_way(spike_struct, spike_nums_to_use
                        horizontal_lines=np.array(cluster_horizontal_thresholds) - 0.5,
                        horizontal_lines_colors=['white'] * len(cluster_horizontal_thresholds),
                        horizontal_lines_sytle="dashed",
+                       horizontal_lines_linewidth=[1] * len(cluster_horizontal_thresholds),
                        vertical_lines=SCE_times,
                        vertical_lines_colors=['white'] * len(SCE_times),
                        vertical_lines_sytle="solid",
@@ -372,7 +372,8 @@ def compute_and_plot_clusters_raster_sarah_s_way(spike_struct, spike_nums_to_use
                        SCE_times=SCE_times,
                        ylabel="")
 
-    plot_dendogram_from_fca(cluster_tree=cluster_tree, nb_cells=22, save_plot=True, file_name=f"dendogram_{data_descr}",
+    plot_dendogram_from_fca(cluster_tree=cluster_tree, nb_cells=n_cells, save_plot=True,
+                            file_name=f"dendogram_{data_descr}",
                             param=param,
                             cell_labels=spike_struct.labels,
                             axes_list=[ax1], fig_to_use=fig)
@@ -463,7 +464,8 @@ def compute_and_plot_clusters_raster_sarah_s_way(spike_struct, spike_nums_to_use
     plt.close()
 
 
-def compute_and_plot_clusters_raster_arnaud_s_way(spike_struct, spike_nums_to_use, cellsinpeak, data_descr, mouse_session,
+def compute_and_plot_clusters_raster_arnaud_s_way(spike_struct, spike_nums_to_use, cellsinpeak, data_descr,
+                                                  mouse_session,
                                                   sliding_window_duration, sce_times_numbers,
                                                   SCE_times):
     ms = mouse_session
@@ -656,6 +658,79 @@ def compute_and_plot_clusters_raster_arnaud_s_way(spike_struct, spike_nums_to_us
 
         plt.close()
 
+        save_stat_SCE_and_cluster_k_mean_version(spike_nums_to_use=spike_nums_to_use,
+                                                 activity_threshold=activity_threshold,
+                                                 k_means=best_kmeans_by_cluster[n_cluster],
+                                                 SCE_times=SCE_times, n_cluster=n_cluster, param=param)
+
+
+def save_stat_SCE_and_cluster_k_mean_version(spike_nums_to_use, activity_threshold, k_means, SCE_times, n_cluster, param):
+    file_name = f'{param.path_results}/stat_k_mean_v_{n_cluster}_clusters_{param.time_str}.txt'
+    with open(file_name, "w", encoding='UTF-8') as file:
+        file.write(f"Stat k_mean version for {n_cluster} clusters" + '\n')
+        file.write("" + '\n')
+        file.write(f"cells {len(spike_nums_to_use)}, events {len(SCE_times)}" + '\n')
+        file.write(f"Event participation threshold {activity_threshold}" + '\n')
+        file.write("" + '\n')
+        file.write("" + '\n')
+        cluster_labels = k_means.labels_
+
+        for k in np.arange(n_cluster):
+
+            e = np.equal(cluster_labels, k)
+
+            nb_sce_in_cluster = np.sum(e)
+
+            file.write("#" * 10 + f"   cluster {k} / {nb_sce_in_cluster} events" + "#" * 10 + '\n')
+            file.write('\n')
+
+            sce_ids = np.where(e)[0]
+            duration_values = np.zeros(nb_sce_in_cluster, dtype="uint16")
+            max_activity_values = np.zeros(nb_sce_in_cluster, dtype="float")
+            mean_activity_values = np.zeros(nb_sce_in_cluster, dtype="float")
+
+            for n, sce_id in enumerate(sce_ids):
+                duration_values[n], max_activity_values[n], \
+                mean_activity_values[n] = give_stat_one_sce(sce_id=sce_id,
+                                                            spike_nums_to_use=spike_nums_to_use,
+                                                            SCE_times=SCE_times)
+            file.write(f"Duration: mean {np.round(np.mean(duration_values), 3)}, "
+                       f"std {np.round(np.std(duration_values), 3)}, "
+                       f"median {np.round(np.median(duration_values), 3)}\n")
+            file.write(f"Max participation: mean {np.round(np.mean(max_activity_values), 3)}, "
+                       f"std {np.round(np.std(max_activity_values), 3)}, "
+                       f"median {np.round(np.median(max_activity_values), 3)}\n")
+            file.write(f"Mean participation: mean {np.round(np.mean(mean_activity_values), 3)}, "
+                       f"std {np.round(np.std(mean_activity_values), 3)}, "
+                       f"median {np.round(np.median(mean_activity_values), 3)}\n")
+
+        file.write('\n')
+        file.write('\n')
+        file.write("#" * 50 + '\n')
+        file.write('\n')
+        file.write('\n')
+        # for each SCE
+        for sce_id in np.arange(len(SCE_times)):
+            duration_in_frames, max_activity, mean_activity = give_stat_one_sce(sce_id=sce_id,
+                                                                                spike_nums_to_use=spike_nums_to_use,
+                                                                                SCE_times=SCE_times)
+            file.write(f"SCE {sce_id}" + '\n')
+            file.write(f"Duration_in_frames {duration_in_frames}" + '\n')
+            file.write(f"Max participation {np.round(max_activity, 3)}" + '\n')
+            file.write(f"Mean participation {np.round(mean_activity, 3)}" + '\n')
+
+            file.write('\n')
+            file.write('\n')
+
+
+def give_stat_one_sce(sce_id, spike_nums_to_use, SCE_times):
+    time_tuple = SCE_times[sce_id]
+    duration_in_frames = time_tuple[1] - time_tuple[0]
+    sum_activity_for_each_frame = np.sum(spike_nums_to_use[:, time_tuple[0]:(time_tuple[1]+1)], axis=1)
+    max_activity = np.max(sum_activity_for_each_frame)
+    mean_activity = np.mean(sum_activity_for_each_frame)
+
+    return duration_in_frames, max_activity, mean_activity
 
 
 def main():
@@ -667,24 +742,23 @@ def main():
     path_results = path_results_raw + f"{time_str}"
     os.mkdir(path_results)
 
-
     # --------------------------------------------------------------------------------
     # ------------------------------ param section ------------------------------
     # --------------------------------------------------------------------------------
 
     # param will be set later when the spike_nums will have been constructed
     param = HNEParameters(time_str=time_str, path_results=path_results, error_rate=2,
-                           time_inter_seq=100, min_duration_intra_seq=-5, min_len_seq=10, min_rep_nb=4,
-                           max_branches=20, stop_if_twin=False,
-                           no_reverse_seq=False, spike_rate_weight=False, path_data=path_data)
+                          time_inter_seq=100, min_duration_intra_seq=-5, min_len_seq=10, min_rep_nb=4,
+                          max_branches=20, stop_if_twin=False,
+                          no_reverse_seq=False, spike_rate_weight=False, path_data=path_data)
 
     # loading data
-    p7_171012_a000_ms = MouseSession(age=7, session_id="171012_a000", nb_ms_by_frame = 100, param=param)
+    p7_171012_a000_ms = MouseSession(age=7, session_id="171012_a000", nb_ms_by_frame=100, param=param)
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
                          "spike_nums": "filt_Bin100ms_spikedigital"}
     p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7_171012_a000.mat", variables_mapping=variables_mapping)
 
-    p12_171110_a000_ms = MouseSession(age=12, session_id="171110_a000", nb_ms_by_frame = 100, param=param)
+    p12_171110_a000_ms = MouseSession(age=12, session_id="171110_a000", nb_ms_by_frame=100, param=param)
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
                          "spike_nums": "filt_Bin100ms_spikedigital", "coord": "ContoursAll"}
     p12_171110_a000_ms.load_data_from_file(file_name_to_load="p12_171110_a000.mat", variables_mapping=variables_mapping)
@@ -705,7 +779,7 @@ def main():
         spike_struct = ms.spike_struct
         n_cells = len(spike_struct.spike_nums)
         # spike_struct.build_spike_trains()
-        sarah_way = True
+        sarah_way = False
         if sarah_way:
             sliding_window_duration = 5
             spike_nums_to_use = spike_struct.spike_nums
@@ -713,13 +787,15 @@ def main():
             sliding_window_duration = 1
             spike_nums_to_use = spike_struct.spike_nums_dur
 
+        perc_threshold = 99
         activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use,
                                                          window_duration=sliding_window_duration,
                                                          spike_train_mode=False,
                                                          n_surrogate=20,
-                                                         perc_threshold=99,
+                                                         perc_threshold=perc_threshold,
                                                          debug_mode=True)
-        print(f"activity_threshold {activity_threshold}, {np.round((activity_threshold/n_cells)*100, 2)}%")
+        print(f"perc_threshold {perc_threshold}, "
+              f"activity_threshold {activity_threshold}, {np.round((activity_threshold/n_cells)*100, 2)}%")
         print(f"sliding_window_duration {sliding_window_duration}")
         spike_struct.activity_threshold = activity_threshold
         param.activity_threshold = activity_threshold
@@ -757,7 +833,7 @@ def main():
         sce_times_numbers = sce_detection_result[3]
         print(f"Nb SCE: {cellsinpeak.shape}")
         # print(f"Nb spikes by SCE: {np.sum(cellsinpeak, axis=0)}")
-        display_isi_info=False
+        display_isi_info = False
         if display_isi_info:
             cells_isi = tools_misc.get_isi(spike_data=spike_struct.spike_nums, spike_trains_format=False)
             for cell_index in np.arange(len(spike_struct.spike_nums)):
@@ -770,10 +846,9 @@ def main():
 
         data_descr = f"{ms.description}"
 
-
         if sarah_way:
             compute_and_plot_clusters_raster_sarah_s_way(spike_struct=ms.spike_struct,
-                                                          spike_nums_to_use=spike_nums_to_use,
+                                                         spike_nums_to_use=spike_nums_to_use,
                                                          data_descr=data_descr, mouse_session=ms,
                                                          sliding_window_duration=sliding_window_duration,
                                                          SCE_times=SCE_times, sce_times_numbers=sce_times_numbers)
