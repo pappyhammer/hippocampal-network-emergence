@@ -42,6 +42,7 @@ from sortedcontainers import SortedList, SortedDict
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import co_var_first_and_clusters
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import show_co_var_first_matrix
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import compute_and_plot_clusters_raster_kmean_version
+from pattern_discovery.clustering.kmean_version.k_mean_clustering import give_stat_one_sce
 from pattern_discovery.clustering.fca.fca import functional_clustering_algorithm
 import pattern_discovery.clustering.fca.fca as fca
 from pattern_discovery.clustering.cluster_tools import detect_cluster_activations_with_sliding_window
@@ -569,6 +570,96 @@ def give_me_stat_on_sorting_seq_results(results_dict, neurons_sorted, title, par
             file.write(f"{str_to_write}")
 
 
+def save_stat_sce_detection_methods(spike_nums_to_use, activity_threshold, ms,
+                                    SCE_times,  param, sliding_window_duration,
+                                    perc_threshold, use_raster_dur,
+                                    keep_max_each_surrogate,
+                                    n_surrogate_activity_threshold):
+    round_factor = 2
+    raster_option = "raster_dur" if use_raster_dur else "onsets"
+    technique_details = " max of each surrogate " if keep_max_each_surrogate else ""
+    technique_details_file = "max_each_surrogate" if keep_max_each_surrogate else ""
+    file_name = f'{param.path_results}/{ms.description}_stat_{raster_option}_{perc_threshold}_perc_' \
+                f'{technique_details_file}_{param.time_str}.txt'
+
+    n_sce = len(SCE_times)
+    with open(file_name, "w", encoding='UTF-8') as file:
+        file.write(f"Stat {ms.description} using {raster_option}{technique_details} {perc_threshold} percentile " + '\n')
+        file.write("" + '\n')
+        file.write(f"{len(spike_nums_to_use)} cells, {n_sce} events" + '\n')
+        file.write(f"Event participation threshold {activity_threshold}, {perc_threshold} percentile, "
+                   f"{n_surrogate_activity_threshold} surrogates" + '\n')
+        file.write(f"Sliding window duration {sliding_window_duration}" + '\n')
+        file.write("" + '\n')
+        file.write("" + '\n')
+
+        if n_sce > 0:
+            file.write("All events (SCEs) stat:"+ '\n')
+            file.write('\n')
+            # duration in frames
+            duration_values = np.zeros(n_sce, dtype="uint16")
+            max_activity_values = np.zeros(n_sce)
+            mean_activity_values = np.zeros(n_sce)
+            overall_activity_values = np.zeros(n_sce)
+            # Collecting data from each SCE
+            for sce_id in np.arange(len(SCE_times)):
+                result = give_stat_one_sce(sce_id=sce_id,
+                                           spike_nums_to_use=spike_nums_to_use,
+                                           SCE_times=SCE_times,
+                                           sliding_window_duration=sliding_window_duration)
+                duration_values[sce_id], max_activity_values[sce_id], mean_activity_values[sce_id], \
+                overall_activity_values[sce_id] = result
+
+            file.write(f"Duration: mean {np.round(np.mean(duration_values), round_factor)}, "
+                       f"std {np.round(np.std(duration_values), round_factor)}, "
+                       f"median {np.round(np.median(duration_values), round_factor)}\n")
+            file.write(f"Overall participation: mean {np.round(np.mean(overall_activity_values), round_factor)}, "
+                       f"std {np.round(np.std(overall_activity_values), round_factor)}, "
+                       f"median {np.round(np.median(overall_activity_values), round_factor)}\n")
+            file.write(f"Max participation: mean {np.round(np.mean(max_activity_values), round_factor)}, "
+                       f"std {np.round(np.std(max_activity_values), round_factor)}, "
+                       f"median {np.round(np.median(max_activity_values), round_factor)}\n")
+            file.write(f"Mean participation: mean {np.round(np.mean(mean_activity_values), round_factor)}, "
+                       f"std {np.round(np.std(mean_activity_values), round_factor)}, "
+                       f"median {np.round(np.median(mean_activity_values), round_factor)}\n")
+
+            file.write('\n')
+            file.write('\n')
+            file.write("#" * 50 + '\n')
+            file.write('\n')
+            file.write('\n')
+            # for each SCE
+            for sce_id in np.arange(len(SCE_times)):
+                file.write(f"SCE {sce_id}" + '\n')
+                file.write(f"Duration_in_frames {duration_values[sce_id]}" + '\n')
+                file.write(f"Overall participation {np.round(overall_activity_values[sce_id], round_factor)}" + '\n')
+                file.write(f"Max participation {np.round(max_activity_values[sce_id], round_factor)}" + '\n')
+                file.write(f"Mean participation {np.round(mean_activity_values[sce_id], round_factor)}" + '\n')
+
+                file.write('\n')
+                file.write('\n')
+
+            file.write('\n')
+            file.write('\n')
+            file.write("#" * 50 + '\n')
+            file.write('\n')
+
+        file.write("ISI stats" '\n')
+        file.write('\n')
+        file.write('\n')
+
+        if not use_raster_dur:
+            cells_isi = tools_misc.get_isi(spike_data=spike_nums_to_use, spike_trains_format=False)
+            for cell_index in np.arange(len(spike_nums_to_use)):
+                file.write(f"cell {cell_index}" + '\n')
+                file.write(f"median isi: {np.round(np.median(cells_isi[cell_index]), round_factor)}, " + '\n')
+                file.write(f"mean isi {np.round(np.mean(cells_isi[cell_index]), round_factor)}" + '\n')
+                file.write(f"std isi {np.round(np.std(cells_isi[cell_index]), round_factor)}" + '\n')
+
+                file.write('\n')
+                file.write('\n')
+
+
 def main():
     root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
     path_data = root_path + "data/"
@@ -594,6 +685,36 @@ def main():
                          "spike_nums": "filt_Bin100ms_spikedigital"}
     p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7_171012_a000.mat", variables_mapping=variables_mapping)
 
+    p7_18_02_08_a000_ms = MouseSession(age=7, session_id="18_02_08_a000", nb_ms_by_frame=100, param=param)
+    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                         "spike_nums": "filt_Bin100ms_spikedigital"}
+    p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load="p7_18_02_08_a000/p7_18_02_08_a000_RasterDur.mat",
+                                          variables_mapping=variables_mapping)
+
+    p9_17_11_29_a002_ms = MouseSession(age=9, session_id="17_11_29_a002", nb_ms_by_frame=100, param=param)
+    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                         "spike_nums": "filt_Bin100ms_spikedigital"}
+    p9_17_11_29_a002_ms.load_data_from_file(file_name_to_load="p9_17_11_29_a002/p9_17_11_29_a002_RasterDur.mat",
+                                             variables_mapping=variables_mapping)
+
+    p10_17_11_16_a003_ms = MouseSession(age=10, session_id="17_11_16_a003", nb_ms_by_frame=100, param=param)
+    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                         "spike_nums": "filt_Bin100ms_spikedigital"}
+    p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load="p10_17_11_16_a003/p10_17_11_16_a003_RasterDur.mat",
+                                             variables_mapping=variables_mapping)
+
+    p11_17_11_24_a001_ms = MouseSession(age=11, session_id="17_11_24_a001", nb_ms_by_frame=100, param=param)
+    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                         "spike_nums": "filt_Bin100ms_spikedigital"}
+    p11_17_11_24_a001_ms.load_data_from_file(file_name_to_load="p11_17_11_24_a001/p11_17_11_24_a001_RasterDur.mat",
+                                            variables_mapping=variables_mapping)
+
+    p12_17_11_10_a002_ms = MouseSession(age=12, session_id="17_11_10_a002", nb_ms_by_frame=100, param=param)
+    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                         "spike_nums": "filt_Bin100ms_spikedigital"}
+    p12_17_11_10_a002_ms.load_data_from_file(file_name_to_load="p12_17_11_10_a002/p12_17_11_10_a002_RasterDur.mat",
+                                             variables_mapping=variables_mapping)
+
     p12_171110_a000_ms = MouseSession(age=12, session_id="171110_a000", nb_ms_by_frame=100, param=param)
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
                          "spike_nums": "filt_Bin100ms_spikedigital", "coord": "ContoursAll"}
@@ -603,13 +724,17 @@ def main():
     variables_mapping = {"spike_nums": "spikenums"}
     arnaud_ms.load_data_from_file(file_name_to_load="spikenumsarnaud.mat", variables_mapping=variables_mapping)
 
-    available_ms = [p7_171012_a000_ms, p12_171110_a000_ms, arnaud_ms]
+    available_ms = [p7_171012_a000_ms, p7_18_02_08_a000_ms, p9_17_11_29_a002_ms, p10_17_11_16_a003_ms,
+                    p11_17_11_24_a001_ms,
+                    p12_17_11_10_a002_ms, p12_171110_a000_ms]
     ms_to_analyse = [p7_171012_a000_ms]
 
     do_clustering = True
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     with_cells_in_cluster_seq_sorted = False
+
+    just_do_stat_on_event_detection_parameters = True
 
     # for events (sce) detection
     perc_threshold = 99
@@ -630,7 +755,108 @@ def main():
     param.error_rate = 5
     param.max_branches = 5
 
-    # ------------------------------ param section ------------------------------
+    # ------------------------------ end param section ------------------------------
+
+    if just_do_stat_on_event_detection_parameters:
+        for ms in available_ms:
+            t = 1
+            # for each session, we want to detect SCE using 6 methods:
+            # 1) Keep the max of each surrogate and take the 95th percentile
+            # 2) Keep the 95th percentile of n_times * n°surrogates events activity
+            # 3) Keep the 99th percentile of n_times * n°surrogates events activity
+            #  and for each with raster_dur and with_onsets for n surrogates
+
+            spike_struct = ms.spike_struct
+            n_cells = len(spike_struct.spike_nums)
+
+            for use_raster_dur in [True, False]:
+                for selection_option in [0, 1, 2]:
+                    if use_raster_dur:
+                        sliding_window_duration = 1
+                        spike_nums_to_use = spike_struct.spike_nums_dur
+                    else:
+                        sliding_window_duration = 5
+                        spike_nums_to_use = spike_struct.spike_nums
+
+                    # ######  parameters setting #########
+                    # data_descr = f"{ms.description}"
+                    n_surrogate_activity_threshold = 1000
+
+                    if selection_option > 0:
+                        perc_threshold = 95
+                    else:
+                        perc_threshold = 99
+
+                    if selection_option == 2:
+                        use_max_of_each_surrogate = True
+                    else:
+                        use_max_of_each_surrogate = False
+
+                    activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use,
+                                                                     window_duration=sliding_window_duration,
+                                                                     spike_train_mode=False,
+                                                                     use_max_of_each_surrogate=use_max_of_each_surrogate,
+                                                                     n_surrogate=n_surrogate_activity_threshold,
+                                                                     perc_threshold=perc_threshold,
+                                                                     debug_mode=False)
+
+                    spike_struct.activity_threshold = activity_threshold
+                    param.activity_threshold = activity_threshold
+
+                    sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
+                                                                          window_duration=sliding_window_duration,
+                                                                          perc_threshold=perc_threshold,
+                                                                          activity_threshold=activity_threshold,
+                                                                          debug_mode=False,
+                                                                          no_redundancy=False)
+
+                    print(f"sce_with_sliding_window detected")
+                    # tuple of times
+                    SCE_times = sce_detection_result[1]
+
+                    print(f"ms {ms.description}, {len(SCE_times)} sce "
+                          f"activity threshold {activity_threshold}, "
+                          f"use_raster_dur {use_raster_dur},  "
+                          f"{perc_threshold} percentile, use_max_of_each_surrogate {use_max_of_each_surrogate}"
+                          f", np.shape(spike_nums_to_use) {np.shape(spike_nums_to_use)}")
+
+                    raster_option = "raster_dur" if use_raster_dur else "onsets"
+                    technique_details_file = "max_each_surrogate" if use_max_of_each_surrogate else ""
+                    file_name = f'{ms.description}_stat_{raster_option}_{perc_threshold}_perc_' \
+                                f'{technique_details_file}'
+
+                    spike_shape = '|' if use_raster_dur else 'o'
+                    plot_spikes_raster(spike_nums=spike_nums_to_use, param=ms.param,
+                                       spike_train_format=False,
+                                       title=file_name,
+                                       file_name=file_name,
+                                       y_ticks_labels=np.arange(n_cells),
+                                       y_ticks_labels_size=2,
+                                       save_raster=True,
+                                       show_raster=False,
+                                       plot_with_amplitude=False,
+                                       activity_threshold=spike_struct.activity_threshold,
+                                       # 500 ms window
+                                       sliding_window_duration=sliding_window_duration,
+                                       show_sum_spikes_as_percentage=True,
+                                       vertical_lines=SCE_times,
+                                       vertical_lines_colors=['white'] * len(SCE_times),
+                                       vertical_lines_sytle="solid",
+                                       vertical_lines_linewidth=[0.2] * len(SCE_times),
+                                       spike_shape=spike_shape,
+                                       spike_shape_size=0.5,
+                                       save_formats="pdf")
+
+                    save_stat_sce_detection_methods(spike_nums_to_use=spike_nums_to_use,
+                                                    activity_threshold=activity_threshold,
+                                                    ms=ms,
+                                                    SCE_times=SCE_times, param=param,
+                                                    sliding_window_duration=sliding_window_duration,
+                                                    perc_threshold=perc_threshold,
+                                                    use_raster_dur=use_raster_dur,
+                                                    keep_max_each_surrogate=use_max_of_each_surrogate,
+                                                    n_surrogate_activity_threshold=n_surrogate_activity_threshold)
+        return
 
     for ms in ms_to_analyse:
         ###################################################################
