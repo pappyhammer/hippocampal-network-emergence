@@ -46,6 +46,7 @@ from pattern_discovery.clustering.fca.fca import functional_clustering_algorithm
 import pattern_discovery.clustering.fca.fca as fca
 from pattern_discovery.clustering.cluster_tools import detect_cluster_activations_with_sliding_window
 from pattern_discovery.clustering.fca.fca import compute_and_plot_clusters_raster_fca_version
+import pattern_discovery as pattern_discovery
 
 
 class HNEParameters(MarkovParameters):
@@ -253,10 +254,325 @@ class CoordClass:
         self.img_contours = test_img
 
 
+def sort_it_and_plot_it(spike_nums, param,
+                        sliding_window_duration, activity_threshold, title_option="",
+                        spike_train_format=False,
+                        debug_mode=False,
+                        plot_all_best_seq_by_cell=False):
+    if spike_train_format:
+        return
+    result = pattern_discovery.seq_solver.markov_way.order_spike_nums_by_seq(spike_nums,
+                                                                             param,
+                                                                             debug_mode=debug_mode)
+    seq_dict_tmp, best_seq, all_best_seq = result
+
+    if plot_all_best_seq_by_cell:
+        for cell, each_best_seq in enumerate(all_best_seq):
+            spike_nums_ordered = np.copy(spike_nums[each_best_seq, :])
+
+            new_labels = np.arange(len(spike_nums))
+            new_labels = new_labels[best_seq]
+            loss_score = loss_function_with_sliding_window(spike_nums=spike_nums_ordered[::-1, :],
+                                                           time_inter_seq=param.time_inter_seq,
+                                                           min_duration_intra_seq=param.min_duration_intra_seq,
+                                                           spike_train_mode=False,
+                                                           debug_mode=True
+                                                           )
+            print(f'Cell {cell} loss_score ordered: {np.round(loss_score, 4)}')
+            # saving the ordered spike_nums
+            # micro_wires_ordered = micro_wires[best_seq]
+            # np.savez(f'{param.path_results}/{channels_selection}_spike_nums_ordered_{patient_id}.npz',
+            #          spike_nums_ordered=spike_nums_ordered, micro_wires_ordered=micro_wires_ordered)
+
+            plot_spikes_raster(spike_nums=spike_nums_ordered, param=param,
+                               title=f"cell {cell} raster plot ordered {title_option}",
+                               spike_train_format=False,
+                               file_name=f"cell_{cell}_spike_nums_ordered_{title_option}",
+                               y_ticks_labels=new_labels,
+                               y_ticks_labels_size=2,
+                               save_raster=True,
+                               show_raster=False,
+                               sliding_window_duration=sliding_window_duration,
+                               show_sum_spikes_as_percentage=True,
+                               plot_with_amplitude=False,
+                               activity_threshold=activity_threshold,
+                               save_formats="pdf")
+    else:
+        spike_nums_ordered = np.copy(spike_nums[best_seq, :])
+
+        new_labels = np.arange(len(spike_nums))
+        new_labels = new_labels[best_seq]
+
+        plot_spikes_raster(spike_nums=spike_nums_ordered, param=param,
+                           title=f"raster plot ordered {title_option}",
+                           spike_train_format=False,
+                           file_name=f"spike_nums_ordered_{title_option}",
+                           y_ticks_labels=new_labels,
+                           y_ticks_labels_size=2,
+                           save_raster=True,
+                           show_raster=False,
+                           sliding_window_duration=sliding_window_duration,
+                           show_sum_spikes_as_percentage=True,
+                           plot_with_amplitude=False,
+                           activity_threshold=activity_threshold,
+                           save_formats="pdf")
+    return best_seq, seq_dict_tmp
+
+    #### test for coloring sequences
+    spike_nums_ordered = np.copy(spike_nums[best_seq, :])
+
+    if debug_mode:
+        print(f"best_seq {best_seq}")
+    if seq_dict_tmp is not None:
+        if debug_mode:
+            for key, value in seq_dict_tmp.items():
+                print(f"seq: {key}, rep: {len(value)}")
+
+        best_seq_mapping_index = dict()
+        for i, cell in enumerate(best_seq):
+            best_seq_mapping_index[cell] = i
+        # we need to replace the index by the corresponding one in best_seq
+        seq_dict = dict()
+        for key, value in seq_dict_tmp.items():
+            new_key = []
+            for cell in key:
+                new_key.append(best_seq_mapping_index[cell])
+            seq_dict[tuple(new_key)] = value
+
+        seq_colors = dict()
+        len_seq = len(seq_dict)
+        if debug_mode:
+            print(f"nb seq to colors: {len_seq}")
+        for index, key in enumerate(seq_dict.keys()):
+            seq_colors[key] = cm.nipy_spectral(float(index + 1) / (len_seq + 1))
+            if debug_mode:
+                print(f"color {seq_colors[key]}, len(seq) {len(key)}")
+    else:
+        seq_dict = None
+        seq_colors = None
+    # ordered_spike_nums = ordered_spike_data
+    # spike_struct.ordered_spike_data = \
+    #     trains_module.from_spike_nums_to_spike_trains(spike_struct.ordered_spike_data)
+    new_labels = np.arange(len(spike_nums))
+    new_labels = new_labels[best_seq]
+    loss_score = loss_function_with_sliding_window(spike_nums=spike_nums_ordered,
+                                                   time_inter_seq=param.time_inter_seq,
+                                                   min_duration_intra_seq=param.min_duration_intra_seq,
+                                                   spike_train_mode=False,
+                                                   debug_mode=True
+                                                   )
+    print(f'total loss_score ordered: {np.round(loss_score, 4)}')
+    # saving the ordered spike_nums
+    # micro_wires_ordered = micro_wires[best_seq]
+    # np.savez(f'{param.path_results}/{channels_selection}_spike_nums_ordered_{patient_id}.npz',
+    #          spike_nums_ordered=spike_nums_ordered, micro_wires_ordered=micro_wires_ordered)
+
+    plot_spikes_raster(spike_nums=spike_nums_ordered, param=param,
+                       title=f"raster plot ordered {title_option}",
+                       spike_train_format=False,
+                       file_name=f"spike_nums_ordered_{title_option}",
+                       y_ticks_labels=new_labels,
+                       y_ticks_labels_size=5,
+                       save_raster=True,
+                       show_raster=False,
+                       sliding_window_duration=sliding_window_duration,
+                       show_sum_spikes_as_percentage=True,
+                       plot_with_amplitude=False,
+                       activity_threshold=activity_threshold,
+                       save_formats="png",
+                       seq_times_to_color_dict=seq_dict,
+                       seq_colors=seq_colors)
+
+    return best_seq, seq_dict_tmp
+
+
+def use_new_pattern_package(spike_nums, param, activity_threshold, sliding_window_duration,
+                            mouse_id, n_surrogate=2, debug_mode=False, without_raw_plot=True):
+    # around 250 ms
+    # param.time_inter_seq
+    # param.min_duration_intra_seq
+    # -(10 ** (6 - decrease_factor)) // 40
+    # a sequence should be composed of at least one third of the neurons
+    # param.min_len_seq = len(spike_nums_struct.spike_data) // 4
+    # param.min_len_seq = 5
+    # param.error_rate = param.min_len_seq // 4
+
+    labels = np.arange(len(spike_nums))
+
+    if not without_raw_plot:
+        plot_spikes_raster(spike_nums=spike_nums, param=param,
+                           spike_train_format=False,
+                           title=f"raster plot {mouse_id}",
+                           file_name=f"raw_spike_nums_{mouse_id}",
+                           y_ticks_labels=labels,
+                           y_ticks_labels_size=4,
+                           save_raster=True,
+                           show_raster=False,
+                           plot_with_amplitude=False,
+                           activity_threshold=activity_threshold,
+                           # 500 ms window
+                           sliding_window_duration=sliding_window_duration,
+                           show_sum_spikes_as_percentage=True,
+                           spike_shape="|",
+                           spike_shape_size=1,
+                           save_formats="pdf")
+    # continue
+
+    # 2128885
+    loss_score = loss_function_with_sliding_window(spike_nums=spike_nums,
+                                                   time_inter_seq=param.time_inter_seq,
+                                                   spike_train_mode=False,
+                                                   min_duration_intra_seq=param.min_duration_intra_seq,
+                                                   debug_mode=debug_mode)
+
+    print(f'raw loss_score: {np.round(loss_score, 4)}')
+
+    # spike_struct.spike_data = trains_module.from_spike_trains_to_spike_nums(spike_struct.spike_data)
+
+    best_seq, seq_dict = sort_it_and_plot_it(spike_nums=spike_nums, param=param,
+                                             sliding_window_duration=sliding_window_duration,
+                                             activity_threshold=activity_threshold,
+                                             title_option=f"{mouse_id}",
+                                             spike_train_format=False,
+                                             debug_mode=debug_mode)
+
+    nb_cells = len(spike_nums)
+
+    print("#### REAL DATA ####")
+    print(f"best_seq {best_seq}")
+    real_data_result_for_stat = SortedDict()
+    neurons_sorted_real_data = np.zeros(nb_cells, dtype="uint16")
+    if seq_dict is not None:
+        for key, value in seq_dict.items():
+            print(f"len: {len(key)}, seq: {key}, rep: {len(value)}")
+            if len(key) not in real_data_result_for_stat:
+                real_data_result_for_stat[len(key)] = []
+            real_data_result_for_stat[len(key)].append(len(value))
+            for cell in key:
+                if neurons_sorted_real_data[cell] == 0:
+                    neurons_sorted_real_data[cell] = 1
+
+    n_times = len(spike_nums[0, :])
+
+    print("#### SURROGATE DATA ####")
+    # n_surrogate = 2
+    surrogate_data_result_for_stat = SortedDict()
+    neurons_sorted_surrogate_data = np.zeros(nb_cells, dtype="uint16")
+    for surrogate_number in np.arange(n_surrogate):
+        copy_spike_nums = np.copy(spike_nums)
+        for n, neuron_spikes in enumerate(copy_spike_nums):
+            # roll the data to a random displace number
+            copy_spike_nums[n, :] = np.roll(neuron_spikes, np.random.randint(1, n_times))
+        tmp_spike_nums = copy_spike_nums
+
+        best_seq, seq_dict = sort_it_and_plot_it(spike_nums=tmp_spike_nums, param=param,
+                                                 sliding_window_duration=sliding_window_duration,
+                                                 activity_threshold=activity_threshold,
+                                                 title_option=f"surrogate {mouse_id}",
+                                                 spike_train_format=False,
+                                                 debug_mode=False)
+
+        print(f"best_seq {best_seq}")
+
+        mask = np.zeros(nb_cells, dtype="bool")
+        if seq_dict is not None:
+            for key, value in seq_dict.items():
+                print(f"len: {len(key)}, seq: {key}, rep: {len(value)}")
+                if len(key) not in surrogate_data_result_for_stat:
+                    surrogate_data_result_for_stat[len(key)] = []
+                surrogate_data_result_for_stat[len(key)].append(len(value))
+                for cell in key:
+                    mask[cell] = True
+            neurons_sorted_surrogate_data[mask] += 1
+    # min_time, max_time = trains_module.get_range_train_list(spike_nums)
+    # surrogate_data_set = create_surrogate_dataset(train_list=spike_nums, nsurrogate=n_surrogate,
+    #                                               min_value=min_time, max_value=max_time)
+    print("")
+    print("")
+
+    give_me_stat_on_sorting_seq_results(results_dict=real_data_result_for_stat,
+                                        neurons_sorted=neurons_sorted_real_data,
+                                        title="%%%% DATA SET STAT %%%%%", param=param,
+                                        results_dict_surrogate=surrogate_data_result_for_stat,
+                                        neurons_sorted_surrogate=neurons_sorted_surrogate_data)
+
+
+def give_me_stat_on_sorting_seq_results(results_dict, neurons_sorted, title, param,
+                                        results_dict_surrogate=None, neurons_sorted_surrogate=None):
+    """
+    Key will be the length of the sequence and value will be a list of int, representing the nb of rep
+    of the different lists
+    :param results_dict:
+    :return:
+    """
+    file_name = f'{param.path_results}/sorting_results_{param.time_str}.txt'
+    with open(file_name, "w", encoding='UTF-8') as file:
+        file.write(f"{title}" + '\n')
+        file.write("" + '\n')
+        min_len = 1000
+        max_len = 0
+        for key in results_dict.keys():
+            min_len = np.min((key, min_len))
+            max_len = np.max((key, max_len))
+        if results_dict_surrogate is not None:
+            for key in results_dict_surrogate.keys():
+                min_len = np.min((key, min_len))
+                max_len = np.max((key, max_len))
+
+        # key reprensents the length of a seq
+        for key in np.arange(min_len, max_len + 1):
+            nb_seq = None
+            nb_seq_surrogate = None
+            if key in results_dict:
+                nb_seq = results_dict[key]
+            if key in results_dict_surrogate:
+                nb_seq_surrogate = results_dict_surrogate[key]
+            str_to_write = ""
+            str_to_write += f"### Length {key}: \n"
+            real_data_in = False
+            if nb_seq is not None:
+                real_data_in = True
+                str_to_write += f"# Real data: mean {np.round(np.mean(nb_seq), 3)}"
+                if np.std(nb_seq) > 0:
+                    str_to_write += f", std {np.round(np.std(nb_seq), 3)}"
+            if nb_seq_surrogate is not None:
+                if real_data_in:
+                    str_to_write += f"\n"
+                str_to_write += f"# Surrogate: mean {np.round(np.mean(nb_seq_surrogate), 3)}"
+                if np.std(nb_seq_surrogate) > 0:
+                    str_to_write += f", std {np.round(np.std(nb_seq_surrogate), 3)}"
+            else:
+                if not real_data_in:
+                    continue
+            str_to_write += '\n'
+            file.write(f"{str_to_write}")
+        file.write("" + '\n')
+        file.write("///// Neurons sorted /////" + '\n')
+        file.write("" + '\n')
+
+        for index in np.arange(len(neurons_sorted)):
+            go_for = False
+            if neurons_sorted_surrogate is not None:
+                if neurons_sorted_surrogate[index] == 0:
+                    pass
+                else:
+                    go_for = True
+            if (not go_for) and neurons_sorted[index] == 0:
+                continue
+            str_to_write = f"Neuron {index}, x "
+            if neurons_sorted_surrogate is not None:
+                str_to_write += f"{neurons_sorted_surrogate[index]} / "
+            str_to_write += f"{neurons_sorted[index]}"
+            if neurons_sorted_surrogate is not None:
+                str_to_write += " (surrogate / real data)"
+            str_to_write += '\n'
+            file.write(f"{str_to_write}")
+
+
 def main():
     root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
     path_data = root_path + "data/"
-    path_results_raw = root_path + "results/"
+    path_results_raw = root_path + "results_hne/"
 
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     path_results = path_results_raw + f"{time_str}"
@@ -289,7 +605,30 @@ def main():
 
     available_ms = [p7_171012_a000_ms, p12_171110_a000_ms, arnaud_ms]
     ms_to_analyse = [p7_171012_a000_ms]
-    ms_to_analyse = [p12_171110_a000_ms]
+
+    do_clustering = True
+    # if False, clustering will be done using kmean
+    do_fca_clustering = False
+    with_cells_in_cluster_seq_sorted = False
+
+    # for events (sce) detection
+    perc_threshold = 99
+    n_surrogate_activity_threshold = 100
+
+    # for fca
+    n_surrogate_fca = 20
+
+    # for kmean
+    with_shuffling = True
+    use_raster_dur = False
+    print(f"use_raster_dur {use_raster_dur}")
+    range_n_clusters_k_mean = np.arange(2, 20)
+    n_surrogate_k_mean = 50
+
+    do_pattern_search = False
+    # seq params:
+    param.error_rate = 5
+    param.max_branches = 5
 
     # ------------------------------ param section ------------------------------
 
@@ -304,22 +643,16 @@ def main():
         n_cells = len(spike_struct.spike_nums)
         # spike_struct.build_spike_trains()
 
+        # ######  parameters setting #########
         data_descr = f"{ms.description}"
         debug_mode = True
-        with_cells_in_cluster_seq_sorted = True
 
-        sarah_way = False
-        if sarah_way:
+        if do_fca_clustering:
             sliding_window_duration = 5
             spike_nums_to_use = spike_struct.spike_nums
             # sigma is the std of the random distribution used to jitter the data
             sigma = 20
-            n_surrogate_fca = 20
         else:
-            range_n_clusters_k_mean = np.arange(10, 11)
-            n_surrogate_k_mean = 50
-            with_shuffling = False
-            use_raster_dur = True
             if use_raster_dur:
                 sliding_window_duration = 1
                 spike_nums_to_use = spike_struct.spike_nums_dur
@@ -328,8 +661,9 @@ def main():
                 sliding_window_duration = 5
                 spike_nums_to_use = spike_struct.spike_nums
 
-        perc_threshold = 95
-        n_surrogate_activity_threshold = 100
+
+        # ######  end parameters setting #########
+
         activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use,
                                                          window_duration=sliding_window_duration,
                                                          spike_train_mode=False,
@@ -344,23 +678,22 @@ def main():
 
         print("plot_spikes_raster")
 
-        if True:
-            plot_spikes_raster(spike_nums=spike_nums_to_use, param=ms.param,
-                               spike_train_format=False,
-                               title=f"raster plot {data_descr}",
-                               file_name=f"spike_nums_{data_descr}",
-                               y_ticks_labels=spike_struct.labels,
-                               y_ticks_labels_size=4,
-                               save_raster=True,
-                               show_raster=False,
-                               plot_with_amplitude=False,
-                               activity_threshold=spike_struct.activity_threshold,
-                               # 500 ms window
-                               sliding_window_duration=sliding_window_duration,
-                               show_sum_spikes_as_percentage=True,
-                               spike_shape="|",
-                               spike_shape_size=1,
-                               save_formats="pdf")
+        plot_spikes_raster(spike_nums=spike_nums_to_use, param=ms.param,
+                           spike_train_format=False,
+                           title=f"raster plot {data_descr}",
+                           file_name=f"spike_nums_{data_descr}",
+                           y_ticks_labels=spike_struct.labels,
+                           y_ticks_labels_size=4,
+                           save_raster=True,
+                           show_raster=False,
+                           plot_with_amplitude=False,
+                           activity_threshold=spike_struct.activity_threshold,
+                           # 500 ms window
+                           sliding_window_duration=sliding_window_duration,
+                           show_sum_spikes_as_percentage=True,
+                           spike_shape="|",
+                           spike_shape_size=1,
+                           save_formats="pdf")
 
         # TODO: detect_sce_with_sliding_window with spike_trains
         sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
@@ -385,61 +718,52 @@ def main():
         # return a dict of list of list of neurons, representing the best clusters
         # (as many as nth_best_clusters).
         # the key is the K from the k-mean
-
-        if sarah_way:
-            compute_and_plot_clusters_raster_fca_version(spike_trains=spike_struct.spike_trains,
-                                                         spike_nums=spike_struct.spike_nums,
-                                                         data_descr=data_descr, param=param,
-                                                         sliding_window_duration=sliding_window_duration,
-                                                         SCE_times=SCE_times, sce_times_numbers=sce_times_numbers,
-                                                         perc_threshold=perc_threshold,
-                                                         n_surrogate_activity_threshold=
-                                                         n_surrogate_activity_threshold,
-                                                         sigma=sigma, n_surrogate_fca=n_surrogate_fca,
-                                                         labels=spike_struct.labels,
-                                                         activity_threshold=activity_threshold,
-                                                         fca_early_stop=True,
-                                                         with_cells_in_cluster_seq_sorted=with_cells_in_cluster_seq_sorted)
-            #
-            # compute_and_plot_clusters_raster_sarah_s_way(spike_struct=spike_struct,
-            #                                              data_descr=data_descr, mouse_session=ms,
-            #                                              sliding_window_duration=sliding_window_duration,
-            #                                              SCE_times=SCE_times, sce_times_numbers=sce_times_numbers,
-            #                                              fca_early_stop=True,
-            #                                              perc_threshold=perc_threshold,
-            #                                              n_surrogate_activity_threshold=n_surrogate_activity_threshold)
-        else:
-            compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels,
-                                                           activity_threshold=ms.spike_struct.activity_threshold,
-                                                           range_n_clusters_k_mean=range_n_clusters_k_mean,
-                                                           n_surrogate_k_mean=n_surrogate_k_mean,
-                                                           with_shuffling=with_shuffling,
-                                                           spike_nums_to_use=spike_nums_to_use,
-                                                           cellsinpeak=cellsinpeak,
-                                                           data_descr=data_descr,
-                                                           param=ms.param,
-                                                           sliding_window_duration=sliding_window_duration,
-                                                           SCE_times=SCE_times, sce_times_numbers=sce_times_numbers,
-                                                           perc_threshold=perc_threshold,
-                                                           n_surrogate_activity_threshold=
-                                                           n_surrogate_activity_threshold,
-                                                           debug_mode=debug_mode,
-                                                           with_cells_in_cluster_seq_sorted=with_cells_in_cluster_seq_sorted)
-
-            # compute_and_plot_clusters_raster_arnaud_s_way(spike_struct=ms.spike_struct,
-            #                                               spike_nums_to_use=spike_nums_to_use,
-            #                                               cellsinpeak=cellsinpeak,
-            #                                               data_descr=data_descr, mouse_session=ms,
-            #                                               sliding_window_duration=sliding_window_duration,
-            #                                               SCE_times=SCE_times, sce_times_numbers=sce_times_numbers,
-            #                                               perc_threshold=perc_threshold,
-            #                                               n_surrogate_activity_threshold=n_surrogate_activity_threshold)
+        if do_clustering:
+            if do_fca_clustering:
+                compute_and_plot_clusters_raster_fca_version(spike_trains=spike_struct.spike_trains,
+                                                             spike_nums=spike_struct.spike_nums,
+                                                             data_descr=data_descr, param=param,
+                                                             sliding_window_duration=sliding_window_duration,
+                                                             SCE_times=SCE_times, sce_times_numbers=sce_times_numbers,
+                                                             perc_threshold=perc_threshold,
+                                                             n_surrogate_activity_threshold=
+                                                             n_surrogate_activity_threshold,
+                                                             sigma=sigma, n_surrogate_fca=n_surrogate_fca,
+                                                             labels=spike_struct.labels,
+                                                             activity_threshold=activity_threshold,
+                                                             fca_early_stop=True,
+                                                             with_cells_in_cluster_seq_sorted=
+                                                             with_cells_in_cluster_seq_sorted)
+            else:
+                compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels,
+                                                               activity_threshold=ms.spike_struct.activity_threshold,
+                                                               range_n_clusters_k_mean=range_n_clusters_k_mean,
+                                                               n_surrogate_k_mean=n_surrogate_k_mean,
+                                                               with_shuffling=with_shuffling,
+                                                               spike_nums_to_use=spike_nums_to_use,
+                                                               cellsinpeak=cellsinpeak,
+                                                               data_descr=data_descr,
+                                                               param=ms.param,
+                                                               sliding_window_duration=sliding_window_duration,
+                                                               SCE_times=SCE_times, sce_times_numbers=sce_times_numbers,
+                                                               perc_threshold=perc_threshold,
+                                                               n_surrogate_activity_threshold=
+                                                               n_surrogate_activity_threshold,
+                                                               debug_mode=debug_mode,
+                                                               with_cells_in_cluster_seq_sorted=
+                                                               with_cells_in_cluster_seq_sorted)
 
         ###################################################################
         ###################################################################
         # ##############    Sequences detection        ###################
         ###################################################################
         ###################################################################
+
+        if do_pattern_search:
+            print("Start of use_new_pattern_package")
+            use_new_pattern_package(spike_nums=spike_nums_to_use, param=param, activity_threshold=activity_threshold,
+                                    sliding_window_duration=sliding_window_duration, n_surrogate=2,
+                                    mouse_id=ms.description, debug_mode=True)
 
     return
 
