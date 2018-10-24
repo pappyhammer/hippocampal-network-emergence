@@ -566,9 +566,9 @@ def give_me_stat_on_sorting_seq_results(results_dict, neurons_sorted, title, par
 def save_stat_sce_detection_methods(spike_nums_to_use, activity_threshold, ms,
                                     SCE_times, param, sliding_window_duration,
                                     perc_threshold, use_raster_dur,
-                                    keep_max_each_surrogate,
+                                    keep_max_each_surrogate, ratio_spikes_events,
                                     n_surrogate_activity_threshold):
-    round_factor = 2
+    round_factor = 1
     raster_option = "raster_dur" if use_raster_dur else "onsets"
     technique_details = " max of each surrogate " if keep_max_each_surrogate else ""
     technique_details_file = "max_each_surrogate" if keep_max_each_surrogate else ""
@@ -589,6 +589,21 @@ def save_stat_sce_detection_methods(spike_nums_to_use, activity_threshold, ms,
         file.write(f"Sliding window duration {sliding_window_duration}" + '\n')
         file.write("" + '\n')
         file.write("" + '\n')
+
+        # ratio_spikes_events
+        file.write("Ratio spikes in events vs all spikes for each cell:" + '\n')
+        file.write(f"mean: {np.round(np.mean(ratio_spikes_events), round_factor)}, "
+                   f"std: {np.round(np.std(ratio_spikes_events), round_factor)}" + '\n')
+        file.write(f"median: {np.round(np.median(ratio_spikes_events), round_factor)}, "
+                   f"5th percentile: {np.round(np.percentile(ratio_spikes_events, 5), round_factor)}, "
+                   f"25th percentile {np.round(np.percentile(ratio_spikes_events, 25), round_factor)}, "
+                   f"75th percentile {np.round(np.percentile(ratio_spikes_events, 75), round_factor)}, "
+                   f"95th percentile {np.round(np.percentile(ratio_spikes_events, 95), round_factor)}" + '\n')
+        file.write('\n')
+        file.write('\n')
+        file.write("#" * 50 + '\n')
+        file.write('\n')
+        file.write('\n')
 
         if n_sce > 0:
             file.write("All events (SCEs) stat:" + '\n')
@@ -940,6 +955,62 @@ def plot_activity_duration_vs_age(mouse_sessions, ms_ages, duration_values_list,
     plt.close()
 
 
+def plot_hist_ratio_spikes_events(ratio_spikes_events, description, param, save_formats="pdf"):
+    distribution = np.array(ratio_spikes_events)
+    hist_color = "blue"
+    edge_color = "white"
+    max_range = np.max(distribution)
+    weights = (np.ones_like(distribution) / (len(distribution))) * 100
+
+    fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                            gridspec_kw={'height_ratios': [1]},
+                            figsize=(12, 12))
+    ax1.set_facecolor("black")
+    bins = int(np.sqrt(len(distribution)))
+    hist_plt, edges_plt, patches_plt = plt.hist(distribution, bins=bins,  # range=(0, max_range)
+                                                facecolor=hist_color,
+                                                edgecolor=edge_color,
+                                                weights=weights, log=False)
+    plt.xlim(0, max_range)
+    ax1.set_ylabel("Distribution (%)")
+    ax1.set_xlabel("spikes in event vs total spikes (%)")
+
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/{description}_hist_spike_events_ratio'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}")
+
+    plt.close()
+
+
+def get_ratio_spikes_on_events_vs_total_spikes_by_cell(spike_nums,
+                                                       spike_nums_dur,
+                                                       sce_times_numbers):
+    n_cells = len(spike_nums)
+    result = np.zeros(n_cells)
+
+    for cell in np.arange(n_cells):
+        n_spikes = np.sum(spike_nums[cell, :])
+        spikes_index = np.where(spike_nums_dur[cell, :])[0]
+        sce_numbers = sce_times_numbers[spikes_index]
+        # will give us all sce in which the cell spikes
+        sce_numbers = np.unique(sce_numbers)
+        # removing the -1, which is when it spikes not in a SCE
+        if len(np.where(sce_numbers == - 1)[0]) > 0:
+            sce_numbers = sce_numbers[1:]
+        # print(f"len sce_numbers {len(sce_numbers)}, sce_numbers {sce_numbers}, n_spikes {n_spikes}")
+        # print(f"len sce_times_numbers {len(np.unique(sce_times_numbers))}, sce_numbers {np.unique(sce_times_numbers)}")
+        if n_spikes == 0:
+            result[cell] = - 1
+        else:
+            result[cell] = np.min((((len(sce_numbers) / n_spikes) * 100), 100))
+    # removing cells without spikes
+    result = result[result >= 0]
+    return result
+
+
 def main():
     root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
     path_data = root_path + "data/"
@@ -1164,10 +1235,10 @@ def main():
 
     do_clustering = True
     # if False, clustering will be done using kmean
-    do_fca_clustering = True
+    do_fca_clustering = False
     with_cells_in_cluster_seq_sorted = False
 
-    just_do_stat_on_event_detection_parameters = False
+    just_do_stat_on_event_detection_parameters = True
 
     # for events (sce) detection
     perc_threshold = 99
@@ -1181,7 +1252,7 @@ def main():
     with_shuffling = True
     use_raster_dur = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 18)
+    range_n_clusters_k_mean = np.arange(2, 6)
     n_surrogate_k_mean = 20
 
     do_pattern_search = False
@@ -1202,6 +1273,7 @@ def main():
         mean_activity_values_list = []
         overall_activity_values_list = []
         ms_ages = []
+        ratio_spikes_events_by_age = dict()
 
         for ms in available_ms:
             ms_ages.append(ms.age)
@@ -1265,6 +1337,7 @@ def main():
                     print(f"sce_with_sliding_window detected")
                     # tuple of times
                     SCE_times = sce_detection_result[1]
+                    sce_times_numbers = sce_detection_result[3]
 
                     print(f"ms {ms.description}, {len(SCE_times)} sce "
                           f"activity threshold {activity_threshold}, "
@@ -1299,9 +1372,20 @@ def main():
                                        spike_shape_size=0.5,
                                        save_formats="pdf")
 
+                    # return an array of size n_cells, with each value the ratio as a float (percentage)
+                    ratio_spikes_events = get_ratio_spikes_on_events_vs_total_spikes_by_cell(
+                        spike_nums=spike_struct.spike_nums,
+                        spike_nums_dur=spike_struct.spike_nums_dur,
+                        sce_times_numbers=sce_times_numbers)
+                    if ms.age not in ratio_spikes_events_by_age:
+                        ratio_spikes_events_by_age[ms.age] = list(ratio_spikes_events)
+                    else:
+                        ratio_spikes_events_by_age[ms.age].extend(list(ratio_spikes_events))
+
                     res = save_stat_sce_detection_methods(spike_nums_to_use=spike_nums_to_use,
                                                           activity_threshold=activity_threshold,
                                                           ms=ms,
+                                                          ratio_spikes_events=ratio_spikes_events,
                                                           SCE_times=SCE_times, param=param,
                                                           sliding_window_duration=sliding_window_duration,
                                                           perc_threshold=perc_threshold,
@@ -1313,6 +1397,14 @@ def main():
                     max_activity_values_list.append(res[1])
                     mean_activity_values_list.append(res[2])
                     overall_activity_values_list.append(res[3])
+
+            plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes_events, description=ms.description,
+                                          param=param)
+
+        for age, ratio_spikes in ratio_spikes_events_by_age.items():
+            plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes,
+                                          description=f"p{age}",
+                                          param=param)
 
         plot_activity_duration_vs_age(mouse_sessions=available_ms, ms_ages=ms_ages,
                                       duration_values_list=duration_values_list,
@@ -1409,6 +1501,7 @@ def main():
                 print(f"{spike_struct.labels[cell_index]} median isi: {np.round(np.median(cells_isi[cell_index]), 2)}, "
                       f"mean isi {np.round(np.mean(cells_isi[cell_index]), 2)}")
 
+
         # return a dict of list of list of neurons, representing the best clusters
         # (as many as nth_best_clusters).
         # the key is the K from the k-mean
@@ -1446,6 +1539,7 @@ def main():
                                                                n_surrogate_activity_threshold=
                                                                n_surrogate_activity_threshold,
                                                                debug_mode=debug_mode,
+                                                               fct_to_keep_best_silhouettes=np.median,
                                                                with_cells_in_cluster_seq_sorted=
                                                                with_cells_in_cluster_seq_sorted,
                                                                keep_only_the_best=True)
