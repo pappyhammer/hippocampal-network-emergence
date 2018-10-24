@@ -4,7 +4,7 @@ from sklearn.cluster import KMeans
 import matplotlib
 import matplotlib.cm as cm
 import matplotlib.gridspec as gridspec
-
+from bisect import bisect
 # important to avoid a bug when using virtualenv
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -719,15 +719,19 @@ def plot_activity_duration_vs_age(mouse_sessions, ms_ages, duration_values_list,
     # TODO: merge data from the same age
     # TODO: Show data with stds
     for index_raw, raw_y_data in enumerate(raw_y_datas):
-        fcts_to_apply = [np.mean]
-        fcts_descr = ["mean"]
+        fcts_to_apply = [np.median]
+        fcts_descr = ["median"]
         for index_fct, fct_to_apply in enumerate(fcts_to_apply):
             # raw_y_data is a list of np.array, we need to apply a fct to each array so we keep only one value
             y_data = np.zeros(len(ms_ages))
             stds = np.zeros(len(ms_ages))
+            high_percentile_participation = np.zeros(len(ms_ages))
+            low_percentile_participation = np.zeros(len(ms_ages))
             for index, data in enumerate(raw_y_data):
                 y_data[index] = fct_to_apply(data)
                 stds[index] = np.std(data)
+                high_percentile_participation[index] = np.percentile(data, 95)
+                low_percentile_participation[index] = np.percentile(data, 5)
 
             fig, ax1 = plt.subplots(nrows=1, ncols=1,
                                     gridspec_kw={'height_ratios': [1]},
@@ -740,7 +744,8 @@ def plot_activity_duration_vs_age(mouse_sessions, ms_ages, duration_values_list,
             #             s=12, zorder=20)
             ax1.plot(ms_ages, y_data, color="blue")
             # stds = np.array(std_power_spectrum[freq_min_index:freq_max_index])
-            ax1.fill_between(ms_ages, y_data - stds, y_data + stds, alpha=0.5, facecolor="blue")
+            ax1.fill_between(ms_ages, low_percentile_participation, high_percentile_participation,
+                             alpha=0.5, facecolor="blue")
 
             ax1.set_ylabel(y_data_labels[index_raw] + f" ({fcts_descr[index_fct]})")
             ax1.set_xlabel("age")
@@ -767,11 +772,13 @@ def plot_activity_duration_vs_age(mouse_sessions, ms_ages, duration_values_list,
     for index, age in enumerate(ms_ages):
         # color = cm.nipy_spectral(float(age-5) / (len(ms_ages)))
         # indices_rand used for jittering
-        indices_rand = np.linspace(-0.5, 0.5, len(duration_values_list[index]))
-        indices_rand_y = np.copy(indices_rand)
+        jitter_range_x = 0.5
+        indices_rand = np.linspace(-jitter_range_x, jitter_range_x, len(duration_values_list[index]))
+        jitter_range_y = 0.3
+        indices_rand_y = np.linspace(-jitter_range_y, jitter_range_y, len(duration_values_list[index]))
         np.random.shuffle(indices_rand)
         np.random.shuffle(indices_rand_y)
-        max_x = np.max((max_x, np.max(overall_activity_values_list[index])))
+        max_x = np.max((max_x, np.max(duration_values_list[index])))
         ax1.scatter(duration_values_list[index] + indices_rand,
                     overall_activity_values_list[index] + indices_rand_y,
                     color=colors[index % (len(colors))],
@@ -789,6 +796,73 @@ def plot_activity_duration_vs_age(mouse_sessions, ms_ages, duration_values_list,
         save_formats = [save_formats]
     for save_format in save_formats:
         fig.savefig(f'{param.path_results}/participation_vs_duration'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}")
+    plt.close()
+
+
+    ###################
+    ###################
+    # then the same with band of colors
+    ###################
+
+    fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                            gridspec_kw={'height_ratios': [1]},
+                            figsize=(20, 20))
+    ax1.set_facecolor("black")
+
+    colors = ["darkmagenta", "white", "saddlebrown", "blue", "red", "darkgrey", "chartreuse", "gold", "cornflowerblue",
+              "pink", "darkgreen"]
+    max_x = 0
+    # from 1 to 79, 15 bins
+    ranges = np.logspace(0, 1.9, 15)
+    for index, age in enumerate(ms_ages):
+        # first we want to bin the duration values
+        # gathering participation for each common duration
+        duration_d = SortedDict()
+        overall_activity_values = overall_activity_values_list[index]
+        for i_duration, duration_value in enumerate(duration_values_list[index]):
+            range_pos = bisect(ranges, duration_value) - 1
+            range_value = ranges[range_pos]
+            if range_value not in duration_d:
+                duration_d[range_value] = [overall_activity_values[i_duration]]
+            else:
+                duration_d[range_value].append(overall_activity_values[i_duration])
+
+        average_participation = np.zeros(len(duration_d))
+        stds_participation = np.zeros(len(duration_d))
+        high_percentile_participation = np.zeros(len(duration_d))
+        low_percentile_participation = np.zeros(len(duration_d))
+        durations = np.zeros(len(duration_d))
+
+        for i, duration in enumerate(duration_d.keys()):
+            durations[i] = duration
+            participations = duration_d[duration]
+            average_participation[i] = np.median(participations)
+            stds_participation[i] = np.std(participations)
+            high_percentile_participation[i] = np.percentile(participations, 75)
+            low_percentile_participation[i] = np.percentile(participations, 25)
+
+        max_x = np.max((max_x, np.max(duration_values_list[index])))
+
+        ax1.plot(durations, average_participation, color=colors[index % (len(colors))], label=f"P{age}")
+        # ax1.fill_between(durations, average_participation - stds_participation, average_participation + stds_participation,
+        #                  alpha=0.5, facecolor=colors[index % (len(colors))])
+
+        ax1.fill_between(durations, low_percentile_participation, high_percentile_participation,
+                         alpha=0.5, facecolor=colors[index % (len(colors))])
+
+    ax1.set_xscale("log")
+    ax1.set_xlim(0.4, max_x + 5)
+    ax1.set_yscale("log")
+    ax1.legend()
+    ax1.set_ylabel("Participation (%)")
+    ax1.set_xlabel("Duration (frames)")
+
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/participation_vs_duration_bands'
                     f'_{param.time_str}.{save_format}',
                     format=f"{save_format}")
     plt.close()
@@ -836,9 +910,13 @@ def plot_activity_duration_vs_age(mouse_sessions, ms_ages, duration_values_list,
 
     y_data = np.zeros(len(ms_weights))
     stds = np.zeros(len(ms_weights))
+    high_percentile_participation = np.zeros(len(ms_weights))
+    low_percentile_participation = np.zeros(len(ms_weights))
     for index, data in enumerate(overall_activity_values_list_normalized):
-        y_data[index] = np.mean(data)
+        y_data[index] = np.median(data)
         stds[index] = np.std(data)
+        high_percentile_participation[index] = np.percentile(data, 95)
+        low_percentile_participation[index] = np.percentile(data, 5)
 
     fig, ax1 = plt.subplots(nrows=1, ncols=1,
                             gridspec_kw={'height_ratios': [1]},
@@ -846,7 +924,8 @@ def plot_activity_duration_vs_age(mouse_sessions, ms_ages, duration_values_list,
     ax1.set_facecolor("black")
     ax1.plot(ms_weights, y_data, color="blue")
     # stds = np.array(std_power_spectrum[freq_min_index:freq_max_index])
-    ax1.fill_between(ms_weights, y_data - stds, y_data + stds, alpha=0.5, facecolor="blue")
+    ax1.fill_between(ms_weights, low_percentile_participation, high_percentile_participation,
+                     alpha=0.5, facecolor="blue")
 
     ax1.set_ylabel("Overall participation normalized")
     ax1.set_xlabel("weight (grams)")
@@ -859,6 +938,7 @@ def plot_activity_duration_vs_age(mouse_sessions, ms_ages, duration_values_list,
                     format=f"{save_format}")
 
     plt.close()
+
 
 def main():
     root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
@@ -1071,20 +1151,23 @@ def main():
                     p7_17_10_18_a002_ms, p7_17_10_18_a004_ms, p7_18_02_08_a001_ms, p7_18_02_08_a002_ms,
                     p7_18_02_08_a003_ms,
                     p8_18_02_09_a000_ms, p8_18_02_09_a001_ms,
-                    p9_17_11_29_a002_ms, p9_17_11_29_a003_ms, p9_17_12_06_a001_ms, p9_17_12_20_a001_ms,
+                    p9_17_12_06_a001_ms, p9_17_12_20_a001_ms,
                     p10_17_11_16_a003_ms,
                     p11_17_11_24_a001_ms, p11_17_11_24_a000_ms,
                     p12_17_11_10_a002_ms, p12_171110_a000_ms]
-    #
+    # p9_17_11_29_a002_ms, p9_17_11_29_a003_ms removed because died just after
+    # available_ms = [p6_18_02_07_a001_ms, p7_171012_a000_ms, p8_18_02_09_a000_ms, p9_17_12_20_a001_ms,
+    #                 p10_17_11_16_a003_ms, p12_171110_a000_ms]
+
     ms_to_analyse = [arnaud_ms]
     # ms_to_analyse = [p6_18_02_07_a001_ms, p6_18_02_07_a002_ms]
 
     do_clustering = True
     # if False, clustering will be done using kmean
-    do_fca_clustering = False
+    do_fca_clustering = True
     with_cells_in_cluster_seq_sorted = False
 
-    just_do_stat_on_event_detection_parameters = True
+    just_do_stat_on_event_detection_parameters = False
 
     # for events (sce) detection
     perc_threshold = 99
@@ -1098,8 +1181,8 @@ def main():
     with_shuffling = True
     use_raster_dur = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(6, 7)
-    n_surrogate_k_mean = 10
+    range_n_clusters_k_mean = np.arange(2, 18)
+    n_surrogate_k_mean = 20
 
     do_pattern_search = False
     # seq params:
@@ -1344,7 +1427,8 @@ def main():
                                                              activity_threshold=activity_threshold,
                                                              fca_early_stop=True,
                                                              with_cells_in_cluster_seq_sorted=
-                                                             with_cells_in_cluster_seq_sorted)
+                                                             with_cells_in_cluster_seq_sorted,
+                                                             use_uniform_jittering=True)
             else:
                 compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels,
                                                                activity_threshold=ms.spike_struct.activity_threshold,
@@ -1363,7 +1447,8 @@ def main():
                                                                n_surrogate_activity_threshold,
                                                                debug_mode=debug_mode,
                                                                with_cells_in_cluster_seq_sorted=
-                                                               with_cells_in_cluster_seq_sorted)
+                                                               with_cells_in_cluster_seq_sorted,
+                                                               keep_only_the_best=True)
 
         ###################################################################
         ###################################################################
