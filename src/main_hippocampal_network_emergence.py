@@ -29,6 +29,7 @@ from sortedcontainers import SortedList, SortedDict
 # then show all, then select the interpreter and lick on the more right icon to display a list of folder and
 # add the one containing the folder pattern_discovery
 from pattern_discovery.seq_solver.markov_way import MarkovParameters
+from pattern_discovery.seq_solver.markov_way import find_sequences_in_ordered_spike_nums
 import pattern_discovery.tools.param as p_disc_param
 import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.display.raster import plot_spikes_raster
@@ -141,6 +142,7 @@ class HNESpikeStructure:
         self.spike_amplitudes = None
 
     def set_spike_durations(self, spike_durations_array):
+        # print(f"np.shape(spike_durations_array) {np.shape(spike_durations_array)}")
         self.spike_durations = []
         avg_spike_duration_by_cell = np.zeros(len(spike_durations_array))
         for cell_id, spikes_d in enumerate(spike_durations_array):
@@ -161,6 +163,11 @@ class HNESpikeStructure:
         # interneurons_threshold_99 = avg_spike_duration_by_cell_ordered[int(n_cells * (1 - 0.01)]
         # interneurons_threshold_99_indices = cells_ordered_by_duration[int(n_cells * (1 - 0.01)]
         #
+
+        # if self.mouse_session.session_id == "18_10_23_a001":
+        #     for cell_id, avg in enumerate(avg_spike_duration_by_cell):
+        #         print(f"cell_id {cell_id}, avg {avg}")
+
         interneurons_threshold_95 = np.percentile(avg_spike_duration_by_cell, 95)
         interneurons_threshold_99 = np.percentile(avg_spike_duration_by_cell, 99)
 
@@ -325,13 +332,15 @@ class CoordClass:
 
 def sort_it_and_plot_it(spike_nums, param,
                         sliding_window_duration, activity_threshold, title_option="",
+                        sce_times_bool=None,
                         spike_train_format=False,
                         debug_mode=False,
                         plot_all_best_seq_by_cell=False):
     if spike_train_format:
         return
+    # if sce_times_bool is not None, then we don't take in consideration SCE_time to do the pair-wise correlation
     result = pattern_discovery.seq_solver.markov_way.order_spike_nums_by_seq(spike_nums,
-                                                                             param,
+                                                                             param, sce_times_bool=sce_times_bool,
                                                                              debug_mode=debug_mode)
     seq_dict_tmp, best_seq, all_best_seq = result
 
@@ -385,40 +394,46 @@ def sort_it_and_plot_it(spike_nums, param,
                            plot_with_amplitude=False,
                            activity_threshold=activity_threshold,
                            save_formats="pdf")
-    return best_seq, seq_dict_tmp
 
     #### test for coloring sequences
     spike_nums_ordered = np.copy(spike_nums[best_seq, :])
-
-    if debug_mode:
-        print(f"best_seq {best_seq}")
-    if seq_dict_tmp is not None:
-        if debug_mode:
-            for key, value in seq_dict_tmp.items():
-                print(f"seq: {key}, rep: {len(value)}")
-
-        best_seq_mapping_index = dict()
-        for i, cell in enumerate(best_seq):
-            best_seq_mapping_index[cell] = i
-        # we need to replace the index by the corresponding one in best_seq
-        seq_dict = dict()
-        for key, value in seq_dict_tmp.items():
-            new_key = []
-            for cell in key:
-                new_key.append(best_seq_mapping_index[cell])
-            seq_dict[tuple(new_key)] = value
-
-        seq_colors = dict()
-        len_seq = len(seq_dict)
-        if debug_mode:
-            print(f"nb seq to colors: {len_seq}")
-        for index, key in enumerate(seq_dict.keys()):
-            seq_colors[key] = cm.nipy_spectral(float(index + 1) / (len_seq + 1))
-            if debug_mode:
-                print(f"color {seq_colors[key]}, len(seq) {len(key)}")
-    else:
-        seq_dict = None
-        seq_colors = None
+    print(f"starting finding sequences in orderered spike nums")
+    seq_dict = find_sequences_in_ordered_spike_nums(spike_nums=spike_nums_ordered, param=param)
+    print(f"Sequences in orderered spike nums found")
+    # if debug_mode:
+    #     print(f"best_seq {best_seq}")
+    # if seq_dict_tmp is not None:
+    #     if debug_mode:
+    #         for key, value in seq_dict_tmp.items():
+    #             print(f"seq: {key}, rep: {len(value)}")
+    #
+    #     best_seq_mapping_index = dict()
+    #     for i, cell in enumerate(best_seq):
+    #         best_seq_mapping_index[cell] = i
+    #     # we need to replace the index by the corresponding one in best_seq
+    #     seq_dict = dict()
+    #     for key, value in seq_dict_tmp.items():
+    #         new_key = []
+    #         for cell in key:
+    #             new_key.append(best_seq_mapping_index[cell])
+    #         # checking if the list of cell is in the same order in best_seq
+    #         # if the diff is only composed of one, this means all indices are following each other
+    #         in_order = len(np.where(np.diff(new_key) != 1)[0]) == 0
+    #         if in_order:
+    #             print(f"in_order {new_key}")
+    #             seq_dict[tuple(new_key)] = value
+    #
+    #     seq_colors = dict()
+    #     len_seq = len(seq_dict)
+    #     if debug_mode:
+    #         print(f"nb seq to colors: {len_seq}")
+    #     for index, key in enumerate(seq_dict.keys()):
+    #         seq_colors[key] = cm.nipy_spectral(float(index + 1) / (len_seq + 1))
+    #         if debug_mode:
+    #             print(f"color {seq_colors[key]}, len(seq) {len(key)}")
+    # else:
+    #     seq_dict = None
+    #     seq_colors = None
     # ordered_spike_nums = ordered_spike_data
     # spike_struct.ordered_spike_data = \
     #     trains_module.from_spike_nums_to_spike_trains(spike_struct.ordered_spike_data)
@@ -436,27 +451,34 @@ def sort_it_and_plot_it(spike_nums, param,
     # np.savez(f'{param.path_results}/{channels_selection}_spike_nums_ordered_{patient_id}.npz',
     #          spike_nums_ordered=spike_nums_ordered, micro_wires_ordered=micro_wires_ordered)
 
+    colors_for_seq_list = ["blue", "red", "limegreen", "grey", "orange", "cornflowerblue", "yellow", "seagreen",
+                           "magenta"]
     plot_spikes_raster(spike_nums=spike_nums_ordered, param=param,
                        title=f"raster plot ordered {title_option}",
                        spike_train_format=False,
-                       file_name=f"spike_nums_ordered_{title_option}",
+                       file_name=f"spike_nums_ordered_seq_{title_option}",
                        y_ticks_labels=new_labels,
-                       y_ticks_labels_size=5,
+                       y_ticks_labels_size=2,
                        save_raster=True,
                        show_raster=False,
                        sliding_window_duration=sliding_window_duration,
                        show_sum_spikes_as_percentage=True,
                        plot_with_amplitude=False,
                        activity_threshold=activity_threshold,
-                       save_formats="png",
+                       save_formats="pdf",
                        seq_times_to_color_dict=seq_dict,
-                       seq_colors=seq_colors)
+                       link_seq_color=colors_for_seq_list,
+                       link_seq_line_width=0.8,
+                       link_seq_alpha=0.9,
+                       min_len_links_seq=3)
+    # seq_colors=seq_colors)
 
-    return best_seq, seq_dict_tmp
+    return best_seq, seq_dict
 
 
 def use_new_pattern_package(spike_nums, param, activity_threshold, sliding_window_duration,
-                            mouse_id, n_surrogate=2, debug_mode=False, without_raw_plot=True):
+                            mouse_id, n_surrogate=2, extra_file_name="", debug_mode=False, without_raw_plot=True,
+                            sce_times_bool=None):
     # around 250 ms
     # param.time_inter_seq
     # param.min_duration_intra_seq
@@ -472,7 +494,7 @@ def use_new_pattern_package(spike_nums, param, activity_threshold, sliding_windo
         plot_spikes_raster(spike_nums=spike_nums, param=param,
                            spike_train_format=False,
                            title=f"raster plot {mouse_id}",
-                           file_name=f"raw_spike_nums_{mouse_id}",
+                           file_name=f"raw_spike_nums_{mouse_id}{extra_file_name}",
                            y_ticks_labels=labels,
                            y_ticks_labels_size=4,
                            save_raster=True,
@@ -501,9 +523,10 @@ def use_new_pattern_package(spike_nums, param, activity_threshold, sliding_windo
     best_seq, seq_dict = sort_it_and_plot_it(spike_nums=spike_nums, param=param,
                                              sliding_window_duration=sliding_window_duration,
                                              activity_threshold=activity_threshold,
-                                             title_option=f"{mouse_id}",
+                                             title_option=f"{mouse_id}{extra_file_name}",
                                              spike_train_format=False,
-                                             debug_mode=debug_mode)
+                                             debug_mode=debug_mode,
+                                             sce_times_bool=sce_times_bool)
 
     nb_cells = len(spike_nums)
 
@@ -537,7 +560,7 @@ def use_new_pattern_package(spike_nums, param, activity_threshold, sliding_windo
         best_seq, seq_dict = sort_it_and_plot_it(spike_nums=tmp_spike_nums, param=param,
                                                  sliding_window_duration=sliding_window_duration,
                                                  activity_threshold=activity_threshold,
-                                                 title_option=f"surrogate {mouse_id}",
+                                                 title_option=f"surrogate {mouse_id}{extra_file_name}",
                                                  spike_train_format=False,
                                                  debug_mode=False)
 
@@ -563,20 +586,35 @@ def use_new_pattern_package(spike_nums, param, activity_threshold, sliding_windo
                                         neurons_sorted=neurons_sorted_real_data,
                                         title="%%%% DATA SET STAT %%%%%", param=param,
                                         results_dict_surrogate=surrogate_data_result_for_stat,
-                                        neurons_sorted_surrogate=neurons_sorted_surrogate_data)
+                                        neurons_sorted_surrogate=neurons_sorted_surrogate_data,
+                                        extra_file_name=extra_file_name,
+                                        use_sce_times_for_pattern_search=(sce_times_bool is not None))
 
 
 def give_me_stat_on_sorting_seq_results(results_dict, neurons_sorted, title, param,
-                                        results_dict_surrogate=None, neurons_sorted_surrogate=None):
+                                        use_sce_times_for_pattern_search,
+                                        results_dict_surrogate=None, neurons_sorted_surrogate=None,
+                                        extra_file_name=""):
     """
     Key will be the length of the sequence and value will be a list of int, representing the nb of rep
     of the different lists
     :param results_dict:
     :return:
     """
-    file_name = f'{param.path_results}/sorting_results_{param.time_str}.txt'
+    file_name = f'{param.path_results}/sorting_results{extra_file_name}_{param.time_str}.txt'
     with open(file_name, "w", encoding='UTF-8') as file:
         file.write(f"{title}" + '\n')
+        file.write("" + '\n')
+        file.write("Parameters" + '\n')
+        file.write("" + '\n')
+        file.write(f"error_rate {param.error_rate}" + '\n')
+        file.write(f"max_branches {param.max_branches}" + '\n')
+        file.write(f"time_inter_seq {param.time_inter_seq}" + '\n')
+        file.write(f"min_duration_intra_seq {param.min_duration_intra_seq}" + '\n')
+        file.write(f"min_len_seq {param.min_len_seq}" + '\n')
+        file.write(f"min_rep_nb {param.min_rep_nb}" + '\n')
+        file.write(f"use_sce_times_for_pattern_search {use_sce_times_for_pattern_search}" + '\n')
+
         file.write("" + '\n')
         min_len = 1000
         max_len = 0
@@ -601,13 +639,14 @@ def give_me_stat_on_sorting_seq_results(results_dict, neurons_sorted, title, par
             real_data_in = False
             if nb_seq is not None:
                 real_data_in = True
-                str_to_write += f"# Real data: mean {np.round(np.mean(nb_seq), 3)}"
+                str_to_write += f"# Real data (x{len(nb_seq)}), length: mean {np.round(np.mean(nb_seq), 3)}"
                 if np.std(nb_seq) > 0:
                     str_to_write += f", std {np.round(np.std(nb_seq), 3)}"
             if nb_seq_surrogate is not None:
                 if real_data_in:
                     str_to_write += f"\n"
-                str_to_write += f"# Surrogate: mean {np.round(np.mean(nb_seq_surrogate), 3)}"
+                str_to_write += f"# Surrogate (x{len(nb_seq_surrogate)}), length: " \
+                                f"mean {np.round(np.mean(nb_seq_surrogate), 3)}"
                 if np.std(nb_seq_surrogate) > 0:
                     str_to_write += f", std {np.round(np.std(nb_seq_surrogate), 3)}"
             else:
@@ -1375,15 +1414,15 @@ def plot_psth_interneurons_events(ms, spike_nums_dur, spike_nums, SCE_times, sli
             range_in_frames = 50
             min_SCE = 0 if sce_id == 0 else SCE_times[sce_id - 1][1]
             max_SCE = n_times if sce_id == (len(SCE_times) - 1) else SCE_times[sce_id + 1][0]
-            beg_time = np.max((0, time_max-range_in_frames, min_SCE))
-            end_time = np.min((n_times, time_max+range_in_frames, max_SCE))
+            beg_time = np.max((0, time_max - range_in_frames, min_SCE))
+            end_time = np.min((n_times, time_max + range_in_frames, max_SCE))
             # print(f"time_max {time_max}, beg_time {beg_time}, end_time {end_time}")
             # before the event
             time_spikes = np.where(spike_nums[inter_neuron, beg_time:time_max])[0]
             # print(f"before time_spikes {time_spikes}")
             if len(time_spikes) > 0:
                 time_spike = np.max(time_spikes)
-                time_spike = time_spike - ((time_max+1)-beg_time)
+                time_spike = time_spike - ((time_max + 1) - beg_time)
                 # print(f"before time_spike {time_spike}")
                 # for time_spike in time_spikes:
                 spike_at_time_dict[time_spike] = spike_at_time_dict.get(time_spike, 0) + 1
@@ -1762,6 +1801,19 @@ def main():
     p14_18_10_23_a000_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_rasterdur.mat",
                                              variables_mapping=variables_mapping)
 
+    # TODO : add weight
+    p14_18_10_23_a001_ms = MouseSession(age=14, session_id="18_10_23_a001", nb_ms_by_frame=100, param=param)
+    # calculated with 99th percentile on raster dur
+    # p14_18_10_23_a001_ms.activity_threshold = 9
+    # p14_18_10_23_a001_ms.set_inter_neurons(np.arange(31))
+    p14_18_10_23_a001_ms.set_inter_neurons([])
+    # duration of those interneurons: 24.33
+    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                         "spike_nums": "filt_Bin100ms_spikedigital",
+                         "spike_durations": "PEAK_LOC_2"}
+    p14_18_10_23_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_RasterDur.mat",
+                                             variables_mapping=variables_mapping)
+
     arnaud_ms = MouseSession(age=24, session_id="arnaud", nb_ms_by_frame=50, param=param)
     arnaud_ms.activity_threshold = 13
     variables_mapping = {"spike_nums": "spikenums"}
@@ -1777,20 +1829,20 @@ def main():
                     p11_17_11_24_a001_ms, p11_17_11_24_a000_ms,
                     p12_17_11_10_a002_ms, p12_171110_a000_ms,
                     p14_18_10_23_a000_ms]
-
+    available_ms = [p14_18_10_23_a001_ms]
     # p9_17_11_29_a002_ms, p9_17_11_29_a003_ms removed because died just after
     # available_ms = [p6_18_02_07_a001_ms, p7_171012_a000_ms, p8_18_02_09_a000_ms, p9_17_12_20_a001_ms,
     #                 p10_17_11_16_a003_ms, p12_171110_a000_ms]
 
-    ms_to_analyse = [p9_17_12_20_a001_ms]
+    ms_to_analyse = [p14_18_10_23_a000_ms]
     # ms_to_analyse = [p6_18_02_07_a001_ms, p6_18_02_07_a002_ms]
 
     do_clustering = False
     # if False, clustering will be done using kmean
-    do_fca_clustering = True
+    do_fca_clustering = False
     with_cells_in_cluster_seq_sorted = False
 
-    just_do_stat_on_event_detection_parameters = True
+    just_do_stat_on_event_detection_parameters = False
 
     # for events (sce) detection
     perc_threshold = 99
@@ -1804,17 +1856,20 @@ def main():
     # for kmean
     with_shuffling = True
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 9)
+    range_n_clusters_k_mean = np.arange(3, 10)
     n_surrogate_k_mean = 50
 
-    do_pattern_search = False
+    do_pattern_search = True
+    split_pattern_search = True
+    use_sce_times_for_pattern_search = True
+    n_surrogate_for_pattern_search = 0
     # seq params:
     param.error_rate = 2
-    param.max_branches = 5
-    param.time_inter_seq = 100
+    param.max_branches = 10
+    param.time_inter_seq = 50
     param.min_duration_intra_seq = -5
-    param.min_len_seq = 4
-    param.min_rep_nb = 3
+    param.min_len_seq = 6
+    param.min_rep_nb = 5
 
     # ------------------------------ end param section ------------------------------
 
@@ -1922,10 +1977,12 @@ def main():
                                        # 500 ms window
                                        sliding_window_duration=sliding_window_duration,
                                        show_sum_spikes_as_percentage=True,
-                                       vertical_lines=SCE_times,
-                                       vertical_lines_colors=['white'] * len(SCE_times),
-                                       vertical_lines_sytle="solid",
-                                       vertical_lines_linewidth=[0.2] * len(SCE_times),
+                                       # vertical_lines=SCE_times,
+                                       # vertical_lines_colors=['white'] * len(SCE_times),
+                                       # vertical_lines_sytle="solid",
+                                       # vertical_lines_linewidth=[0.2] * len(SCE_times),
+                                       span_area_coords=[SCE_times],
+                                       span_area_colors=['white'],
                                        spike_shape=spike_shape,
                                        spike_shape_size=0.5,
                                        save_formats="pdf")
@@ -2271,10 +2328,31 @@ def main():
         ###################################################################
 
         if do_pattern_search:
-            print("Start of use_new_pattern_package")
-            use_new_pattern_package(spike_nums=spike_nums_to_use, param=param, activity_threshold=activity_threshold,
-                                    sliding_window_duration=sliding_window_duration, n_surrogate=2,
-                                    mouse_id=ms.description, debug_mode=True)
+            sce_times_bool_to_use = sce_times_bool if use_sce_times_for_pattern_search else None
+            if split_pattern_search:
+                n_splits = 5
+                splits_indices = np.linspace(0, len(spike_nums_to_use[0, :]), n_splits + 1).astype(int)
+                for split_id in np.arange(n_splits):
+                    use_new_pattern_package(spike_nums=
+                                            spike_nums_to_use[:, splits_indices[split_id]:splits_indices[split_id + 1]],
+                                            param=param,
+                                            activity_threshold=activity_threshold,
+                                            sliding_window_duration=sliding_window_duration,
+                                            n_surrogate=n_surrogate_for_pattern_search,
+                                            mouse_id=ms.description, debug_mode=True,
+                                            extra_file_name=f"part_{split_id+1}",
+                                            sce_times_bool=sce_times_bool_to_use)
+
+            else:
+                # TODO: split spikes_nums in 3 to 4 part
+                print("Start of use_new_pattern_package")
+                use_new_pattern_package(spike_nums=spike_nums_to_use, param=param,
+                                        activity_threshold=activity_threshold,
+                                        sliding_window_duration=sliding_window_duration,
+                                        n_surrogate=n_surrogate_for_pattern_search,
+                                        mouse_id=ms.description, debug_mode=True,
+                                        extra_file_name="",
+                                        sce_times_bool=sce_times_bool_to_use)
 
     return
 
