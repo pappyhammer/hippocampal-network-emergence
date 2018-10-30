@@ -30,6 +30,8 @@ from sortedcontainers import SortedList, SortedDict
 # add the one containing the folder pattern_discovery
 from pattern_discovery.seq_solver.markov_way import MarkovParameters
 from pattern_discovery.seq_solver.markov_way import find_sequences_in_ordered_spike_nums
+from pattern_discovery.seq_solver.markov_way import give_me_stat_on_sorting_seq_results
+from pattern_discovery.seq_solver.markov_way import order_spike_nums_by_seq
 import pattern_discovery.tools.param as p_disc_param
 import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.display.raster import plot_spikes_raster
@@ -335,13 +337,20 @@ def sort_it_and_plot_it(spike_nums, param,
                         sce_times_bool=None,
                         spike_train_format=False,
                         debug_mode=False,
-                        plot_all_best_seq_by_cell=False):
+                        plot_all_best_seq_by_cell=False,
+                        use_only_uniformity_method=False,
+                        use_loss_score_to_keep_the_best_from_tree=
+                        False
+                        ):
     if spike_train_format:
         return
     # if sce_times_bool is not None, then we don't take in consideration SCE_time to do the pair-wise correlation
-    result = pattern_discovery.seq_solver.markov_way.order_spike_nums_by_seq(spike_nums,
-                                                                             param, sce_times_bool=sce_times_bool,
-                                                                             debug_mode=debug_mode)
+    result = order_spike_nums_by_seq(spike_nums,
+                                     param, sce_times_bool=sce_times_bool,
+                                     debug_mode=debug_mode,
+                                     use_only_uniformity_method=use_only_uniformity_method,
+                                     use_loss_score_to_keep_the_best_from_tree=
+                                     use_loss_score_to_keep_the_best_from_tree)
     seq_dict_tmp, best_seq, all_best_seq = result
 
     if plot_all_best_seq_by_cell:
@@ -478,7 +487,10 @@ def sort_it_and_plot_it(spike_nums, param,
 
 def use_new_pattern_package(spike_nums, param, activity_threshold, sliding_window_duration,
                             mouse_id, n_surrogate=2, extra_file_name="", debug_mode=False, without_raw_plot=True,
-                            sce_times_bool=None):
+                            sce_times_bool=None, use_uniformity_method=False,
+                            use_only_uniformity_method=False,
+                            use_loss_score_to_keep_the_best_from_tree=
+                            False):
     # around 250 ms
     # param.time_inter_seq
     # param.min_duration_intra_seq
@@ -520,13 +532,16 @@ def use_new_pattern_package(spike_nums, param, activity_threshold, sliding_windo
 
     # spike_struct.spike_data = trains_module.from_spike_trains_to_spike_nums(spike_struct.spike_data)
 
-    best_seq, seq_dict = sort_it_and_plot_it(spike_nums=spike_nums, param=param,
+    best_seq, seq_dict_real_data = sort_it_and_plot_it(spike_nums=spike_nums, param=param,
                                              sliding_window_duration=sliding_window_duration,
                                              activity_threshold=activity_threshold,
                                              title_option=f"{mouse_id}{extra_file_name}",
                                              spike_train_format=False,
                                              debug_mode=debug_mode,
-                                             sce_times_bool=sce_times_bool)
+                                             sce_times_bool=sce_times_bool,
+                                             use_only_uniformity_method=use_only_uniformity_method,
+                                        use_loss_score_to_keep_the_best_from_tree=
+                                        use_loss_score_to_keep_the_best_from_tree)
 
     nb_cells = len(spike_nums)
 
@@ -534,8 +549,8 @@ def use_new_pattern_package(spike_nums, param, activity_threshold, sliding_windo
     print(f"best_seq {best_seq}")
     real_data_result_for_stat = SortedDict()
     neurons_sorted_real_data = np.zeros(nb_cells, dtype="uint16")
-    if seq_dict is not None:
-        for key, value in seq_dict.items():
+    if seq_dict_real_data is not None:
+        for key, value in seq_dict_real_data.items():
             print(f"len: {len(key)}, seq: {key}, rep: {len(value)}")
             if len(key) not in real_data_result_for_stat:
                 real_data_result_for_stat[len(key)] = []
@@ -557,18 +572,22 @@ def use_new_pattern_package(spike_nums, param, activity_threshold, sliding_windo
             copy_spike_nums[n, :] = np.roll(neuron_spikes, np.random.randint(1, n_times))
         tmp_spike_nums = copy_spike_nums
 
-        best_seq, seq_dict = sort_it_and_plot_it(spike_nums=tmp_spike_nums, param=param,
+        best_seq, seq_dict_surrogate = sort_it_and_plot_it(spike_nums=tmp_spike_nums, param=param,
                                                  sliding_window_duration=sliding_window_duration,
                                                  activity_threshold=activity_threshold,
                                                  title_option=f"surrogate {mouse_id}{extra_file_name}",
                                                  spike_train_format=False,
-                                                 debug_mode=False)
+                                                 debug_mode=False,
+                                                 use_only_uniformity_method=use_only_uniformity_method,
+                                                 use_loss_score_to_keep_the_best_from_tree=
+                                                 use_loss_score_to_keep_the_best_from_tree
+                                                 )
 
         print(f"best_seq {best_seq}")
 
         mask = np.zeros(nb_cells, dtype="bool")
-        if seq_dict is not None:
-            for key, value in seq_dict.items():
+        if seq_dict_surrogate is not None:
+            for key, value in seq_dict_surrogate.items():
                 print(f"len: {len(key)}, seq: {key}, rep: {len(value)}")
                 if len(key) not in surrogate_data_result_for_stat:
                     surrogate_data_result_for_stat[len(key)] = []
@@ -588,93 +607,98 @@ def use_new_pattern_package(spike_nums, param, activity_threshold, sliding_windo
                                         results_dict_surrogate=surrogate_data_result_for_stat,
                                         neurons_sorted_surrogate=neurons_sorted_surrogate_data,
                                         extra_file_name=extra_file_name,
-                                        use_sce_times_for_pattern_search=(sce_times_bool is not None))
+                                        n_surrogate=n_surrogate,
+                                        use_sce_times_for_pattern_search=(sce_times_bool is not None),
+                                        use_only_uniformity_method=use_only_uniformity_method,
+                                        use_loss_score_to_keep_the_best_from_tree=
+                                        use_loss_score_to_keep_the_best_from_tree
+                                        )
 
 
-def give_me_stat_on_sorting_seq_results(results_dict, neurons_sorted, title, param,
-                                        use_sce_times_for_pattern_search,
-                                        results_dict_surrogate=None, neurons_sorted_surrogate=None,
-                                        extra_file_name=""):
-    """
-    Key will be the length of the sequence and value will be a list of int, representing the nb of rep
-    of the different lists
-    :param results_dict:
-    :return:
-    """
-    file_name = f'{param.path_results}/sorting_results{extra_file_name}_{param.time_str}.txt'
-    with open(file_name, "w", encoding='UTF-8') as file:
-        file.write(f"{title}" + '\n')
-        file.write("" + '\n')
-        file.write("Parameters" + '\n')
-        file.write("" + '\n')
-        file.write(f"error_rate {param.error_rate}" + '\n')
-        file.write(f"max_branches {param.max_branches}" + '\n')
-        file.write(f"time_inter_seq {param.time_inter_seq}" + '\n')
-        file.write(f"min_duration_intra_seq {param.min_duration_intra_seq}" + '\n')
-        file.write(f"min_len_seq {param.min_len_seq}" + '\n')
-        file.write(f"min_rep_nb {param.min_rep_nb}" + '\n')
-        file.write(f"use_sce_times_for_pattern_search {use_sce_times_for_pattern_search}" + '\n')
-
-        file.write("" + '\n')
-        min_len = 1000
-        max_len = 0
-        for key in results_dict.keys():
-            min_len = np.min((key, min_len))
-            max_len = np.max((key, max_len))
-        if results_dict_surrogate is not None:
-            for key in results_dict_surrogate.keys():
-                min_len = np.min((key, min_len))
-                max_len = np.max((key, max_len))
-
-        # key reprensents the length of a seq
-        for key in np.arange(min_len, max_len + 1):
-            nb_seq = None
-            nb_seq_surrogate = None
-            if key in results_dict:
-                nb_seq = results_dict[key]
-            if key in results_dict_surrogate:
-                nb_seq_surrogate = results_dict_surrogate[key]
-            str_to_write = ""
-            str_to_write += f"### Length {key}: \n"
-            real_data_in = False
-            if nb_seq is not None:
-                real_data_in = True
-                str_to_write += f"# Real data (x{len(nb_seq)}), length: mean {np.round(np.mean(nb_seq), 3)}"
-                if np.std(nb_seq) > 0:
-                    str_to_write += f", std {np.round(np.std(nb_seq), 3)}"
-            if nb_seq_surrogate is not None:
-                if real_data_in:
-                    str_to_write += f"\n"
-                str_to_write += f"# Surrogate (x{len(nb_seq_surrogate)}), length: " \
-                                f"mean {np.round(np.mean(nb_seq_surrogate), 3)}"
-                if np.std(nb_seq_surrogate) > 0:
-                    str_to_write += f", std {np.round(np.std(nb_seq_surrogate), 3)}"
-            else:
-                if not real_data_in:
-                    continue
-            str_to_write += '\n'
-            file.write(f"{str_to_write}")
-        file.write("" + '\n')
-        file.write("///// Neurons sorted /////" + '\n')
-        file.write("" + '\n')
-
-        for index in np.arange(len(neurons_sorted)):
-            go_for = False
-            if neurons_sorted_surrogate is not None:
-                if neurons_sorted_surrogate[index] == 0:
-                    pass
-                else:
-                    go_for = True
-            if (not go_for) and neurons_sorted[index] == 0:
-                continue
-            str_to_write = f"Neuron {index}, x "
-            if neurons_sorted_surrogate is not None:
-                str_to_write += f"{neurons_sorted_surrogate[index]} / "
-            str_to_write += f"{neurons_sorted[index]}"
-            if neurons_sorted_surrogate is not None:
-                str_to_write += " (surrogate / real data)"
-            str_to_write += '\n'
-            file.write(f"{str_to_write}")
+# def give_me_stat_on_sorting_seq_results(results_dict, neurons_sorted, title, param,
+#                                         use_sce_times_for_pattern_search,
+#                                         results_dict_surrogate=None, neurons_sorted_surrogate=None,
+#                                         extra_file_name=""):
+#     """
+#     Key will be the length of the sequence and value will be a list of int, representing the nb of rep
+#     of the different lists
+#     :param results_dict:
+#     :return:
+#     """
+#     file_name = f'{param.path_results}/sorting_results{extra_file_name}_{param.time_str}.txt'
+#     with open(file_name, "w", encoding='UTF-8') as file:
+#         file.write(f"{title}" + '\n')
+#         file.write("" + '\n')
+#         file.write("Parameters" + '\n')
+#         file.write("" + '\n')
+#         file.write(f"error_rate {param.error_rate}" + '\n')
+#         file.write(f"max_branches {param.max_branches}" + '\n')
+#         file.write(f"time_inter_seq {param.time_inter_seq}" + '\n')
+#         file.write(f"min_duration_intra_seq {param.min_duration_intra_seq}" + '\n')
+#         file.write(f"min_len_seq {param.min_len_seq}" + '\n')
+#         file.write(f"min_rep_nb {param.min_rep_nb}" + '\n')
+#         file.write(f"use_sce_times_for_pattern_search {use_sce_times_for_pattern_search}" + '\n')
+#
+#         file.write("" + '\n')
+#         min_len = 1000
+#         max_len = 0
+#         for key in results_dict.keys():
+#             min_len = np.min((key, min_len))
+#             max_len = np.max((key, max_len))
+#         if results_dict_surrogate is not None:
+#             for key in results_dict_surrogate.keys():
+#                 min_len = np.min((key, min_len))
+#                 max_len = np.max((key, max_len))
+#
+#         # key reprensents the length of a seq
+#         for key in np.arange(min_len, max_len + 1):
+#             nb_seq = None
+#             nb_seq_surrogate = None
+#             if key in results_dict:
+#                 nb_seq = results_dict[key]
+#             if key in results_dict_surrogate:
+#                 nb_seq_surrogate = results_dict_surrogate[key]
+#             str_to_write = ""
+#             str_to_write += f"### Length {key}: \n"
+#             real_data_in = False
+#             if nb_seq is not None:
+#                 real_data_in = True
+#                 str_to_write += f"# Real data (x{len(nb_seq)}), length: mean {np.round(np.mean(nb_seq), 3)}"
+#                 if np.std(nb_seq) > 0:
+#                     str_to_write += f", std {np.round(np.std(nb_seq), 3)}"
+#             if nb_seq_surrogate is not None:
+#                 if real_data_in:
+#                     str_to_write += f"\n"
+#                 str_to_write += f"# Surrogate (x{len(nb_seq_surrogate)}), length: " \
+#                                 f"mean {np.round(np.mean(nb_seq_surrogate), 3)}"
+#                 if np.std(nb_seq_surrogate) > 0:
+#                     str_to_write += f", std {np.round(np.std(nb_seq_surrogate), 3)}"
+#             else:
+#                 if not real_data_in:
+#                     continue
+#             str_to_write += '\n'
+#             file.write(f"{str_to_write}")
+#         file.write("" + '\n')
+#         file.write("///// Neurons sorted /////" + '\n')
+#         file.write("" + '\n')
+#
+#         for index in np.arange(len(neurons_sorted)):
+#             go_for = False
+#             if neurons_sorted_surrogate is not None:
+#                 if neurons_sorted_surrogate[index] == 0:
+#                     pass
+#                 else:
+#                     go_for = True
+#             if (not go_for) and neurons_sorted[index] == 0:
+#                 continue
+#             str_to_write = f"Neuron {index}, x "
+#             if neurons_sorted_surrogate is not None:
+#                 str_to_write += f"{neurons_sorted_surrogate[index]} / "
+#             str_to_write += f"{neurons_sorted[index]}"
+#             if neurons_sorted_surrogate is not None:
+#                 str_to_write += " (surrogate / real data)"
+#             str_to_write += '\n'
+#             file.write(f"{str_to_write}")
 
 
 def save_stat_by_age(ratio_spikes_events_by_age, ratio_spikes_total_events_by_age, mouse_sessions,
@@ -1834,7 +1858,7 @@ def main():
     # available_ms = [p6_18_02_07_a001_ms, p7_171012_a000_ms, p8_18_02_09_a000_ms, p9_17_12_20_a001_ms,
     #                 p10_17_11_16_a003_ms, p12_171110_a000_ms]
 
-    ms_to_analyse = [p14_18_10_23_a000_ms]
+    ms_to_analyse = [arnaud_ms]
     # ms_to_analyse = [p6_18_02_07_a001_ms, p6_18_02_07_a002_ms]
 
     do_clustering = False
@@ -1848,7 +1872,7 @@ def main():
     perc_threshold = 99
     use_max_of_each_surrogate = False
     n_surrogate_activity_threshold = 50
-    use_raster_dur = True
+    use_raster_dur = False
 
     # for fca
     n_surrogate_fca = 20
@@ -1860,15 +1884,17 @@ def main():
     n_surrogate_k_mean = 50
 
     do_pattern_search = True
-    split_pattern_search = True
+    split_pattern_search = False
+    use_only_uniformity_method = False
+    use_loss_score_to_keep_the_best_from_tree = False
     use_sce_times_for_pattern_search = True
     n_surrogate_for_pattern_search = 0
     # seq params:
-    param.error_rate = 2
-    param.max_branches = 10
+    param.error_rate = 4
+    param.max_branches = 5
     param.time_inter_seq = 50
     param.min_duration_intra_seq = -5
-    param.min_len_seq = 6
+    param.min_len_seq = 10
     param.min_rep_nb = 5
 
     # ------------------------------ end param section ------------------------------
@@ -2341,7 +2367,11 @@ def main():
                                             n_surrogate=n_surrogate_for_pattern_search,
                                             mouse_id=ms.description, debug_mode=True,
                                             extra_file_name=f"part_{split_id+1}",
-                                            sce_times_bool=sce_times_bool_to_use)
+                                            sce_times_bool=sce_times_bool_to_use,
+                                            use_only_uniformity_method=use_only_uniformity_method,
+                                            use_loss_score_to_keep_the_best_from_tree=
+                                            use_loss_score_to_keep_the_best_from_tree
+                                            )
 
             else:
                 # TODO: split spikes_nums in 3 to 4 part
@@ -2352,7 +2382,10 @@ def main():
                                         n_surrogate=n_surrogate_for_pattern_search,
                                         mouse_id=ms.description, debug_mode=True,
                                         extra_file_name="",
-                                        sce_times_bool=sce_times_bool_to_use)
+                                        sce_times_bool=sce_times_bool_to_use,
+                                        use_only_uniformity_method=use_only_uniformity_method,
+                                        use_loss_score_to_keep_the_best_from_tree=
+                                        use_loss_score_to_keep_the_best_from_tree)
 
     return
 
