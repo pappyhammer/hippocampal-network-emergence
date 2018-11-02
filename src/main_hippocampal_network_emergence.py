@@ -1362,7 +1362,7 @@ def compute_stat_about_significant_seq(files_path, param, save_formats="pdf"):
     n_categories = 4
     marker_cat = ["*", "d", "o", "s"]
     # categories that should be displayed
-    banned_categories = [1]
+    banned_categories = []
     # look for filenames in the fisrst directory, if we don't break, it will go through all directories
     for (dirpath, dirnames, local_filenames) in os.walk(files_path):
         file_names.extend(local_filenames)
@@ -1372,7 +1372,7 @@ def compute_stat_about_significant_seq(files_path, param, save_formats="pdf"):
     # dict2: key category (int, from 1 to 4), value dict3
     # dict3: key length seq (int), value dict4
     # dict4: key repetitions (int), value nb of seq with this length and this repetition
-    data_dict = dict()
+    data_dict = SortedDict()
 
     for file_name in file_names:
         if not file_name.startswith("p"):
@@ -1466,7 +1466,7 @@ def compute_stat_about_significant_seq(files_path, param, save_formats="pdf"):
                                 y_pos,
                                 color=param.colors[age_index % (len(param.colors))],
                                 marker=param.markers[cat - 1],
-                                s=80, alpha=1, edgecolors='none')
+                                s=80+2*n_seq, alpha=1, edgecolors='none')
                     ax1.text(x=x_pos, y=y_pos,
                              s=f"{n_seq}", color="black", zorder=22,
                              ha='center', va="center", fontsize=4, fontweight='bold')
@@ -1551,7 +1551,7 @@ def box_plot_data_by_age(data_dict, title, filename, y_label, param, save_format
     plt.title(title)
     ax1.set_ylabel(f"{y_label}")
     ax1.set_xlabel("age")
-    xticks = np.arange(0, len(data_dict))
+    xticks = np.arange(1, len(data_dict)+1)
     ax1.set_xticks(xticks)
     # sce clusters labels
     ax1.set_xticklabels(labels)
@@ -1728,7 +1728,6 @@ def main():
                           max_branches=20, stop_if_twin=False,
                           no_reverse_seq=False, spike_rate_weight=False, path_data=path_data)
 
-
     just_compute_significant_seq_stat = True
     if just_compute_significant_seq_stat:
         compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v1/", param=param)
@@ -1867,6 +1866,32 @@ def main():
     p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_RasterDur.mat",
                                             variables_mapping=variables_mapping)
 
+    p8_18_10_17_a001_ms = MouseSession(age=8, session_id="18_10_17_a001", nb_ms_by_frame=100, param=param,
+                                       weight=6)
+    # calculated with 99th percentile on raster dur
+    p8_18_10_17_a001_ms.activity_threshold = 10
+    p8_18_10_17_a001_ms.set_inter_neurons([117, 135, 217, 271])
+    # duration of those interneurons: 32.33, 171, 144.5, 48.8
+    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                         "spike_nums": "filt_Bin100ms_spikedigital",
+                         "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
+    p8_18_10_17_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a001/p8_18_10_17_a001_RasterDur.mat",
+                                            variables_mapping=variables_mapping)
+
+    # 6.4
+    p8_18_10_24_a005_ms = MouseSession(age=8, session_id="18_10_24_a005", nb_ms_by_frame=100, param=param,
+                                       weight=6.4)
+    # calculated with 99th percentile on raster dur
+    p8_18_10_24_a005_ms.activity_threshold = 10
+    p8_18_10_24_a005_ms.set_inter_neurons([33, 112, 206])
+    # duration of those interneurons: 18.92, 27.33, 20.55
+    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                         "spike_nums": "filt_Bin100ms_spikedigital",
+                         "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
+    p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_RasterDur.mat",
+                                            variables_mapping=variables_mapping)
+
+
     # p9_17_11_29_a002 low participation comparing to other, dead shortly after the recording
     p9_17_11_29_a002_ms = MouseSession(age=9, session_id="17_11_29_a002", nb_ms_by_frame=100, param=param,
                                        weight=5.7)
@@ -1977,6 +2002,18 @@ def main():
     p12_171110_a000_ms.load_data_from_file(file_name_to_load="p12/P12_17_11_10_a000/p12_17_11_10_a000_rasterdur.mat",
                                            variables_mapping=variables_mapping)
 
+    p13_18_10_29_a001_ms = MouseSession(age=13, session_id="18_10_29_a001", nb_ms_by_frame=100, param=param,
+                                      weight=9.4)
+    # calculated with 99th percentile on raster dur
+    p13_18_10_29_a001_ms.activity_threshold = 14
+    p13_18_10_29_a001_ms.set_inter_neurons([85, 183, 171])
+    # duration of those interneurons: 17  17.64 15.31
+    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                         "spike_nums": "filt_Bin100ms_spikedigital",
+                         "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
+    p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load="p13/p13_18_10_29_a001/p13_18_10_29_a001_RasterDur.mat",
+                                           variables_mapping=variables_mapping)
+
     p14_18_10_23_a000_ms = MouseSession(age=14, session_id="18_10_23_a000", nb_ms_by_frame=100, param=param,
                                         weight=10.35)
     # calculated with 99th percentile on raster dur
@@ -2013,17 +2050,19 @@ def main():
                     p7_17_10_18_a002_ms, p7_17_10_18_a004_ms, p7_18_02_08_a001_ms, p7_18_02_08_a002_ms,
                     p7_18_02_08_a003_ms,
                     p8_18_02_09_a000_ms, p8_18_02_09_a001_ms,
+                    p8_18_10_24_a005_ms, p8_18_10_17_a001_ms,
                     p9_17_12_06_a001_ms, p9_17_12_20_a001_ms,
                     p10_17_11_16_a003_ms,
                     p11_17_11_24_a001_ms, p11_17_11_24_a000_ms,
                     p12_17_11_10_a002_ms, p12_171110_a000_ms,
+                    p13_18_10_29_a001_ms,
                     p14_18_10_23_a000_ms]
     interneurons_ms = [p14_18_10_23_a001_ms]
     # p9_17_11_29_a002_ms, p9_17_11_29_a003_ms removed because died just after
     # available_ms = [p6_18_02_07_a001_ms, p7_171012_a000_ms, p8_18_02_09_a000_ms, p9_17_12_20_a001_ms,
     #                 p10_17_11_16_a003_ms, p12_171110_a000_ms]
 
-    ms_to_analyse = available_ms
+    ms_to_analyse = [p13_18_10_29_a001_ms]
     # ms_to_analyse = [p6_18_02_07_a001_ms, p6_18_02_07_a002_ms]
 
     do_clustering = False
@@ -2053,8 +2092,8 @@ def main():
     use_only_uniformity_method = True
     use_loss_score_to_keep_the_best_from_tree = False
     use_sce_times_for_pattern_search = True
-    use_ordered_spike_nums_for_surrogate = True
-    n_surrogate_for_pattern_search = 500
+    use_ordered_spike_nums_for_surrogate = False
+    n_surrogate_for_pattern_search = 100
     # seq params:
     # TODO: error_rate that change with the number of element in the sequence
     param.error_rate = 0.25
