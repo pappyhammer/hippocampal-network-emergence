@@ -38,7 +38,8 @@ import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.display.raster import plot_spikes_raster
 from pattern_discovery.tools.loss_function import loss_function_with_sliding_window
 import pattern_discovery.tools.trains as trains_module
-from pattern_discovery.tools.sce_detection import get_sce_detection_threshold, detect_sce_with_sliding_window
+from pattern_discovery.tools.sce_detection import get_sce_detection_threshold, detect_sce_with_sliding_window, \
+    get_low_activity_events_detection_threshold
 from sortedcontainers import SortedList, SortedDict
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import compute_and_plot_clusters_raster_kmean_version
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import give_stat_one_sce
@@ -66,7 +67,8 @@ class HNEParameters(MarkovParameters):
 
 
 class MouseSession:
-    def __init__(self, age, session_id, param, nb_ms_by_frame, weight=None, spike_nums=None, spike_nums_dur=None):
+    def __init__(self, age, session_id, param, nb_ms_by_frame, weight=None, spike_nums=None, spike_nums_dur=None,
+                 percentile_for_low_activity_threshold=1):
         # should be a list of int
         self.age = age
         self.session_id = str(session_id)
@@ -77,24 +79,46 @@ class MouseSession:
         self.traces = None
         self.coord = None
         self.activity_threshold = None
+        self.low_activity_threshold_by_percentile = dict()
+        self.percentile_for_low_activity_threshold = percentile_for_low_activity_threshold
+        self.low_activity_threshold = None
         self.param = param
         self.weight = weight
+
+    def set_low_activity_threshold(self, threshold, percentile_value):
+        self.low_activity_threshold_by_percentile[percentile_value] = threshold
+        if self.percentile_for_low_activity_threshold in self.low_activity_threshold_by_percentile:
+            self.low_activity_threshold = \
+                self.low_activity_threshold_by_percentile[self.percentile_for_low_activity_threshold]
 
     def set_inter_neurons(self, inter_neurons):
         self.spike_struct.inter_neurons = np.array(inter_neurons).astype(int)
 
-    def load_data_from_file(self, file_name_to_load, variables_mapping):
+    def load_data_from_file(self, file_name_to_load, variables_mapping, frames_filter=None):
+        """
+
+        :param file_name_to_load:
+        :param variables_mapping:
+        :param frames_filter: if not None, will keep only the frames in frames_filter
+        :return:
+        """
         data = hdf5storage.loadmat(self.param.path_data + file_name_to_load)
         if "spike_nums" in variables_mapping:
             self.spike_struct.spike_nums = data[variables_mapping["spike_nums"]].astype(int)
+            if frames_filter is not None:
+                self.spike_struct.spike_nums = self.spike_struct.spike_nums[:, frames_filter]
             if self.spike_struct.labels is None:
                 self.spike_struct.labels = np.arange(len(self.spike_struct.spike_nums))
         if "spike_nums_dur" in variables_mapping:
             self.spike_struct.spike_nums_dur = data[variables_mapping["spike_nums_dur"]].astype(int)
+            if frames_filter is not None:
+                self.spike_struct.spike_nums_dur = self.spike_struct.spike_nums_dur[:, frames_filter]
             if self.spike_struct.labels is None:
                 self.spike_struct.labels = np.arange(len(self.spike_struct.spike_nums_dur))
         if "traces" in variables_mapping:
             self.traces = data[variables_mapping["traces"]].astype(float)
+            if frames_filter is not None:
+                self.traces = self.traces[:, frames_filter]
         if "coord" in variables_mapping:
             self.coord = data[variables_mapping["coord"]]
         if "spike_durations" in variables_mapping:
@@ -1447,7 +1471,7 @@ def compute_stat_about_significant_seq(files_path, param, save_formats="pdf"):
                 max_len = np.max((len_seq, max_len))
                 for rep, n_seq in rep_dict.items():
                     if rep not in grid_dict[len_seq]:
-                        grid_dict[len_seq][rep] = np.ones(len_grid[0]*len_grid[1], dtype="bool")
+                        grid_dict[len_seq][rep] = np.ones(len_grid[0] * len_grid[1], dtype="bool")
                     max_rep = np.max((max_rep, rep))
                     min_rep = np.min((min_rep, rep))
                     grid = grid_dict[len_seq][rep]
@@ -1460,26 +1484,26 @@ def compute_stat_about_significant_seq(files_path, param, save_formats="pdf"):
                     grid[spot] = False
                     grid_pos_y = int(spot / len_grid[1])
                     grid_pos_x = spot % len_grid[1]
-                    x_pos = len_seq - 0.4 + (grid_pos_x * (0.8/(len_grid[1]-1)))
-                    y_pos = rep - 0.35 + (grid_pos_y * (0.7/(len_grid[0]-1)))
+                    x_pos = len_seq - 0.4 + (grid_pos_x * (0.8 / (len_grid[1] - 1)))
+                    y_pos = rep - 0.35 + (grid_pos_y * (0.7 / (len_grid[0] - 1)))
                     ax1.scatter(x_pos,
                                 y_pos,
                                 color=param.colors[age_index % (len(param.colors))],
                                 marker=param.markers[cat - 1],
-                                s=80+2*n_seq, alpha=1, edgecolors='none')
+                                s=40 + 2 * n_seq, alpha=1, edgecolors='none')
                     ax1.text(x=x_pos, y=y_pos,
                              s=f"{n_seq}", color="black", zorder=22,
                              ha='center', va="center", fontsize=4, fontweight='bold')
                     i_jitter += 1
         age_index += 1
 
-    for len_seq in np.arange(min_len, max_len+2):
-        ax1.vlines(len_seq-0.5, 0,
-                   max_rep+1, color="white", linewidth=0.5,
+    for len_seq in np.arange(min_len, max_len + 2):
+        ax1.vlines(len_seq - 0.5, 0,
+                   max_rep + 1, color="white", linewidth=0.5,
                    linestyles="dashed", zorder=1)
-    for rep in np.arange(min_rep, max_rep+2):
-        ax1.hlines(rep-0.5, min_len-1,
-                   max_len+1, color="white", linewidth=0.5,
+    for rep in np.arange(min_rep, max_rep + 2):
+        ax1.hlines(rep - 0.5, min_len - 1,
+                   max_len + 1, color="white", linewidth=0.5,
                    linestyles="dashed", zorder=1)
     legend_elements = []
     # [Line2D([0], [0], color='b', lw=4, label='Line')
@@ -1492,15 +1516,15 @@ def compute_stat_about_significant_seq(files_path, param, save_formats="pdf"):
     for cat in np.arange(1, n_categories + 1):
         if cat in banned_categories:
             continue
-        legend_elements.append(Line2D([0], [0], marker=param.markers[cat - 1], color="w", lw=0, label="*"*cat,
-                              markerfacecolor='black', markersize=15))
+        legend_elements.append(Line2D([0], [0], marker=param.markers[cat - 1], color="w", lw=0, label="*" * cat,
+                                      markerfacecolor='black', markersize=15))
 
     ax1.legend(handles=legend_elements)
 
     # plt.title(title)
     ax1.set_ylabel(f"Repetition (#)")
     ax1.set_xlabel("length")
-    ax1.set_ylim(min_rep-0.5, max_rep+0.5)
+    ax1.set_ylim(min_rep - 0.5, max_rep + 0.5)
     ax1.set_xlim(min_len - 0.5, max_len + 0.5)
     # xticks = np.arange(0, len(data_dict))
     # ax1.set_xticks(xticks)
@@ -1551,7 +1575,7 @@ def box_plot_data_by_age(data_dict, title, filename, y_label, param, save_format
     plt.title(title)
     ax1.set_ylabel(f"{y_label}")
     ax1.set_xlabel("age")
-    xticks = np.arange(1, len(data_dict)+1)
+    xticks = np.arange(1, len(data_dict) + 1)
     ax1.set_xticks(xticks)
     # sce clusters labels
     ax1.set_xticklabels(labels)
@@ -1713,7 +1737,6 @@ def main():
     path_data = root_path + "data/"
     path_results_raw = root_path + "results_hne/"
 
-
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     path_results = path_results_raw + f"{time_str}"
     os.mkdir(path_results)
@@ -1728,9 +1751,9 @@ def main():
                           max_branches=20, stop_if_twin=False,
                           no_reverse_seq=False, spike_rate_weight=False, path_data=path_data)
 
-    just_compute_significant_seq_stat = True
+    just_compute_significant_seq_stat = False
     if just_compute_significant_seq_stat:
-        compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v1/", param=param)
+        compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v2/", param=param)
         return
 
     # loading data
@@ -1738,6 +1761,8 @@ def main():
                                        weight=4.35)
     # calculated with 99th percentile on raster dur
     p6_18_02_07_a001_ms.activity_threshold = 17
+    p6_18_02_07_a001_ms.set_low_activity_threshold(threshold=3, percentile_value=1)
+    p6_18_02_07_a001_ms.set_low_activity_threshold(threshold=5, percentile_value=5)
     p6_18_02_07_a001_ms.set_inter_neurons([28, 36, 54, 75])
     # duration of those interneurons: [ 18.58 17.78   19.  17.67]
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1750,6 +1775,8 @@ def main():
                                        weight=4.35)
     # calculated with 99th percentile on raster dur
     p6_18_02_07_a002_ms.activity_threshold = 9
+    p6_18_02_07_a002_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+    p6_18_02_07_a002_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
     p6_18_02_07_a002_ms.set_inter_neurons([40, 90])
     # duration of those interneurons: 16.27  23.33
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1762,6 +1789,8 @@ def main():
                                      weight=None)
     # calculated with 99th percentile on raster dur
     p7_171012_a000_ms.activity_threshold = 22
+    p7_171012_a000_ms.set_low_activity_threshold(threshold=6, percentile_value=1)
+    p7_171012_a000_ms.set_low_activity_threshold(threshold=7, percentile_value=5)
     p7_171012_a000_ms.set_inter_neurons([305, 360, 398, 412])
     # duration of those interneurons: 13.23  12.48  10.8   11.88
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1774,6 +1803,8 @@ def main():
                                        weight=3.85)
     # calculated with 99th percentile on raster dur
     p7_18_02_08_a000_ms.activity_threshold = 11
+    p7_18_02_08_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
+    p7_18_02_08_a000_ms.set_low_activity_threshold(threshold=2, percentile_value=5)
     p7_18_02_08_a000_ms.set_inter_neurons([56, 95, 178])
     # duration of those interneurons: 12.88  13.94  13.04
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1786,6 +1817,8 @@ def main():
                                        weight=3.85)
     # calculated with 99th percentile on raster dur
     p7_18_02_08_a001_ms.activity_threshold = 13
+    p7_18_02_08_a001_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
+    p7_18_02_08_a001_ms.set_low_activity_threshold(threshold=3, percentile_value=5)
     p7_18_02_08_a001_ms.set_inter_neurons([151])
     # duration of those interneurons: 22.11
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1798,6 +1831,8 @@ def main():
                                        weight=3.85)
     # calculated with 99th percentile on raster dur
     p7_18_02_08_a002_ms.activity_threshold = 10
+    p7_18_02_08_a002_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
+    p7_18_02_08_a002_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
     p7_18_02_08_a002_ms.set_inter_neurons([207])
     # duration of those interneurons: 22.33
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1810,6 +1845,8 @@ def main():
                                        weight=3.85)
     # calculated with 99th percentile on raster dur
     p7_18_02_08_a003_ms.activity_threshold = 8
+    p7_18_02_08_a003_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+    p7_18_02_08_a003_ms.set_low_activity_threshold(threshold=0, percentile_value=5)
     p7_18_02_08_a003_ms.set_inter_neurons([171])
     # duration of those interneurons: 14.92
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1822,6 +1859,8 @@ def main():
                                        weight=None)
     # calculated with 99th percentile on raster dur
     p7_17_10_18_a002_ms.activity_threshold = 15
+    p7_17_10_18_a002_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
+    p7_17_10_18_a002_ms.set_low_activity_threshold(threshold=4, percentile_value=5)
     p7_17_10_18_a002_ms.set_inter_neurons([51])
     # duration of those interneurons: 14.13
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1834,6 +1873,8 @@ def main():
                                        weight=None)
     # calculated with 99th percentile on raster dur
     p7_17_10_18_a004_ms.activity_threshold = 14
+    p7_17_10_18_a004_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
+    p7_17_10_18_a004_ms.set_low_activity_threshold(threshold=3, percentile_value=5)
     p7_17_10_18_a004_ms.set_inter_neurons([298])
     # duration of those interneurons: 15.35
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1846,6 +1887,8 @@ def main():
                                        weight=None)
     # calculated with 99th percentile on raster dur
     p8_18_02_09_a000_ms.activity_threshold = 9
+    p8_18_02_09_a000_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+    p8_18_02_09_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
     p8_18_02_09_a000_ms.set_inter_neurons([64, 91])
     # duration of those interneurons: 12.48  11.47
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1858,6 +1901,8 @@ def main():
                                        weight=None)
     # calculated with 99th percentile on raster dur
     p8_18_02_09_a001_ms.activity_threshold = 11
+    p8_18_02_09_a001_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
+    p8_18_02_09_a001_ms.set_low_activity_threshold(threshold=2, percentile_value=5)
     p8_18_02_09_a001_ms.set_inter_neurons([])
     # duration of those interneurons:
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1870,6 +1915,8 @@ def main():
                                        weight=6)
     # calculated with 99th percentile on raster dur
     p8_18_10_17_a001_ms.activity_threshold = 10
+    p8_18_10_17_a001_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+    p8_18_10_17_a001_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
     p8_18_10_17_a001_ms.set_inter_neurons([117, 135, 217, 271])
     # duration of those interneurons: 32.33, 171, 144.5, 48.8
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1883,6 +1930,8 @@ def main():
                                        weight=6.4)
     # calculated with 99th percentile on raster dur
     p8_18_10_24_a005_ms.activity_threshold = 10
+    p8_18_10_24_a005_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+    p8_18_10_24_a005_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
     p8_18_10_24_a005_ms.set_inter_neurons([33, 112, 206])
     # duration of those interneurons: 18.92, 27.33, 20.55
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1890,7 +1939,6 @@ def main():
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_RasterDur.mat",
                                             variables_mapping=variables_mapping)
-
 
     # p9_17_11_29_a002 low participation comparing to other, dead shortly after the recording
     p9_17_11_29_a002_ms = MouseSession(age=9, session_id="17_11_29_a002", nb_ms_by_frame=100, param=param,
@@ -1922,6 +1970,7 @@ def main():
                                        weight=5.6)
     # calculated with 99th percentile on raster dur
     p9_17_12_06_a001_ms.activity_threshold = 9
+    p9_17_12_06_a001_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
     p9_17_12_06_a001_ms.set_inter_neurons([72])
     # duration of those interneurons:15.88
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1934,6 +1983,7 @@ def main():
                                        weight=5.05)
     # calculated with 99th percentile on raster dur
     p9_17_12_20_a001_ms.activity_threshold = 9
+    p9_17_12_20_a001_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
     p9_17_12_20_a001_ms.set_inter_neurons([32])
     # duration of those interneurons: 10.35
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1946,6 +1996,7 @@ def main():
                                         weight=6.1)
     # calculated with 99th percentile on raster dur
     p10_17_11_16_a003_ms.activity_threshold = 6
+    p10_17_11_16_a003_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
     p10_17_11_16_a003_ms.set_inter_neurons([8])
     # duration of those interneurons: 28
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1958,6 +2009,7 @@ def main():
                                         weight=6.7)
     # calculated with 99th percentile on raster dur
     p11_17_11_24_a001_ms.activity_threshold = 11
+    p11_17_11_24_a001_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
     p11_17_11_24_a001_ms.set_inter_neurons([])
     # duration of those interneurons:
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1970,6 +2022,7 @@ def main():
                                         weight=6.7)
     # calculated with 99th percentile on raster dur
     p11_17_11_24_a000_ms.activity_threshold = 12
+    p11_17_11_24_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
     p11_17_11_24_a000_ms.set_inter_neurons([193])
     # duration of those interneurons: 19.09
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1982,6 +2035,7 @@ def main():
                                         weight=7)
     # calculated with 99th percentile on raster dur
     p12_17_11_10_a002_ms.activity_threshold = 13
+    p12_17_11_10_a002_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
     p12_17_11_10_a002_ms.set_inter_neurons([150, 252])
     # duration of those interneurons: 16.17, 24.8
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -1994,6 +2048,7 @@ def main():
                                       weight=7)
     # calculated with 99th percentile on raster dur
     p12_171110_a000_ms.activity_threshold = 10
+    p12_171110_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
     p12_171110_a000_ms.set_inter_neurons([106, 144])
     # duration of those interneurons: 18.29  14.4
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -2003,21 +2058,25 @@ def main():
                                            variables_mapping=variables_mapping)
 
     p13_18_10_29_a001_ms = MouseSession(age=13, session_id="18_10_29_a001", nb_ms_by_frame=100, param=param,
-                                      weight=9.4)
+                                        weight=9.4)
     # calculated with 99th percentile on raster dur
     p13_18_10_29_a001_ms.activity_threshold = 14
+    p13_18_10_29_a001_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
     p13_18_10_29_a001_ms.set_inter_neurons([85, 183, 171])
     # duration of those interneurons: 17  17.64 15.31
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
                          "spike_nums": "filt_Bin100ms_spikedigital",
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load="p13/p13_18_10_29_a001/p13_18_10_29_a001_RasterDur.mat",
-                                           variables_mapping=variables_mapping)
+                                             variables_mapping=variables_mapping)
+    # ,
+    # frames_filter=np.arange(5000))
 
     p14_18_10_23_a000_ms = MouseSession(age=14, session_id="18_10_23_a000", nb_ms_by_frame=100, param=param,
                                         weight=10.35)
     # calculated with 99th percentile on raster dur
     p14_18_10_23_a000_ms.activity_threshold = 9
+    p14_18_10_23_a000_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
     p14_18_10_23_a000_ms.set_inter_neurons([0])
     # duration of those interneurons: 24.33
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
@@ -2058,17 +2117,28 @@ def main():
                     p13_18_10_29_a001_ms,
                     p14_18_10_23_a000_ms]
     interneurons_ms = [p14_18_10_23_a001_ms]
+    still_to_cluster = [p7_18_02_08_a000_ms,
+                        p7_17_10_18_a002_ms, p7_17_10_18_a004_ms, p7_18_02_08_a001_ms, p7_18_02_08_a002_ms,
+                        p7_18_02_08_a003_ms,
+                        p8_18_02_09_a000_ms, p8_18_02_09_a001_ms,
+                        p8_18_10_24_a005_ms, p8_18_10_17_a001_ms,
+                        p9_17_12_06_a001_ms, p9_17_12_20_a001_ms,
+                        p10_17_11_16_a003_ms,
+                        p12_17_11_10_a002_ms, p12_171110_a000_ms,
+                        p13_18_10_29_a001_ms,
+                        p14_18_10_23_a000_ms]
     # p9_17_11_29_a002_ms, p9_17_11_29_a003_ms removed because died just after
     # available_ms = [p6_18_02_07_a001_ms, p7_171012_a000_ms, p8_18_02_09_a000_ms, p9_17_12_20_a001_ms,
     #                 p10_17_11_16_a003_ms, p12_171110_a000_ms]
 
-    ms_to_analyse = [p13_18_10_29_a001_ms]
-    # ms_to_analyse = [p6_18_02_07_a001_ms, p6_18_02_07_a002_ms]
-
-    do_clustering = False
-    # if False, clustering will be done using kmean
-    do_fca_clustering = False
-    with_cells_in_cluster_seq_sorted = False
+    # ms_to_analyse = [p7_18_02_08_a000_ms,
+    #                     p7_17_10_18_a002_ms, p7_17_10_18_a004_ms, p7_18_02_08_a001_ms, p7_18_02_08_a002_ms,
+    #                     p7_18_02_08_a003_ms,
+    #                     p8_18_02_09_a000_ms, p8_18_02_09_a001_ms,
+    #                     p8_18_10_24_a005_ms, p8_18_10_17_a001_ms]
+    ms_to_analyse = [p12_17_11_10_a002_ms, p12_171110_a000_ms,
+                     p9_17_12_06_a001_ms, p9_17_12_20_a001_ms,
+                     p10_17_11_16_a003_ms]
 
     just_do_stat_on_event_detection_parameters = False
 
@@ -2077,29 +2147,43 @@ def main():
     use_max_of_each_surrogate = False
     n_surrogate_activity_threshold = 50
     use_raster_dur = True
+    determine_low_activity_by_variation = True
 
-    # for fca
+    # ##########################################################################################
+    # #################################### CLUSTERING ###########################################
+    # ##########################################################################################
+    do_clustering = True
+    # if False, clustering will be done using kmean
+    do_fca_clustering = False
+    with_cells_in_cluster_seq_sorted = False
+
+    # ##### for fca #####
     n_surrogate_fca = 20
 
-    # for kmean
+    # #### for kmean  #####
     with_shuffling = True
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(3, 10)
+    range_n_clusters_k_mean = np.arange(2, 20)
+    # range_n_clusters_k_mean = np.array([20])
     n_surrogate_k_mean = 50
+    keep_only_the_best_kmean_cluster = False
 
-    do_pattern_search = True
+    # ##########################################################################################
+    # ################################ PATTERNS SEARCH #########################################
+    # ##########################################################################################
+    do_pattern_search = False
     split_pattern_search = False
     use_only_uniformity_method = True
     use_loss_score_to_keep_the_best_from_tree = False
     use_sce_times_for_pattern_search = True
-    use_ordered_spike_nums_for_surrogate = False
-    n_surrogate_for_pattern_search = 100
+    use_ordered_spike_nums_for_surrogate = True
+    n_surrogate_for_pattern_search = 500
     # seq params:
     # TODO: error_rate that change with the number of element in the sequence
     param.error_rate = 0.25
-    param.max_branches = 5
+    param.max_branches = 15
     param.time_inter_seq = 50
-    param.min_duration_intra_seq = -5
+    param.min_duration_intra_seq = 0
     param.min_len_seq = 5
     param.min_rep_nb = 5
 
@@ -2155,6 +2239,26 @@ def main():
                         use_max_of_each_surrogate = True
                     else:
                         use_max_of_each_surrogate = False
+
+                    ###############  TEST    ##################
+                    if not determine_low_activity_by_variation:
+                        perc_low_activity_threshold = 5
+                        if perc_low_activity_threshold not in ms.low_activity_threshold_by_percentile:
+                            low_activity_events_thsld = get_low_activity_events_detection_threshold(
+                                spike_nums=spike_nums_to_use,
+                                window_duration=sliding_window_duration,
+                                spike_train_mode=False,
+                                use_min_of_each_surrogate=False,
+                                n_surrogate=n_surrogate_activity_threshold,
+                                perc_threshold=perc_low_activity_threshold,
+                                debug_mode=False)
+                            print(f"ms {ms.description}")
+                            print(f"low_activity_events_thsld {low_activity_events_thsld}, "
+                                  f"{np.round((low_activity_events_thsld/n_cells), 3)}%")
+                            continue
+                    else:
+                        pass
+                    # ########### END TEST ###########
 
                     if ms.activity_threshold is None:
                         activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use,
@@ -2553,7 +2657,7 @@ def main():
                                                                fct_to_keep_best_silhouettes=np.median,
                                                                with_cells_in_cluster_seq_sorted=
                                                                with_cells_in_cluster_seq_sorted,
-                                                               keep_only_the_best=True)
+                                                               keep_only_the_best=keep_only_the_best_kmean_cluster)
 
         ###################################################################
         ###################################################################
