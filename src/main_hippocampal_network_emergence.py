@@ -36,6 +36,7 @@ from pattern_discovery.seq_solver.markov_way import find_significant_patterns
 import pattern_discovery.tools.param as p_disc_param
 import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.display.raster import plot_spikes_raster
+from pattern_discovery.display.cells_map_module import CoordClass
 from pattern_discovery.tools.loss_function import loss_function_with_sliding_window
 import pattern_discovery.tools.trains as trains_module
 from pattern_discovery.tools.sce_detection import get_sce_detection_threshold, detect_sce_with_sliding_window, \
@@ -53,13 +54,14 @@ class HNEParameters(MarkovParameters):
     def __init__(self, path_results, time_str, time_inter_seq, min_duration_intra_seq, min_len_seq, min_rep_nb,
                  path_data,
                  max_branches, stop_if_twin, no_reverse_seq, error_rate, spike_rate_weight,
-                 bin_size=1):
+                 bin_size=1, cell_assemblies_data_path=None):
         super().__init__(time_inter_seq=time_inter_seq, min_duration_intra_seq=min_duration_intra_seq,
                          min_len_seq=min_len_seq, min_rep_nb=min_rep_nb, no_reverse_seq=no_reverse_seq,
                          max_branches=max_branches, stop_if_twin=stop_if_twin, error_rate=error_rate,
                          spike_rate_weight=spike_rate_weight,
                          bin_size=bin_size, path_results=path_results, time_str=time_str)
         self.path_data = path_data
+        self.cell_assemblies_data_path = cell_assemblies_data_path
         # for plotting ages
         self.markers = ['o', '*', 's', 'v', '<', '>', '^', 'x', '+', "."]  # d losange
         self.colors = ["darkmagenta", "white", "saddlebrown", "blue", "red", "darkgrey", "chartreuse", "cornflowerblue",
@@ -83,7 +85,66 @@ class MouseSession:
         self.percentile_for_low_activity_threshold = percentile_for_low_activity_threshold
         self.low_activity_threshold = None
         self.param = param
+        # list of list of int representing cell indices
+        self.cell_assemblies = None
+        if self.param.cell_assemblies_data_path is not None:
+            self.load_cell_assemblies_data()
         self.weight = weight
+        self.coord_obj = None
+
+    def load_cell_assemblies_data(self):
+        file_names = []
+
+        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(self.param.cell_assemblies_data_path):
+            file_names.extend(local_filenames)
+            break
+        if len(file_names) == 0:
+            return
+
+        for file_name in file_names:
+            file_name_original = file_name
+            file_name = file_name.lower()
+            descr = self.description.lower()
+            if not file_name.startswith(descr):
+                continue
+            self.cell_assemblies = []
+            with open(self.param.cell_assemblies_data_path + file_name_original, "r", encoding='UTF-8') as file:
+                param_section = False
+                cell_ass_section = False
+                for nb_line, line in enumerate(file):
+                    if line.startswith("#PARAM#"):
+                        param_section = True
+                        continue
+                    if line.startswith("#CELL_ASSEMBLIES#"):
+                        cell_ass_section = True
+                        param_section = False
+                        continue
+                    if cell_ass_section:
+                        if line.startswith("SCA_cluster"):
+                            cells = []
+                            line_list = line.split(':')
+                            cells = line_list[2].split(" ")
+                            self.cell_assemblies.append([int(cell) for cell in cells])
+
+    def plot_cell_assemblies_on_map(self):
+        if self.cell_assemblies is None:
+            return
+
+        n_assemblies = len(self.cell_assemblies)
+        cells_groups_colors = []
+        for i in np.arange(n_assemblies):
+            # print(f"cm.nipy_spectral(float(i + 1) / (n_assemblies + 1)) "
+            #       f"{cm.nipy_spectral(float(i + 1) / (n_assemblies + 1))}")
+            cells_groups_colors.append(cm.nipy_spectral(float(i + 1) / (n_assemblies + 1)))
+
+        self.coord_obj.compute_center_coord(cells_groups=self.cell_assemblies,
+                                            cells_groups_colors=cells_groups_colors)
+
+        self.coord_obj.plot_cells_map(param=self.param,
+                                      data_id=self.description, show_polygons=True,
+                                      title_option="cell_assemblies", connections_dict=None,
+                                      with_cell_numbers=True)
 
     def set_low_activity_threshold(self, threshold, percentile_value):
         self.low_activity_threshold_by_percentile[percentile_value] = threshold
@@ -120,9 +181,14 @@ class MouseSession:
             if frames_filter is not None:
                 self.traces = self.traces[:, frames_filter]
         if "coord" in variables_mapping:
-            self.coord = data[variables_mapping["coord"]]
+            self.coord = data[variables_mapping["coord"]][0]
+            self.coord_obj = CoordClass(coord=self.coord, nb_col=200,
+                                        nb_lines=200)
+            # print(f"self.coord {self.coord}")
         if "spike_durations" in variables_mapping:
             self.spike_struct.set_spike_durations(data[variables_mapping["spike_durations"]])
+        elif self.spike_struct.spike_nums_dur is not None:
+            self.spike_struct.set_spike_durations()
         if "spike_amplitudes" in variables_mapping:
             self.spike_struct.set_spike_amplitudes(data[variables_mapping["spike_amplitudes"]])
 
@@ -170,16 +236,48 @@ class HNESpikeStructure:
         # list of size n_cells, each list is array representing the amplitude of each spike of the cell
         self.spike_amplitudes = None
 
-    def set_spike_durations(self, spike_durations_array):
-        # print(f"np.shape(spike_durations_array) {np.shape(spike_durations_array)}")
+    def set_spike_durations(self, spike_durations_array=None):
+        if self.spike_durations is not None:
+            return
+
         self.spike_durations = []
-        avg_spike_duration_by_cell = np.zeros(len(spike_durations_array))
-        for cell_id, spikes_d in enumerate(spike_durations_array):
-            self.spike_durations.append(spikes_d[spikes_d > 0])
-            if len(self.spike_durations[-1]) > 0:
-                avg_spike_duration_by_cell[cell_id] = np.mean(self.spike_durations[-1])
-            else:
-                avg_spike_duration_by_cell[cell_id] = 0
+        n_cells = 0
+        if self.spike_nums is not None:
+            n_cells = len(self.spike_nums)
+        elif self.spike_nums_dur is not None:
+            n_cells = len(self.spike_nums_dur)
+        if n_cells == 0:
+            print("set_spike_durations no cell")
+            return
+
+        avg_spike_duration_by_cell = np.zeros(n_cells)
+
+        if self.spike_nums_dur is None:
+            for cell_id, spikes_d in enumerate(spike_durations_array):
+                self.spike_durations.append(spikes_d[spikes_d > 0])
+                if len(self.spike_durations[-1]) > 0:
+                    avg_spike_duration_by_cell[cell_id] = np.mean(self.spike_durations[-1])
+                else:
+                    avg_spike_duration_by_cell[cell_id] = 0
+        else:
+            self.spike_durations = tools_misc.get_spikes_duration_from_raster_dur(spike_nums_dur=self.spike_nums_dur)
+            # test
+            # if spike_durations_array is not None:
+            #     # test_spike_duration = []
+            #     for cell_id, spikes_d in enumerate(spike_durations_array):
+            #         # test_spike_duration.append(spikes_d[spikes_d > 0])
+            #         print(f"cell {cell_id}")
+            #         print(f"diff: {np.array(self.spike_durations[cell_id])}")
+            #         print(f"Robin: {spikes_d[spikes_d > 0]}")
+            #         print(f"raster: {np.where(self.spike_nums_dur[cell_id, :])[0]}")
+            #         print("")
+            #     raise Exception()
+
+            for cell_id, spike_duration in enumerate(self.spike_durations):
+                if len(spike_duration) > 0:
+                    avg_spike_duration_by_cell[cell_id] = np.mean(spike_duration)
+                else:
+                    avg_spike_duration_by_cell[cell_id] = 0
 
         # inter_neurons can be manually added
         if self.inter_neurons is not None:
@@ -258,468 +356,6 @@ class HNESpikeStructure:
         self.spike_trains = []
         for cell_spikes in self.spike_nums:
             self.spike_trains.append(np.where(cell_spikes)[0].astype(float))
-
-
-class CoordClass:
-    def __init__(self, coord, nb_lines, nb_col, mouse_session=None):
-        # contour coord
-        self.coord = coord
-        self.nb_lines = nb_lines
-        self.nb_col = nb_col
-        # dict of tuples, key is the cell #, cell center coord x and y (x and y are inverted for imgshow)
-        self.center_coord = list()
-        self.img_filled = None
-        self.img_contours = None
-        # used in case some cells would be removed, to we can update the centers accordingly
-        self.neurons_removed = []
-        self.ms = mouse_session
-        # compute_center_coord() will be called when a mouseSession will be created
-        # self.compute_center_coord()
-
-    def compute_center_coord(self):
-        """
-        Compute the center of each cell in the graph and build the image with contours and filled cells
-        :return:
-        """
-        self.center_coord = list()
-
-        test_img = np.zeros((self.nb_lines, self.nb_col), dtype="int8")
-        early_born_img = np.zeros((self.nb_lines, self.nb_col), dtype="int8")
-
-        # early_born cell
-        early_born_cell = self.ms.early_born_cell
-        c = self.coord[early_born_cell]
-        c = c[0] - 1
-        c_filtered = c.astype(int)
-        # c = signal.medfilt(c)
-        early_born_img[c_filtered[1, :], c_filtered[0, :]] = 1
-        # test_img = morphology.binary_dilation(test_img)
-        early_born_img = morphology.binary_fill_holes(early_born_img)
-        # green value is -1
-        early_born_img[c_filtered[1, :], c_filtered[0, :]] = 0
-        # border value is 2
-        # test_img[c_filtered[1, :], c_filtered[0, :]] = 2
-        # self.img_filled = test_img
-
-        for i, c in enumerate(self.coord):
-            if i in self.neurons_removed:
-                continue
-
-            # it is necessary to remove one, as data comes from matlab, starting from 1 and not 0
-            c = c[0] - 1
-
-            if c.shape[0] == 0:
-                print(f'Error: {i} c.shape {c.shape}')
-                continue
-            # c = signal.medfilt(c)
-            c_filtered = c.astype(int)
-            bw = np.zeros((self.nb_lines, self.nb_col), dtype="int8")
-            # morphology.binary_fill_holes(input
-            bw[c_filtered[1, :], c_filtered[0, :]] = 1
-            # early born as been drawn earlier, but we need to update center_coord
-            test_img[c_filtered[1, :], c_filtered[0, :]] = 1
-            c_x, c_y = ndimage.center_of_mass(bw)
-            self.center_coord.append((c_y, c_x))
-
-        self.img_filled = np.zeros((self.nb_lines, self.nb_col), dtype="int8")
-        # specifying output, otherwise binary_fill_holes return a boolean array
-        morphology.binary_fill_holes(test_img, output=self.img_filled)
-
-        with_borders = False
-
-        # now putting contour to value 2
-        for i, c in enumerate(self.coord):
-            if i in self.neurons_removed:
-                continue
-
-            # it is necessary to remove one, as data comes from matlab, starting from 1 and not 0
-            c = c[0] - 1
-
-            if c.shape[0] == 0:
-                continue
-            c_filtered = c.astype(int)
-            # border to 2, to be in black
-            if with_borders:
-                self.img_filled[c_filtered[1, :], c_filtered[0, :]] = 2
-            else:
-                self.img_filled[c_filtered[1, :], c_filtered[0, :]] = 0
-
-        do_early_born_with_different_color = False
-        if do_early_born_with_different_color:
-            # filling early_born cell with value to -1
-            for n, pixels in enumerate(early_born_img):
-                # print(f"pixels > 0 {np.where(pixels > 0)}")
-                self.img_filled[n, np.where(pixels > 0)[0]] = -1
-
-        # if we dilate, some cells will fusion
-        dilatation_version = False
-        if (not with_borders) and dilatation_version:
-            self.img_filled = morphology.binary_dilation(self.img_filled)
-
-        self.img_contours = test_img
-
-
-# def sort_it_and_plot_it(spike_nums, param,
-#                         sliding_window_duration, activity_threshold, title_option="",
-#                         sce_times_bool=None,
-#                         spike_train_format=False,
-#                         debug_mode=False,
-#                         plot_all_best_seq_by_cell=False,
-#                         use_only_uniformity_method=False,
-#                         use_loss_score_to_keep_the_best_from_tree=
-#                         False,
-#                         save_plots=True
-#                         ):
-#     if spike_train_format:
-#         return
-#     # if sce_times_bool is not None, then we don't take in consideration SCE_time to do the pair-wise correlation
-#     result = order_spike_nums_by_seq(spike_nums,
-#                                      param, sce_times_bool=sce_times_bool,
-#                                      debug_mode=debug_mode,
-#                                      use_only_uniformity_method=use_only_uniformity_method,
-#                                      use_loss_score_to_keep_the_best_from_tree=
-#                                      use_loss_score_to_keep_the_best_from_tree)
-#     seq_dict_tmp, best_seq, all_best_seq = result
-#
-#     if plot_all_best_seq_by_cell:
-#         for cell, each_best_seq in enumerate(all_best_seq):
-#             spike_nums_ordered = np.copy(spike_nums[each_best_seq, :])
-#
-#             new_labels = np.arange(len(spike_nums))
-#             new_labels = new_labels[best_seq]
-#             loss_score = loss_function_with_sliding_window(spike_nums=spike_nums_ordered[::-1, :],
-#                                                            time_inter_seq=param.time_inter_seq,
-#                                                            min_duration_intra_seq=param.min_duration_intra_seq,
-#                                                            spike_train_mode=False,
-#                                                            debug_mode=True
-#                                                            )
-#             print(f'Cell {cell} loss_score ordered: {np.round(loss_score, 4)}')
-#             # saving the ordered spike_nums
-#             # micro_wires_ordered = micro_wires[best_seq]
-#             # np.savez(f'{param.path_results}/{channels_selection}_spike_nums_ordered_{patient_id}.npz',
-#             #          spike_nums_ordered=spike_nums_ordered, micro_wires_ordered=micro_wires_ordered)
-#
-#             plot_spikes_raster(spike_nums=spike_nums_ordered, param=param,
-#                                title=f"cell {cell} raster plot ordered {title_option}",
-#                                spike_train_format=False,
-#                                file_name=f"cell_{cell}_spike_nums_ordered_{title_option}",
-#                                y_ticks_labels=new_labels,
-#                                y_ticks_labels_size=2,
-#                                save_raster=True,
-#                                show_raster=False,
-#                                sliding_window_duration=sliding_window_duration,
-#                                show_sum_spikes_as_percentage=True,
-#                                plot_with_amplitude=False,
-#                                activity_threshold=activity_threshold,
-#                                save_formats="pdf")
-#     else:
-#         spike_nums_ordered = np.copy(spike_nums[best_seq, :])
-#
-#         new_labels = np.arange(len(spike_nums))
-#         new_labels = new_labels[best_seq]
-#         if save_plots:
-#             plot_spikes_raster(spike_nums=spike_nums_ordered, param=param,
-#                                title=f"raster plot ordered {title_option}",
-#                                spike_train_format=False,
-#                                file_name=f"spike_nums_ordered_{title_option}",
-#                                y_ticks_labels=new_labels,
-#                                y_ticks_labels_size=2,
-#                                save_raster=True,
-#                                show_raster=False,
-#                                sliding_window_duration=sliding_window_duration,
-#                                show_sum_spikes_as_percentage=True,
-#                                plot_with_amplitude=False,
-#                                activity_threshold=activity_threshold,
-#                                save_formats="pdf")
-#
-#     #### test for coloring sequences
-#     spike_nums_ordered = np.copy(spike_nums[best_seq, :])
-#     print(f"starting finding sequences in orderered spike nums")
-#     seq_dict = find_sequences_in_ordered_spike_nums(spike_nums=spike_nums_ordered, param=param)
-#     print(f"Sequences in orderered spike nums found")
-#     if not save_plots:
-#         return best_seq, seq_dict
-#     # if debug_mode:
-#     #     print(f"best_seq {best_seq}")
-#     # if seq_dict_tmp is not None:
-#     #     if debug_mode:
-#     #         for key, value in seq_dict_tmp.items():
-#     #             print(f"seq: {key}, rep: {len(value)}")
-#     #
-#     #     best_seq_mapping_index = dict()
-#     #     for i, cell in enumerate(best_seq):
-#     #         best_seq_mapping_index[cell] = i
-#     #     # we need to replace the index by the corresponding one in best_seq
-#     #     seq_dict = dict()
-#     #     for key, value in seq_dict_tmp.items():
-#     #         new_key = []
-#     #         for cell in key:
-#     #             new_key.append(best_seq_mapping_index[cell])
-#     #         # checking if the list of cell is in the same order in best_seq
-#     #         # if the diff is only composed of one, this means all indices are following each other
-#     #         in_order = len(np.where(np.diff(new_key) != 1)[0]) == 0
-#     #         if in_order:
-#     #             print(f"in_order {new_key}")
-#     #             seq_dict[tuple(new_key)] = value
-#     #
-#     #     seq_colors = dict()
-#     #     len_seq = len(seq_dict)
-#     #     if debug_mode:
-#     #         print(f"nb seq to colors: {len_seq}")
-#     #     for index, key in enumerate(seq_dict.keys()):
-#     #         seq_colors[key] = cm.nipy_spectral(float(index + 1) / (len_seq + 1))
-#     #         if debug_mode:
-#     #             print(f"color {seq_colors[key]}, len(seq) {len(key)}")
-#     # else:
-#     #     seq_dict = None
-#     #     seq_colors = None
-#     # ordered_spike_nums = ordered_spike_data
-#     # spike_struct.ordered_spike_data = \
-#     #     trains_module.from_spike_nums_to_spike_trains(spike_struct.ordered_spike_data)
-#     new_labels = np.arange(len(spike_nums))
-#     new_labels = new_labels[best_seq]
-#     loss_score = loss_function_with_sliding_window(spike_nums=spike_nums_ordered,
-#                                                    time_inter_seq=param.time_inter_seq,
-#                                                    min_duration_intra_seq=param.min_duration_intra_seq,
-#                                                    spike_train_mode=False,
-#                                                    debug_mode=True
-#                                                    )
-#     print(f'total loss_score ordered: {np.round(loss_score, 4)}')
-#     # saving the ordered spike_nums
-#     # micro_wires_ordered = micro_wires[best_seq]
-#     # np.savez(f'{param.path_results}/{channels_selection}_spike_nums_ordered_{patient_id}.npz',
-#     #          spike_nums_ordered=spike_nums_ordered, micro_wires_ordered=micro_wires_ordered)
-#
-#     colors_for_seq_list = ["blue", "red", "limegreen", "grey", "orange", "cornflowerblue", "yellow", "seagreen",
-#                            "magenta"]
-#     plot_spikes_raster(spike_nums=spike_nums_ordered, param=param,
-#                        title=f"raster plot ordered {title_option}",
-#                        spike_train_format=False,
-#                        file_name=f"spike_nums_ordered_seq_{title_option}",
-#                        y_ticks_labels=new_labels,
-#                        y_ticks_labels_size=2,
-#                        save_raster=True,
-#                        show_raster=False,
-#                        sliding_window_duration=sliding_window_duration,
-#                        show_sum_spikes_as_percentage=True,
-#                        plot_with_amplitude=False,
-#                        activity_threshold=activity_threshold,
-#                        save_formats="pdf",
-#                        seq_times_to_color_dict=seq_dict,
-#                        link_seq_color=colors_for_seq_list,
-#                        link_seq_line_width=0.8,
-#                        link_seq_alpha=0.9,
-#                        jitter_links_range=5,
-#                        min_len_links_seq=3)
-#     # seq_colors=seq_colors)
-#
-#     return best_seq, seq_dict
-
-
-# def use_new_pattern_package(spike_nums, param, activity_threshold, sliding_window_duration,
-#                             mouse_id, n_surrogate=2, extra_file_name="", debug_mode=False, without_raw_plot=True,
-#                             sce_times_bool=None, use_uniformity_method=False,
-#                             use_ordered_spike_nums_for_surrogate=False,
-#                             use_only_uniformity_method=False,
-#                             use_loss_score_to_keep_the_best_from_tree=
-#                             False):
-#     # around 250 ms
-#     # param.time_inter_seq
-#     # param.min_duration_intra_seq
-#     # -(10 ** (6 - decrease_factor)) // 40
-#     # a sequence should be composed of at least one third of the neurons
-#     # param.min_len_seq = len(spike_nums_struct.spike_data) // 4
-#     # param.min_len_seq = 5
-#     # param.error_rate = param.min_len_seq // 4
-#
-#     labels = np.arange(len(spike_nums))
-#
-#     if not without_raw_plot:
-#         plot_spikes_raster(spike_nums=spike_nums, param=param,
-#                            spike_train_format=False,
-#                            title=f"raster plot {mouse_id}",
-#                            file_name=f"raw_spike_nums_{mouse_id}{extra_file_name}",
-#                            y_ticks_labels=labels,
-#                            y_ticks_labels_size=4,
-#                            save_raster=True,
-#                            show_raster=False,
-#                            plot_with_amplitude=False,
-#                            activity_threshold=activity_threshold,
-#                            # 500 ms window
-#                            sliding_window_duration=sliding_window_duration,
-#                            show_sum_spikes_as_percentage=True,
-#                            spike_shape="|",
-#                            spike_shape_size=1,
-#                            save_formats="pdf")
-#     # continue
-#
-#     # 2128885
-#     loss_score = loss_function_with_sliding_window(spike_nums=spike_nums,
-#                                                    time_inter_seq=param.time_inter_seq,
-#                                                    spike_train_mode=False,
-#                                                    min_duration_intra_seq=param.min_duration_intra_seq,
-#                                                    debug_mode=debug_mode)
-#
-#     print(f'raw loss_score: {np.round(loss_score, 4)}')
-#
-#     # spike_struct.spike_data = trains_module.from_spike_trains_to_spike_nums(spike_struct.spike_data)
-#
-#     best_seq_real_data, seq_dict_real_data = sort_it_and_plot_it(spike_nums=spike_nums, param=param,
-#                                                                  sliding_window_duration=sliding_window_duration,
-#                                                                  activity_threshold=activity_threshold,
-#                                                                  title_option=f"{mouse_id}{extra_file_name}",
-#                                                                  spike_train_format=False,
-#                                                                  debug_mode=debug_mode,
-#                                                                  sce_times_bool=sce_times_bool,
-#                                                                  use_only_uniformity_method=use_only_uniformity_method,
-#                                                                  use_loss_score_to_keep_the_best_from_tree=
-#                                                                  use_loss_score_to_keep_the_best_from_tree)
-#
-#     nb_cells = len(spike_nums)
-#
-#     print("#### REAL DATA ####")
-#     print(f"best_seq {best_seq_real_data}")
-#     real_data_result_for_stat = SortedDict()
-#     neurons_sorted_real_data = np.zeros(nb_cells, dtype="uint16")
-#     if seq_dict_real_data is not None:
-#         for key, value in seq_dict_real_data.items():
-#             # print(f"len: {len(key)}, seq: {key}, rep: {len(value)}")
-#             if len(key) not in real_data_result_for_stat:
-#                 real_data_result_for_stat[len(key)] = []
-#             real_data_result_for_stat[len(key)].append(len(value))
-#             for cell in key:
-#                 if neurons_sorted_real_data[cell] == 0:
-#                     neurons_sorted_real_data[cell] = 1
-#
-#     n_times = len(spike_nums[0, :])
-#
-#     print("#### SURROGATE DATA ####")
-#     # n_surrogate = 2
-#     surrogate_data_result_for_stat = SortedDict()
-#     neurons_sorted_surrogate_data = np.zeros(nb_cells, dtype="uint16")
-#     nb_seq_by_len_for_each_surrogate = np.zeros((nb_cells+1, n_surrogate), dtype="uint16")
-#     for surrogate_number in np.arange(n_surrogate):
-#         print(f"#### SURROGATE n° {surrogate_number} ####")
-#         copy_spike_nums = np.copy(spike_nums)
-#         for n, neuron_spikes in enumerate(copy_spike_nums):
-#             # roll the data to a random displace number
-#             copy_spike_nums[n, :] = np.roll(neuron_spikes, np.random.randint(1, n_times))
-#         if use_ordered_spike_nums_for_surrogate:
-#             # using ordered spike_nums that we will surrogate
-#             copy_spike_nums = np.copy(spike_nums[best_seq_real_data, :])
-#             for n, neuron_spikes in enumerate(copy_spike_nums):
-#                 # roll the data to a random displace number
-#                 copy_spike_nums[n, :] = np.roll(neuron_spikes, np.random.randint(1, n_times))
-#             seq_dict_surrogate = find_sequences_in_ordered_spike_nums(spike_nums=copy_spike_nums, param=param)
-#         else:
-#             tmp_spike_nums = copy_spike_nums
-#             save_plots = False if (surrogate_number > 0) else True
-#             best_seq_surrogate, seq_dict_surrogate = \
-#                 sort_it_and_plot_it(spike_nums=tmp_spike_nums, param=param,
-#                                     sliding_window_duration=sliding_window_duration,
-#                                     activity_threshold=activity_threshold,
-#                                     title_option=f"surrogate_{surrogate_number}_"
-#                                                  f"{mouse_id}{extra_file_name}",
-#                                     spike_train_format=False,
-#                                     debug_mode=False,
-#                                     use_only_uniformity_method=use_only_uniformity_method,
-#                                     use_loss_score_to_keep_the_best_from_tree=
-#                                     use_loss_score_to_keep_the_best_from_tree,
-#                                     save_plots=save_plots
-#                                     )
-#
-#         # print(f"best_seq {best_seq_surrogate}")
-#
-#         mask = np.zeros(nb_cells, dtype="bool")
-#         if seq_dict_surrogate is not None:
-#             for key, value in seq_dict_surrogate.items():
-#                 print(f"len: {len(key)}, seq: {key}, rep: {len(value)}")
-#                 # counting the number of a given length for each surrogate
-#                 nb_seq_by_len_for_each_surrogate[len(key), surrogate_number] += 1
-#                 if len(key) not in surrogate_data_result_for_stat:
-#                     surrogate_data_result_for_stat[len(key)] = []
-#                 surrogate_data_result_for_stat[len(key)].append(len(value))
-#                 for cell in key:
-#                     mask[cell] = True
-#             neurons_sorted_surrogate_data[mask] += 1
-#     # min_time, max_time = trains_module.get_range_train_list(spike_nums)
-#     # surrogate_data_set = create_surrogate_dataset(train_list=spike_nums, nsurrogate=n_surrogate,
-#     #                                               min_value=min_time, max_value=max_time)
-#     print("")
-#     print("")
-#
-#     give_me_stat_on_sorting_seq_results(results_dict=real_data_result_for_stat,
-#                                         neurons_sorted=neurons_sorted_real_data,
-#                                         title="%%%% DATA SET STAT %%%%%", param=param,
-#                                         results_dict_surrogate=surrogate_data_result_for_stat,
-#                                         neurons_sorted_surrogate=neurons_sorted_surrogate_data,
-#                                         extra_file_name=extra_file_name,
-#                                         n_surrogate=n_surrogate,
-#                                         use_sce_times_for_pattern_search=(sce_times_bool is not None),
-#                                         use_only_uniformity_method=use_only_uniformity_method,
-#                                         use_loss_score_to_keep_the_best_from_tree=
-#                                         use_loss_score_to_keep_the_best_from_tree
-#                                         )
-#
-#     seq_dict_real_data_backup = dict()
-#     seq_dict_real_data_backup.update(seq_dict_real_data)
-#
-#     significant_threshold_by_seq_len_and_rep = dict()
-#
-#     for key, repetitions in surrogate_data_result_for_stat.items():
-#         significant_threshold_by_seq_len_and_rep[key] = np.percentile(repetitions, 95)
-#
-#
-#     # filtering seq to keep only the significant one
-#     significant_seq_dict = dict()
-#     # for each sequence gives its significance level
-#     # 1 if significant due the number of seq of this length in the dataset
-#     # 2 if significant due the number of repetition of this sequence in comparison of same length seq from surrogate
-#     # 3 if significant for the both previous reason
-#     # 4 if significant because no seq of this length found in the surrogate
-#     significant_category_dict = dict()
-#     for cells, times in seq_dict_real_data.items():
-#         category = 0
-#
-#         if len(cells) not in significant_threshold_by_seq_len_and_rep:
-#             category = 4
-#         else:
-#             threshold_len = np.percentile(nb_seq_by_len_for_each_surrogate[len(cells), :], 95)
-#             if len(real_data_result_for_stat[len(cells)]) > threshold_len:
-#                 category += 1
-#
-#             if len(times) >= significant_threshold_by_seq_len_and_rep[len(cells)]:
-#                 category += 2
-#
-#         significant_seq_dict[cells] = times
-#         significant_category_dict[cells] = category
-#
-#     title_option = f"{extra_file_name}_significant_seq"
-#     colors_for_seq_list = ["blue", "red", "limegreen", "grey", "orange", "cornflowerblue", "yellow", "seagreen",
-#                            "magenta"]
-#     spike_nums_ordered = spike_nums[best_seq_real_data, :]
-#     new_labels = np.arange(len(spike_nums))
-#     new_labels = new_labels[best_seq_real_data]
-#     plot_spikes_raster(spike_nums=spike_nums_ordered, param=param,
-#                        title=f"raster plot ordered {title_option}",
-#                        spike_train_format=False,
-#                        file_name=f"spike_nums_ordered_seq_{title_option}",
-#                        y_ticks_labels=new_labels,
-#                        y_ticks_labels_size=2,
-#                        save_raster=True,
-#                        show_raster=False,
-#                        sliding_window_duration=sliding_window_duration,
-#                        show_sum_spikes_as_percentage=True,
-#                        plot_with_amplitude=False,
-#                        activity_threshold=activity_threshold,
-#                        save_formats="pdf",
-#                        seq_times_to_color_dict=significant_seq_dict,
-#                        link_seq_categories=significant_category_dict,
-#                        link_seq_color=colors_for_seq_list,
-#                        link_seq_line_width=0.8,
-#                        link_seq_alpha=0.9,
-#                        jitter_links_range=5,
-#                        min_len_links_seq=3)
 
 
 def save_stat_by_age(ratio_spikes_events_by_age, ratio_spikes_total_events_by_age, mouse_sessions,
@@ -1279,6 +915,12 @@ def plot_duration_spikes_by_age(mouse_sessions, ms_ages,
     high_percentile_participation = np.zeros(len(ms_ages))
     low_percentile_participation = np.zeros(len(ms_ages))
     for index, age in enumerate(ms_ages):
+        if age not in duration_spikes_by_age:
+            y_data[index] = 1
+            high_percentile_participation[index] = 1
+            low_percentile_participation[index] = 1
+            continue
+
         y_data[index] = np.median(duration_spikes_by_age[age])
         # stds[index] = np.std(data)
         high_percentile_participation[index] = np.percentile(duration_spikes_by_age[age], 95)
@@ -1397,21 +1039,28 @@ def compute_stat_about_significant_seq(files_path, param, save_formats="pdf"):
     # dict3: key length seq (int), value dict4
     # dict4: key repetitions (int), value nb of seq with this length and this repetition
     data_dict = SortedDict()
+    # key is an int representing age, and value is an int representing the number of sessions for a given age
+    nb_ms_by_age = dict()
 
     for file_name in file_names:
+        file_name_original = file_name
         if not file_name.startswith("p"):
-            continue
+            if not file_name.startswith("significant_sorting_results"):
+                continue
+            # p_index = len("significant_sorting_results")+1
+            file_name = file_name[len("significant_sorting_results"):]
         index_ = file_name.find("_")
         if index_ < 1:
             continue
         age = int(file_name[1:index_])
+        nb_ms_by_age[age] = nb_ms_by_age.get(age, 0) + 1
         # print(f"age {age}")
         if age not in data_dict:
             data_dict[age] = dict()
             for cat in np.arange(1, 1 + n_categories):
                 data_dict[age][cat] = dict()
 
-        with open(files_path + file_name, "r", encoding='UTF-8') as file:
+        with open(files_path + file_name_original, "r", encoding='UTF-8') as file:
             for nb_line, line in enumerate(file):
                 line_list = line.split(':')
                 seq_n_cells = int(line_list[0])
@@ -1486,14 +1135,17 @@ def compute_stat_about_significant_seq(files_path, param, save_formats="pdf"):
                     grid_pos_x = spot % len_grid[1]
                     x_pos = len_seq - 0.4 + (grid_pos_x * (0.8 / (len_grid[1] - 1)))
                     y_pos = rep - 0.35 + (grid_pos_y * (0.7 / (len_grid[0] - 1)))
+                    n_seq_normalized = np.round((n_seq / nb_ms_by_age[age]), 1)
+                    if n_seq_normalized % 1 == 0:
+                        n_seq_normalized = int(n_seq_normalized)
                     ax1.scatter(x_pos,
                                 y_pos,
                                 color=param.colors[age_index % (len(param.colors))],
                                 marker=param.markers[cat - 1],
-                                s=40 + 2 * n_seq, alpha=1, edgecolors='none')
+                                s=15 + 5 * np.sqrt(n_seq_normalized), alpha=1, edgecolors='none')
                     ax1.text(x=x_pos, y=y_pos,
-                             s=f"{n_seq}", color="black", zorder=22,
-                             ha='center', va="center", fontsize=4, fontweight='bold')
+                             s=f"{n_seq_normalized}", color="black", zorder=22,
+                             ha='center', va="center", fontsize=0.9, fontweight='bold')
                     i_jitter += 1
         age_index += 1
 
@@ -1592,6 +1244,8 @@ def box_plot_data_by_age(data_dict, title, filename, y_label, param, save_format
 
 def plot_psth_interneurons_events(ms, spike_nums_dur, spike_nums, SCE_times, sliding_window_duration,
                                   param, save_formats="pdf"):
+    if spike_nums_dur is None:
+        return
     inter_neurons = ms.spike_struct.inter_neurons
     n_times = len(spike_nums[0, :])
     for inter_neuron in inter_neurons:
@@ -1692,7 +1346,10 @@ def get_ratio_spikes_on_events_vs_total_events_by_cell(spike_nums,
 
     for cell in np.arange(n_cells):
         n_sces = np.max(sce_times_numbers) + 1
-        spikes_index = np.where(spike_nums_dur[cell, :])[0]
+        if spike_nums_dur is not None:
+            spikes_index = np.where(spike_nums_dur[cell, :])[0]
+        else:
+            spikes_index = np.where(spike_nums[cell, :])[0]
         sce_numbers = sce_times_numbers[spikes_index]
         # will give us all sce in which the cell spikes
         sce_numbers = np.unique(sce_numbers)
@@ -1714,7 +1371,11 @@ def get_ratio_spikes_on_events_vs_total_spikes_by_cell(spike_nums,
 
     for cell in np.arange(n_cells):
         n_spikes = np.sum(spike_nums[cell, :])
-        spikes_index = np.where(spike_nums_dur[cell, :])[0]
+        if spike_nums_dur is not None:
+            spikes_index = np.where(spike_nums_dur[cell, :])[0]
+        else:
+            spikes_index = np.where(spike_nums[cell, :])[0]
+
         sce_numbers = sce_times_numbers[spikes_index]
         # will give us all sce in which the cell spikes
         sce_numbers = np.unique(sce_numbers)
@@ -1736,6 +1397,7 @@ def main():
     root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
     path_data = root_path + "data/"
     path_results_raw = root_path + "results_hne/"
+    cell_assemblies_data_path = path_data + "cell_assemblies/v1/"
 
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     path_results = path_results_raw + f"{time_str}"
@@ -1747,14 +1409,34 @@ def main():
 
     # param will be set later when the spike_nums will have been constructed
     param = HNEParameters(time_str=time_str, path_results=path_results, error_rate=2,
+                          cell_assemblies_data_path=cell_assemblies_data_path,
                           time_inter_seq=50, min_duration_intra_seq=-3, min_len_seq=10, min_rep_nb=4,
                           max_branches=20, stop_if_twin=False,
                           no_reverse_seq=False, spike_rate_weight=False, path_data=path_data)
 
     just_compute_significant_seq_stat = False
     if just_compute_significant_seq_stat:
-        compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v2/", param=param)
+        compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v3/", param=param)
         return
+
+    # test
+    # p11_17_11_24_a000_ms = MouseSession(age=11, session_id="17_11_24_a000", nb_ms_by_frame=100, param=param,
+    #                                     weight=6.7)
+    # # calculated with 99th percentile on raster dur
+    # p11_17_11_24_a000_ms.activity_threshold = 12
+    # p11_17_11_24_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
+    # p11_17_11_24_a000_ms.set_inter_neurons([193])
+    # # duration of those interneurons: 19.09
+    # variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+    #                      "spike_nums": "filt_Bin100ms_spikedigital",
+    #                      "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
+    # p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_RasterDur.mat",
+    #                                          variables_mapping=variables_mapping)
+    # variables_mapping = {"coord": "ContoursAll"}
+    # p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
+    #                                          variables_mapping=variables_mapping)
+    # p11_17_11_24_a000_ms.plot_cell_assemblies_on_map()
+    # return
 
     # loading data
     p6_18_02_07_a001_ms = MouseSession(age=6, session_id="18_02_07_a001", nb_ms_by_frame=100, param=param,
@@ -1788,16 +1470,17 @@ def main():
     p7_171012_a000_ms = MouseSession(age=7, session_id="17_10_12_a000", nb_ms_by_frame=100, param=param,
                                      weight=None)
     # calculated with 99th percentile on raster dur
-    p7_171012_a000_ms.activity_threshold = 22
+    p7_171012_a000_ms.activity_threshold = 19
     p7_171012_a000_ms.set_low_activity_threshold(threshold=6, percentile_value=1)
-    p7_171012_a000_ms.set_low_activity_threshold(threshold=7, percentile_value=5)
+    # p7_171012_a000_ms.set_low_activity_threshold(threshold=7, percentile_value=5)
     p7_171012_a000_ms.set_inter_neurons([305, 360, 398, 412])
     # duration of those interneurons: 13.23  12.48  10.8   11.88
-    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+    variables_mapping = {"spike_nums_dur": "rasterdur",
                          "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
-    p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/P7_17_10_12_a000_rasterdur.mat",
-                                          variables_mapping=variables_mapping)
+                         "spike_durations": "LOC3"}
+    p7_171012_a000_ms.load_data_from_file(
+        file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Corrected_RasterDur.mat",
+        variables_mapping=variables_mapping)
 
     p7_18_02_08_a000_ms = MouseSession(age=7, session_id="18_02_08_a000", nb_ms_by_frame=100, param=param,
                                        weight=3.85)
@@ -1940,6 +1623,22 @@ def main():
     p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_RasterDur.mat",
                                             variables_mapping=variables_mapping)
 
+    #
+    p8_18_10_17_a000_ms = MouseSession(age=8, session_id="18_10_17_a000", nb_ms_by_frame=100, param=param,
+                                       weight=6)
+    # calculated with 99th percentile on raster dur
+    p8_18_10_17_a000_ms.activity_threshold = 11
+    # p8_18_10_17_a000_ms.set_low_activity_threshold(threshold=, percentile_value=1)
+    # p8_18_10_17_a000_ms.set_low_activity_threshold(threshold=, percentile_value=5)
+    p8_18_10_17_a000_ms.set_inter_neurons([27, 70])
+    # duration of those interneurons: 23.8, 43
+    variables_mapping = {"spike_nums_dur": "rasterdur",
+                         "spike_nums": "filt_Bin100ms_spikedigital",
+                         "spike_durations": "LOC3"}
+    p8_18_10_17_a000_ms.load_data_from_file(
+        file_name_to_load="p8/p8_18_10_17_a000/P8_18_10_17_a000_Corrected_RasterDur.mat",
+        variables_mapping=variables_mapping)
+
     # p9_17_11_29_a002 low participation comparing to other, dead shortly after the recording
     p9_17_11_29_a002_ms = MouseSession(age=9, session_id="17_11_29_a002", nb_ms_by_frame=100, param=param,
                                        weight=5.7)
@@ -1992,6 +1691,20 @@ def main():
     p9_17_12_20_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_20_a001/p9_17_12_20_a001_RasterDur.mat",
                                             variables_mapping=variables_mapping)
 
+    #
+    p9_18_09_27_a003_ms = MouseSession(age=9, session_id="18_09_27_a003", nb_ms_by_frame=100, param=param,
+                                       weight=6.65)
+    # calculated with 99th percentile on raster dur
+    p9_18_09_27_a003_ms.activity_threshold = 10
+    # p9_18_09_27_a003_ms.set_low_activity_threshold(threshold=, percentile_value=1)
+    p9_18_09_27_a003_ms.set_inter_neurons([2, 9, 67, 206])
+    # duration of those interneurons: 59.1, 32, 28, 35.15
+    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                         "spike_nums": "filt_Bin100ms_spikedigital",
+                         "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
+    p9_18_09_27_a003_ms.load_data_from_file(file_name_to_load="p9/p9_18_09_27_a003/p9_18_09_27_a003_RasterDur.mat",
+                                            variables_mapping=variables_mapping)
+
     p10_17_11_16_a003_ms = MouseSession(age=10, session_id="17_11_16_a003", nb_ms_by_frame=100, param=param,
                                         weight=6.1)
     # calculated with 99th percentile on raster dur
@@ -2030,6 +1743,9 @@ def main():
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_RasterDur.mat",
                                              variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
+                                             variables_mapping=variables_mapping)
 
     p12_17_11_10_a002_ms = MouseSession(age=12, session_id="17_11_10_a002", nb_ms_by_frame=100, param=param,
                                         weight=7)
@@ -2057,13 +1773,26 @@ def main():
     p12_171110_a000_ms.load_data_from_file(file_name_to_load="p12/P12_17_11_10_a000/p12_17_11_10_a000_rasterdur.mat",
                                            variables_mapping=variables_mapping)
 
+    p13_18_10_29_a000_ms = MouseSession(age=13, session_id="18_10_29_a000", nb_ms_by_frame=100, param=param,
+                                        weight=9.4)
+    # calculated with 99th percentile on raster dur
+    p13_18_10_29_a000_ms.activity_threshold = 16
+    # p13_18_10_29_a000_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
+    p13_18_10_29_a000_ms.set_inter_neurons([5, 26, 27, 35, 38])
+    # duration of those interneurons: 13.57, 16.8, 22.4, 12, 14.19
+    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                         "spike_nums": "filt_Bin100ms_spikedigital",
+                         "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
+    p13_18_10_29_a000_ms.load_data_from_file(file_name_to_load="p13/p13_18_10_29_a000/p13_18_10_29_a000_RasterDur.mat",
+                                             variables_mapping=variables_mapping)
+
     p13_18_10_29_a001_ms = MouseSession(age=13, session_id="18_10_29_a001", nb_ms_by_frame=100, param=param,
                                         weight=9.4)
     # calculated with 99th percentile on raster dur
-    p13_18_10_29_a001_ms.activity_threshold = 14
-    p13_18_10_29_a001_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
-    p13_18_10_29_a001_ms.set_inter_neurons([85, 183, 171])
-    # duration of those interneurons: 17  17.64 15.31
+    p13_18_10_29_a001_ms.activity_threshold = 13
+    # p13_18_10_29_a001_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
+    p13_18_10_29_a001_ms.set_inter_neurons([68])
+    # duration of those interneurons: 13.31
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
                          "spike_nums": "filt_Bin100ms_spikedigital",
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
@@ -2101,6 +1830,7 @@ def main():
 
     arnaud_ms = MouseSession(age=24, session_id="arnaud", nb_ms_by_frame=50, param=param)
     arnaud_ms.activity_threshold = 13
+    arnaud_ms.set_inter_neurons([])
     variables_mapping = {"spike_nums": "spikenums"}
     arnaud_ms.load_data_from_file(file_name_to_load="spikenumsarnaud.mat", variables_mapping=variables_mapping)
 
@@ -2110,21 +1840,24 @@ def main():
                     p7_18_02_08_a003_ms,
                     p8_18_02_09_a000_ms, p8_18_02_09_a001_ms,
                     p8_18_10_24_a005_ms, p8_18_10_17_a001_ms,
+                    p8_18_10_17_a000_ms,  # new
                     p9_17_12_06_a001_ms, p9_17_12_20_a001_ms,
+                    p9_18_09_27_a003_ms,  # new
                     p10_17_11_16_a003_ms,
                     p11_17_11_24_a001_ms, p11_17_11_24_a000_ms,
                     p12_17_11_10_a002_ms, p12_171110_a000_ms,
+                    p13_18_10_29_a000_ms,  # new
                     p13_18_10_29_a001_ms,
                     p14_18_10_23_a000_ms]
+    # arnaud_ms]
+    # available_ms = [p13_18_10_29_a001_ms]
     interneurons_ms = [p14_18_10_23_a001_ms]
-    still_to_cluster = [p7_18_02_08_a000_ms,
-                        p7_17_10_18_a002_ms, p7_17_10_18_a004_ms, p7_18_02_08_a001_ms, p7_18_02_08_a002_ms,
+    still_to_cluster = [p7_18_02_08_a001_ms, p7_18_02_08_a002_ms,
                         p7_18_02_08_a003_ms,
                         p8_18_02_09_a000_ms, p8_18_02_09_a001_ms,
                         p8_18_10_24_a005_ms, p8_18_10_17_a001_ms,
                         p9_17_12_06_a001_ms, p9_17_12_20_a001_ms,
                         p10_17_11_16_a003_ms,
-                        p12_17_11_10_a002_ms, p12_171110_a000_ms,
                         p13_18_10_29_a001_ms,
                         p14_18_10_23_a000_ms]
     # p9_17_11_29_a002_ms, p9_17_11_29_a003_ms removed because died just after
@@ -2136,9 +1869,10 @@ def main():
     #                     p7_18_02_08_a003_ms,
     #                     p8_18_02_09_a000_ms, p8_18_02_09_a001_ms,
     #                     p8_18_10_24_a005_ms, p8_18_10_17_a001_ms]
-    ms_to_analyse = [p12_17_11_10_a002_ms, p12_171110_a000_ms,
-                     p9_17_12_06_a001_ms, p9_17_12_20_a001_ms,
-                     p10_17_11_16_a003_ms]
+    corrected_ms_from_robin = [p7_171012_a000_ms, p8_18_10_17_a000_ms]
+    available_ms = corrected_ms_from_robin
+    ms_to_test_clustering = [p11_17_11_24_a000_ms]
+    ms_to_analyse = ms_to_test_clustering  # corrected_ms_from_robin
 
     just_do_stat_on_event_detection_parameters = False
 
@@ -2155,7 +1889,7 @@ def main():
     do_clustering = True
     # if False, clustering will be done using kmean
     do_fca_clustering = False
-    with_cells_in_cluster_seq_sorted = False
+    with_cells_in_cluster_seq_sorted = True
 
     # ##### for fca #####
     n_surrogate_fca = 20
@@ -2163,9 +1897,9 @@ def main():
     # #### for kmean  #####
     with_shuffling = True
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 20)
-    # range_n_clusters_k_mean = np.array([20])
-    n_surrogate_k_mean = 50
+    # range_n_clusters_k_mean = np.arange(2, 5)
+    range_n_clusters_k_mean = np.array([3])
+    n_surrogate_k_mean = 10
     keep_only_the_best_kmean_cluster = False
 
     # ##########################################################################################
@@ -2177,11 +1911,11 @@ def main():
     use_loss_score_to_keep_the_best_from_tree = False
     use_sce_times_for_pattern_search = True
     use_ordered_spike_nums_for_surrogate = True
-    n_surrogate_for_pattern_search = 500
+    n_surrogate_for_pattern_search = 100
     # seq params:
     # TODO: error_rate that change with the number of element in the sequence
     param.error_rate = 0.25
-    param.max_branches = 15
+    param.max_branches = 10
     param.time_inter_seq = 50
     param.min_duration_intra_seq = 0
     param.min_len_seq = 5
@@ -2214,7 +1948,10 @@ def main():
 
             spike_struct = ms.spike_struct
             n_cells = len(spike_struct.spike_nums)
-            use_raster_durs = [True]
+            if ms.spike_struct.spike_nums_dur is not None:
+                use_raster_durs = [True]
+            else:
+                use_raster_durs = [False]
             # 0 : 99th percentile, 1 & 2: 95th percentile
             selection_options = [0]
             for use_raster_dur in use_raster_durs:
@@ -2344,18 +2081,20 @@ def main():
                         ratio_spikes_events_by_age[ms.age] = list(ratio_spikes_events)
                         interneurons_indices_by_age[ms.age] = list(ms.spike_struct.inter_neurons)
                         all_spike_duration = []
-                        for spike_duration in ms.spike_struct.spike_durations:
-                            all_spike_duration.extend(spike_duration)
-                        duration_spikes_by_age[ms.age] = all_spike_duration
+                        if ms.spike_struct.spike_durations is not None:
+                            for spike_duration in ms.spike_struct.spike_durations:
+                                all_spike_duration.extend(spike_duration)
+                            duration_spikes_by_age[ms.age] = all_spike_duration
                     else:
                         nb_elem = len(ratio_spikes_events_by_age[ms.age])
                         ratio_spikes_events_by_age[ms.age].extend(list(ratio_spikes_events))
                         interneurons_indices_by_age[ms.age].extend(list(ms.spike_struct.inter_neurons +
                                                                         nb_elem))
                         all_spike_duration = []
-                        for spike_duration in ms.spike_struct.spike_durations:
-                            all_spike_duration.extend(spike_duration)
-                        duration_spikes_by_age[ms.age].extend(all_spike_duration)
+                        if ms.spike_struct.spike_durations is not None:
+                            for spike_duration in ms.spike_struct.spike_durations:
+                                all_spike_duration.extend(spike_duration)
+                            duration_spikes_by_age[ms.age].extend(all_spike_duration)
 
                     if ms.age not in ratio_spikes_total_events_by_age:
                         ratio_spikes_total_events_by_age[ms.age] = list(ratio_spikes_total_events)
@@ -2383,16 +2122,24 @@ def main():
                     non_inter_neurons = np.setdiff1d(np.arange(len(ratio_spikes_events)), inter_neurons)
                     ratio_interneurons = list(ratio_spikes_events[inter_neurons])
                     ratio_non_interneurons = list(ratio_spikes_events[non_inter_neurons])
-                    values_to_scatter.append(np.mean(ratio_non_interneurons))
-                    values_to_scatter.append(np.median(ratio_non_interneurons))
-                    values_to_scatter.append(np.mean(ratio_interneurons))
-                    values_to_scatter.append(np.median(ratio_interneurons))
-                    values_to_scatter.extend(ratio_interneurons)
-                    labels = ["mean", "median", "mean", "median", f"interneuron (x{len(inter_neurons)})"]
-                    scatter_shapes = ["o", "s", "o", "s"]
-                    scatter_shapes.extend(["*"] * len(inter_neurons))
-                    colors = ["white", "white", "red", "red"]
-                    colors.extend(["red"] * len(inter_neurons))
+                    labels = []
+                    scatter_shapes = []
+                    colors = []
+                    if len(ratio_non_interneurons) > 0:
+                        values_to_scatter.append(np.mean(ratio_non_interneurons))
+                        values_to_scatter.append(np.median(ratio_non_interneurons))
+                        labels.extend(["mean", "median"])
+                        scatter_shapes.extend(["o", "s"])
+                        colors.extend(["white", "white"])
+                    if len(ratio_interneurons) > 0:
+                        values_to_scatter.append(np.mean(ratio_interneurons))
+                        values_to_scatter.append(np.median(ratio_interneurons))
+                        values_to_scatter.extend(ratio_interneurons)
+                        labels.extend(["mean", "median", f"interneuron (x{len(inter_neurons)})"])
+                        scatter_shapes.extend(["o", "s"])
+                        scatter_shapes.extend(["*"] * len(inter_neurons))
+                        colors.extend(["red", "red"])
+                        colors.extend(["red"] * len(inter_neurons))
 
                     plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes_events,
                                                   description=f"{ms.description}_hist_spike_events_ratio",
@@ -2406,11 +2153,13 @@ def main():
                     values_to_scatter = []
                     ratio_interneurons = list(ratio_spikes_total_events[inter_neurons])
                     ratio_non_interneurons = list(ratio_spikes_total_events[non_inter_neurons])
-                    values_to_scatter.append(np.mean(ratio_non_interneurons))
-                    values_to_scatter.append(np.median(ratio_non_interneurons))
-                    values_to_scatter.append(np.mean(ratio_interneurons))
-                    values_to_scatter.append(np.median(ratio_interneurons))
-                    values_to_scatter.extend(ratio_interneurons)
+                    if len(ratio_non_interneurons) > 0:
+                        values_to_scatter.append(np.mean(ratio_non_interneurons))
+                        values_to_scatter.append(np.median(ratio_non_interneurons))
+                    if len(ratio_interneurons) > 0:
+                        values_to_scatter.append(np.mean(ratio_interneurons))
+                        values_to_scatter.append(np.median(ratio_interneurons))
+                        values_to_scatter.extend(ratio_interneurons)
                     plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes_total_events,
                                                   description=f"{ms.description}_hist_spike_total_events_ratio",
                                                   values_to_scatter=np.array(values_to_scatter),
@@ -2431,16 +2180,24 @@ def main():
             ratio_spikes_events_interneurons_by_age[age] = ratio_interneurons
             ratio_non_interneurons = list(ratio_spikes[non_inter_neurons])
             ratio_spikes_events_non_interneurons_by_age[age] = ratio_non_interneurons
-            values_to_scatter.append(np.mean(ratio_non_interneurons))
-            values_to_scatter.append(np.median(ratio_non_interneurons))
-            values_to_scatter.append(np.mean(ratio_interneurons))
-            values_to_scatter.append(np.median(ratio_interneurons))
-            values_to_scatter.extend(ratio_interneurons)
-            labels = ["mean", "median", "mean", "median", f"interneuron (x{len(inter_neurons)})"]
-            scatter_shapes = ["o", "s", "o", "s"]
-            scatter_shapes.extend(["*"] * len(inter_neurons))
-            colors = ["white", "white", "red", "red"]
-            colors.extend(["red"] * len(inter_neurons))
+            labels = []
+            scatter_shapes = []
+            colors = []
+            if len(ratio_non_interneurons) > 0:
+                values_to_scatter.append(np.mean(ratio_non_interneurons))
+                values_to_scatter.append(np.median(ratio_non_interneurons))
+                labels.extend(["mean", "median"])
+                scatter_shapes.extend(["o", "s"])
+                colors.extend(["white", "white"])
+            if len(ratio_interneurons) > 0:
+                values_to_scatter.append(np.mean(ratio_interneurons))
+                values_to_scatter.append(np.median(ratio_interneurons))
+                values_to_scatter.extend(ratio_interneurons)
+                labels.extend(["mean", "median", f"interneuron (x{len(inter_neurons)})"])
+                scatter_shapes.extend(["o", "s"])
+                scatter_shapes.extend(["*"] * len(inter_neurons))
+                colors.extend(["red", "red"])
+                colors.extend(["red"] * len(inter_neurons))
             plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes,
                                           description=f"p{age}_hist_spike_events_ratio",
                                           values_to_scatter=np.array(values_to_scatter),
@@ -2461,16 +2218,24 @@ def main():
             ratio_spikes_total_events_interneurons_by_age[age] = ratio_interneurons
             ratio_non_interneurons = list(ratio_spikes[non_inter_neurons])
             ratio_spikes_total_events_non_interneurons_by_age[age] = ratio_non_interneurons
-            values_to_scatter.append(np.mean(ratio_non_interneurons))
-            values_to_scatter.append(np.median(ratio_non_interneurons))
-            values_to_scatter.append(np.mean(ratio_interneurons))
-            values_to_scatter.append(np.median(ratio_interneurons))
-            values_to_scatter.extend(ratio_interneurons)
-            labels = ["mean", "median", "mean", "median", f"interneuron (x{len(inter_neurons)})"]
-            scatter_shapes = ["o", "s", "o", "s"]
-            scatter_shapes.extend(["*"] * len(inter_neurons))
-            colors = ["white", "white", "red", "red"]
-            colors.extend(["red"] * len(inter_neurons))
+            labels = []
+            scatter_shapes = []
+            colors = []
+            if len(ratio_non_interneurons) > 0:
+                values_to_scatter.append(np.mean(ratio_non_interneurons))
+                values_to_scatter.append(np.median(ratio_non_interneurons))
+                labels.extend(["mean", "median"])
+                scatter_shapes.extend(["o", "s"])
+                colors.extend(["white", "white"])
+            if len(ratio_interneurons) > 0:
+                values_to_scatter.append(np.mean(ratio_interneurons))
+                values_to_scatter.append(np.median(ratio_interneurons))
+                values_to_scatter.extend(ratio_interneurons)
+                labels.extend(["mean", "median", f"interneuron (x{len(inter_neurons)})"])
+                scatter_shapes.extend(["o", "s"])
+                scatter_shapes.extend(["*"] * len(inter_neurons))
+                colors.extend(["red", "red"])
+                colors.extend(["red"] * len(inter_neurons))
             plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes,
                                           description=f"p{age}_hist_spike_total_events_ratio",
                                           values_to_scatter=np.array(values_to_scatter),
