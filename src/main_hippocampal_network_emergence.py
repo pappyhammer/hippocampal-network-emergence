@@ -11,43 +11,27 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import numpy as np
 import hdf5storage
-from matplotlib.ticker import MultipleLocator
-import seaborn as sns
 # import copy
 from datetime import datetime
-from collections import Counter
-from sklearn import metrics
 # import keras
 import os
-import scipy.ndimage.morphology as morphology
-import scipy.ndimage as ndimage
-from collections import Counter
-from scipy.interpolate import interp1d
-from scipy.integrate import cumtrapz
-from sortedcontainers import SortedList, SortedDict
 # to add homemade package, go to preferences, then project interpreter, then click on the wheel symbol
 # then show all, then select the interpreter and lick on the more right icon to display a list of folder and
 # add the one containing the folder pattern_discovery
 from pattern_discovery.seq_solver.markov_way import MarkovParameters
-from pattern_discovery.seq_solver.markov_way import find_sequences_in_ordered_spike_nums
-from pattern_discovery.seq_solver.markov_way import give_me_stat_on_sorting_seq_results
-from pattern_discovery.seq_solver.markov_way import order_spike_nums_by_seq
 from pattern_discovery.seq_solver.markov_way import find_significant_patterns
-import pattern_discovery.tools.param as p_disc_param
 import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.display.raster import plot_spikes_raster
 from pattern_discovery.display.cells_map_module import CoordClass
-from pattern_discovery.tools.loss_function import loss_function_with_sliding_window
-import pattern_discovery.tools.trains as trains_module
 from pattern_discovery.tools.sce_detection import get_sce_detection_threshold, detect_sce_with_sliding_window, \
     get_low_activity_events_detection_threshold
 from sortedcontainers import SortedList, SortedDict
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import compute_and_plot_clusters_raster_kmean_version
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import give_stat_one_sce
 from pattern_discovery.clustering.fca.fca import compute_and_plot_clusters_raster_fca_version
-import pattern_discovery as pattern_discovery
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
+from scipy import stats
 
 
 class HNEParameters(MarkovParameters):
@@ -170,12 +154,22 @@ class MouseSession:
                 self.spike_struct.spike_nums = self.spike_struct.spike_nums[:, frames_filter]
             if self.spike_struct.labels is None:
                 self.spike_struct.labels = np.arange(len(self.spike_struct.spike_nums))
+            if self.spike_struct.n_cells is None:
+                self.spike_struct.n_cells = len(self.spike_struct.spike_nums)
+            if self.spike_struct.n_in_matrix is None:
+                self.spike_struct.n_in_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
+                self.spike_struct.n_out_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
         if "spike_nums_dur" in variables_mapping:
             self.spike_struct.spike_nums_dur = data[variables_mapping["spike_nums_dur"]].astype(int)
             if frames_filter is not None:
                 self.spike_struct.spike_nums_dur = self.spike_struct.spike_nums_dur[:, frames_filter]
             if self.spike_struct.labels is None:
                 self.spike_struct.labels = np.arange(len(self.spike_struct.spike_nums_dur))
+            if self.spike_struct.n_cells is None:
+                self.spike_struct.n_cells = len(self.spike_struct.spike_nums_dur)
+            if self.spike_struct.n_in_matrix is None:
+                self.spike_struct.n_in_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
+                self.spike_struct.n_out_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
         if "traces" in variables_mapping:
             self.traces = data[variables_mapping["traces"]].astype(float)
             if frames_filter is not None:
@@ -194,6 +188,12 @@ class MouseSession:
 
         self.spike_struct.set_spike_trains_from_spike_nums()
 
+        if (self.spike_struct.spike_nums_dur is not None) or (self.spike_struct.spike_nums is not None):
+            self.detect_n_in_n_out()
+
+    def detect_n_in_n_out(self):
+        self.spike_struct.detect_n_in_n_out()
+
 
 class HNESpikeStructure:
 
@@ -203,6 +203,13 @@ class HNESpikeStructure:
         self.mouse_session = mouse_session
         self.spike_nums = spike_nums
         self.spike_nums_dur = spike_nums_dur
+        if (self.spike_nums is not None) or (self.spike_nums_dur is not None):
+            if self.spike_nums is not None:
+                self.n_cells = len(self.spike_nums)
+            else:
+                self.n_cells = len(self.spike_nums_dur)
+        else:
+            self.n_cells = None
         self.spike_trains = spike_trains
         self.ordered_spike_data = ordered_spike_data
         self.activity_threshold = activity_threshold
@@ -235,6 +242,108 @@ class HNESpikeStructure:
         self.inter_neurons = None
         # list of size n_cells, each list is array representing the amplitude of each spike of the cell
         self.spike_amplitudes = None
+
+        # nb frames (post_MCMC) to look for connection near a neuron that spike
+        self.nb_frames_for_func_connect = 5
+        # contain the list of neurons connected to the EB as keys, and the number of connection as values
+        # first key is a dict of neuron, the second key is other neurons to which the first connect,
+        # then the number of times is connected to it
+        self.n_in_dict = dict()
+        self.n_out_dict = dict()
+        self.n_in_matrix = None
+        self.n_out_matrix = None
+
+    def detect_n_in_n_out(self):
+        # look neuron by neuron, at each spike and make a pair wise for each other neurons according to the spike
+        # distribution around 500ms before and after. If the distribution is not uniform then we look where is the max
+        # and we add it to n_out or n_in if before or after. If it is at the same time, then we don't add it.
+        nb_neurons = len(self.spike_nums)
+        n_times = len(self.spike_nums[0, :])
+        for neuron in np.arange(nb_neurons):
+            self.n_in_dict[neuron] = dict()
+            self.n_out_dict[neuron] = dict()
+            neurons_to_consider = np.arange(len(self.spike_nums))
+            mask = np.ones(len(self.spike_nums), dtype="bool")
+            mask[neuron] = False
+            neurons_to_consider = neurons_to_consider[mask]
+            # look at onsets
+            neuron_spikes, = np.where(self.spike_nums[neuron, :])
+            # is_early_born = (neuron == ms.early_born_cell)
+
+            if len(neuron_spikes) == 0:
+                continue
+
+            spike_nums_to_use = self.spike_nums
+
+            # going neuron by neuron
+            # TODO: optimzing it to consider all other neurons in once with a 2D distribution_array
+            for neuron_to_consider in neurons_to_consider:
+                distribution_array = np.zeros(((self.nb_frames_for_func_connect * 2) + 1), dtype="int16")
+                event_index = self.nb_frames_for_func_connect
+                # looping on each spike of the main neuron
+                for n, event in enumerate(neuron_spikes):
+                    # only taking in consideration events that are not too close from bottom range or upper range
+                    min_limit = max(event - self.nb_frames_for_func_connect, 0)
+                    max_limit = min((event + self.nb_frames_for_func_connect), (n_times - 1))
+                    mask = np.zeros(((self.nb_frames_for_func_connect * 2) + 1), dtype="bool")
+                    mask_start = 0
+                    if (event - self.nb_frames_for_func_connect) < 0:
+                        mask_start = -1 * (event - self.nb_frames_for_func_connect)
+                    mask_end = mask_start + (max_limit - min_limit) + 1
+                    mask[mask_start:mask_end] = spike_nums_to_use[neuron_to_consider, min_limit:(max_limit + 1)] > 0
+                    distribution_array[mask] += 1
+                # TODO: idea take in consideration normaltest, only when the number of spikes is superior to a threshold, like 20
+                # print(f"distribution_array {distribution_array}")
+                # distribution_array [0 1 1 1 0 1 2 0 0 1 0]
+                stat_n, p_value = stats.normaltest(distribution_array)
+                # means that the distribution is not normal
+                if p_value > 0.01:
+                    continue
+                n_in_sum = np.sum(distribution_array[:event_index])
+                n_out_sum = np.sum(distribution_array[(event_index + 1):])
+                # means we have the same number of spikes before and after
+                if n_in_sum == n_out_sum:
+                    continue
+                max_value = max(n_in_sum, n_out_sum)
+                min_value = min(n_in_sum, n_out_sum)
+                # we should have at least twice more spikes on one side
+                if max_value < (min_value * 2):
+                    continue
+
+                if n_in_sum > n_out_sum:
+                    self.n_in_dict[neuron][neuron_to_consider] = 1
+                    self.n_in_matrix[neuron][neuron_to_consider] = 1
+                else:
+                    self.n_out_dict[neuron][neuron_to_consider] = 1
+                    self.n_out_matrix[neuron][neuron_to_consider] = 1
+
+                show_bar_chart = False
+                if show_bar_chart:
+                    if (np.max(distribution_array) > 3):
+                        # if (neuron == self.early_born_cell):
+                        print(f'neuron {neuron}, neuron_to_consider {neuron_to_consider}, '
+                              f'distribution_array {distribution_array}')
+                        ks, p_ks = stats.kstest(distribution_array, stats.randint.cdf,
+                                                args=(np.min(distribution_array), np.max(distribution_array)))
+                        # ks, p_ks = stats.kstest(distribution_array, 'norm')
+
+                        print(f"ks {ks}, p_ks {p_ks} "
+                              f"{'Non uniform distribution' if (p_ks < 0.01) else 'Uniform distribution'}")
+                        print(f"stat_n {stat_n}, p_value {p_value} "
+                              f"{'Non uniform distribution' if (p_value < 0.01) else 'Uniform distribution'}")
+                        # if p_value < 0.05:
+                        #     print(f"Non uniform distribution")
+                        # else:
+                        #     print(f"Uniform distribution")
+
+                        plt.bar(np.arange(-1 * self.nb_frames_for_func_connect, self.nb_frames_for_func_connect + 1),
+                                distribution_array, color="blue")
+                        plt.title(f"neuron {neuron} vs neuron {neuron_to_consider} "
+                                  f"{'Non uniform distribution' if (p_value < 0.01) else 'Uniform distribution'}")
+                        plt.xlabel("Cell")
+                        plt.ylabel("Nb of spikes")
+                        plt.show()
+                        plt.close()
 
     def set_spike_durations(self, spike_durations_array=None):
         if self.spike_durations is not None:
@@ -353,9 +462,68 @@ class HNESpikeStructure:
     def set_spike_trains_from_spike_nums(self):
         # n_cells = len(self.spike_nums)
         # n_times = len(self.spike_nums[0, :])
+        if self.spike_nums is None:
+            return
         self.spike_trains = []
         for cell_spikes in self.spike_nums:
             self.spike_trains.append(np.where(cell_spikes)[0].astype(float))
+
+
+def connec_func_stat(mouse_sessions, data_descr, param):
+    # print(f"connec_func_stat {mouse_session.session_numbers[0]}")
+    interneurons_pos = np.zeros(0, dtype="uint16")
+    total_nb_neurons = 0
+    for ms in mouse_sessions:
+        total_nb_neurons += ms.spike_struct.n_cells
+    n_outs_total = np.zeros(total_nb_neurons)
+    n_ins_total = np.zeros(total_nb_neurons)
+    neurons_count_so_far = 0
+    for ms_nb, ms in enumerate(mouse_sessions):
+        nb_neurons = ms.spike_struct.n_cells
+        n_ins = np.sum(ms.spike_struct.n_in_matrix, axis=1) / nb_neurons
+        n_ins = np.round(n_ins * 100, 2)
+        n_outs = np.sum(ms.spike_struct.n_out_matrix, axis=1) / nb_neurons
+        n_outs = np.round(n_outs * 100, 2)
+        if len(ms.spike_struct.inter_neurons) > 0:
+            interneurons_pos = np.concatenate((interneurons_pos,
+                                               np.array(ms.spike_struct.inter_neurons) + neurons_count_so_far))
+        n_ins_total[neurons_count_so_far:(neurons_count_so_far + nb_neurons)] = n_ins
+        n_outs_total[neurons_count_so_far:(neurons_count_so_far + nb_neurons)] = n_outs
+        neurons_count_so_far += nb_neurons
+
+    values_to_scatter = []
+    labels = []
+    scatter_shapes = []
+    colors = []
+    if len(interneurons_pos) > 0:
+        values_to_scatter.extend(list(n_outs_total[interneurons_pos]))
+        labels.extend([f"interneuron (x{len(interneurons_pos)})"])
+        scatter_shapes.extend(["*"])
+        colors.extend(["red"])
+
+    plot_hist_ratio_spikes_events(ratio_spikes_events=n_outs_total,
+                                  description=f"{data_descr}_distribution_n_out",
+                                  values_to_scatter=np.array(values_to_scatter),
+                                  labels=labels,
+                                  scatter_shapes=scatter_shapes,
+                                  colors=colors,
+                                  xlabel="Active cells (%)",
+                                  ylabel="Probability distribution (%)",
+                                  param=param)
+
+    values_to_scatter = []
+    if len(interneurons_pos) > 0:
+        values_to_scatter.extend(list(n_ins_total[interneurons_pos]))
+
+    plot_hist_ratio_spikes_events(ratio_spikes_events=n_ins_total,
+                                  description=f"{data_descr}_distribution_n_in",
+                                  values_to_scatter=np.array(values_to_scatter),
+                                  labels=labels,
+                                  scatter_shapes=scatter_shapes,
+                                  colors=colors,
+                                  xlabel="Active cells (%)",
+                                  ylabel="Probability distribution (%)",
+                                  param=param)
 
 
 def save_stat_by_age(ratio_spikes_events_by_age, ratio_spikes_total_events_by_age, mouse_sessions,
@@ -953,7 +1121,7 @@ def plot_duration_spikes_by_age(mouse_sessions, ms_ages,
 
 
 def plot_hist_ratio_spikes_events(ratio_spikes_events, description, values_to_scatter,
-                                  labels, scatter_shapes, colors, param, xlabel="", save_formats="pdf"):
+                                  labels, scatter_shapes, colors, param, xlabel="", ylabel=None, save_formats="pdf"):
     distribution = np.array(ratio_spikes_events)
     hist_color = "blue"
     edge_color = "white"
@@ -1005,7 +1173,10 @@ def plot_hist_ratio_spikes_events(ratio_spikes_events, description, values_to_sc
                         color=colors[i], s=60, zorder=20)
 
     plt.xlim(0, 100)
-    ax1.set_ylabel("Distribution (%)")
+    if ylabel is None:
+        ax1.set_ylabel("Distribution (%)")
+    else:
+        ax1.set_ylabel(ylabel)
     ax1.set_xlabel(xlabel)
     xticks = np.arange(0, 110, 10)
     ax1.set_xticks(xticks)
@@ -1420,23 +1591,24 @@ def main():
         return
 
     # test
-    # p11_17_11_24_a000_ms = MouseSession(age=11, session_id="17_11_24_a000", nb_ms_by_frame=100, param=param,
-    #                                     weight=6.7)
-    # # calculated with 99th percentile on raster dur
-    # p11_17_11_24_a000_ms.activity_threshold = 12
-    # p11_17_11_24_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
-    # p11_17_11_24_a000_ms.set_inter_neurons([193])
-    # # duration of those interneurons: 19.09
-    # variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
-    #                      "spike_nums": "filt_Bin100ms_spikedigital",
-    #                      "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
-    # p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_RasterDur.mat",
-    #                                          variables_mapping=variables_mapping)
-    # variables_mapping = {"coord": "ContoursAll"}
-    # p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
-    #                                          variables_mapping=variables_mapping)
+    p11_17_11_24_a000_ms = MouseSession(age=11, session_id="17_11_24_a000", nb_ms_by_frame=100, param=param,
+                                        weight=6.7)
+    # calculated with 99th percentile on raster dur
+    p11_17_11_24_a000_ms.activity_threshold = 12
+    p11_17_11_24_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
+    p11_17_11_24_a000_ms.set_inter_neurons([193])
+    # duration of those interneurons: 19.09
+    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                         "spike_nums": "filt_Bin100ms_spikedigital",
+                         "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
+    p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_RasterDur.mat",
+                                             variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
+                                             variables_mapping=variables_mapping)
+    connec_func_stat([p11_17_11_24_a000_ms], data_descr="p11_17_11_24_a000", param=param)
     # p11_17_11_24_a000_ms.plot_cell_assemblies_on_map()
-    # return
+    return
 
     # loading data
     p6_18_02_07_a001_ms = MouseSession(age=6, session_id="18_02_07_a001", nb_ms_by_frame=100, param=param,
