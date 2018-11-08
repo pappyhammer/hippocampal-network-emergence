@@ -111,6 +111,139 @@ class MouseSession:
                             cells = line_list[2].split(" ")
                             self.cell_assemblies.append([int(cell) for cell in cells])
 
+    def plot_each_inter_neuron_connect_map(self):
+        # plot n_in and n_out map of the interneurons
+        inter_neurons = self.spike_struct.inter_neurons
+        n_inter_neurons = len(inter_neurons)
+        if n_inter_neurons == 0:
+            return
+
+        for inter_neuron in inter_neurons:
+            color_each_cells_link_to_interneuron = True
+
+            connections_dict_in = dict()
+            connections_dict_out = dict()
+            n_in_matrix = self.spike_struct.n_in_matrix
+            n_out_matrix = self.spike_struct.n_out_matrix
+            at_least_on_in_link = False
+            at_least_on_out_link = False
+
+            connections_dict_in[inter_neuron] = dict()
+            connections_dict_out[inter_neuron] = dict()
+
+            for cell in np.where(n_in_matrix[inter_neuron, :])[0]:
+                at_least_on_in_link = True
+                connections_dict_in[inter_neuron][cell] = 1
+
+            for cell in np.where(n_out_matrix[inter_neuron, :])[0]:
+                at_least_on_out_link = True
+                connections_dict_out[inter_neuron][cell] = 1
+
+            cells_groups_colors = ["red"]
+            cells_groups = [[inter_neuron]]
+            if at_least_on_in_link and color_each_cells_link_to_interneuron:
+                links_cells = list(connections_dict_in[inter_neuron].keys())
+                # removing fellow inter_neurons
+                links_cells = np.setdiff1d(np.array(links_cells), np.array(inter_neurons))
+                if len(links_cells) > 0:
+                    cells_groups.append(list(connections_dict_in[inter_neuron].keys()))
+                    cells_groups_colors.append("cornflowerblue")
+
+            self.coord_obj.compute_center_coord(cells_groups=cells_groups,
+                                                cells_groups_colors=cells_groups_colors)
+
+            self.coord_obj.plot_cells_map(param=self.param,
+                                          data_id=self.description, show_polygons=False,
+                                          title_option=f"n_in_interneuron_{inter_neuron}",
+                                          connections_dict=connections_dict_in,
+                                          with_cell_numbers=True)
+
+            cells_groups_colors = ["red"]
+            cells_groups = [[inter_neuron]]
+            if at_least_on_out_link and color_each_cells_link_to_interneuron:
+                links_cells = list(connections_dict_out[inter_neuron].keys())
+                # removing fellow inter_neurons
+                links_cells = np.setdiff1d(np.array(links_cells), np.array(inter_neurons))
+                if len(links_cells) > 0:
+                    cells_groups.append(list(connections_dict_out[inter_neuron].keys()))
+                    cells_groups_colors.append("cornflowerblue")
+
+            self.coord_obj.compute_center_coord(cells_groups=cells_groups,
+                                                cells_groups_colors=cells_groups_colors)
+
+            self.coord_obj.plot_cells_map(param=self.param,
+                                          data_id=self.description, show_polygons=False,
+                                          title_option=f"n_out_interneuron_{inter_neuron}",
+                                          connections_dict=connections_dict_out,
+                                          with_cell_numbers=True)
+
+    def plot_all_inter_neurons_connect_map(self):
+        # plot n_in and n_out map of the interneurons
+        inter_neurons = self.spike_struct.inter_neurons
+        n_inter_neurons = len(inter_neurons)
+        if n_inter_neurons == 0:
+            return
+
+        color_each_cells_link_to_interneuron = True
+
+        connections_dict_in = dict()
+        connections_dict_out = dict()
+        n_in_matrix = self.spike_struct.n_in_matrix
+        n_out_matrix = self.spike_struct.n_out_matrix
+        at_least_on_in_link = False
+        at_least_on_out_link = False
+        for inter_neuron in inter_neurons:
+            connections_dict_in[inter_neuron] = dict()
+            connections_dict_out[inter_neuron] = dict()
+
+            for cell in np.where(n_in_matrix[inter_neuron, :])[0]:
+                at_least_on_in_link = True
+                connections_dict_in[inter_neuron][cell] = 1
+
+            for cell in np.where(n_out_matrix[inter_neuron, :])[0]:
+                at_least_on_out_link = True
+                connections_dict_out[inter_neuron][cell] = 1
+
+        cells_groups_colors = ["red"]
+        cells_groups = [inter_neurons]
+        if at_least_on_in_link and color_each_cells_link_to_interneuron:
+            for index_inter_neuron, inter_neuron in enumerate(inter_neurons):
+                links_cells = list(connections_dict_in[inter_neuron].keys())
+                # removing fellow inter_neurons
+                links_cells = np.setdiff1d(np.array(links_cells), np.array(inter_neurons))
+                if len(links_cells) > 0:
+                    cells_groups.append(list(connections_dict_in[inter_neuron].keys()))
+                    cells_groups_colors.append(cm.nipy_spectral(float(index_inter_neuron + 1) / (n_inter_neurons + 1)))
+
+        self.coord_obj.compute_center_coord(cells_groups=cells_groups,
+                                            cells_groups_colors=cells_groups_colors)
+
+        self.coord_obj.plot_cells_map(param=self.param,
+                                      data_id=self.description, show_polygons=False,
+                                      title_option=f"n_in_interneurons_x_{n_inter_neurons}",
+                                      connections_dict=connections_dict_in,
+                                      with_cell_numbers=True)
+
+        cells_groups_colors = ["red"]
+        cells_groups = [inter_neurons]
+        if at_least_on_out_link and color_each_cells_link_to_interneuron:
+            for index_inter_neuron, inter_neuron in enumerate(inter_neurons):
+                links_cells = list(connections_dict_out[inter_neuron].keys())
+                # removing fellow inter_neurons
+                links_cells = np.setdiff1d(np.array(links_cells), np.array(inter_neurons))
+                if len(links_cells) > 0:
+                    cells_groups.append(list(connections_dict_out[inter_neuron].keys()))
+                    cells_groups_colors.append(cm.nipy_spectral(float(index_inter_neuron + 1) / (n_inter_neurons + 1)))
+
+        self.coord_obj.compute_center_coord(cells_groups=cells_groups,
+                                            cells_groups_colors=cells_groups_colors)
+
+        self.coord_obj.plot_cells_map(param=self.param,
+                                      data_id=self.description, show_polygons=False,
+                                      title_option=f"n_out_interneurons_x_{n_inter_neurons}",
+                                      connections_dict=connections_dict_out,
+                                      with_cell_numbers=True)
+
     def plot_cell_assemblies_on_map(self):
         if self.cell_assemblies is None:
             return
@@ -188,8 +321,8 @@ class MouseSession:
 
         self.spike_struct.set_spike_trains_from_spike_nums()
 
-        if (self.spike_struct.spike_nums_dur is not None) or (self.spike_struct.spike_nums is not None):
-            self.detect_n_in_n_out()
+        # if (self.spike_struct.spike_nums_dur is not None) or (self.spike_struct.spike_nums is not None):
+        #     self.detect_n_in_n_out()
 
     def detect_n_in_n_out(self):
         self.spike_struct.detect_n_in_n_out()
@@ -243,7 +376,7 @@ class HNESpikeStructure:
         # list of size n_cells, each list is array representing the amplitude of each spike of the cell
         self.spike_amplitudes = None
 
-        # nb frames (post_MCMC) to look for connection near a neuron that spike
+        # nb frames (1 frame == 100 ms) to look for connection near a neuron that spike
         self.nb_frames_for_func_connect = 5
         # contain the list of neurons connected to the EB as keys, and the number of connection as values
         # first key is a dict of neuron, the second key is other neurons to which the first connect,
@@ -275,30 +408,45 @@ class HNESpikeStructure:
 
             spike_nums_to_use = self.spike_nums
 
+            distribution_array_2_d = np.zeros((nb_neurons, ((self.nb_frames_for_func_connect * 2) + 1)),
+                                              dtype="int16")
+
+            event_index = self.nb_frames_for_func_connect
+            # looping on each spike of the main neuron
+            for n, event in enumerate(neuron_spikes):
+                # only taking in consideration events that are not too close from bottom range or upper range
+                min_limit = max(event - self.nb_frames_for_func_connect, 0)
+                max_limit = min((event + self.nb_frames_for_func_connect), (n_times - 1))
+                mask = np.zeros((nb_neurons, ((self.nb_frames_for_func_connect * 2) + 1)),
+                                dtype="bool")
+                mask_start = 0
+                if (event - self.nb_frames_for_func_connect) < 0:
+                    mask_start = -1 * (event - self.nb_frames_for_func_connect)
+                mask_end = mask_start + (max_limit - min_limit) + 1
+                mask[:, mask_start:mask_end] = spike_nums_to_use[:, min_limit:(max_limit + 1)] > 0
+                distribution_array_2_d[mask] += 1
+
             # going neuron by neuron
-            # TODO: optimzing it to consider all other neurons in once with a 2D distribution_array
             for neuron_to_consider in neurons_to_consider:
-                distribution_array = np.zeros(((self.nb_frames_for_func_connect * 2) + 1), dtype="int16")
-                event_index = self.nb_frames_for_func_connect
-                # looping on each spike of the main neuron
-                for n, event in enumerate(neuron_spikes):
-                    # only taking in consideration events that are not too close from bottom range or upper range
-                    min_limit = max(event - self.nb_frames_for_func_connect, 0)
-                    max_limit = min((event + self.nb_frames_for_func_connect), (n_times - 1))
-                    mask = np.zeros(((self.nb_frames_for_func_connect * 2) + 1), dtype="bool")
-                    mask_start = 0
-                    if (event - self.nb_frames_for_func_connect) < 0:
-                        mask_start = -1 * (event - self.nb_frames_for_func_connect)
-                    mask_end = mask_start + (max_limit - min_limit) + 1
-                    mask[mask_start:mask_end] = spike_nums_to_use[neuron_to_consider, min_limit:(max_limit + 1)] > 0
-                    distribution_array[mask] += 1
-                # TODO: idea take in consideration normaltest, only when the number of spikes is superior to a threshold, like 20
-                # print(f"distribution_array {distribution_array}")
-                # distribution_array [0 1 1 1 0 1 2 0 0 1 0]
-                stat_n, p_value = stats.normaltest(distribution_array)
-                # means that the distribution is not normal
-                if p_value > 0.01:
-                    continue
+                distribution_array = distribution_array_2_d[neuron_to_consider, :]
+                distribution_for_test = np.zeros(np.sum(distribution_array))
+                frames_time = np.arange(-self.nb_frames_for_func_connect, self.nb_frames_for_func_connect+1)
+                i_n = 0
+                for i_time, sum_spike in enumerate(distribution_array):
+                    if sum_spike > 0:
+                        distribution_for_test[i_n:i_n+sum_spike] = frames_time[i_time]
+                        i_n += sum_spike
+                if len(distribution_for_test) >= 20:
+                    stat_n, p_value = stats.normaltest(distribution_for_test)
+                    ks, p_ks = stats.kstest(distribution_for_test, stats.randint.cdf,
+                                            args=(np.min(distribution_for_test),
+                                                  np.max(distribution_for_test)))
+                    is_normal_distribution = p_value >= 0.05
+                    is_uniform_distribution = p_ks >= 0.05
+                    # if the distribution is normal or uniform, we skip it
+                    if is_normal_distribution or is_uniform_distribution:
+                        continue
+
                 n_in_sum = np.sum(distribution_array[:event_index])
                 n_out_sum = np.sum(distribution_array[(event_index + 1):])
                 # means we have the same number of spikes before and after
@@ -309,6 +457,9 @@ class HNESpikeStructure:
                 # we should have at least twice more spikes on one side
                 if max_value < (min_value * 2):
                     continue
+                # and twice as more as the spikes at time 0
+                if max_value < (distribution_array[event_index] * 2):
+                    continue
 
                 if n_in_sum > n_out_sum:
                     self.n_in_dict[neuron][neuron_to_consider] = 1
@@ -317,33 +468,30 @@ class HNESpikeStructure:
                     self.n_out_dict[neuron][neuron_to_consider] = 1
                     self.n_out_matrix[neuron][neuron_to_consider] = 1
 
-                show_bar_chart = False
-                if show_bar_chart:
-                    if (np.max(distribution_array) > 3):
-                        # if (neuron == self.early_born_cell):
-                        print(f'neuron {neuron}, neuron_to_consider {neuron_to_consider}, '
-                              f'distribution_array {distribution_array}')
-                        ks, p_ks = stats.kstest(distribution_array, stats.randint.cdf,
-                                                args=(np.min(distribution_array), np.max(distribution_array)))
-                        # ks, p_ks = stats.kstest(distribution_array, 'norm')
-
-                        print(f"ks {ks}, p_ks {p_ks} "
-                              f"{'Non uniform distribution' if (p_ks < 0.01) else 'Uniform distribution'}")
-                        print(f"stat_n {stat_n}, p_value {p_value} "
-                              f"{'Non uniform distribution' if (p_value < 0.01) else 'Uniform distribution'}")
-                        # if p_value < 0.05:
-                        #     print(f"Non uniform distribution")
-                        # else:
-                        #     print(f"Uniform distribution")
-
-                        plt.bar(np.arange(-1 * self.nb_frames_for_func_connect, self.nb_frames_for_func_connect + 1),
-                                distribution_array, color="blue")
-                        plt.title(f"neuron {neuron} vs neuron {neuron_to_consider} "
-                                  f"{'Non uniform distribution' if (p_value < 0.01) else 'Uniform distribution'}")
-                        plt.xlabel("Cell")
-                        plt.ylabel("Nb of spikes")
-                        plt.show()
-                        plt.close()
+                # show_bar_chart = False
+                # if show_bar_chart and len(distribution_for_test) >= 20:
+                #     if (np.max(distribution_array) > 3):
+                #         # if (neuron == self.early_born_cell):
+                #         print(f'neuron {neuron}, neuron_to_consider {neuron_to_consider}')
+                #
+                #         print(f"### distribution_for_normal_test {distribution_for_test}")
+                #
+                #         print(f"stat_n {stat_n}, p_value {p_value} "
+                #               f"{'Non normal distribution' if (p_value < 0.05) else 'Normal distribution'}")
+                #
+                #         print(f"ks {ks}, p_ks {p_ks} "
+                #               f"{'Non uniform distribution' if (p_ks < 0.05) else 'Uniform distribution'}")
+                #
+                #         print("")
+                #         plt.bar(np.arange(-1 * self.nb_frames_for_func_connect, self.nb_frames_for_func_connect + 1),
+                #                 distribution_array, color="blue")
+                #         plt.title(f"neuron {neuron} vs neuron {neuron_to_consider} "
+                #                   f"{'Non normal distribution' if (p_value < 0.05) else 'Normal distribution'}, "
+                #                   f"{'Non uniform distribution' if (p_ks < 0.05) else 'Uniform distribution'}")
+                #         plt.xlabel("Cell")
+                #         plt.ylabel("Nb of spikes")
+                #         plt.show()
+                #         plt.close()
 
     def set_spike_durations(self, spike_durations_array=None):
         if self.spike_durations is not None:
@@ -495,11 +643,17 @@ def connec_func_stat(mouse_sessions, data_descr, param):
     labels = []
     scatter_shapes = []
     colors = []
+    values_to_scatter.append(np.mean(n_outs_total))
+    values_to_scatter.append(np.median(n_outs_total))
+    labels.extend(["mean", "median"])
+    scatter_shapes.extend(["o", "s"])
+    colors.extend(["white", "white"])
     if len(interneurons_pos) > 0:
         values_to_scatter.extend(list(n_outs_total[interneurons_pos]))
         labels.extend([f"interneuron (x{len(interneurons_pos)})"])
-        scatter_shapes.extend(["*"])
-        colors.extend(["red"])
+        scatter_shapes.extend(["*"]*len(n_outs_total[interneurons_pos]))
+        colors.extend(["red"]*len(n_outs_total[interneurons_pos]))
+    # TODO add mean and median
 
     plot_hist_ratio_spikes_events(ratio_spikes_events=n_outs_total,
                                   description=f"{data_descr}_distribution_n_out",
@@ -507,13 +661,23 @@ def connec_func_stat(mouse_sessions, data_descr, param):
                                   labels=labels,
                                   scatter_shapes=scatter_shapes,
                                   colors=colors,
+                                  tight_x_range=True,
                                   xlabel="Active cells (%)",
                                   ylabel="Probability distribution (%)",
                                   param=param)
 
     values_to_scatter = []
+    scatter_shapes = []
+    colors = []
+    values_to_scatter.append(np.mean(n_ins_total))
+    values_to_scatter.append(np.median(n_ins_total))
+    labels.extend(["mean", "median"])
+    scatter_shapes.extend(["o", "s"])
+    colors.extend(["white", "white"])
     if len(interneurons_pos) > 0:
         values_to_scatter.extend(list(n_ins_total[interneurons_pos]))
+        scatter_shapes.extend(["*"]*len(n_ins_total[interneurons_pos]))
+        colors.extend(["red"]*len(n_ins_total[interneurons_pos]))
 
     plot_hist_ratio_spikes_events(ratio_spikes_events=n_ins_total,
                                   description=f"{data_descr}_distribution_n_in",
@@ -521,9 +685,11 @@ def connec_func_stat(mouse_sessions, data_descr, param):
                                   labels=labels,
                                   scatter_shapes=scatter_shapes,
                                   colors=colors,
+                                  tight_x_range=True,
                                   xlabel="Active cells (%)",
                                   ylabel="Probability distribution (%)",
                                   param=param)
+    return n_ins_total, n_outs_total
 
 
 def save_stat_by_age(ratio_spikes_events_by_age, ratio_spikes_total_events_by_age, mouse_sessions,
@@ -1121,11 +1287,17 @@ def plot_duration_spikes_by_age(mouse_sessions, ms_ages,
 
 
 def plot_hist_ratio_spikes_events(ratio_spikes_events, description, values_to_scatter,
-                                  labels, scatter_shapes, colors, param, xlabel="", ylabel=None, save_formats="pdf"):
+                                  labels, scatter_shapes, colors, param, tight_x_range=False,
+                                  xlabel="", ylabel=None, save_formats="pdf"):
     distribution = np.array(ratio_spikes_events)
     hist_color = "blue"
     edge_color = "white"
-    max_range = np.max(distribution)
+    if tight_x_range:
+        max_range = np.max(distribution)
+        min_range = np.min(distribution)
+    else:
+        max_range = 100
+        min_range = 0
     weights = (np.ones_like(distribution) / (len(distribution))) * 100
 
     fig, ax1 = plt.subplots(nrows=1, ncols=1,
@@ -1133,7 +1305,7 @@ def plot_hist_ratio_spikes_events(ratio_spikes_events, description, values_to_sc
                             figsize=(12, 12))
     ax1.set_facecolor("black")
     bins = int(np.sqrt(len(distribution)))
-    hist_plt, edges_plt, patches_plt = plt.hist(distribution, bins=bins, range=(0, 100),
+    hist_plt, edges_plt, patches_plt = plt.hist(distribution, bins=bins, range=(min_range, max_range),
                                                 facecolor=hist_color,
                                                 edgecolor=edge_color,
                                                 weights=weights, log=False)
@@ -1171,17 +1343,20 @@ def plot_hist_ratio_spikes_events(ratio_spikes_events, description, values_to_sc
         else:
             plt.scatter(x=value_to_scatter, y=hist_plt[scatter_bins[i]] * decay[i], marker=scatter_shapes[i],
                         color=colors[i], s=60, zorder=20)
-
+    # if tight_x_range:
+    #     plt.xlim(min_range, max_range)
     plt.xlim(0, 100)
+    xticks = np.arange(0, 110, 10)
+    ax1.set_xticks(xticks)
+    # sce clusters labels
+    ax1.set_xticklabels(xticks)
+
     if ylabel is None:
         ax1.set_ylabel("Distribution (%)")
     else:
         ax1.set_ylabel(ylabel)
     ax1.set_xlabel(xlabel)
-    xticks = np.arange(0, 110, 10)
-    ax1.set_xticks(xticks)
-    # sce clusters labels
-    ax1.set_xticklabels(xticks)
+
     ax1.legend()
 
     if isinstance(save_formats, str):
@@ -1591,24 +1766,25 @@ def main():
         return
 
     # test
-    p11_17_11_24_a000_ms = MouseSession(age=11, session_id="17_11_24_a000", nb_ms_by_frame=100, param=param,
-                                        weight=6.7)
-    # calculated with 99th percentile on raster dur
-    p11_17_11_24_a000_ms.activity_threshold = 12
-    p11_17_11_24_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
-    p11_17_11_24_a000_ms.set_inter_neurons([193])
-    # duration of those interneurons: 19.09
-    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
-    p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_RasterDur.mat",
-                                             variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
-                                             variables_mapping=variables_mapping)
-    connec_func_stat([p11_17_11_24_a000_ms], data_descr="p11_17_11_24_a000", param=param)
-    # p11_17_11_24_a000_ms.plot_cell_assemblies_on_map()
-    return
+    # p11_17_11_24_a000_ms = MouseSession(age=11, session_id="17_11_24_a000", nb_ms_by_frame=100, param=param,
+    #                                     weight=6.7)
+    # # calculated with 99th percentile on raster dur
+    # p11_17_11_24_a000_ms.activity_threshold = 12
+    # p11_17_11_24_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
+    # p11_17_11_24_a000_ms.set_inter_neurons([193])
+    # # duration of those interneurons: 19.09
+    # variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+    #                      "spike_nums": "filt_Bin100ms_spikedigital",
+    #                      "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
+    # p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_RasterDur.mat",
+    #                                          variables_mapping=variables_mapping)
+    # variables_mapping = {"coord": "ContoursAll"}
+    # p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
+    #                                          variables_mapping=variables_mapping)
+    # # connec_func_stat([p11_17_11_24_a000_ms], data_descr="p11_17_11_24_a000", param=param)
+    # p11_17_11_24_a000_ms.plot_inter_neurons_connect_map()
+    # # p11_17_11_24_a000_ms.plot_cell_assemblies_on_map()
+    # return
 
     # loading data
     p6_18_02_07_a001_ms = MouseSession(age=6, session_id="18_02_07_a001", nb_ms_by_frame=100, param=param,
@@ -1653,6 +1829,9 @@ def main():
     p7_171012_a000_ms.load_data_from_file(
         file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Corrected_RasterDur.mat",
         variables_mapping=variables_mapping)
+    # variables_mapping = {"coord": "ContoursAll"} ContoursSoma ContoursIntNeur
+    # p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_CellDetect.mat",
+    #                                          variables_mapping=variables_mapping)
 
     p7_18_02_08_a000_ms = MouseSession(age=7, session_id="18_02_08_a000", nb_ms_by_frame=100, param=param,
                                        weight=3.85)
@@ -1667,6 +1846,10 @@ def main():
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a000/p7_18_02_08_a000_RasterDur.mat",
                                             variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a000/p7_18_02_08_a000_CellDetect.mat",
+                                            variables_mapping=variables_mapping)
+
 
     p7_18_02_08_a001_ms = MouseSession(age=7, session_id="18_02_08_a001", nb_ms_by_frame=100, param=param,
                                        weight=3.85)
@@ -1680,6 +1863,9 @@ def main():
                          "spike_nums": "filt_Bin100ms_spikedigital",
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_RasterDur.mat",
+                                            variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_CellDetect.mat",
                                             variables_mapping=variables_mapping)
 
     p7_18_02_08_a002_ms = MouseSession(age=7, session_id="18_02_08_a002", nb_ms_by_frame=100, param=param,
@@ -1695,6 +1881,9 @@ def main():
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a002/p7_18_02_08_a002_RasterDur.mat",
                                             variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a002/p7_18_02_08_a002_CellDetect.mat",
+                                            variables_mapping=variables_mapping)
 
     p7_18_02_08_a003_ms = MouseSession(age=7, session_id="18_02_08_a003", nb_ms_by_frame=100, param=param,
                                        weight=3.85)
@@ -1708,6 +1897,9 @@ def main():
                          "spike_nums": "filt_Bin100ms_spikedigital",
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a003/p7_18_02_08_a003_RasterDur.mat",
+                                            variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a003/p7_18_02_08_a003_CellDetect.mat",
                                             variables_mapping=variables_mapping)
 
     p7_17_10_18_a002_ms = MouseSession(age=7, session_id="17_10_18_a002", nb_ms_by_frame=100, param=param,
@@ -1723,6 +1915,9 @@ def main():
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a002/p7_17_10_18_a002_RasterDur.mat",
                                             variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a002/p7_17_10_18_a002_CellDetect.mat",
+                                            variables_mapping=variables_mapping)
 
     p7_17_10_18_a004_ms = MouseSession(age=7, session_id="17_10_18_a004", nb_ms_by_frame=100, param=param,
                                        weight=None)
@@ -1736,6 +1931,9 @@ def main():
                          "spike_nums": "filt_Bin100ms_spikedigital",
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p7_17_10_18_a004_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a004/p7_17_10_18_a004_RasterDur.mat",
+                                            variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p7_17_10_18_a004_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a004/p7_17_10_18_a004_CellDetect.mat",
                                             variables_mapping=variables_mapping)
 
     p8_18_02_09_a000_ms = MouseSession(age=8, session_id="18_02_09_a000", nb_ms_by_frame=100, param=param,
@@ -1751,6 +1949,9 @@ def main():
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a000/p8_18_02_09_a000_RasterDur.mat",
                                             variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a000/p8_18_02_09_a000_CellDetect.mat",
+                                            variables_mapping=variables_mapping)
 
     p8_18_02_09_a001_ms = MouseSession(age=8, session_id="18_02_09_a001", nb_ms_by_frame=100, param=param,
                                        weight=None)
@@ -1764,6 +1965,9 @@ def main():
                          "spike_nums": "filt_Bin100ms_spikedigital",
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_RasterDur.mat",
+                                            variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_CellDetect.mat",
                                             variables_mapping=variables_mapping)
 
     p8_18_10_17_a001_ms = MouseSession(age=8, session_id="18_10_17_a001", nb_ms_by_frame=100, param=param,
@@ -1812,30 +2016,30 @@ def main():
         variables_mapping=variables_mapping)
 
     # p9_17_11_29_a002 low participation comparing to other, dead shortly after the recording
-    p9_17_11_29_a002_ms = MouseSession(age=9, session_id="17_11_29_a002", nb_ms_by_frame=100, param=param,
-                                       weight=5.7)
-    # calculated with 99th percentile on raster dur
-    p9_17_11_29_a002_ms.activity_threshold = 10
-    p9_17_11_29_a002_ms.set_inter_neurons([170])
-    # limit ??
-    # duration of those interneurons: 21
-    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
-    p9_17_11_29_a002_ms.load_data_from_file(file_name_to_load="p9/p9_17_11_29_a002/p9_17_11_29_a002_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
+    # p9_17_11_29_a002_ms = MouseSession(age=9, session_id="17_11_29_a002", nb_ms_by_frame=100, param=param,
+    #                                    weight=5.7)
+    # # calculated with 99th percentile on raster dur
+    # p9_17_11_29_a002_ms.activity_threshold = 10
+    # p9_17_11_29_a002_ms.set_inter_neurons([170])
+    # # limit ??
+    # # duration of those interneurons: 21
+    # variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+    #                      "spike_nums": "filt_Bin100ms_spikedigital",
+    #                      "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
+    # p9_17_11_29_a002_ms.load_data_from_file(file_name_to_load="p9/p9_17_11_29_a002/p9_17_11_29_a002_RasterDur.mat",
+    #                                         variables_mapping=variables_mapping)
 
-    p9_17_11_29_a003_ms = MouseSession(age=9, session_id="17_11_29_a003", nb_ms_by_frame=100, param=param,
-                                       weight=5.7)
-    # calculated with 99th percentile on raster dur
-    p9_17_11_29_a003_ms.activity_threshold = 7
-    p9_17_11_29_a003_ms.set_inter_neurons([1, 13, 54])
-    # duration of those interneurons: 21.1 22.75  23
-    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
-    p9_17_11_29_a003_ms.load_data_from_file(file_name_to_load="p9/p9_17_11_29_a003/p9_17_11_29_a003_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
+    # p9_17_11_29_a003_ms = MouseSession(age=9, session_id="17_11_29_a003", nb_ms_by_frame=100, param=param,
+    #                                    weight=5.7)
+    # # calculated with 99th percentile on raster dur
+    # p9_17_11_29_a003_ms.activity_threshold = 7
+    # p9_17_11_29_a003_ms.set_inter_neurons([1, 13, 54])
+    # # duration of those interneurons: 21.1 22.75  23
+    # variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+    #                      "spike_nums": "filt_Bin100ms_spikedigital",
+    #                      "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
+    # p9_17_11_29_a003_ms.load_data_from_file(file_name_to_load="p9/p9_17_11_29_a003/p9_17_11_29_a003_RasterDur.mat",
+    #                                         variables_mapping=variables_mapping)
 
     p9_17_12_06_a001_ms = MouseSession(age=9, session_id="17_12_06_a001", nb_ms_by_frame=100, param=param,
                                        weight=5.6)
@@ -1849,6 +2053,9 @@ def main():
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p9_17_12_06_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_06_a001/p9_17_12_06_a001_RasterDur.mat",
                                             variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p9_17_12_06_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_06_a001/p9_17_12_06_a001_CellDetect.mat",
+                                            variables_mapping=variables_mapping)
 
     p9_17_12_20_a001_ms = MouseSession(age=9, session_id="17_12_20_a001", nb_ms_by_frame=100, param=param,
                                        weight=5.05)
@@ -1861,6 +2068,9 @@ def main():
                          "spike_nums": "filt_Bin100ms_spikedigital",
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p9_17_12_20_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_20_a001/p9_17_12_20_a001_RasterDur.mat",
+                                            variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p9_17_12_20_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_20_a001/p9_17_12_20_a001_CellDetect.mat",
                                             variables_mapping=variables_mapping)
 
     #
@@ -1889,6 +2099,9 @@ def main():
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_RasterDur.mat",
                                              variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_CellDetect.mat",
+                                            variables_mapping=variables_mapping)
 
     p11_17_11_24_a001_ms = MouseSession(age=11, session_id="17_11_24_a001", nb_ms_by_frame=100, param=param,
                                         weight=6.7)
@@ -1902,6 +2115,9 @@ def main():
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p11_17_11_24_a001_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_RasterDur.mat",
                                              variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p11_17_11_24_a001_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_CellDetect.mat",
+                                            variables_mapping=variables_mapping)
 
     p11_17_11_24_a000_ms = MouseSession(age=11, session_id="17_11_24_a000", nb_ms_by_frame=100, param=param,
                                         weight=6.7)
@@ -1918,6 +2134,7 @@ def main():
     variables_mapping = {"coord": "ContoursAll"}
     p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
                                              variables_mapping=variables_mapping)
+    # p11_17_11_24_a000_ms.plot_cell_assemblies_on_map()
 
     p12_17_11_10_a002_ms = MouseSession(age=12, session_id="17_11_10_a002", nb_ms_by_frame=100, param=param,
                                         weight=7)
@@ -1931,6 +2148,9 @@ def main():
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p12_17_11_10_a002_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_RasterDur.mat",
                                              variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p12_17_11_10_a002_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_CellDetect.mat",
+                                            variables_mapping=variables_mapping)
 
     p12_171110_a000_ms = MouseSession(age=12, session_id="171110_a000", nb_ms_by_frame=100, param=param,
                                       weight=7)
@@ -1942,8 +2162,11 @@ def main():
     variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
                          "spike_nums": "filt_Bin100ms_spikedigital",
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
-    p12_171110_a000_ms.load_data_from_file(file_name_to_load="p12/P12_17_11_10_a000/p12_17_11_10_a000_rasterdur.mat",
+    p12_171110_a000_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_rasterdur.mat",
                                            variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p12_171110_a000_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_CellDetect.mat",
+                                            variables_mapping=variables_mapping)
 
     p13_18_10_29_a000_ms = MouseSession(age=13, session_id="18_10_29_a000", nb_ms_by_frame=100, param=param,
                                         weight=9.4)
@@ -1985,6 +2208,9 @@ def main():
                          "spike_durations": "LOC3", "spike_amplitudes": "MAX"}
     p14_18_10_23_a000_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_rasterdur.mat",
                                              variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p14_18_10_23_a000_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_CellDetect.mat",
+                                            variables_mapping=variables_mapping)
 
     # TODO : add weight
     # only interneurons in p14_18_10_23_a001_ms
@@ -1999,6 +2225,9 @@ def main():
                          "spike_durations": "PEAK_LOC_2"}
     p14_18_10_23_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_RasterDur.mat",
                                              variables_mapping=variables_mapping)
+    variables_mapping = {"coord": "ContoursAll"}
+    p14_18_10_23_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_CellDetect.mat",
+                                            variables_mapping=variables_mapping)
 
     arnaud_ms = MouseSession(age=24, session_id="arnaud", nb_ms_by_frame=50, param=param)
     arnaud_ms.activity_threshold = 13
@@ -2024,6 +2253,7 @@ def main():
     # arnaud_ms]
     # available_ms = [p13_18_10_29_a001_ms]
     interneurons_ms = [p14_18_10_23_a001_ms]
+    available_ms = interneurons_ms
     still_to_cluster = [p7_18_02_08_a001_ms, p7_18_02_08_a002_ms,
                         p7_18_02_08_a003_ms,
                         p8_18_02_09_a000_ms, p8_18_02_09_a001_ms,
@@ -2042,7 +2272,7 @@ def main():
     #                     p8_18_02_09_a000_ms, p8_18_02_09_a001_ms,
     #                     p8_18_10_24_a005_ms, p8_18_10_17_a001_ms]
     corrected_ms_from_robin = [p7_171012_a000_ms, p8_18_10_17_a000_ms]
-    available_ms = corrected_ms_from_robin
+    # available_ms = corrected_ms_from_robin
     ms_to_test_clustering = [p11_17_11_24_a000_ms]
     ms_to_analyse = ms_to_test_clustering  # corrected_ms_from_robin
 
@@ -2055,10 +2285,13 @@ def main():
     use_raster_dur = True
     determine_low_activity_by_variation = True
 
+    do_plot_interneurons_connect_maps = False
+    do_plot_connect_hist = True
+
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = True
+    do_clustering = False
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     with_cells_in_cluster_seq_sorted = True
@@ -2096,6 +2329,39 @@ def main():
     debug_mode = False
 
     # ------------------------------ end param section ------------------------------
+
+    ms_by_age = dict()
+    for ms in available_ms:
+        if ms.age not in ms_by_age:
+            ms_by_age[ms.age] = []
+        ms_by_age[ms.age].append(ms)
+
+        if do_plot_interneurons_connect_maps or do_plot_connect_hist:
+            ms.detect_n_in_n_out()
+
+        if do_plot_connect_hist:
+            connec_func_stat([ms], data_descr=ms.description, param=param)
+
+        if do_plot_interneurons_connect_maps:
+            if ms.coord is None:
+                continue
+            ms.plot_each_inter_neuron_connect_map()
+
+    if do_plot_connect_hist:
+        n_ins_by_age = dict()
+        n_outs_by_age = dict()
+        for age, ms_list in ms_by_age.items():
+            n_ins_by_age[age], n_outs_by_age[age] = connec_func_stat(ms_list, data_descr=f"p{age}", param=param)
+        box_plot_data_by_age(data_dict=n_ins_by_age,
+                             title="Connectivity in by age",
+                             filename="box_plots_connectivity_in_by_age",
+                             y_label="Active cells (%)",
+                             param=param)
+        box_plot_data_by_age(data_dict=n_outs_by_age,
+                             title="Connectivity out by age",
+                             filename="box_plots_connectivity_out_by_age",
+                             y_label="Active cells (%)",
+                             param=param)
 
     if just_do_stat_on_event_detection_parameters:
         # keep the value for each ms
