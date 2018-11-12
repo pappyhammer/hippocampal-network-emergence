@@ -22,6 +22,7 @@ from pattern_discovery.seq_solver.markov_way import MarkovParameters
 from pattern_discovery.seq_solver.markov_way import find_significant_patterns
 import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.display.raster import plot_spikes_raster
+from pattern_discovery.display.misc import time_correlation_graph
 from pattern_discovery.display.cells_map_module import CoordClass
 from pattern_discovery.tools.sce_detection import get_sce_detection_threshold, detect_sce_with_sliding_window, \
     get_low_activity_events_detection_threshold
@@ -2253,7 +2254,7 @@ def main():
     # arnaud_ms]
     # available_ms = [p13_18_10_29_a001_ms]
     interneurons_ms = [p14_18_10_23_a001_ms]
-    available_ms = interneurons_ms
+    # available_ms = interneurons_ms
     still_to_cluster = [p7_18_02_08_a001_ms, p7_18_02_08_a002_ms,
                         p7_18_02_08_a003_ms,
                         p8_18_02_09_a000_ms, p8_18_02_09_a001_ms,
@@ -2275,6 +2276,7 @@ def main():
     # available_ms = corrected_ms_from_robin
     ms_to_test_clustering = [p11_17_11_24_a000_ms]
     ms_to_analyse = ms_to_test_clustering  # corrected_ms_from_robin
+    ms_to_analyse = available_ms
 
     just_do_stat_on_event_detection_parameters = False
 
@@ -2286,7 +2288,8 @@ def main():
     determine_low_activity_by_variation = True
 
     do_plot_interneurons_connect_maps = False
-    do_plot_connect_hist = True
+    do_plot_connect_hist = False
+    do_time_graph_correlation = True
 
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
@@ -2331,10 +2334,59 @@ def main():
     # ------------------------------ end param section ------------------------------
 
     ms_by_age = dict()
-    for ms in available_ms:
+    for ms in ms_to_analyse:
         if ms.age not in ms_by_age:
             ms_by_age[ms.age] = []
         ms_by_age[ms.age].append(ms)
+
+        if do_time_graph_correlation:
+            spike_struct = ms.spike_struct
+            sliding_window_duration = 1
+            if ms.activity_threshold is None:
+                activity_threshold = get_sce_detection_threshold(spike_nums=spike_struct.spike_nums_dur,
+                                                                 window_duration=sliding_window_duration,
+                                                                 spike_train_mode=False,
+                                                                 use_max_of_each_surrogate=use_max_of_each_surrogate,
+                                                                 n_surrogate=n_surrogate_activity_threshold,
+                                                                 perc_threshold=perc_threshold,
+                                                                 debug_mode=False)
+
+                spike_struct.activity_threshold = activity_threshold
+                # param.activity_threshold = activity_threshold
+            else:
+                activity_threshold = ms.activity_threshold
+                spike_struct.activity_threshold = ms.activity_threshold
+
+            sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_struct.spike_nums_dur,
+                                                                  window_duration=sliding_window_duration,
+                                                                  perc_threshold=perc_threshold,
+                                                                  activity_threshold=activity_threshold,
+                                                                  debug_mode=False,
+                                                                  no_redundancy=False)
+
+            # tuple of times
+            SCE_times = sce_detection_result[1]
+
+            events_peak_times = []
+            for sce_time in SCE_times:
+                events_peak_times.append(sce_time[0] +
+                                         np.argmax(spike_struct.spike_nums_dur[:, sce_time[0]:sce_time[1]+1]))
+
+            cells_groups = []
+            groups_colors = []
+            if (spike_struct.inter_neurons is not None) and (len(spike_struct.inter_neurons) > 0):
+                cells_groups.append(spike_struct.inter_neurons)
+                groups_colors.append("red")
+
+            time_correlation_graph(spike_nums=spike_struct.spike_nums,
+                                   events_peak_times=events_peak_times,
+                                   cells_groups=cells_groups,
+                                   groups_colors=groups_colors,
+                                   data_id=ms.description,
+                                   param=param,
+                                   time_window=5,
+                                   time_stamps_by_ms=0.01,
+                                   ms_scale=200)
 
         if do_plot_interneurons_connect_maps or do_plot_connect_hist:
             ms.detect_n_in_n_out()
@@ -2731,6 +2783,9 @@ def main():
 
         plot_duration_spikes_by_age(mouse_sessions=available_ms, ms_ages=ms_ages,
                                     duration_spikes_by_age=duration_spikes_by_age, param=param)
+        return
+
+    if (not do_pattern_search) and (not do_clustering):
         return
 
     for ms in ms_to_analyse:
