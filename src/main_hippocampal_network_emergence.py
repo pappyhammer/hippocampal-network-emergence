@@ -15,6 +15,7 @@ import hdf5storage
 from datetime import datetime
 # import keras
 import os
+import pyabf
 # to add homemade package, go to preferences, then project interpreter, then click on the wheel symbol
 # then show all, then select the interpreter and lick on the more right icon to display a list of folder and
 # add the one containing the folder pattern_discovery
@@ -128,63 +129,67 @@ class MouseSession:
             return
 
         for inter_neuron in inter_neurons:
-            color_each_cells_link_to_interneuron = True
+            self.plot_connectivity_maps_of_a_cell(cell_to_map=inter_neuron, cell_descr="inter_neuron")
 
-            connections_dict_in = dict()
-            connections_dict_out = dict()
-            n_in_matrix = self.spike_struct.n_in_matrix
-            n_out_matrix = self.spike_struct.n_out_matrix
-            at_least_on_in_link = False
-            at_least_on_out_link = False
+    def plot_connectivity_maps_of_a_cell(self, cell_to_map, cell_descr,
+                                         cell_color="red", links_cell_color="cornflowerblue"):
+        color_each_cells_link_to_cell = True
 
-            connections_dict_in[inter_neuron] = dict()
-            connections_dict_out[inter_neuron] = dict()
+        connections_dict_in = dict()
+        connections_dict_out = dict()
+        n_in_matrix = self.spike_struct.n_in_matrix
+        n_out_matrix = self.spike_struct.n_out_matrix
+        at_least_on_in_link = False
+        at_least_on_out_link = False
 
-            for cell in np.where(n_in_matrix[inter_neuron, :])[0]:
-                at_least_on_in_link = True
-                connections_dict_in[inter_neuron][cell] = 1
+        connections_dict_in[cell_to_map] = dict()
+        connections_dict_out[cell_to_map] = dict()
 
-            for cell in np.where(n_out_matrix[inter_neuron, :])[0]:
-                at_least_on_out_link = True
-                connections_dict_out[inter_neuron][cell] = 1
+        for cell in np.where(n_in_matrix[cell_to_map, :])[0]:
+            at_least_on_in_link = True
+            connections_dict_in[cell_to_map][cell] = 1
 
-            cells_groups_colors = ["red"]
-            cells_groups = [[inter_neuron]]
-            if at_least_on_in_link and color_each_cells_link_to_interneuron:
-                links_cells = list(connections_dict_in[inter_neuron].keys())
-                # removing fellow inter_neurons
-                links_cells = np.setdiff1d(np.array(links_cells), np.array(inter_neurons))
-                if len(links_cells) > 0:
-                    cells_groups.append(list(connections_dict_in[inter_neuron].keys()))
-                    cells_groups_colors.append("cornflowerblue")
+        for cell in np.where(n_out_matrix[cell_to_map, :])[0]:
+            at_least_on_out_link = True
+            connections_dict_out[cell_to_map][cell] = 1
 
-            self.coord_obj.compute_center_coord(cells_groups=cells_groups,
-                                                cells_groups_colors=cells_groups_colors)
+        cells_groups_colors = [cell_color]
+        cells_groups = [[cell_to_map]]
+        if at_least_on_in_link and color_each_cells_link_to_cell:
+            links_cells = list(connections_dict_in[cell_to_map].keys())
+            # removing fellow inter_neurons, code could be use to colors some cell in another color
+            # links_cells = np.setdiff1d(np.array(links_cells), np.array(inter_neurons))
+            if len(links_cells) > 0:
+                cells_groups.append(list(connections_dict_in[cell_to_map].keys()))
+                cells_groups_colors.append(links_cell_color)
 
-            self.coord_obj.plot_cells_map(param=self.param,
-                                          data_id=self.description, show_polygons=False,
-                                          title_option=f"n_in_interneuron_{inter_neuron}",
-                                          connections_dict=connections_dict_in,
-                                          with_cell_numbers=True)
+        self.coord_obj.compute_center_coord(cells_groups=cells_groups,
+                                            cells_groups_colors=cells_groups_colors)
 
-            cells_groups_colors = ["red"]
-            cells_groups = [[inter_neuron]]
-            if at_least_on_out_link and color_each_cells_link_to_interneuron:
-                links_cells = list(connections_dict_out[inter_neuron].keys())
-                # removing fellow inter_neurons
-                links_cells = np.setdiff1d(np.array(links_cells), np.array(inter_neurons))
-                if len(links_cells) > 0:
-                    cells_groups.append(list(connections_dict_out[inter_neuron].keys()))
-                    cells_groups_colors.append("cornflowerblue")
+        self.coord_obj.plot_cells_map(param=self.param,
+                                      data_id=self.description, show_polygons=False,
+                                      title_option=f"n_in_{cell_descr}_{cell_to_map}",
+                                      connections_dict=connections_dict_in,
+                                      with_cell_numbers=True)
 
-            self.coord_obj.compute_center_coord(cells_groups=cells_groups,
-                                                cells_groups_colors=cells_groups_colors)
+        cells_groups_colors = [cell_color]
+        cells_groups = [[cell_to_map]]
+        if at_least_on_out_link and color_each_cells_link_to_cell:
+            links_cells = list(connections_dict_out[cell_to_map].keys())
+            # removing fellow inter_neurons
+            links_cells = np.setdiff1d(np.array(links_cells), np.array(cell_to_map))
+            if len(links_cells) > 0:
+                cells_groups.append(list(connections_dict_out[cell_to_map].keys()))
+                cells_groups_colors.append(links_cell_color)
 
-            self.coord_obj.plot_cells_map(param=self.param,
-                                          data_id=self.description, show_polygons=False,
-                                          title_option=f"n_out_interneuron_{inter_neuron}",
-                                          connections_dict=connections_dict_out,
-                                          with_cell_numbers=True)
+        self.coord_obj.compute_center_coord(cells_groups=cells_groups,
+                                            cells_groups_colors=cells_groups_colors)
+
+        self.coord_obj.plot_cells_map(param=self.param,
+                                      data_id=self.description, show_polygons=False,
+                                      title_option=f"n_out_{cell_descr}_{cell_to_map}",
+                                      connections_dict=connections_dict_out,
+                                      with_cell_numbers=True)
 
     def plot_all_inter_neurons_connect_map(self):
         # plot n_in and n_out map of the interneurons
@@ -280,6 +285,183 @@ class MouseSession:
 
     def set_inter_neurons(self, inter_neurons):
         self.spike_struct.inter_neurons = np.array(inter_neurons).astype(int)
+
+    def load_abf_file(self, abf_file_name, threshold_piezo=None):
+        # 50000 Hz
+        abf = pyabf.ABF(self.param.path_data + abf_file_name)
+        abf.setSweep(sweepNumber=0, channel=0)
+        times_in_sec = abf.sweepX
+        frames_data = abf.sweepY
+        abf.setSweep(sweepNumber=0, channel=1)
+        piezo_data = abf.sweepY
+
+        # first frame
+        first_frame_index = np.where(frames_data < 0.01)[0][0]
+        print(f"first_frame_index {first_frame_index}")
+        times_in_sec = times_in_sec[first_frame_index:]
+        frames_data = frames_data[first_frame_index:]
+        piezo_data = np.abs(piezo_data[first_frame_index:])
+
+        binary_frames_data = np.zeros(len(frames_data), dtype="int8")
+        binary_frames_data[frames_data >= 0.05] = 1
+        binary_frames_data[frames_data < 0.05] = 0
+        active_frames = np.where(np.diff(binary_frames_data) == 1)[0]
+        # active_frames = np.concatenate(([0], active_frames))
+        print(f"active_frames {active_frames}")
+        nb_frames = len(active_frames)
+
+        print(f"nb_frames {nb_frames}")
+
+        # if threshold_piezo is None:
+        if True:
+            plt.figure(figsize=(20, 8))
+            plt.plot(times_in_sec, piezo_data, lw=.5)
+            plt.title("Y")
+            plt.show()
+            plt.close()
+
+        # fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex=True,
+        #                              gridspec_kw={'height_ratios': [0.5, 0.5], 'width_ratios': [1]},
+        #                              figsize=(15, 10))
+        # # plt.tight_layout(pad=3, w_pad=7, h_pad=3)
+        # ax1.plot(times_in_sec, frames_data, lw=.5)
+        # ax2.plot(times_in_sec, piezo_data, lw=.5)
+        # plt.show()
+        # plt.close()
+
+        # plt.style.use('bmh')
+        # print(f"np.where(abf.sweepC)[0] {np.where(abf.sweepC)[0]}")
+        # print(abf)
+        # l = 50000000
+        # # abf.setSweep(0)  # sweeps start at 0
+        # print("channel 0")
+        # abf.setSweep(sweepNumber=0, channel=0)
+        # print(f"len(abf.sweepY) {len(abf.sweepY)} abf.sweepY {abf.sweepY}")  # sweep data (ADC)
+        # print(f"len(abf.sweepC) {len(abf.sweepC)} abf.sweepC {abf.sweepC}")  # sweep command (DAC)
+        # print(f"len(abf.sweepX) {len(abf.sweepX)} abf.sweepX {abf.sweepX}")  # sweep times (seconds)
+        # print(f"abf.sweepLabelY {abf.sweepLabelY}")
+        # print(f"abf.sweepLabelX {abf.sweepLabelX}")
+        # print(f"abf.sweepLabelC {abf.sweepLabelC}")
+        #
+        # # plt.figure(figsize=(15, 8))
+        # # plt.plot(abf.sweepX[:l], abf.sweepY[:l], lw=.5)
+        # # plt.title("Y")
+        # # plt.show()
+        # # plt.close()
+        #
+        # print("channel 1")
+        # abf.setSweep(sweepNumber=0, channel=1)
+        # print(f"len(abf.sweepY) {len(abf.sweepY)} abf.sweepY {abf.sweepY}")  # sweep data (ADC)
+        # print(f"len(abf.sweepC) {len(abf.sweepC)} abf.sweepC {abf.sweepC}")  # sweep command (DAC)
+        # print(f"len(abf.sweepX) {len(abf.sweepX)} abf.sweepX {abf.sweepX}")  # sweep times (seconds)
+        # print(f"abf.sweepLabelY {abf.sweepLabelY}")
+        # print(f"abf.sweepLabelX {abf.sweepLabelX}")
+        # print(f"abf.sweepLabelC {abf.sweepLabelC}")
+        #
+        # plt.figure(figsize=(8, 5))
+        # plt.plot(abf.sweepX[:l], abf.sweepY[:l], lw=.5)
+        # plt.title("Y")
+        # plt.show()
+        # plt.close()
+
+        raise Exception()
+
+    # 50000 * 5
+    # TODO: 2 methods: one with diff on periods > threshold, time between 2 periods: 2 sec min
+    # TODO: A second one with sliding window (200 ms) with low percentile threshold
+    def detect_mvt_periods_with_sliding_window(piezo_data, window_duration, piezo_threshold,
+                                               min_time_between_periods,
+                                               debug_mode=False):
+
+        """
+        Use a sliding window to detect sce (define as peak of activity > perc_threshold percentile after
+        randomisation during a time corresponding to window_duration)
+        :param spike_nums: 2D array, lines=cells, columns=time
+        :param window_duration:
+        :param perc_threshold:
+        :param no_redundancy: if True, then when using the sliding window, a second spike of a cell is not taking into
+        consideration when looking for a new SCE
+        :return: ** one array (mask, boolean) containing True for indices (times) part of an SCE,
+        ** a list of tuple corresponding to the first and last index of each SCE, (last index being included in the SCE)
+        ** sce_nums: a new spike_nums with in x axis the SCE and in y axis the neurons, with 1 if
+        active during a given SCE.
+        ** an array of len n_times, that for each times give the SCE number or -1 if part of no cluster
+        ** activity_threshold
+
+        """
+
+        n_times = len(data_piezo)
+        start_sce = -1
+        mvt_periods_bool = np.zeros(n_times, dtype="bool")
+        mvt_periods_tuples = []
+        mvt_periods_times_numbers = np.ones(n_times, dtype="int16")
+        mvt_periods_times_numbers *= -1
+        if debug_mode:
+            print(f"n_times {n_times}")
+        for t in np.arange(0, (n_times - window_duration)):
+            if debug_mode:
+                if t % 10 ** 6 == 0:
+                    print(f"t {t}")
+            sum_value = np.sum(data_piezo[t:(t + window_duration)])
+            # neurons with sum > 1 are active during a SCE
+            sum_value = len(pos_cells)
+            if no_redundancy and (start_sce > -1):
+                # removing from the count the cell that are in the previous SCE
+                nb_cells_already_in_sce = np.sum(cells_in_sce_so_far[pos_cells])
+                sum_value -= nb_cells_already_in_sce
+                if nb_cells_already_in_sce > 0:
+                    cells_has_been_removed_due_to_redundancy = True
+            # print(f"Sum value, test {sum_value_test}, rxeal {sum_value}")
+            if sum_value > activity_threshold:
+                if start_sce == -1:
+                    start_sce = t
+                    if no_redundancy:
+                        # keeping only cells spiking at time t, as we're gonna shift of one on the next step
+                        sum_spikes = np.sum(spike_nums[:, t])
+                        pos_cells = np.where(sum_spikes)[0]
+                        cells_in_sce_so_far[pos_cells] = True
+                else:
+                    if no_redundancy:
+                        # updating which cells are already in the SCE
+                        # keeping only cells spiking at time t, as we're gonna shift of one on the next step
+                        sum_spikes = np.sum(spike_nums[:, t])
+                        pos_cells = np.where(sum_spikes)[0]
+                        cells_in_sce_so_far[pos_cells] = True
+                    else:
+                        pass
+            else:
+                if start_sce > -1:
+                    # then a new SCE is detected
+                    sce_bool[start_sce:t] = True
+                    sce_tuples.append((start_sce, (t + window_duration) - 2))
+                    # sce_tuples.append((start_sce, t-1))
+                    sce_times_numbers[start_sce:t] = len(sce_tuples) - 1
+                    start_sce = -1
+                    cells_in_sce_so_far = np.zeros(n_cells, dtype="bool")
+                if no_redundancy and cells_has_been_removed_due_to_redundancy:
+                    sum_value += nb_cells_already_in_sce
+                    if sum_value > activity_threshold:
+                        # then a new SCE start right after the old one
+                        start_sce = t
+                        cells_in_sce_so_far = np.zeros(n_cells, dtype="bool")
+                        if no_redundancy:
+                            # keeping only cells spiking at time t, as we're gonna shift of one on the next step
+                            sum_spikes = np.sum(spike_nums[:, t])
+                            pos_cells = np.where(sum_spikes)[0]
+                            cells_in_sce_so_far[pos_cells] = True
+
+        n_sces = len(sce_tuples)
+        sce_nums = np.zeros((n_cells, n_sces), dtype="int16")
+        for sce_index, sce_tuple in enumerate(sce_tuples):
+            cells_spikes = np.zeros(n_cells, dtype="int8")
+            sum_spikes = np.sum(spike_nums[:, sce_tuple[0]:(sce_tuple[1] + 1)], axis=1)
+            # neurons with sum > 1 are active during a SCE
+            active_cells = np.where(sum_spikes)[0]
+            sce_nums[active_cells, sce_index] = 1
+
+        # print(f"number of sce {len(sce_tuples)}")
+
+        return sce_bool, sce_tuples, sce_nums, sce_times_numbers, activity_threshold
 
     def load_data_from_file(self, file_name_to_load, variables_mapping, frames_filter=None):
         """
@@ -626,7 +808,8 @@ class HNESpikeStructure:
             self.spike_trains.append(np.where(cell_spikes)[0].astype(float))
 
 
-def connec_func_stat(mouse_sessions, data_descr, param):
+def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
+                     cells_to_highlights_shape=None, cells_to_highlights_colors=None, cells_to_highlights_legend=None):
     # print(f"connec_func_stat {mouse_session.session_numbers[0]}")
     interneurons_pos = np.zeros(0, dtype="uint16")
     total_nb_neurons = 0
@@ -657,12 +840,17 @@ def connec_func_stat(mouse_sessions, data_descr, param):
     labels.extend(["mean", "median"])
     scatter_shapes.extend(["o", "s"])
     colors.extend(["white", "white"])
-    if len(interneurons_pos) > 0:
+    if show_interneurons and len(interneurons_pos) > 0:
         values_to_scatter.extend(list(n_outs_total[interneurons_pos]))
         labels.extend([f"interneuron (x{len(interneurons_pos)})"])
         scatter_shapes.extend(["*"] * len(n_outs_total[interneurons_pos]))
         colors.extend(["red"] * len(n_outs_total[interneurons_pos]))
-    # TODO add mean and median
+    if cells_to_highlights is not None:
+        for index, cells in enumerate(cells_to_highlights):
+            values_to_scatter.extend(list(n_outs_total[np.array(cells)]))
+            labels.append(cells_to_highlights_legend[index])
+            scatter_shapes.extend([cells_to_highlights_shape[index]] * len(cells))
+            colors.extend([cells_to_highlights_colors[index]] * len(cells))
 
     plot_hist_ratio_spikes_events(ratio_spikes_events=n_outs_total,
                                   description=f"{data_descr}_distribution_n_out",
@@ -677,16 +865,24 @@ def connec_func_stat(mouse_sessions, data_descr, param):
 
     values_to_scatter = []
     scatter_shapes = []
+    labels = []
     colors = []
     values_to_scatter.append(np.mean(n_ins_total))
     values_to_scatter.append(np.median(n_ins_total))
     labels.extend(["mean", "median"])
     scatter_shapes.extend(["o", "s"])
     colors.extend(["white", "white"])
-    if len(interneurons_pos) > 0:
+    if show_interneurons and len(interneurons_pos) > 0:
         values_to_scatter.extend(list(n_ins_total[interneurons_pos]))
+        labels.extend([f"interneuron (x{len(interneurons_pos)})"])
         scatter_shapes.extend(["*"] * len(n_ins_total[interneurons_pos]))
         colors.extend(["red"] * len(n_ins_total[interneurons_pos]))
+    if cells_to_highlights is not None:
+        for index, cells in enumerate(cells_to_highlights):
+            values_to_scatter.extend(list(n_ins_total[np.array(cells)]))
+            labels.append(cells_to_highlights_legend)
+            scatter_shapes.extend([cells_to_highlights_shape[index]] * len(cells))
+            colors.extend([cells_to_highlights_colors[index]] * len(cells))
 
     plot_hist_ratio_spikes_events(ratio_spikes_events=n_ins_total,
                                   description=f"{data_descr}_distribution_n_in",
@@ -1892,6 +2088,8 @@ def main():
     variables_mapping = {"coord": "ContoursAll"}
     p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_CellDetect.mat",
                                             variables_mapping=variables_mapping)
+    p6_18_02_07_a001_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a001/p6_18_02_07_001.abf",
+                                      threshold_piezo=7)
     # abf piezo: p6/p6_18_02_07_a001/p6_18_02_07_001.abf
 
     p6_18_02_07_a002_ms = MouseSession(age=6, session_id="18_02_07_a002", nb_ms_by_frame=100, param=param,
@@ -2567,7 +2765,7 @@ def main():
     # ms_to_analyse = ms_to_test_clustering  # corrected_ms_from_robin
     ms_to_analyse = available_ms
 
-    just_do_stat_on_event_detection_parameters = True
+    just_do_stat_on_event_detection_parameters = False
 
     # for events (sce) detection
     perc_threshold = 99
@@ -2579,6 +2777,7 @@ def main():
     do_plot_interneurons_connect_maps = False
     do_plot_connect_hist = False
     do_time_graph_correlation = True
+    do_time_graph_correlation_and_connect_best = True
 
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
@@ -2628,6 +2827,11 @@ def main():
             ms_by_age[ms.age] = []
         ms_by_age[ms.age].append(ms)
 
+        if do_plot_interneurons_connect_maps or do_plot_connect_hist:
+            ms.detect_n_in_n_out()
+        elif do_time_graph_correlation_and_connect_best and do_time_graph_correlation:
+            ms.detect_n_in_n_out()
+
         if do_time_graph_correlation:
             spike_struct = ms.spike_struct
             n_cells = ms.spike_struct.n_cells
@@ -2663,12 +2867,26 @@ def main():
                                          np.argmax(spike_struct.spike_nums_dur[:, sce_time[0]:sce_time[1] + 1]))
 
             results = get_time_correlation_data(spike_nums=spike_struct.spike_nums,
-                                                events_times=SCE_times)
+                                                events_times=SCE_times, time_around_events=0)
             ms.time_lags_list, ms.correlation_list, \
-            ms.time_lags_dict, ms.correlation_dict, ms.time_lags_window = results
+            ms.time_lags_dict, ms.correlation_dict, ms.time_lags_window, cells_list = results
 
-        if do_plot_interneurons_connect_maps or do_plot_connect_hist:
-            ms.detect_n_in_n_out()
+            if do_time_graph_correlation_and_connect_best and ms.coord_obj is not None:
+                # keep value with correlation > 95th percentile
+                correlation_threshold = np.percentile(ms.correlation_list, 99)
+                indices = np.where(np.array(ms.correlation_list) > correlation_threshold)[0]
+                hub_cells = np.array(cells_list)[indices]
+
+                # then show their connectivity in and out
+                connec_func_stat(mouse_sessions=[ms], data_descr=f"{ms.description} with hub cells",
+                                 param=param, show_interneurons=False, cells_to_highlights=[hub_cells],
+                                 cells_to_highlights_shape=["o"], cells_to_highlights_colors=["red"],
+                                 cells_to_highlights_legend=["hub cells"])
+
+                # and show their connectivty map
+                for cell_to_map in hub_cells:
+                    ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="hub_cell",
+                                                        cell_color="red", links_cell_color="cornflowerblue")
 
         if do_plot_connect_hist:
             connec_func_stat([ms], data_descr=ms.description, param=param)
@@ -2680,11 +2898,12 @@ def main():
 
     if do_time_graph_correlation:
         max_value = 0
-        for ms in ms_to_analyse:
-            max_value_ms = np.max((np.abs(np.min(ms.time_lags_list)), np.abs(np.max(ms.time_lags_list))))
+        for ms_time_graph in ms_to_analyse:
+            max_value_ms = np.max((np.abs(np.min(ms_time_graph.time_lags_list)),
+                                   np.abs(np.max(ms_time_graph.time_lags_list))))
             max_value = np.max((max_value, max_value_ms))
 
-        time_window_to_include_them_all = (max_value*1.1)/2
+        time_window_to_include_them_all = (max_value * 1.1) / 2
 
         for ms in ms_to_analyse:
             cells_groups = []
@@ -2699,6 +2918,11 @@ def main():
                 time_window = time_window_to_include_them_all
             else:
                 time_window = ms.time_lags_window
+            # if do_time_graph_correlation_and_connect_best:
+            #     show_percentiles=[99]
+            # else:
+            #     show_percentiles=None
+            show_percentiles = [99]
             # first plotting each individual time-correlation graph with the same x-limits
             time_correlation_graph(time_lags_list=ms.time_lags_list,
                                    correlation_list=ms.correlation_list,
@@ -2713,13 +2937,56 @@ def main():
                                    param=param,
                                    set_x_limit_to_max=True,
                                    time_stamps_by_ms=0.01,
-                                   ms_scale=200)
+                                   ms_scale=200,
+                                   show_percentiles=show_percentiles)
+
+            # normalized version
+            # time_lags_list_z_score = (np.array(ms.time_lags_list) - np.mean(ms.time_lags_list)) / \
+            #                          np.std(ms.time_lags_list)
+            # time_lags_dict_z_score = dict()
+            # for cell, time_lag in ms.time_lags_dict.items():
+            #     time_lags_dict_z_score[cell] = (time_lag - np.mean(ms.time_lags_list))) / np.std(ms.time_lags_list)
 
         time_lags_list_by_age = dict()
         correlation_list_by_age = dict()
         time_lags_dict_by_age = dict()
         correlation_dict_by_age = dict()
         time_lags_window_by_age = dict()
+
+        for age, ms_this_age in ms_by_age.items():
+            cells_so_far = 0
+            time_lags_list_by_age[age] = []
+            correlation_list_by_age[age] = []
+            time_lags_dict_by_age[age] = dict()
+            correlation_dict_by_age[age] = dict()
+            cells_groups = [[]]
+            groups_colors = ["red"]
+            for ms in ms_this_age:
+                time_lags_list_by_age[age].extend(ms.time_lags_list)
+                correlation_list_by_age[age].extend(ms.correlation_list)
+                spike_struct = ms.spike_struct
+                if (spike_struct.inter_neurons is not None) and (len(spike_struct.inter_neurons) > 0):
+                    cells_groups[0].extend(list(np.array(spike_struct.inter_neurons) + cells_so_far))
+
+                for cell in ms.time_lags_dict.keys():
+                    time_lags_dict_by_age[age][cell + cells_so_far] = ms.time_lags_dict[cell]
+                    correlation_dict_by_age[age][cell + cells_so_far] = ms.correlation_dict[cell]
+                cells_so_far += len(ms.time_lags_dict)
+
+            time_correlation_graph(time_lags_list=time_lags_list_by_age[age],
+                                   correlation_list=correlation_list_by_age[age],
+                                   time_lags_dict=time_lags_dict_by_age[age],
+                                   correlation_dict=correlation_dict_by_age[age],
+                                   n_cells=ms.spike_struct.n_cells,
+                                   time_window=time_window_to_include_them_all,
+                                   plot_cell_numbers=True,
+                                   cells_groups=cells_groups,
+                                   groups_colors=groups_colors,
+                                   data_id=f"p{age}",
+                                   param=param,
+                                   set_x_limit_to_max=True,
+                                   time_stamps_by_ms=0.01,
+                                   ms_scale=200)
 
     if do_plot_connect_hist:
         n_ins_by_age = dict()
