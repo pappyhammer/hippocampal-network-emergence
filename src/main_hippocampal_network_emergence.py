@@ -87,6 +87,10 @@ class MouseSession:
         self.correlation_dict = None
         self.time_lags_window = None
 
+        # initialized when loading abf
+        self.mvt_frames = None
+        self.mvt_frames_periods = None
+
     def load_cell_assemblies_data(self):
         file_names = []
 
@@ -287,18 +291,51 @@ class MouseSession:
     def set_inter_neurons(self, inter_neurons):
         self.spike_struct.inter_neurons = np.array(inter_neurons).astype(int)
 
-    def load_abf_file(self, abf_file_name, threshold_piezo=None):
+    def load_abf_file(self, abf_file_name, threshold_piezo=None, with_run=False,
+                      frames_channel=0, piezo_channel=1, run_channel=2,
+                      sampling_rate=50000):
+        # return
+        print(f"abf: ms {self.description}")
+
+        # first checking if the data has been saved in a file before
+        index_reverse = abf_file_name[::-1].find("/")
+
+        path_abf_data = abf_file_name[:len(abf_file_name)-index_reverse]
+        file_names = []
+
+        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_abf_data):
+            file_names.extend(local_filenames)
+            break
+        if len(file_names) > 0:
+            for file_name in file_names:
+                if file_name.endswith(".npz"):
+                    if file_name.find("abf") > -1:
+                        # loading data
+                        npzfile = np.load(self.param.path_data + path_abf_data + file_name)
+                        self.mvt_frames = npzfile['mvt_frames']
+                        print(f"after loading len(self.mvt_frames) {len(self.mvt_frames)}")
+                        self.mvt_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
+                        return
+
         # 50000 Hz
         abf = pyabf.ABF(self.param.path_data + abf_file_name)
-        abf.setSweep(sweepNumber=0, channel=0)
+
+        print(f"{abf}")
+
+        if with_run:
+            return
+
+        abf.setSweep(sweepNumber=0, channel=frames_channel)
         times_in_sec = abf.sweepX
         frames_data = abf.sweepY
-        abf.setSweep(sweepNumber=0, channel=1)
+        abf.setSweep(sweepNumber=0, channel=piezo_channel)
         piezo_data = abf.sweepY
 
         # first frame
         first_frame_index = np.where(frames_data < 0.01)[0][0]
-        print(f"first_frame_index {first_frame_index}")
+        # removing the part before the recording
+        # print(f"first_frame_index {first_frame_index}")
         times_in_sec = times_in_sec[:-first_frame_index]
         frames_data = frames_data[first_frame_index:]
         piezo_data = np.abs(piezo_data[first_frame_index:])
@@ -313,43 +350,57 @@ class MouseSession:
         nb_frames = len(active_frames)
         print(f"nb_frames {nb_frames}")
 
-        mvt_periods = self.detect_mvt_periods_with_diff(piezo_data=piezo_data, piezo_threshold=threshold_piezo,
-                                          min_time_between_periods=2*50000)
-        print(f"diff method: len(mvt_periods) {len(mvt_periods)}")
-
-        mvt_periods = self.detect_mvt_periods_with_sliding_window(piezo_data=piezo_data,
-                                                                  window_duration=int(0.2 * 50000),
-                                                                  piezo_threshold=threshold_piezo,
-                                                                  min_time_between_periods=2 * 50000,
-                                                                  debug_mode=False)
-
-
-        print(f"len(mvt_periods) {len(mvt_periods)}")
-
-        mvts_frames = []
-        mvts_frames_periods = []
-        for mvt_period in mvt_periods:
-            frames = np.where(np.logical_and(active_frames >= mvt_period[0], active_frames <= mvt_period[1]))[0]
-            if len(frames) > 0:
-                mvts_frames.extend(frames)
-                mvts_frames_periods.append((frames[0], frames[-1]))
-
-        print(f"len(mvts_frames) {len(mvts_frames)}")
-
-
-        # if threshold_piezo is None:
-        if True:
+        if threshold_piezo is None:
             fig, ax = plt.subplots(nrows=1, ncols=1,
                                    gridspec_kw={'height_ratios': [1]},
                                    figsize=(20, 8))
-            # plt.figure(figsize=(20, 8))
             plt.plot(times_in_sec, piezo_data, lw=.5)
-            for mvt_period in mvt_periods:
-                color = "red"
-                ax.axvspan(mvt_period[0]/50000, mvt_period[1]/50000, alpha=0.5, facecolor=color, zorder=1)
-            plt.title("piezo")
+            plt.title(f"piezo {self.description}")
             plt.show()
             plt.close()
+            return
+
+        mvt_periods = self.detect_mvt_periods_with_diff(piezo_data=piezo_data, piezo_threshold=threshold_piezo,
+                                                        min_time_between_periods=2 * sampling_rate)
+        print(f"diff method: len(mvt_periods) {len(mvt_periods)}")
+
+        # mvt_periods = self.detect_mvt_periods_with_sliding_window(piezo_data=piezo_data,
+        #                                                           window_duration=int(0.2 * 50000),
+        #                                                           piezo_threshold=threshold_piezo,
+        #                                                           min_time_between_periods=2 * 50000,
+        #                                                           debug_mode=False)
+
+        print(f"len(mvt_periods) {len(mvt_periods)}")
+
+        self.mvt_frames = []
+        self.mvt_frames_periods = []
+        for mvt_period in mvt_periods:
+            frames = np.where(np.logical_and(active_frames >= mvt_period[0], active_frames <= mvt_period[1]))[0]
+            if len(frames) > 0:
+                self.mvt_frames.extend(frames)
+                self.mvt_frames_periods.append((frames[0], frames[-1]))
+        self.mvt_frames = np.array(self.mvt_frames)
+
+        # savinf the npz file, that will be loaded directly at the next execution
+        np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
+                 mvt_frames=self.mvt_frames)
+        # continuous_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
+        # print(f"continuous_frames_periods {continuous_frames_periods}")
+        # print(f"self.mvt_frames_periods {self.mvt_frames_periods}")
+        print(f"len(mvt_frames) {len(self.mvt_frames)}")
+
+        # plotting the results
+        fig, ax = plt.subplots(nrows=1, ncols=1,
+                               gridspec_kw={'height_ratios': [1]},
+                               figsize=(20, 8))
+        plt.plot(times_in_sec, piezo_data, lw=.5)
+        if mvt_periods is not None:
+            for mvt_period in mvt_periods:
+                color = "red"
+                ax.axvspan(mvt_period[0] / 50000, mvt_period[1] / 50000, alpha=0.5, facecolor=color, zorder=1)
+                plt.title(f"piezo {self.description}")
+        plt.show()
+        plt.close()
 
         # fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex=True,
         #                              gridspec_kw={'height_ratios': [0.5, 0.5], 'width_ratios': [1]},
@@ -395,14 +446,10 @@ class MouseSession:
         # plt.show()
         # plt.close()
 
-        raise Exception()
-
     # 50000 * 2
     def detect_mvt_periods_with_diff(self, piezo_data, piezo_threshold, min_time_between_periods, debug_mode=False):
         binary_piezo_data = np.zeros(len(piezo_data), dtype="int8")
         binary_piezo_data[piezo_data >= piezo_threshold] = 1
-        # binary_piezo_data[piezo_data < piezo_threshold] = 0
-        # print(f"n_times > threshold {len(np.where(binary_piezo_data)[0])}")
         time_periods = get_continous_time_periods(binary_piezo_data)
         return self.merging_time_periods(time_periods=time_periods,
                                          min_time_between_periods=min_time_between_periods)
@@ -2035,6 +2082,734 @@ def print_surprise_for_michou(n_lines, actual_line):
     print(f"{result}")
 
 
+def load_mouse_sessions(ms_str_to_load, param, load_traces):
+    ms_str_to_ms_dict = dict()
+
+    if "p6_18_02_07_a001_ms" in ms_str_to_load:
+        p6_18_02_07_a001_ms = MouseSession(age=6, session_id="18_02_07_a001", nb_ms_by_frame=100, param=param,
+                                           weight=4.35)
+        # calculated with 99th percentile on raster dur
+        p6_18_02_07_a001_ms.activity_threshold = 15
+        # p6_18_02_07_a001_ms.set_low_activity_threshold(threshold=3, percentile_value=1)
+        # p6_18_02_07_a001_ms.set_low_activity_threshold(threshold=5, percentile_value=5)
+        p6_18_02_07_a001_ms.set_inter_neurons([28, 36, 54, 75])
+        # duration of those interneurons: [ 18.58 17.78   19.  17.67]
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p6/p6_18_02_07_a001/p6_18_02_07_001_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        p6_18_02_07_a001_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a001/p6_18_02_07_001.abf",
+                                          threshold_piezo=7)
+        ms_str_to_ms_dict["p6_18_02_07_a001_ms"] = p6_18_02_07_a001_ms
+
+    if "p6_18_02_07_a002_ms" in ms_str_to_load:
+        p6_18_02_07_a002_ms = MouseSession(age=6, session_id="18_02_07_a002", nb_ms_by_frame=100, param=param,
+                                           weight=4.35)
+        # calculated with 99th percentile on raster dur
+        p6_18_02_07_a002_ms.activity_threshold = 8
+        # p6_18_02_07_a002_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+        # p6_18_02_07_a002_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
+        p6_18_02_07_a002_ms.set_inter_neurons([40, 90])
+        # duration of those interneurons: 16.27  23.33
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load=
+                                                "p6/p6_18_02_07_a002/p6_18_02_07_002_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a002/p6_18_02_07_a002_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a002/p6_18_02_07_a002_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        p6_18_02_07_a002_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a002/p6_18_02_07_002.abf",
+                                          threshold_piezo=6)
+        ms_str_to_ms_dict["p6_18_02_07_a002_ms"] = p6_18_02_07_a002_ms
+
+    if "p7_171012_a000_ms" in ms_str_to_load:
+        p7_171012_a000_ms = MouseSession(age=7, session_id="17_10_12_a000", nb_ms_by_frame=100, param=param,
+                                         weight=None)
+        # calculated with 99th percentile on raster dur
+        p7_171012_a000_ms.activity_threshold = 19
+        # p7_171012_a000_ms.set_low_activity_threshold(threshold=6, percentile_value=1)
+        # p7_171012_a000_ms.set_low_activity_threshold(threshold=7, percentile_value=5)
+        p7_171012_a000_ms.set_inter_neurons([305, 360, 398, 412])
+        # duration of those interneurons: 13.23  12.48  10.8   11.88
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p7_171012_a000_ms.load_data_from_file(
+            file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Corrected_RasterDur.mat",
+            variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Traces.mat",
+                                                  variables_mapping=variables_mapping)
+        # variables_mapping = {"coord": "ContoursAll"} ContoursSoma ContoursIntNeur
+        # p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_CellDetect.mat",
+        #                                          variables_mapping=variables_mapping)
+        ms_str_to_ms_dict["p7_171012_a000_ms"] = p7_171012_a000_ms
+
+    if "p7_17_10_18_a002_ms" in ms_str_to_load:
+        p7_17_10_18_a002_ms = MouseSession(age=7, session_id="17_10_18_a002", nb_ms_by_frame=100, param=param,
+                                           weight=None)
+        # calculated with 99th percentile on raster dur
+        p7_17_10_18_a002_ms.activity_threshold = 14
+        # p7_17_10_18_a002_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
+        # p7_17_10_18_a002_ms.set_low_activity_threshold(threshold=4, percentile_value=5)
+        p7_17_10_18_a002_ms.set_inter_neurons([51])
+        # duration of those interneurons: 14.13
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_17_10_18_a002/p7_17_10_18_a002_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a002/p7_17_10_18_a002_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a002/p7_17_10_18_a002_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        ms_str_to_ms_dict["p7_17_10_18_a002_ms"] = p7_17_10_18_a002_ms
+
+    if "p7_17_10_18_a004_ms" in ms_str_to_load:
+        p7_17_10_18_a004_ms = MouseSession(age=7, session_id="17_10_18_a004", nb_ms_by_frame=100, param=param,
+                                           weight=None)
+        # calculated with 99th percentile on raster dur
+        p7_17_10_18_a004_ms.activity_threshold = 13
+        # p7_17_10_18_a004_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
+        # p7_17_10_18_a004_ms.set_low_activity_threshold(threshold=3, percentile_value=5)
+        p7_17_10_18_a004_ms.set_inter_neurons([298])
+        # duration of those interneurons: 15.35
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p7_17_10_18_a004_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_17_10_18_a004/p7_17_10_18_a004_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p7_17_10_18_a004_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a004/p7_17_10_18_a004_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p7_17_10_18_a004_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a004/p7_17_10_18_a004_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        ms_str_to_ms_dict["p7_17_10_18_a004_ms"] = p7_17_10_18_a004_ms
+
+    if "p7_18_02_08_a000_ms" in ms_str_to_load:
+        p7_18_02_08_a000_ms = MouseSession(age=7, session_id="18_02_08_a000", nb_ms_by_frame=100, param=param,
+                                           weight=3.85)
+        # calculated with 99th percentile on raster dur
+        p7_18_02_08_a000_ms.activity_threshold = 10
+        # p7_18_02_08_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
+        # p7_18_02_08_a000_ms.set_low_activity_threshold(threshold=2, percentile_value=5)
+        p7_18_02_08_a000_ms.set_inter_neurons([56, 95, 178])
+        # duration of those interneurons: 12.88  13.94  13.04
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_18_02_08_a000/p7_18_02_18_a000_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a000/p7_18_02_08_a000_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a000/p7_18_02_08_a000_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        p7_18_02_08_a000_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a000/p7_18_02_08_a000.abf",
+                                          threshold_piezo=4)
+        ms_str_to_ms_dict["p7_18_02_08_a000_ms"] = p7_18_02_08_a000_ms
+
+    if "p7_18_02_08_a001_ms" in ms_str_to_load:
+        p7_18_02_08_a001_ms = MouseSession(age=7, session_id="18_02_08_a001", nb_ms_by_frame=100, param=param,
+                                           weight=3.85)
+        # calculated with 99th percentile on raster dur
+        p7_18_02_08_a001_ms.activity_threshold = 12
+        # p7_18_02_08_a001_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
+        # p7_18_02_08_a001_ms.set_low_activity_threshold(threshold=3, percentile_value=5)
+        p7_18_02_08_a001_ms.set_inter_neurons([151])
+        # duration of those interneurons: 22.11
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_18_02_08_a001/p7_18_02_18_a001_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        p7_18_02_08_a001_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a001/p7_18_02_08_a001.abf",
+                                          threshold_piezo=2)
+        ms_str_to_ms_dict["p7_18_02_08_a001_ms"] = p7_18_02_08_a001_ms
+
+    if "p7_18_02_08_a002_ms" in ms_str_to_load:
+        p7_18_02_08_a002_ms = MouseSession(age=7, session_id="18_02_08_a002", nb_ms_by_frame=100, param=param,
+                                           weight=3.85)
+        # calculated with 99th percentile on raster dur
+        p7_18_02_08_a002_ms.activity_threshold = 9
+        # p7_18_02_08_a002_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
+        # p7_18_02_08_a002_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
+        p7_18_02_08_a002_ms.set_inter_neurons([207])
+        # duration of those interneurons: 22.3
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_18_02_08_a002/p7_18_02_08_a002_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a002/p7_18_02_08_a002_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a002/p7_18_02_08_a002_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        ms_str_to_ms_dict["p7_18_02_08_a002_ms"] = p7_18_02_08_a002_ms
+
+    if "p7_18_02_08_a003_ms" in ms_str_to_load:
+        p7_18_02_08_a003_ms = MouseSession(age=7, session_id="18_02_08_a003", nb_ms_by_frame=100, param=param,
+                                           weight=3.85)
+        # calculated with 99th percentile on raster dur
+        p7_18_02_08_a003_ms.activity_threshold = 7
+        # p7_18_02_08_a003_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+        # p7_18_02_08_a003_ms.set_low_activity_threshold(threshold=0, percentile_value=5)
+        p7_18_02_08_a003_ms.set_inter_neurons([171])
+        # duration of those interneurons: 14.92
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_18_02_08_a003/p7_18_02_08_a003_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a003/p7_18_02_08_a003_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a003/p7_18_02_08_a003_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        p7_18_02_08_a003_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a003/p7_18_02_08_a003.abf",
+                                          threshold_piezo=2.5)
+        ms_str_to_ms_dict["p7_18_02_08_a003_ms"] = p7_18_02_08_a003_ms
+
+    if "p8_18_02_09_a000_ms" in ms_str_to_load:
+        p8_18_02_09_a000_ms = MouseSession(age=8, session_id="18_02_09_a000", nb_ms_by_frame=100, param=param,
+                                           weight=None)
+        # calculated with 99th percentile on raster dur
+        p8_18_02_09_a000_ms.activity_threshold = 8
+        # p8_18_02_09_a000_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+        # p8_18_02_09_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
+        p8_18_02_09_a000_ms.set_inter_neurons([64, 91])
+        # duration of those interneurons: 12.48  11.47
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load=
+                                                "p8/p8_18_02_09_a000/p8_18_02_09_a000_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a000/p8_18_02_09_a000_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a000/p8_18_02_09_a000_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        p8_18_02_09_a000_ms.load_abf_file(abf_file_name="p8/p8_18_02_09_a000/p8_18_02_09_a000.abf",
+                                          threshold_piezo=1.5)
+        ms_str_to_ms_dict["p8_18_02_09_a000_ms"] = p8_18_02_09_a000_ms
+
+    if "p8_18_02_09_a001_ms" in ms_str_to_load:
+        p8_18_02_09_a001_ms = MouseSession(age=8, session_id="18_02_09_a001", nb_ms_by_frame=100, param=param,
+                                           weight=None)
+        # calculated with 99th percentile on raster dur
+        p8_18_02_09_a001_ms.activity_threshold = 10
+        # p8_18_02_09_a001_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
+        # p8_18_02_09_a001_ms.set_low_activity_threshold(threshold=2, percentile_value=5)
+        p8_18_02_09_a001_ms.set_inter_neurons([])
+        # duration of those interneurons:
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p8/p8_18_02_09_a001/p8_18_02_09_a001_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        p8_18_02_09_a001_ms.load_abf_file(abf_file_name="p8/p8_18_02_09_a001/p8_18_02_09_a001.abf",
+                                          threshold_piezo=1)
+        ms_str_to_ms_dict["p8_18_02_09_a001_ms"] = p8_18_02_09_a001_ms
+
+    if "p8_18_10_17_a000_ms" in ms_str_to_load:
+        p8_18_10_17_a000_ms = MouseSession(age=8, session_id="18_10_17_a000", nb_ms_by_frame=100, param=param,
+                                           weight=6)
+        # calculated with 99th percentile on raster dur
+        p8_18_10_17_a000_ms.activity_threshold = 11
+        # p8_18_10_17_a000_ms.set_low_activity_threshold(threshold=, percentile_value=1)
+        # p8_18_10_17_a000_ms.set_low_activity_threshold(threshold=, percentile_value=5)
+        p8_18_10_17_a000_ms.set_inter_neurons([27, 70])
+        # duration of those interneurons: 23.8, 43
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p8_18_10_17_a000_ms.load_data_from_file(
+            file_name_to_load="p8/p8_18_10_17_a000/P8_18_10_17_a000_Corrected_RasterDur.mat",
+            variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p8_18_10_17_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a000/p8_18_10_17_a000_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p8_18_10_17_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a000/p8_18_10_17_a000_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        ms_str_to_ms_dict["p8_18_10_17_a000_ms"] = p8_18_10_17_a000_ms
+
+    if "p8_18_10_17_a001_ms" in ms_str_to_load:
+        p8_18_10_17_a001_ms = MouseSession(age=8, session_id="18_10_17_a001", nb_ms_by_frame=100, param=param,
+                                           weight=6)
+        # calculated with 99th percentile on raster dur
+        p8_18_10_17_a001_ms.activity_threshold = 9
+        # p8_18_10_17_a001_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+        # p8_18_10_17_a001_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
+        p8_18_10_17_a001_ms.set_inter_neurons([117, 135, 217, 271])
+        # duration of those interneurons: 32.33, 171, 144.5, 48.8
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p8_18_10_17_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p8/p8_18_10_17_a001/p8_18_10_17_a001_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p8_18_10_17_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a001/p8_18_10_17_a001_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p8_18_10_17_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a001/p8_18_10_17_a001_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        # CORRUPTED ABF ??
+        # p8_18_10_17_a001_ms.load_abf_file(abf_file_name="p8/p8_18_10_17_a001/p8_18_10_17_a001.abf",
+        #                                   threshold_piezo=None, piezo_channel=2, sampling_rate=10000)
+        ms_str_to_ms_dict["p8_18_10_17_a001_ms"] = p8_18_10_17_a001_ms
+
+    if "p8_18_10_24_a005_ms" in ms_str_to_load:
+        # 6.4
+        p8_18_10_24_a005_ms = MouseSession(age=8, session_id="18_10_24_a005", nb_ms_by_frame=100, param=param,
+                                           weight=6.4)
+        # calculated with 99th percentile on raster dur
+        p8_18_10_24_a005_ms.activity_threshold = 9
+        # p8_18_10_24_a005_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+        # p8_18_10_24_a005_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
+        p8_18_10_24_a005_ms.set_inter_neurons([33, 112, 206])
+        # duration of those interneurons: 18.92, 27.33, 20.55
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load=
+                                                "p8/p8_18_10_24_a005/p8_18_10_24_a005_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        p8_18_10_24_a005_ms.load_abf_file(abf_file_name="p8/p8_18_10_24_a005/p8_18_10_24_a005.abf",
+                                          threshold_piezo=0.4)
+        ms_str_to_ms_dict["p8_18_10_24_a005_ms"] = p8_18_10_24_a005_ms
+
+
+    # p9_17_11_29_a002 low participation comparing to other, dead shortly after the recording
+    # p9_17_11_29_a002_ms = MouseSession(age=9, session_id="17_11_29_a002", nb_ms_by_frame=100, param=param,
+    #                                    weight=5.7)
+    # # calculated with 99th percentile on raster dur
+    # p9_17_11_29_a002_ms.activity_threshold = 10
+    # p9_17_11_29_a002_ms.set_inter_neurons([170])
+    # # limit ??
+    # # duration of those interneurons: 21
+    # variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+    #                      "spike_nums": "filt_Bin100ms_spikedigital",
+    #                      "spike_durations": "LOC3"}
+    # p9_17_11_29_a002_ms.load_data_from_file(file_name_to_load="p9/p9_17_11_29_a002/p9_17_11_29_a002_RasterDur.mat",
+    #                                         variables_mapping=variables_mapping)
+
+    # p9_17_11_29_a003_ms = MouseSession(age=9, session_id="17_11_29_a003", nb_ms_by_frame=100, param=param,
+    #                                    weight=5.7)
+    # # calculated with 99th percentile on raster dur
+    # p9_17_11_29_a003_ms.activity_threshold = 7
+    # p9_17_11_29_a003_ms.set_inter_neurons([1, 13, 54])
+    # # duration of those interneurons: 21.1 22.75  23
+    # variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+    #                      "spike_nums": "filt_Bin100ms_spikedigital",
+    #                      "spike_durations": "LOC3"}
+    # p9_17_11_29_a003_ms.load_data_from_file(file_name_to_load="p9/p9_17_11_29_a003/p9_17_11_29_a003_RasterDur.mat",
+    #                                         variables_mapping=variables_mapping)
+    if "p9_17_12_06_a001_ms" in ms_str_to_load:
+        p9_17_12_06_a001_ms = MouseSession(age=9, session_id="17_12_06_a001", nb_ms_by_frame=100, param=param,
+                                           weight=5.6)
+        # calculated with 99th percentile on raster dur
+        p9_17_12_06_a001_ms.activity_threshold = 8
+        # p9_17_12_06_a001_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+        p9_17_12_06_a001_ms.set_inter_neurons([72])
+        # duration of those interneurons:15.88
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p9_17_12_06_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p9/p9_17_12_06_a001/p9_17_12_06_a001_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p9_17_12_06_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_06_a001/p9_17_12_06_a001_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p9_17_12_06_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_06_a001/p9_17_12_06_a001_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        p9_17_12_06_a001_ms.load_abf_file(abf_file_name="p9/p9_17_12_06_a001/p9_17_12_06_a001.abf",
+                                          threshold_piezo=1.5)
+        ms_str_to_ms_dict["p9_17_12_06_a001_ms"] = p9_17_12_06_a001_ms
+
+    if "p9_17_12_20_a001_ms" in ms_str_to_load:
+        p9_17_12_20_a001_ms = MouseSession(age=9, session_id="17_12_20_a001", nb_ms_by_frame=100, param=param,
+                                           weight=5.05)
+        # calculated with 99th percentile on raster dur
+        p9_17_12_20_a001_ms.activity_threshold = 8
+        # p9_17_12_20_a001_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+        p9_17_12_20_a001_ms.set_inter_neurons([32])
+        # duration of those interneurons: 10.35
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p9_17_12_20_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p9/p9_17_12_20_a001/p9_17_12_20_a001_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p9_17_12_20_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_20_a001/p9_17_12_20_a001_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p9_17_12_20_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_20_a001/p9_17_12_20_a001_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        p9_17_12_20_a001_ms.load_abf_file(abf_file_name="p9/p9_17_12_20_a001/p9_17_12_20_a001.abf",
+                                          threshold_piezo=2)
+        ms_str_to_ms_dict["p9_17_12_20_a001_ms"] = p9_17_12_20_a001_ms
+
+    if "p9_18_09_27_a003_ms" in ms_str_to_load:
+        p9_18_09_27_a003_ms = MouseSession(age=9, session_id="18_09_27_a003", nb_ms_by_frame=100, param=param,
+                                           weight=6.65)
+        # calculated with 99th percentile on raster dur
+        p9_18_09_27_a003_ms.activity_threshold = 9
+        # p9_18_09_27_a003_ms.set_low_activity_threshold(threshold=, percentile_value=1)
+        p9_18_09_27_a003_ms.set_inter_neurons([2, 9, 67, 206])
+        # duration of those interneurons: 59.1, 32, 28, 35.15
+        variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p9_18_09_27_a003_ms.load_data_from_file(file_name_to_load=
+                                                "p9/p9_18_09_27_a003/p9_18_09_27_a003_Corrected_RasterDur.mat",
+                                                variables_mapping=variables_mapping)
+
+        variables_mapping = {"coord": "ContoursAll"}
+        p9_18_09_27_a003_ms.load_data_from_file(file_name_to_load="p9/p9_18_09_27_a003/p9_18_09_27_a003_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        # p9_18_09_27_a003_ms.load_abf_file(abf_file_name="p9/p9_18_09_27_a003/p9_18_09_27_a003.abf",
+        #                                   threshold_piezo=None)
+        ms_str_to_ms_dict["p9_18_09_27_a003_ms"] = p9_18_09_27_a003_ms
+
+    if "p10_17_11_16_a003_ms" in ms_str_to_load:
+        p10_17_11_16_a003_ms = MouseSession(age=10, session_id="17_11_16_a003", nb_ms_by_frame=100, param=param,
+                                            weight=6.1)
+        # calculated with 99th percentile on raster dur
+        p10_17_11_16_a003_ms.activity_threshold = 6
+        # p10_17_11_16_a003_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+        p10_17_11_16_a003_ms.set_inter_neurons([8])
+        # duration of those interneurons: 28
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load=
+                                                 "p10/p10_17_11_16_a003/p10_17_11_16_a003_Corrected_RasterDur.mat",
+                                                 variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_Traces.mat",
+                                                     variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_CellDetect.mat",
+                                                 variables_mapping=variables_mapping)
+        ms_str_to_ms_dict["p10_17_11_16_a003_ms"] = p10_17_11_16_a003_ms
+
+    if "p11_17_11_24_a000_ms" in ms_str_to_load:
+        p11_17_11_24_a000_ms = MouseSession(age=11, session_id="17_11_24_a000", nb_ms_by_frame=100, param=param,
+                                            weight=6.7)
+        # calculated with 99th percentile on raster dur
+        p11_17_11_24_a000_ms.activity_threshold = 11
+        # p11_17_11_24_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
+        p11_17_11_24_a000_ms.set_inter_neurons([193])
+        # duration of those interneurons: 19.09
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load=
+                                                 "p11/p11_17_11_24_a000/p11_17_11_24_a000_Corrected_RasterDur.mat",
+                                                 variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_Traces.mat",
+                                                     variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
+                                                 variables_mapping=variables_mapping)
+        # p11_17_11_24_a000_ms.plot_cell_assemblies_on_map()
+        ms_str_to_ms_dict["p11_17_11_24_a000_ms"] = p11_17_11_24_a000_ms
+
+    if "p11_17_11_24_a001_ms" in ms_str_to_load:
+        p11_17_11_24_a001_ms = MouseSession(age=11, session_id="17_11_24_a001", nb_ms_by_frame=100, param=param,
+                                            weight=6.7)
+        # calculated with 99th percentile on raster dur
+        p11_17_11_24_a001_ms.activity_threshold = 10
+        # p11_17_11_24_a001_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
+        p11_17_11_24_a001_ms.set_inter_neurons([])
+        # duration of those interneurons:
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p11_17_11_24_a001_ms.load_data_from_file(file_name_to_load=
+                                                 "p11/p11_17_11_24_a001/p11_17_11_24_a001_Corrected_RasterDur.mat",
+                                                 variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p11_17_11_24_a001_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_Traces.mat",
+                                                     variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p11_17_11_24_a001_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_CellDetect.mat",
+                                                 variables_mapping=variables_mapping)
+        ms_str_to_ms_dict["p11_17_11_24_a001_ms"] = p11_17_11_24_a001_ms
+
+    if "p12_171110_a000_ms" in ms_str_to_load:
+        p12_171110_a000_ms = MouseSession(age=12, session_id="171110_a000", nb_ms_by_frame=100, param=param,
+                                          weight=7)
+        # calculated with 99th percentile on raster dur
+        p12_171110_a000_ms.activity_threshold = 9
+        # p12_171110_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
+        p12_171110_a000_ms.set_inter_neurons([106, 144])
+        # duration of those interneurons: 18.29  14.4
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p12_171110_a000_ms.load_data_from_file(file_name_to_load=
+                                               "p12/p12_17_11_10_a000/p12_17_11_10_a000_Corrected_RasterDur.mat",
+                                               variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p12_171110_a000_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_Traces.mat",
+                                                   variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p12_171110_a000_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_CellDetect.mat",
+                                               variables_mapping=variables_mapping)
+        p12_171110_a000_ms.load_abf_file(abf_file_name="p12/p12_17_11_10_a000/p12_17_11_10_a000.abf",
+                                         threshold_piezo=None, with_run=True)
+        ms_str_to_ms_dict["p12_171110_a000_ms"] = p12_171110_a000_ms
+
+    if "p12_17_11_10_a002_ms" in ms_str_to_load:
+        p12_17_11_10_a002_ms = MouseSession(age=12, session_id="17_11_10_a002", nb_ms_by_frame=100, param=param,
+                                            weight=7)
+        # calculated with 99th percentile on raster dur
+        p12_17_11_10_a002_ms.activity_threshold = 11
+        # p12_17_11_10_a002_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
+        p12_17_11_10_a002_ms.set_inter_neurons([150, 252])
+        # duration of those interneurons: 16.17, 24.8
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p12_17_11_10_a002_ms.load_data_from_file(file_name_to_load=
+                                                 "p12/p12_17_11_10_a002/p12_17_11_10_a002_Corrected_RasterDur.mat",
+                                                 variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p12_17_11_10_a002_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_Traces.mat",
+                                                     variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p12_17_11_10_a002_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_CellDetect.mat",
+                                                 variables_mapping=variables_mapping)
+        p12_17_11_10_a002_ms.load_abf_file(abf_file_name="p12/p12_17_11_10_a002/p12_17_11_10_a002.abf",
+                                           threshold_piezo=None, with_run=True)
+        ms_str_to_ms_dict["p12_17_11_10_a002_ms"] = p12_17_11_10_a002_ms
+
+    if "p13_18_10_29_a000_ms" in ms_str_to_load:
+        p13_18_10_29_a000_ms = MouseSession(age=13, session_id="18_10_29_a000", nb_ms_by_frame=100, param=param,
+                                            weight=9.4)
+        # calculated with 99th percentile on raster dur
+        p13_18_10_29_a000_ms.activity_threshold = 13
+        # p13_18_10_29_a000_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
+        p13_18_10_29_a000_ms.set_inter_neurons([5, 26, 27, 35, 38])
+        # duration of those interneurons: 13.57, 16.8, 22.4, 12, 14.19
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p13_18_10_29_a000_ms.load_data_from_file(file_name_to_load=
+                                                 "p13/p13_18_10_29_a000/p13_18_10_29_a000_Corrected_RasterDur.mat",
+                                                 variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p13_18_10_29_a000_ms.load_data_from_file(file_name_to_load="p13/p13_18_10_29_a000/p13_18_10_29_a000_Traces.mat",
+                                                     variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p13_18_10_29_a000_ms.load_data_from_file(file_name_to_load=
+                                                 "p13/p13_18_10_29_a000/p13_18_10_29_a000_CellDetect.mat",
+                                                 variables_mapping=variables_mapping)
+        p13_18_10_29_a000_ms.load_abf_file(abf_file_name="p13/p13_18_10_29_a000/p13_18_10_29_a000.abf",
+                                           threshold_piezo=None, with_run=True)
+        ms_str_to_ms_dict["p13_18_10_29_a000_ms"] = p13_18_10_29_a000_ms
+
+    if "p13_18_10_29_a001_ms" in ms_str_to_load:
+        p13_18_10_29_a001_ms = MouseSession(age=13, session_id="18_10_29_a001", nb_ms_by_frame=100, param=param,
+                                            weight=9.4)
+        # calculated with 99th percentile on raster dur
+        p13_18_10_29_a001_ms.activity_threshold = 11
+        # p13_18_10_29_a001_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
+        p13_18_10_29_a001_ms.set_inter_neurons([68])
+        # duration of those interneurons: 13.31
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
+                                                 "p13/p13_18_10_29_a001/p13_18_10_29_a001_Corrected_RasterDur.mat",
+                                                 variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load="p13/p13_18_10_29_a001/p13_18_10_29_a001_Traces.mat",
+                                                     variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
+                                                 "p13/p13_18_10_29_a001/p13_18_10_29_a001_CellDetect.mat",
+                                                 variables_mapping=variables_mapping)
+        p13_18_10_29_a001_ms.load_abf_file(abf_file_name="p13/p13_18_10_29_a001/p13_18_10_29_a001.abf",
+                                           threshold_piezo=None, with_run=True)
+        ms_str_to_ms_dict["p13_18_10_29_a001_ms"] = p13_18_10_29_a001_ms
+
+    if "p14_18_10_23_a000_ms" in ms_str_to_load:
+        p14_18_10_23_a000_ms = MouseSession(age=14, session_id="18_10_23_a000", nb_ms_by_frame=100, param=param,
+                                            weight=10.35)
+        # calculated with 99th percentile on raster dur
+        p14_18_10_23_a000_ms.activity_threshold = 8
+        # p14_18_10_23_a000_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
+        p14_18_10_23_a000_ms.set_inter_neurons([0])
+        # duration of those interneurons: 24.33
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p14_18_10_23_a000_ms.load_data_from_file(file_name_to_load=
+                                                 "p14/p14_18_10_23_a000/p14_18_10_23_a000_Corrected_RasterDur.mat",
+                                                 variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p14_18_10_23_a000_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_Traces.mat",
+                                                     variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p14_18_10_23_a000_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_CellDetect.mat",
+                                                 variables_mapping=variables_mapping)
+        ms_str_to_ms_dict["p14_18_10_23_a000_ms"] = p14_18_10_23_a000_ms
+
+    if "p14_18_10_23_a001_ms" in ms_str_to_load:
+        # only interneurons in p14_18_10_23_a001_ms
+        p14_18_10_23_a001_ms = MouseSession(age=14, session_id="18_10_23_a001", nb_ms_by_frame=100, param=param,
+                                            weight=10.35)
+        # calculated with 99th percentile on raster dur
+        p14_18_10_23_a001_ms.activity_threshold = 8
+        # p14_18_10_23_a001_ms.set_inter_neurons(np.arange(31))
+        p14_18_10_23_a001_ms.set_inter_neurons([])
+        # duration of those interneurons: 24.33
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p14_18_10_23_a001_ms.load_data_from_file(file_name_to_load=
+                                                 "p14/p14_18_10_23_a001/p14_18_10_23_a001_Corrected_RasterDur.mat",
+                                                 variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p14_18_10_23_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_Traces.mat",
+                                                     variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p14_18_10_23_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_CellDetect.mat",
+                                                 variables_mapping=variables_mapping)
+        ms_str_to_ms_dict["p14_18_10_23_a001_ms"] = p14_18_10_23_a001_ms
+
+    if "p14_18_10_30_a001_ms" in ms_str_to_load:
+        p14_18_10_30_a001_ms = MouseSession(age=14, session_id="18_10_30_a001", nb_ms_by_frame=100, param=param,
+                                            weight=8.9)
+        # calculated with 99th percentile on raster dur
+        p14_18_10_30_a001_ms.activity_threshold = 11
+        # p14_18_10_30_a001_ms.set_low_activity_threshold(threshold=, percentile_value=1)
+        p14_18_10_30_a001_ms.set_inter_neurons([0])
+        # duration of those interneurons: 24.33
+        variables_mapping = {"spike_nums_dur": "rasterdur",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p14_18_10_30_a001_ms.load_data_from_file(file_name_to_load=
+                                                 "p14/p14_18_10_30_a001/p14_18_10_30_a001_RasterDur.mat",
+                                                 variables_mapping=variables_mapping)
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p14_18_10_30_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_30_a001/p14_18_10_30_a001_Traces.mat",
+                                                     variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p14_18_10_30_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_30_a001/p14_18_10_30_a001_CellDetect.mat",
+                                                 variables_mapping=variables_mapping)
+        ms_str_to_ms_dict["p14_18_10_30_a001_ms"] = p14_18_10_30_a001_ms
+
+    # arnaud_ms = MouseSession(age=24, session_id="arnaud", nb_ms_by_frame=50, param=param)
+    # arnaud_ms.activity_threshold = 13
+    # arnaud_ms.set_inter_neurons([])
+    # variables_mapping = {"spike_nums": "spikenums"}
+    # arnaud_ms.load_data_from_file(file_name_to_load="spikenumsarnaud.mat", variables_mapping=variables_mapping)
+
+    if "p60_arnaud_ms" in ms_str_to_load:
+        p60_arnaud_ms = MouseSession(age=60, session_id="arnaud_a_529", nb_ms_by_frame=100, param=param)
+        p60_arnaud_ms.activity_threshold = 9
+        p60_arnaud_ms.set_inter_neurons([])
+        # duration of those interneurons:
+        variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p60_arnaud_ms.load_data_from_file(file_name_to_load=
+                                          "p60/a529/Arnaud_RasterDur.mat",
+                                          variables_mapping=variables_mapping)
+
+        # variables_mapping = {"traces": "C_df"}
+        # p60_arnaud_ms.load_data_from_file(file_name_to_load="p60/a529/Arnaud_a_529_corr_Traces.mat",
+        #                                          variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p60_arnaud_ms.load_data_from_file(file_name_to_load="p60/a529/Arnaud_a_529_corr_CellDetect.mat",
+                                          variables_mapping=variables_mapping)
+        ms_str_to_ms_dict["p60_arnaud_ms"] = p60_arnaud_ms
+
+
+    return ms_str_to_ms_dict
+
 def main():
     # for line in np.arange(15):
     #     print_surprise_for_michou(n_lines=15, actual_line=line)
@@ -2065,725 +2840,56 @@ def main():
 
     load_traces = False
 
-    # test
-    # p11_17_11_24_a000_ms = MouseSession(age=11, session_id="17_11_24_a000", nb_ms_by_frame=100, param=param,
-    #                                     weight=6.7)
-    # # calculated with 99th percentile on raster dur
-    # p11_17_11_24_a000_ms.activity_threshold = 12
-    # p11_17_11_24_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
-    # p11_17_11_24_a000_ms.set_inter_neurons([193])
-    # # duration of those interneurons: 19.09
-    # variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
-    #                      "spike_nums": "filt_Bin100ms_spikedigital",
-    #                      "spike_durations": "LOC3"}
-    # p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_RasterDur.mat",
-    #                                          variables_mapping=variables_mapping)
-    # variables_mapping = {"coord": "ContoursAll"}
-    # p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
-    #                                          variables_mapping=variables_mapping)
-    # # connec_func_stat([p11_17_11_24_a000_ms], data_descr="p11_17_11_24_a000", param=param)
-    # p11_17_11_24_a000_ms.plot_inter_neurons_connect_map()
-    # # p11_17_11_24_a000_ms.plot_cell_assemblies_on_map()
-    # return
+    available_ms_str = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                        "p7_171012_a000_ms", "p7_18_02_08_a000_ms",
+                        "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                        "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+                        "p7_18_02_08_a003_ms",
+                        "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+                        "p8_18_10_24_a005_ms", "p8_18_10_17_a001_ms",
+                        "p8_18_10_17_a000_ms",  # new
+                        "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+                        "p9_18_09_27_a003_ms",  # new
+                        "p10_17_11_16_a003_ms",
+                        "p11_17_11_24_a001_ms", "p11_17_11_24_a000_ms",
+                        "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+                        "p13_18_10_29_a000_ms",  # new
+                        "p13_18_10_29_a001_ms",
+                        "p14_18_10_23_a000_ms",
+                        "p14_18_10_30_a001_ms",
+                        "p60_arnaud_ms"]
+    abf_to_check = ["p8_18_10_17_a001_ms", "p9_18_09_27_a003_ms"]
+    run_ms_str = ["p12_17_11_10_a000_ms", "p12_17_11_10_a002_ms", "p13_18_10_29_a000_ms",
+                  "p13_18_10_29_a001_ms"]
+
+    interneurons_ms_str = ["p14_18_10_23_a001_ms"]
+
+
+    ms_str_to_load = ["p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+                        "p8_18_10_24_a005_ms", "p8_18_10_17_a001_ms",
+                        "p8_18_10_17_a000_ms",  # new
+                        "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+                        "p9_18_09_27_a003_ms",  # new
+                        "p10_17_11_16_a003_ms",
+                        "p11_17_11_24_a001_ms", "p11_17_11_24_a000_ms",
+                        "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+                        "p13_18_10_29_a000_ms",  # new
+                        "p13_18_10_29_a001_ms",
+                        "p14_18_10_23_a000_ms",
+                        "p14_18_10_30_a001_ms",
+                        "p60_arnaud_ms"]
+
+    ms_str_to_load = abf_to_check
 
     # loading data
-    p6_18_02_07_a001_ms = MouseSession(age=6, session_id="18_02_07_a001", nb_ms_by_frame=100, param=param,
-                                       weight=4.35)
-    # calculated with 99th percentile on raster dur
-    p6_18_02_07_a001_ms.activity_threshold = 15
-    # p6_18_02_07_a001_ms.set_low_activity_threshold(threshold=3, percentile_value=1)
-    # p6_18_02_07_a001_ms.set_low_activity_threshold(threshold=5, percentile_value=5)
-    p6_18_02_07_a001_ms.set_inter_neurons([28, 36, 54, 75])
-    # duration of those interneurons: [ 18.58 17.78   19.  17.67]
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load=
-                                            "p6/p6_18_02_07_a001/p6_18_02_07_001_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-    p6_18_02_07_a001_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a001/p6_18_02_07_001.abf",
-                                      threshold_piezo=7)
-    # abf piezo: p6/p6_18_02_07_a001/p6_18_02_07_001.abf
+    ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
+                                            load_traces=load_traces)
 
-    p6_18_02_07_a002_ms = MouseSession(age=6, session_id="18_02_07_a002", nb_ms_by_frame=100, param=param,
-                                       weight=4.35)
-    # calculated with 99th percentile on raster dur
-    p6_18_02_07_a002_ms.activity_threshold = 8
-    # p6_18_02_07_a002_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
-    # p6_18_02_07_a002_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
-    p6_18_02_07_a002_ms.set_inter_neurons([40, 90])
-    # duration of those interneurons: 16.27  23.33
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load=
-                                            "p6/p6_18_02_07_a002/p6_28_02_07_002_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a002/p6_18_02_07_a002_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a002/p6_18_02_07_a002_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-    # abf piezo: p6/p6_18_02_07_a001/p6_18_02_07_002.abf
+    available_ms = []
+    for ms_str in available_ms_str:
+        available_ms.append(ms_str_to_ms_dict[ms_str])
 
-    p7_171012_a000_ms = MouseSession(age=7, session_id="17_10_12_a000", nb_ms_by_frame=100, param=param,
-                                     weight=None)
-    # calculated with 99th percentile on raster dur
-    p7_171012_a000_ms.activity_threshold = 19
-    # p7_171012_a000_ms.set_low_activity_threshold(threshold=6, percentile_value=1)
-    # p7_171012_a000_ms.set_low_activity_threshold(threshold=7, percentile_value=5)
-    p7_171012_a000_ms.set_inter_neurons([305, 360, 398, 412])
-    # duration of those interneurons: 13.23  12.48  10.8   11.88
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p7_171012_a000_ms.load_data_from_file(
-        file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Corrected_RasterDur.mat",
-        variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Traces.mat",
-                                              variables_mapping=variables_mapping)
-    # variables_mapping = {"coord": "ContoursAll"} ContoursSoma ContoursIntNeur
-    # p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_CellDetect.mat",
-    #                                          variables_mapping=variables_mapping)
-    # abf pizeo: p7_17_10_12_a000.abf
-
-    p7_17_10_18_a002_ms = MouseSession(age=7, session_id="17_10_18_a002", nb_ms_by_frame=100, param=param,
-                                       weight=None)
-    # calculated with 99th percentile on raster dur
-    p7_17_10_18_a002_ms.activity_threshold = 14
-    # p7_17_10_18_a002_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
-    # p7_17_10_18_a002_ms.set_low_activity_threshold(threshold=4, percentile_value=5)
-    p7_17_10_18_a002_ms.set_inter_neurons([51])
-    # duration of those interneurons: 14.13
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load=
-                                            "p7/p7_17_10_18_a002/p7_17_10_18_a002_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a002/p7_17_10_18_a002_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a002/p7_17_10_18_a002_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-
-    p7_17_10_18_a004_ms = MouseSession(age=7, session_id="17_10_18_a004", nb_ms_by_frame=100, param=param,
-                                       weight=None)
-    # calculated with 99th percentile on raster dur
-    p7_17_10_18_a004_ms.activity_threshold = 13
-    # p7_17_10_18_a004_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
-    # p7_17_10_18_a004_ms.set_low_activity_threshold(threshold=3, percentile_value=5)
-    p7_17_10_18_a004_ms.set_inter_neurons([298])
-    # duration of those interneurons: 15.35
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p7_17_10_18_a004_ms.load_data_from_file(file_name_to_load=
-                                            "p7/p7_17_10_18_a004/p7_17_10_18_a004_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p7_17_10_18_a004_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a004/p7_17_10_18_a004_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p7_17_10_18_a004_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a004/p7_17_10_18_a004_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-
-    p7_18_02_08_a000_ms = MouseSession(age=7, session_id="18_02_08_a000", nb_ms_by_frame=100, param=param,
-                                       weight=3.85)
-    # calculated with 99th percentile on raster dur
-    p7_18_02_08_a000_ms.activity_threshold = 10
-    # p7_18_02_08_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
-    # p7_18_02_08_a000_ms.set_low_activity_threshold(threshold=2, percentile_value=5)
-    p7_18_02_08_a000_ms.set_inter_neurons([56, 95, 178])
-    # duration of those interneurons: 12.88  13.94  13.04
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load=
-                                            "p7/p7_18_02_08_a000/p7_18_02_18_a000_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a000/p7_18_02_08_a000_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a000/p7_18_02_08_a000_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-    # abf piezo: p7/p7_18_02_08_a000/p7_18_02_08_a000.abf
-
-    p7_18_02_08_a001_ms = MouseSession(age=7, session_id="18_02_08_a001", nb_ms_by_frame=100, param=param,
-                                       weight=3.85)
-    # calculated with 99th percentile on raster dur
-    p7_18_02_08_a001_ms.activity_threshold = 12
-    # p7_18_02_08_a001_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
-    # p7_18_02_08_a001_ms.set_low_activity_threshold(threshold=3, percentile_value=5)
-    p7_18_02_08_a001_ms.set_inter_neurons([151])
-    # duration of those interneurons: 22.11
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load=
-                                            "p7/p7_18_02_08_a001/p7_18_02_18_a001_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-    # abf piezo: p7/p7_18_02_08_a001/p7_18_02_08_a001.abf
-
-    p7_18_02_08_a002_ms = MouseSession(age=7, session_id="18_02_08_a002", nb_ms_by_frame=100, param=param,
-                                       weight=3.85)
-    # calculated with 99th percentile on raster dur
-    p7_18_02_08_a002_ms.activity_threshold = 9
-    # p7_18_02_08_a002_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
-    # p7_18_02_08_a002_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
-    p7_18_02_08_a002_ms.set_inter_neurons([207])
-    # duration of those interneurons: 22.3
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load=
-                                            "p7/p7_18_02_08_a002/p7_18_02_08_a002_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a002/p7_18_02_08_a002_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a002/p7_18_02_08_a002_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-
-    p7_18_02_08_a003_ms = MouseSession(age=7, session_id="18_02_08_a003", nb_ms_by_frame=100, param=param,
-                                       weight=3.85)
-    # calculated with 99th percentile on raster dur
-    p7_18_02_08_a003_ms.activity_threshold = 7
-    # p7_18_02_08_a003_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
-    # p7_18_02_08_a003_ms.set_low_activity_threshold(threshold=0, percentile_value=5)
-    p7_18_02_08_a003_ms.set_inter_neurons([171])
-    # duration of those interneurons: 14.92
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load=
-                                            "p7/p7_18_02_08_a003/p7_18_02_08_a003_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a003/p7_18_02_08_a003_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a003/p7_18_02_08_a003_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-    # abf piezo p7/p7_18_02_08_a003/p7_18_02_08_a003.abf
-
-    p8_18_02_09_a000_ms = MouseSession(age=8, session_id="18_02_09_a000", nb_ms_by_frame=100, param=param,
-                                       weight=None)
-    # calculated with 99th percentile on raster dur
-    p8_18_02_09_a000_ms.activity_threshold = 8
-    # p8_18_02_09_a000_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
-    # p8_18_02_09_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
-    p8_18_02_09_a000_ms.set_inter_neurons([64, 91])
-    # duration of those interneurons: 12.48  11.47
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load=
-                                            "p8/p8_18_02_09_a000/p8_18_02_09_a000_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a000/p8_18_02_09_a000_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a000/p8_18_02_09_a000_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-    # abf piezo: p8_18_02_09_a000.abf
-
-    p8_18_02_09_a001_ms = MouseSession(age=8, session_id="18_02_09_a001", nb_ms_by_frame=100, param=param,
-                                       weight=None)
-    # calculated with 99th percentile on raster dur
-    p8_18_02_09_a001_ms.activity_threshold = 10
-    # p8_18_02_09_a001_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
-    # p8_18_02_09_a001_ms.set_low_activity_threshold(threshold=2, percentile_value=5)
-    p8_18_02_09_a001_ms.set_inter_neurons([])
-    # duration of those interneurons:
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load=
-                                            "p8/p8_18_02_09_a001/p8_18_02_09_a001_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-    # p8_18_02_09_a001.abf
-
-    #
-    p8_18_10_17_a000_ms = MouseSession(age=8, session_id="18_10_17_a000", nb_ms_by_frame=100, param=param,
-                                       weight=6)
-    # calculated with 99th percentile on raster dur
-    p8_18_10_17_a000_ms.activity_threshold = 11
-    # p8_18_10_17_a000_ms.set_low_activity_threshold(threshold=, percentile_value=1)
-    # p8_18_10_17_a000_ms.set_low_activity_threshold(threshold=, percentile_value=5)
-    p8_18_10_17_a000_ms.set_inter_neurons([27, 70])
-    # duration of those interneurons: 23.8, 43
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p8_18_10_17_a000_ms.load_data_from_file(
-        file_name_to_load="p8/p8_18_10_17_a000/P8_18_10_17_a000_Corrected_RasterDur.mat",
-        variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p8_18_10_17_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a000/p8_18_10_17_a000_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p8_18_10_17_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a000/p8_18_10_17_a000_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-
-    p8_18_10_17_a001_ms = MouseSession(age=8, session_id="18_10_17_a001", nb_ms_by_frame=100, param=param,
-                                       weight=6)
-    # calculated with 99th percentile on raster dur
-    p8_18_10_17_a001_ms.activity_threshold = 9
-    # p8_18_10_17_a001_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
-    # p8_18_10_17_a001_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
-    p8_18_10_17_a001_ms.set_inter_neurons([117, 135, 217, 271])
-    # duration of those interneurons: 32.33, 171, 144.5, 48.8
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p8_18_10_17_a001_ms.load_data_from_file(file_name_to_load=
-                                            "p8/p8_18_10_17_a001/p8_18_10_17_a001_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p8_18_10_17_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a001/p8_18_10_17_a001_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p8_18_10_17_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a001/p8_18_10_17_a001_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-    # abf piezo: p8_18_10_17_a001.abf
-
-    # 6.4
-    p8_18_10_24_a005_ms = MouseSession(age=8, session_id="18_10_24_a005", nb_ms_by_frame=100, param=param,
-                                       weight=6.4)
-    # calculated with 99th percentile on raster dur
-    p8_18_10_24_a005_ms.activity_threshold = 9
-    # p8_18_10_24_a005_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
-    # p8_18_10_24_a005_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
-    p8_18_10_24_a005_ms.set_inter_neurons([33, 112, 206])
-    # duration of those interneurons: 18.92, 27.33, 20.55
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load=
-                                            "p8/p8_18_10_24_a005/p8_18_10_24_a005_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-    # abf piezo: p8_18_10_24_a005.abf
-
-    # p9_17_11_29_a002 low participation comparing to other, dead shortly after the recording
-    # p9_17_11_29_a002_ms = MouseSession(age=9, session_id="17_11_29_a002", nb_ms_by_frame=100, param=param,
-    #                                    weight=5.7)
-    # # calculated with 99th percentile on raster dur
-    # p9_17_11_29_a002_ms.activity_threshold = 10
-    # p9_17_11_29_a002_ms.set_inter_neurons([170])
-    # # limit ??
-    # # duration of those interneurons: 21
-    # variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
-    #                      "spike_nums": "filt_Bin100ms_spikedigital",
-    #                      "spike_durations": "LOC3"}
-    # p9_17_11_29_a002_ms.load_data_from_file(file_name_to_load="p9/p9_17_11_29_a002/p9_17_11_29_a002_RasterDur.mat",
-    #                                         variables_mapping=variables_mapping)
-
-    # p9_17_11_29_a003_ms = MouseSession(age=9, session_id="17_11_29_a003", nb_ms_by_frame=100, param=param,
-    #                                    weight=5.7)
-    # # calculated with 99th percentile on raster dur
-    # p9_17_11_29_a003_ms.activity_threshold = 7
-    # p9_17_11_29_a003_ms.set_inter_neurons([1, 13, 54])
-    # # duration of those interneurons: 21.1 22.75  23
-    # variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
-    #                      "spike_nums": "filt_Bin100ms_spikedigital",
-    #                      "spike_durations": "LOC3"}
-    # p9_17_11_29_a003_ms.load_data_from_file(file_name_to_load="p9/p9_17_11_29_a003/p9_17_11_29_a003_RasterDur.mat",
-    #                                         variables_mapping=variables_mapping)
-
-    p9_17_12_06_a001_ms = MouseSession(age=9, session_id="17_12_06_a001", nb_ms_by_frame=100, param=param,
-                                       weight=5.6)
-    # calculated with 99th percentile on raster dur
-    p9_17_12_06_a001_ms.activity_threshold = 8
-    # p9_17_12_06_a001_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
-    p9_17_12_06_a001_ms.set_inter_neurons([72])
-    # duration of those interneurons:15.88
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p9_17_12_06_a001_ms.load_data_from_file(file_name_to_load=
-                                            "p9/p9_17_12_06_a001/p9_17_12_06_a001_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p9_17_12_06_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_06_a001/p9_17_12_06_a001_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p9_17_12_06_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_06_a001/p9_17_12_06_a001_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-    # abf piezo: p9/p9_17_12_06_a001/p9_17_12_06_a001.abf
-
-    p9_17_12_20_a001_ms = MouseSession(age=9, session_id="17_12_20_a001", nb_ms_by_frame=100, param=param,
-                                       weight=5.05)
-    # calculated with 99th percentile on raster dur
-    p9_17_12_20_a001_ms.activity_threshold = 8
-    # p9_17_12_20_a001_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
-    p9_17_12_20_a001_ms.set_inter_neurons([32])
-    # duration of those interneurons: 10.35
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p9_17_12_20_a001_ms.load_data_from_file(file_name_to_load=
-                                            "p9/p9_17_12_20_a001/p9_17_12_20_a001_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p9_17_12_20_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_20_a001/p9_17_12_20_a001_Traces.mat",
-                                                variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p9_17_12_20_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_20_a001/p9_17_12_20_a001_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-    # abf piezo: p9/p9_17_12_20_a001/p9_17_12_20_a001.abf
-
-    #
-    p9_18_09_27_a003_ms = MouseSession(age=9, session_id="18_09_27_a003", nb_ms_by_frame=100, param=param,
-                                       weight=6.65)
-    # calculated with 99th percentile on raster dur
-    p9_18_09_27_a003_ms.activity_threshold = 9
-    # p9_18_09_27_a003_ms.set_low_activity_threshold(threshold=, percentile_value=1)
-    p9_18_09_27_a003_ms.set_inter_neurons([2, 9, 67, 206])
-    # duration of those interneurons: 59.1, 32, 28, 35.15
-    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p9_18_09_27_a003_ms.load_data_from_file(file_name_to_load=
-                                            "p9/p9_18_09_27_a003/p9_18_09_27_a003_Corrected_RasterDur.mat",
-                                            variables_mapping=variables_mapping)
-
-    variables_mapping = {"coord": "ContoursAll"}
-    p9_18_09_27_a003_ms.load_data_from_file(file_name_to_load="p9/p9_18_09_27_a003/p9_18_09_27_a003_CellDetect.mat",
-                                            variables_mapping=variables_mapping)
-    # abf piezo: p9/p9_18_09_27_a003/p9_18_09_27_a003.abf
-
-    p10_17_11_16_a003_ms = MouseSession(age=10, session_id="17_11_16_a003", nb_ms_by_frame=100, param=param,
-                                        weight=6.1)
-    # calculated with 99th percentile on raster dur
-    p10_17_11_16_a003_ms.activity_threshold = 6
-    # p10_17_11_16_a003_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
-    p10_17_11_16_a003_ms.set_inter_neurons([8])
-    # duration of those interneurons: 28
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load=
-                                             "p10/p10_17_11_16_a003/p10_17_11_16_a003_Corrected_RasterDur.mat",
-                                             variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_Traces.mat",
-                                                 variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_CellDetect.mat",
-                                             variables_mapping=variables_mapping)
-
-    p11_17_11_24_a000_ms = MouseSession(age=11, session_id="17_11_24_a000", nb_ms_by_frame=100, param=param,
-                                        weight=6.7)
-    # calculated with 99th percentile on raster dur
-    p11_17_11_24_a000_ms.activity_threshold = 11
-    # p11_17_11_24_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
-    p11_17_11_24_a000_ms.set_inter_neurons([193])
-    # duration of those interneurons: 19.09
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load=
-                                             "p11/p11_17_11_24_a000/p11_17_11_24_a000_Corrected_RasterDur.mat",
-                                             variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_Traces.mat",
-                                                 variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
-                                             variables_mapping=variables_mapping)
-    # p11_17_11_24_a000_ms.plot_cell_assemblies_on_map()
-
-    p11_17_11_24_a001_ms = MouseSession(age=11, session_id="17_11_24_a001", nb_ms_by_frame=100, param=param,
-                                        weight=6.7)
-    # calculated with 99th percentile on raster dur
-    p11_17_11_24_a001_ms.activity_threshold = 10
-    # p11_17_11_24_a001_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
-    p11_17_11_24_a001_ms.set_inter_neurons([])
-    # duration of those interneurons:
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p11_17_11_24_a001_ms.load_data_from_file(file_name_to_load=
-                                             "p11/p11_17_11_24_a001/p11_17_11_24_a001_Corrected_RasterDur.mat",
-                                             variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p11_17_11_24_a001_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_Traces.mat",
-                                                 variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p11_17_11_24_a001_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_CellDetect.mat",
-                                             variables_mapping=variables_mapping)
-
-    p12_171110_a000_ms = MouseSession(age=12, session_id="171110_a000", nb_ms_by_frame=100, param=param,
-                                      weight=7)
-    # calculated with 99th percentile on raster dur
-    p12_171110_a000_ms.activity_threshold = 9
-    # p12_171110_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
-    p12_171110_a000_ms.set_inter_neurons([106, 144])
-    # duration of those interneurons: 18.29  14.4
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                                           "p12/p12_17_11_10_a000/p12_17_11_10_a000_Corrected_RasterDur.mat",
-                                           variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p12_171110_a000_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_Traces.mat",
-                                               variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p12_171110_a000_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_CellDetect.mat",
-                                           variables_mapping=variables_mapping)
-    # abf run: 17_11_10_a000.abf
-
-    p12_17_11_10_a002_ms = MouseSession(age=12, session_id="17_11_10_a002", nb_ms_by_frame=100, param=param,
-                                        weight=7)
-    # calculated with 99th percentile on raster dur
-    p12_17_11_10_a002_ms.activity_threshold = 11
-    # p12_17_11_10_a002_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
-    p12_17_11_10_a002_ms.set_inter_neurons([150, 252])
-    # duration of those interneurons: 16.17, 24.8
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p12_17_11_10_a002_ms.load_data_from_file(file_name_to_load=
-                                             "p12/p12_17_11_10_a002/p12_17_11_10_a002_Corrected_RasterDur.mat",
-                                             variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p12_17_11_10_a002_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_Traces.mat",
-                                                 variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p12_17_11_10_a002_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_CellDetect.mat",
-                                             variables_mapping=variables_mapping)
-    # abf run: 17_11_10_a002.abf
-
-    p13_18_10_29_a000_ms = MouseSession(age=13, session_id="18_10_29_a000", nb_ms_by_frame=100, param=param,
-                                        weight=9.4)
-    # calculated with 99th percentile on raster dur
-    p13_18_10_29_a000_ms.activity_threshold = 13
-    # p13_18_10_29_a000_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
-    p13_18_10_29_a000_ms.set_inter_neurons([5, 26, 27, 35, 38])
-    # duration of those interneurons: 13.57, 16.8, 22.4, 12, 14.19
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p13_18_10_29_a000_ms.load_data_from_file(file_name_to_load=
-                                             "p13/p13_18_10_29_a000/p13_18_10_29_a000_Corrected_RasterDur.mat",
-                                             variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p13_18_10_29_a000_ms.load_data_from_file(file_name_to_load="p13/p13_18_10_29_a000/p13_18_10_29_a000_Traces.mat",
-                                                 variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p13_18_10_29_a000_ms.load_data_from_file(file_name_to_load=
-                                             "p13/p13_18_10_29_a000/p13_18_10_29_a000_CellDetect.mat",
-                                             variables_mapping=variables_mapping)
-
-    p13_18_10_29_a001_ms = MouseSession(age=13, session_id="18_10_29_a001", nb_ms_by_frame=100, param=param,
-                                        weight=9.4)
-    # calculated with 99th percentile on raster dur
-    p13_18_10_29_a001_ms.activity_threshold = 11
-    # p13_18_10_29_a001_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
-    p13_18_10_29_a001_ms.set_inter_neurons([68])
-    # duration of those interneurons: 13.31
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
-                                             "p13/p13_18_10_29_a001/p13_18_10_29_a001_Corrected_RasterDur.mat",
-                                             variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load="p13/p13_18_10_29_a001/p13_18_10_29_a001_Traces.mat",
-                                                 variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
-                                             "p13/p13_18_10_29_a001/p13_18_10_29_a001_CellDetect.mat",
-                                             variables_mapping=variables_mapping)
-    # abf run: 2018_10_29_a001.abf
-    # frames_filter=np.arange(5000))
-
-    p14_18_10_23_a000_ms = MouseSession(age=14, session_id="18_10_23_a000", nb_ms_by_frame=100, param=param,
-                                        weight=10.35)
-    # calculated with 99th percentile on raster dur
-    p14_18_10_23_a000_ms.activity_threshold = 8
-    # p14_18_10_23_a000_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
-    p14_18_10_23_a000_ms.set_inter_neurons([0])
-    # duration of those interneurons: 24.33
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p14_18_10_23_a000_ms.load_data_from_file(file_name_to_load=
-                                             "p14/p14_18_10_23_a000/p14_18_10_23_a000_Corrected_RasterDur.mat",
-                                             variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p14_18_10_23_a000_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_Traces.mat",
-                                                 variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p14_18_10_23_a000_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_CellDetect.mat",
-                                             variables_mapping=variables_mapping)
-
-    # only interneurons in p14_18_10_23_a001_ms
-    p14_18_10_23_a001_ms = MouseSession(age=14, session_id="18_10_23_a001", nb_ms_by_frame=100, param=param,
-                                        weight=10.35)
-    # calculated with 99th percentile on raster dur
-    p14_18_10_23_a001_ms.activity_threshold = 8
-    # p14_18_10_23_a001_ms.set_inter_neurons(np.arange(31))
-    p14_18_10_23_a001_ms.set_inter_neurons([])
-    # duration of those interneurons: 24.33
-    variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p14_18_10_23_a001_ms.load_data_from_file(file_name_to_load=
-                                             "p14/p14_18_10_23_a001/p14_18_10_23_a001_Corrected_RasterDur.mat",
-                                             variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p14_18_10_23_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_Traces.mat",
-                                                 variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p14_18_10_23_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_CellDetect.mat",
-                                             variables_mapping=variables_mapping)
-
-    p14_18_10_30_a001_ms = MouseSession(age=14, session_id="18_10_30_a001", nb_ms_by_frame=100, param=param,
-                                        weight=8.9)
-    # calculated with 99th percentile on raster dur
-    p14_18_10_30_a001_ms.activity_threshold = 11
-    # p14_18_10_30_a001_ms.set_low_activity_threshold(threshold=, percentile_value=1)
-    p14_18_10_30_a001_ms.set_inter_neurons([0])
-    # duration of those interneurons: 24.33
-    variables_mapping = {"spike_nums_dur": "rasterdur",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p14_18_10_30_a001_ms.load_data_from_file(file_name_to_load=
-                                             "p14/p14_18_10_30_a001/p14_18_10_30_a001_RasterDur.mat",
-                                             variables_mapping=variables_mapping)
-    if load_traces:
-        variables_mapping = {"traces": "C_df"}
-        p14_18_10_30_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_30_a001/p14_18_10_30_a001_Traces.mat",
-                                                 variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p14_18_10_30_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_30_a001/p14_18_10_30_a001_CellDetect.mat",
-                                             variables_mapping=variables_mapping)
-
-    # arnaud_ms = MouseSession(age=24, session_id="arnaud", nb_ms_by_frame=50, param=param)
-    # arnaud_ms.activity_threshold = 13
-    # arnaud_ms.set_inter_neurons([])
-    # variables_mapping = {"spike_nums": "spikenums"}
-    # arnaud_ms.load_data_from_file(file_name_to_load="spikenumsarnaud.mat", variables_mapping=variables_mapping)
-
-    p60_arnaud_ms = MouseSession(age=60, session_id="arnaud_a_529", nb_ms_by_frame=100, param=param)
-    p60_arnaud_ms.activity_threshold = 9
-    p60_arnaud_ms.set_inter_neurons([])
-    # duration of those interneurons:
-    variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
-                         "spike_nums": "filt_Bin100ms_spikedigital",
-                         "spike_durations": "LOC3"}
-    p60_arnaud_ms.load_data_from_file(file_name_to_load=
-                                      "p60/a529/Arnaud_RasterDur.mat",
-                                      variables_mapping=variables_mapping)
-
-    # variables_mapping = {"traces": "C_df"}
-    # p60_arnaud_ms.load_data_from_file(file_name_to_load="p60/a529/Arnaud_a_529_corr_Traces.mat",
-    #                                          variables_mapping=variables_mapping)
-    variables_mapping = {"coord": "ContoursAll"}
-    p60_arnaud_ms.load_data_from_file(file_name_to_load="p60/a529/Arnaud_a_529_corr_CellDetect.mat",
-                                      variables_mapping=variables_mapping)
-
-    available_ms = [p6_18_02_07_a001_ms, p6_18_02_07_a002_ms,
-                    p7_171012_a000_ms, p7_18_02_08_a000_ms,
-                    p7_17_10_18_a002_ms, p7_17_10_18_a004_ms, p7_18_02_08_a001_ms, p7_18_02_08_a002_ms,
-                    p7_18_02_08_a003_ms,
-                    p8_18_02_09_a000_ms, p8_18_02_09_a001_ms,
-                    p8_18_10_24_a005_ms, p8_18_10_17_a001_ms,
-                    p8_18_10_17_a000_ms,  # new
-                    p9_17_12_06_a001_ms, p9_17_12_20_a001_ms,
-                    p9_18_09_27_a003_ms,  # new
-                    p10_17_11_16_a003_ms,
-                    p11_17_11_24_a001_ms, p11_17_11_24_a000_ms,
-                    p12_17_11_10_a002_ms, p12_171110_a000_ms,
-                    p13_18_10_29_a000_ms,  # new
-                    p13_18_10_29_a001_ms,
-                    p14_18_10_23_a000_ms,
-                    p14_18_10_30_a001_ms,
-                    p60_arnaud_ms]
-    # arnaud_ms]
-    # available_ms = [p13_18_10_29_a001_ms]
-    interneurons_ms = [p14_18_10_23_a001_ms]
-    # available_ms = interneurons_ms
-    still_to_cluster = [p7_18_02_08_a001_ms, p7_18_02_08_a002_ms,
-                        p7_18_02_08_a003_ms,
-                        p8_18_02_09_a000_ms, p8_18_02_09_a001_ms,
-                        p8_18_10_24_a005_ms, p8_18_10_17_a001_ms,
-                        p9_17_12_06_a001_ms, p9_17_12_20_a001_ms,
-                        p10_17_11_16_a003_ms,
-                        p13_18_10_29_a001_ms,
-                        p14_18_10_23_a000_ms]
-    # p9_17_11_29_a002_ms, p9_17_11_29_a003_ms removed because died  after
-    # available_ms = [p6_18_02_07_a001_ms, p7_171012_a000_ms, p8_18_02_09_a000_ms, p9_17_12_20_a001_ms,
-    #                 p10_17_11_16_a003_ms, p12_171110_a000_ms]
-
-    # ms_to_analyse = [p7_18_02_08_a000_ms,
-    #                     p7_17_10_18_a002_ms, p7_17_10_18_a004_ms, p7_18_02_08_a001_ms, p7_18_02_08_a002_ms,
-    #                     p7_18_02_08_a003_ms,
-    #                     p8_18_02_09_a000_ms, p8_18_02_09_a001_ms,
-    #                     p8_18_10_24_a005_ms, p8_18_10_17_a001_ms]
-    corrected_ms_from_robin = [p7_171012_a000_ms, p8_18_10_17_a000_ms]
-    # available_ms = corrected_ms_from_robin
-    ms_to_test_clustering = [p11_17_11_24_a000_ms]
-    # ms_to_analyse = ms_to_test_clustering  # corrected_ms_from_robin
-    ms_to_analyse = available_ms
+    ms_to_analyse = ms_str_to_load
 
     just_do_stat_on_event_detection_parameters = False
 
@@ -2797,7 +2903,7 @@ def main():
     do_plot_interneurons_connect_maps = False
     do_plot_connect_hist = False
     do_time_graph_correlation = True
-    do_time_graph_correlation_and_connect_best = True
+    do_time_graph_correlation_and_connect_best = False
 
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
@@ -2887,7 +2993,7 @@ def main():
                                          np.argmax(spike_struct.spike_nums_dur[:, sce_time[0]:sce_time[1] + 1]))
 
             results = get_time_correlation_data(spike_nums=spike_struct.spike_nums,
-                                                events_times=SCE_times, time_around_events=0)
+                                                events_times=SCE_times, time_around_events=5)
             ms.time_lags_list, ms.correlation_list, \
             ms.time_lags_dict, ms.correlation_dict, ms.time_lags_window, cells_list = results
 
@@ -2938,11 +3044,11 @@ def main():
                 time_window = time_window_to_include_them_all
             else:
                 time_window = ms.time_lags_window
-            # if do_time_graph_correlation_and_connect_best:
-            #     show_percentiles=[99]
-            # else:
-            #     show_percentiles=None
-            show_percentiles = [99]
+            if do_time_graph_correlation_and_connect_best:
+                show_percentiles=[99]
+            else:
+                show_percentiles=None
+            # show_percentiles = [99]
             # first plotting each individual time-correlation graph with the same x-limits
             time_correlation_graph(time_lags_list=ms.time_lags_list,
                                    correlation_list=ms.correlation_list,
@@ -3077,23 +3183,23 @@ def main():
                         use_max_of_each_surrogate = False
 
                     ###############  TEST    ##################
-                    if not determine_low_activity_by_variation:
-                        perc_low_activity_threshold = 5
-                        if perc_low_activity_threshold not in ms.low_activity_threshold_by_percentile:
-                            low_activity_events_thsld = get_low_activity_events_detection_threshold(
-                                spike_nums=spike_nums_to_use,
-                                window_duration=sliding_window_duration,
-                                spike_train_mode=False,
-                                use_min_of_each_surrogate=False,
-                                n_surrogate=n_surrogate_activity_threshold,
-                                perc_threshold=perc_low_activity_threshold,
-                                debug_mode=False)
-                            print(f"ms {ms.description}")
-                            print(f"low_activity_events_thsld {low_activity_events_thsld}, "
-                                  f"{np.round((low_activity_events_thsld/n_cells), 3)}%")
-                            continue
-                    else:
-                        pass
+                    # if not determine_low_activity_by_variation:
+                    #     perc_low_activity_threshold = 5
+                    #     if perc_low_activity_threshold not in ms.low_activity_threshold_by_percentile:
+                    #         low_activity_events_thsld = get_low_activity_events_detection_threshold(
+                    #             spike_nums=spike_nums_to_use,
+                    #             window_duration=sliding_window_duration,
+                    #             spike_train_mode=False,
+                    #             use_min_of_each_surrogate=False,
+                    #             n_surrogate=n_surrogate_activity_threshold,
+                    #             perc_threshold=perc_low_activity_threshold,
+                    #             debug_mode=False)
+                    #         print(f"ms {ms.description}")
+                    #         print(f"low_activity_events_thsld {low_activity_events_thsld}, "
+                    #               f"{np.round((low_activity_events_thsld/n_cells), 3)}%")
+                    #         continue
+                    # else:
+                    #     pass
                     # ########### END TEST ###########
 
                     if ms.activity_threshold is None:
