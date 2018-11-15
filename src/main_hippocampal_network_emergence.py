@@ -23,6 +23,7 @@ from pattern_discovery.seq_solver.markov_way import MarkovParameters
 from pattern_discovery.seq_solver.markov_way import find_significant_patterns
 import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.tools.misc import get_time_correlation_data
+from pattern_discovery.tools.misc import get_continous_time_periods
 from pattern_discovery.display.raster import plot_spikes_raster
 from pattern_discovery.display.misc import time_correlation_graph
 from pattern_discovery.display.cells_map_module import CoordClass
@@ -298,25 +299,55 @@ class MouseSession:
         # first frame
         first_frame_index = np.where(frames_data < 0.01)[0][0]
         print(f"first_frame_index {first_frame_index}")
-        times_in_sec = times_in_sec[first_frame_index:]
+        times_in_sec = times_in_sec[:-first_frame_index]
         frames_data = frames_data[first_frame_index:]
         piezo_data = np.abs(piezo_data[first_frame_index:])
 
         binary_frames_data = np.zeros(len(frames_data), dtype="int8")
         binary_frames_data[frames_data >= 0.05] = 1
         binary_frames_data[frames_data < 0.05] = 0
-        active_frames = np.where(np.diff(binary_frames_data) == 1)[0]
+        # +1 due to the shift of diff
+        active_frames = np.where(np.diff(binary_frames_data) == 1)[0] + 1
         # active_frames = np.concatenate(([0], active_frames))
         print(f"active_frames {active_frames}")
         nb_frames = len(active_frames)
-
         print(f"nb_frames {nb_frames}")
+
+        mvt_periods = self.detect_mvt_periods_with_diff(piezo_data=piezo_data, piezo_threshold=threshold_piezo,
+                                          min_time_between_periods=2*50000)
+        print(f"diff method: len(mvt_periods) {len(mvt_periods)}")
+
+        mvt_periods = self.detect_mvt_periods_with_sliding_window(piezo_data=piezo_data,
+                                                                  window_duration=int(0.2 * 50000),
+                                                                  piezo_threshold=threshold_piezo,
+                                                                  min_time_between_periods=2 * 50000,
+                                                                  debug_mode=False)
+
+
+        print(f"len(mvt_periods) {len(mvt_periods)}")
+
+        mvts_frames = []
+        mvts_frames_periods = []
+        for mvt_period in mvt_periods:
+            frames = np.where(np.logical_and(active_frames >= mvt_period[0], active_frames <= mvt_period[1]))[0]
+            if len(frames) > 0:
+                mvts_frames.extend(frames)
+                mvts_frames_periods.append((frames[0], frames[-1]))
+
+        print(f"len(mvts_frames) {len(mvts_frames)}")
+
 
         # if threshold_piezo is None:
         if True:
-            plt.figure(figsize=(20, 8))
+            fig, ax = plt.subplots(nrows=1, ncols=1,
+                                   gridspec_kw={'height_ratios': [1]},
+                                   figsize=(20, 8))
+            # plt.figure(figsize=(20, 8))
             plt.plot(times_in_sec, piezo_data, lw=.5)
-            plt.title("Y")
+            for mvt_period in mvt_periods:
+                color = "red"
+                ax.axvspan(mvt_period[0]/50000, mvt_period[1]/50000, alpha=0.5, facecolor=color, zorder=1)
+            plt.title("piezo")
             plt.show()
             plt.close()
 
@@ -366,13 +397,45 @@ class MouseSession:
 
         raise Exception()
 
-    # 50000 * 5
-    # TODO: 2 methods: one with diff on periods > threshold, time between 2 periods: 2 sec min
+    # 50000 * 2
+    def detect_mvt_periods_with_diff(self, piezo_data, piezo_threshold, min_time_between_periods, debug_mode=False):
+        binary_piezo_data = np.zeros(len(piezo_data), dtype="int8")
+        binary_piezo_data[piezo_data >= piezo_threshold] = 1
+        # binary_piezo_data[piezo_data < piezo_threshold] = 0
+        # print(f"n_times > threshold {len(np.where(binary_piezo_data)[0])}")
+        time_periods = get_continous_time_periods(binary_piezo_data)
+        return self.merging_time_periods(time_periods=time_periods,
+                                         min_time_between_periods=min_time_between_periods)
+
+    def merging_time_periods(self, time_periods, min_time_between_periods):
+        n_periods = len(time_periods)
+        # print(f"n_periods {n_periods}")
+        # for i, time_period in enumerate(time_periods):
+        #     print(f"time_period {i}: {np.round(time_period[0]/50000, 2)} - {np.round(time_period[1]/50000, 2)}")
+        merged_time_periods = []
+        index = 0
+        while index < n_periods:
+            time_period = time_periods[index]
+            if len(merged_time_periods) == 0:
+                merged_time_periods.append([time_period[0], time_period[1]])
+                index += 1
+                continue
+            # we check if the time between both is superior at min_time_between_periods
+            last_time_period = merged_time_periods[-1]
+            if (time_period[0] - last_time_period[1]) < min_time_between_periods:
+                # then we merge them
+                merged_time_periods[-1][1] = time_period[1]
+                index += 1
+                continue
+            else:
+                merged_time_periods.append([time_period[0], time_period[1]])
+            index += 1
+        return merged_time_periods
+
     # TODO: A second one with sliding window (200 ms) with low percentile threshold
-    def detect_mvt_periods_with_sliding_window(piezo_data, window_duration, piezo_threshold,
+    def detect_mvt_periods_with_sliding_window(self, piezo_data, window_duration, piezo_threshold,
                                                min_time_between_periods,
                                                debug_mode=False):
-
         """
         Use a sliding window to detect sce (define as peak of activity > perc_threshold percentile after
         randomisation during a time corresponding to window_duration)
@@ -389,79 +452,36 @@ class MouseSession:
         ** activity_threshold
 
         """
-
-        n_times = len(data_piezo)
-        start_sce = -1
-        mvt_periods_bool = np.zeros(n_times, dtype="bool")
+        window_threshold = window_duration * piezo_threshold
+        n_times = len(piezo_data)
+        start_period = -1
+        # mvt_periods_bool = np.zeros(n_times, dtype="bool")
         mvt_periods_tuples = []
-        mvt_periods_times_numbers = np.ones(n_times, dtype="int16")
-        mvt_periods_times_numbers *= -1
+        # mvt_periods_times_numbers = np.ones(n_times, dtype="int16")
+        # mvt_periods_times_numbers *= -1
         if debug_mode:
             print(f"n_times {n_times}")
         for t in np.arange(0, (n_times - window_duration)):
             if debug_mode:
                 if t % 10 ** 6 == 0:
                     print(f"t {t}")
-            sum_value = np.sum(data_piezo[t:(t + window_duration)])
-            # neurons with sum > 1 are active during a SCE
-            sum_value = len(pos_cells)
-            if no_redundancy and (start_sce > -1):
-                # removing from the count the cell that are in the previous SCE
-                nb_cells_already_in_sce = np.sum(cells_in_sce_so_far[pos_cells])
-                sum_value -= nb_cells_already_in_sce
-                if nb_cells_already_in_sce > 0:
-                    cells_has_been_removed_due_to_redundancy = True
-            # print(f"Sum value, test {sum_value_test}, rxeal {sum_value}")
-            if sum_value > activity_threshold:
-                if start_sce == -1:
-                    start_sce = t
-                    if no_redundancy:
-                        # keeping only cells spiking at time t, as we're gonna shift of one on the next step
-                        sum_spikes = np.sum(spike_nums[:, t])
-                        pos_cells = np.where(sum_spikes)[0]
-                        cells_in_sce_so_far[pos_cells] = True
-                else:
-                    if no_redundancy:
-                        # updating which cells are already in the SCE
-                        # keeping only cells spiking at time t, as we're gonna shift of one on the next step
-                        sum_spikes = np.sum(spike_nums[:, t])
-                        pos_cells = np.where(sum_spikes)[0]
-                        cells_in_sce_so_far[pos_cells] = True
-                    else:
-                        pass
+            sum_value = np.sum(piezo_data[t:(t + window_duration)])
+            if sum_value > window_threshold:
+                if start_period == -1:
+                    start_period = t
             else:
-                if start_sce > -1:
+                if start_period > -1:
                     # then a new SCE is detected
-                    sce_bool[start_sce:t] = True
-                    sce_tuples.append((start_sce, (t + window_duration) - 2))
-                    # sce_tuples.append((start_sce, t-1))
-                    sce_times_numbers[start_sce:t] = len(sce_tuples) - 1
-                    start_sce = -1
-                    cells_in_sce_so_far = np.zeros(n_cells, dtype="bool")
-                if no_redundancy and cells_has_been_removed_due_to_redundancy:
-                    sum_value += nb_cells_already_in_sce
-                    if sum_value > activity_threshold:
-                        # then a new SCE start right after the old one
-                        start_sce = t
-                        cells_in_sce_so_far = np.zeros(n_cells, dtype="bool")
-                        if no_redundancy:
-                            # keeping only cells spiking at time t, as we're gonna shift of one on the next step
-                            sum_spikes = np.sum(spike_nums[:, t])
-                            pos_cells = np.where(sum_spikes)[0]
-                            cells_in_sce_so_far[pos_cells] = True
-
-        n_sces = len(sce_tuples)
-        sce_nums = np.zeros((n_cells, n_sces), dtype="int16")
-        for sce_index, sce_tuple in enumerate(sce_tuples):
-            cells_spikes = np.zeros(n_cells, dtype="int8")
-            sum_spikes = np.sum(spike_nums[:, sce_tuple[0]:(sce_tuple[1] + 1)], axis=1)
-            # neurons with sum > 1 are active during a SCE
-            active_cells = np.where(sum_spikes)[0]
-            sce_nums[active_cells, sce_index] = 1
+                    # mvt_periods_bool[start_period:t] = True
+                    mvt_periods_tuples.append((start_period, (t + window_duration) - 2))
+                    # sce_tuples.append((start_period, t-1))
+                    # mvt_periods_times_numbers[start_period:t] = len(mvt_periods_tuples) - 1
+                    start_period = -1
 
         # print(f"number of sce {len(sce_tuples)}")
-
-        return sce_bool, sce_tuples, sce_nums, sce_times_numbers, activity_threshold
+        return self.merging_time_periods(time_periods=mvt_periods_tuples,
+                                         min_time_between_periods=min_time_between_periods)
+        # return mvt_periods_bool, mvt_periods_tuples, mvt_periods_times_numbers
 
     def load_data_from_file(self, file_name_to_load, variables_mapping, frames_filter=None):
         """
