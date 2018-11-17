@@ -11,6 +11,7 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import numpy as np
 import hdf5storage
+import math
 # import copy
 from datetime import datetime
 # import keras
@@ -24,6 +25,7 @@ from pattern_discovery.seq_solver.markov_way import find_significant_patterns
 import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.tools.misc import get_time_correlation_data
 from pattern_discovery.tools.misc import get_continous_time_periods
+from pattern_discovery.tools.misc import find_continuous_frames_period
 from pattern_discovery.display.raster import plot_spikes_raster
 from pattern_discovery.display.misc import time_correlation_graph
 from pattern_discovery.display.cells_map_module import CoordClass
@@ -88,8 +90,11 @@ class MouseSession:
         self.time_lags_window = None
 
         # initialized when loading abf
+        self.abf_sampling_rate = None
         self.mvt_frames = None
         self.mvt_frames_periods = None
+        # same len as mvt_frames
+        self.speed_by_mvt_frame = None
         self.with_run = False
         self.with_piezo = False
         self.twitches_frames_periods = None
@@ -114,14 +119,30 @@ class MouseSession:
         for index, period in enumerate(self.mvt_frames_periods):
             if (period[1] - period[0]) > max_twitch_duration:
                 continue
-            if (index == 0) or (period[0] - self.mvt_frames_periods[index-1][1]) >= space_before_twitch:
+            if (index == 0) or (period[0] - self.mvt_frames_periods[index - 1][1]) >= space_before_twitch:
                 self.twitches_frames_periods.append(period)
-                self.twitches_frames.extend(list(np.arange(period[0], period[1]+1)))
+                self.twitches_frames.extend(list(np.arange(period[0], period[1] + 1)))
         # print(f"{self.description} {len(self.twitches_frames_periods)} twitches: {self.twitches_frames_periods}")
         self.twitches_frames_periods = np.array(self.twitches_frames_periods)
         self.twitches_frames = np.array(self.twitches_frames)
 
-    def plot_psth_twitches(self, time_around=100, save_formats="pdf"):
+    def plot_psth_twitches(self, sce_bool=None, only_in_sce=False, time_around=100,
+                           twitches_group=0,
+                           save_formats="pdf"):
+        """
+
+        :param sce_bool:
+        :param only_in_sce:
+        :param time_around:
+        :param twitches_group: 5 groups: 0 : all twitches,
+        group 1: those in sce_events
+        group 2: those not in sce-events
+        group 3: those not in sce-events but with sce-events followed less than one second after
+        group 4: those not in sce-events and not followed by sce
+        :param save_formats:
+        :return:
+        """
+
         if self.twitches_frames_periods is None:
             return
         spike_nums_dur = self.spike_struct.spike_nums_dur
@@ -129,15 +150,47 @@ class MouseSession:
         spike_nums_to_use = spike_nums_dur
 
         n_times = len(spike_nums_dur[0, :])
+        n_cells = len(spike_nums_dur)
+        activity_threshold_percentage = (self.activity_threshold / n_cells) * 100
 
         # key is an int which reprensent the sum of spikes at a certain distance (in frames) of the event,
         # negative or positive
-        spike_at_time_dict = dict()
+        spike_at_time_dict = SortedDict()
 
         # frames on which to center the ptsth
         twitches_times = []
         for twitch_period in self.twitches_frames_periods:
-            twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+            if (sce_bool is None) or (twitches_group == 0):
+                twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+                continue
+            is_in_sce = np.any(sce_bool[twitch_period[0]: twitch_period[1]])
+            if twitches_group == 1:
+                if is_in_sce:
+                    twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+                continue
+            if twitches_group == 2:
+                if not is_in_sce:
+                    twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+                continue
+
+            if is_in_sce:
+                continue
+            # looking if there is a sce less than a second after
+            end_time = np.min((twitch_period[1] + 1 + 10, len(sce_bool)))
+            sce_after = np.any(sce_bool[twitch_period[1]:end_time])
+            if twitches_group == 3:
+                if sce_after:
+                    twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+                    continue
+            if twitches_group == 4:
+                if not sce_after:
+                    twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+                    continue
+
+        if len(twitches_times) == 0:
+            return
+
+        n_twitches = len(twitches_times)
 
         for twitch_id, twitch_time in enumerate(twitches_times):
 
@@ -147,47 +200,108 @@ class MouseSession:
             # before the event
             sum_spikes = np.sum(spike_nums_to_use[:, beg_time:twitch_time], axis=0)
             # print(f"before time_spikes {time_spikes}")
-            time_spikes = np.arange(-(twitch_time-beg_time), 0)
+            time_spikes = np.arange(-(twitch_time - beg_time), 0)
             for i, time_spike in enumerate(time_spikes):
                 spike_at_time_dict[time_spike] = spike_at_time_dict.get(time_spike, 0) + sum_spikes[i]
 
             # after the event
             sum_spikes = np.sum(spike_nums_to_use[:, twitch_time:end_time], axis=0)
-            time_spikes = np.arange(0, end_time-twitch_time)
+            time_spikes = np.arange(0, end_time - twitch_time)
             for i, time_spike in enumerate(time_spikes):
                 spike_at_time_dict[time_spike] = spike_at_time_dict.get(time_spike, 0) + sum_spikes[i]
 
         distribution = []
+        bar_chart_values = []
+        time_x_values = np.arange(-1 * time_around, time_around + 1)
         for time, nb_spikes_at_time in spike_at_time_dict.items():
             # print(f"time {time}")
             distribution.extend([time] * nb_spikes_at_time)
-        # if len(distribution) == 0:
-        #     continue
-        distribution = np.array(distribution)
+            # mean percentage of cells at each twitch
+        for time_value in time_x_values:
+            if time_value in spike_at_time_dict:
+                bar_chart_values.append(((spike_at_time_dict[time_value] / n_twitches) / n_cells) * 100)
+            else:
+                bar_chart_values.append(0)
+
         hist_color = "blue"
         edge_color = "white"
-        max_range = np.max((np.max(distribution), time_around))
-        min_range = np.min((np.min(distribution), -time_around))
-        weights = (np.ones_like(distribution) / (len(distribution))) * 100
+        # if len(distribution) == 0:
+        #     continue
+        # distribution = np.array(distribution)
+        # max_range = np.max((np.max(distribution), time_around))
+        # min_range = np.min((np.min(distribution), -time_around))
+        # weights = (np.ones_like(distribution) / (len(distribution))) * 100
+        #
+        # fig, ax1 = plt.subplots(nrows=1, ncols=1,
+        #                         gridspec_kw={'height_ratios': [1]},
+        #                         figsize=(15, 10))
+        # ax1.set_facecolor("black")
+        # # as many bins as time
+        # bins = (max_range - min_range) // 2
+        # # bins = int(np.sqrt(len(distribution)))
+        # hist_plt, edges_plt, patches_plt = plt.hist(distribution, bins=bins, range=(min_range, max_range),
+        #                                             facecolor=hist_color,
+        #                                             edgecolor=edge_color,
+        #                                             weights=weights, log=False)
+        # ax1.vlines(0, 0,
+        #            np.max(hist_plt), color="white", linewidth=2,
+        #            linestyles="dashed")
+        # plt.title(f"{self.description} {n_twitches} twitches psth")
+        # ax1.set_ylabel(f"Probability distribution (%)")
+        # ax1.set_xlabel("time (frames)")
+        # ax1.set_ylim(0, np.max(hist_plt)+1)
+        # # xticks = np.arange(0, len(data_dict))
+        # # ax1.set_xticks(xticks)
+        # # # sce clusters labels
+        # # ax1.set_xticklabels(labels)
+        #
+        # if isinstance(save_formats, str):
+        #     save_formats = [save_formats]
+        # for save_format in save_formats:
+        #     fig.savefig(f'{self.param.path_results}/{self.description}_psth_'
+        #                 f'{n_twitches}_twitches'
+        #                 f'_{self.param.time_str}.{save_format}',
+        #                 format=f"{save_format}")
+        #
+        # plt.close()
+
+        # bar chart
+
+        """
+        groups: 0 : all twitches,
+        group 1: those in sce_events
+        group 2: those not in sce-events
+        group 3: those not in sce-events but with sce-events followed less than one second after
+        group 4: those not in sce-events and not followed by sce
+        """
+        title_option = ""
+        if twitches_group == 0:
+            title_option = "all"
+        elif twitches_group == 1:
+            title_option = "in_events"
+        elif twitches_group == 2:
+            title_option = "outside_events"
+        elif twitches_group == 3:
+            title_option = "just_before_events"
+        elif twitches_group == 4:
+            title_option = "nothing_special"
 
         fig, ax1 = plt.subplots(nrows=1, ncols=1,
                                 gridspec_kw={'height_ratios': [1]},
                                 figsize=(15, 10))
         ax1.set_facecolor("black")
-        # as many bins as time
-        bins = (max_range - min_range) // 2
-        # bins = int(np.sqrt(len(distribution)))
-        hist_plt, edges_plt, patches_plt = plt.hist(distribution, bins=bins, range=(min_range, max_range),
-                                                    facecolor=hist_color,
-                                                    edgecolor=edge_color,
-                                                    weights=weights, log=False)
+        plt.bar(time_x_values,
+                bar_chart_values, color=hist_color, edgecolor=edge_color)
         ax1.vlines(0, 0,
-                   np.max(hist_plt), color="white", linewidth=2,
+                   np.max(bar_chart_values), color="white", linewidth=2,
                    linestyles="dashed")
-        plt.title(f"{self.description} twitches psth")
+        ax1.hlines(activity_threshold_percentage, -1 * time_around, time_around,
+                   color="white", linewidth=1,
+                   linestyles="dashed")
+        plt.title(f"{self.description} {n_twitches} twitches bar chart {title_option}")
         ax1.set_ylabel(f"Spikes (%)")
         ax1.set_xlabel("time (frames)")
-        ax1.set_ylim(0, np.max(hist_plt)+1)
+        ax1.set_ylim(0, np.max((activity_threshold_percentage + 1, np.max(bar_chart_values) + 1)))
         # xticks = np.arange(0, len(data_dict))
         # ax1.set_xticks(xticks)
         # # sce clusters labels
@@ -196,12 +310,12 @@ class MouseSession:
         if isinstance(save_formats, str):
             save_formats = [save_formats]
         for save_format in save_formats:
-            fig.savefig(f'{self.param.path_results}/{self.description}_psth_twitches'
+            fig.savefig(f'{self.param.path_results}/{self.description}_bar_chart_'
+                        f'{n_twitches}_twitches_{title_option}'
                         f'_{self.param.time_str}.{save_format}',
                         format=f"{save_format}")
 
         plt.close()
-
 
     def load_cell_assemblies_data(self):
         file_names = []
@@ -391,6 +505,7 @@ class MouseSession:
 
         self.coord_obj.plot_cells_map(param=self.param,
                                       data_id=self.description, show_polygons=True,
+                                      fill_polygons=False,
                                       title_option="cell_assemblies", connections_dict=None,
                                       with_cell_numbers=True)
 
@@ -405,19 +520,21 @@ class MouseSession:
 
     def load_abf_file(self, abf_file_name, threshold_piezo=None, with_run=False,
                       frames_channel=0, piezo_channel=1, run_channel=2,
-                      sampling_rate=50000):
+                      sampling_rate=50000, offset=None):
         # return
         print(f"abf: ms {self.description}")
+
+        self.abf_sampling_rate = sampling_rate
 
         if with_run:
             self.with_run = True
         else:
-            self.piezo = True
+            self.with_piezo = True
 
         # first checking if the data has been saved in a file before
         index_reverse = abf_file_name[::-1].find("/")
 
-        path_abf_data = abf_file_name[:len(abf_file_name)-index_reverse]
+        path_abf_data = abf_file_name[:len(abf_file_name) - index_reverse]
         file_names = []
 
         # look for filenames in the fisrst directory, if we don't break, it will go through all directories
@@ -431,8 +548,9 @@ class MouseSession:
                         # loading data
                         npzfile = np.load(self.param.path_data + path_abf_data + file_name)
                         self.mvt_frames = npzfile['mvt_frames']
-                        # print(f"after loading len(self.mvt_frames) {len(self.mvt_frames)}")
                         self.mvt_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
+                        if "speed_by_mvt_frame" in npzfile:
+                            self.speed_by_mvt_frame = npzfile['speed_by_mvt_frame']
                         if not with_run:
                             self.detect_twitches()
                         return
@@ -441,15 +559,31 @@ class MouseSession:
         abf = pyabf.ABF(self.param.path_data + abf_file_name)
 
         print(f"{abf}")
-
-        if with_run:
-            return
+        #  1024 cycle = 1 tour de roue (= 2 Pi 1.5) -> Vitesse (cm / temps pour 1024 cycles).
+        #
+        # if first channel in advance from 2nd, the mouse goes forward, otherwise it goes backward
+        # if with_run:
+        #     for channel in np.arange(0, 1):
+        #         abf.setSweep(sweepNumber=0, channel=channel)
+        #         times_in_sec = abf.sweepX
+        #         fig, ax = plt.subplots(nrows=1, ncols=1,
+        #                                gridspec_kw={'height_ratios': [1]},
+        #                                figsize=(20, 8))
+        #         plt.plot(times_in_sec, abf.sweepY, lw=.5)
+        #         plt.title(f"channel {channel} {self.description}")
+        #         plt.show()
+        #         plt.close()
 
         abf.setSweep(sweepNumber=0, channel=frames_channel)
         times_in_sec = abf.sweepX
         frames_data = abf.sweepY
-        abf.setSweep(sweepNumber=0, channel=piezo_channel)
-        piezo_data = abf.sweepY
+        if with_run:
+            abf.setSweep(sweepNumber=0, channel=run_channel)
+        else:
+            abf.setSweep(sweepNumber=0, channel=piezo_channel)
+        mvt_data = abf.sweepY
+        if offset is not None:
+            mvt_data = mvt_data + offset
 
         # first frame
         first_frame_index = np.where(frames_data < 0.01)[0][0]
@@ -457,116 +591,183 @@ class MouseSession:
         # print(f"first_frame_index {first_frame_index}")
         times_in_sec = times_in_sec[:-first_frame_index]
         frames_data = frames_data[first_frame_index:]
-        piezo_data = np.abs(piezo_data[first_frame_index:])
+        mvt_data = np.abs(mvt_data[first_frame_index:])
 
-        binary_frames_data = np.zeros(len(frames_data), dtype="int8")
-        binary_frames_data[frames_data >= 0.05] = 1
-        binary_frames_data[frames_data < 0.05] = 0
-        # +1 due to the shift of diff
-        active_frames = np.where(np.diff(binary_frames_data) == 1)[0] + 1
+        if (self.abf_sampling_rate < 50000):
+            mask_frames_data = np.ones(len(frames_data), dtype="bool")
+            # we need to detect the frames manually, but first removing data between movies
+            selection = np.where(frames_data >= 0.05)[0]
+            # frames_period = find_continuous_frames_period(selection)
+            # # for period in frames_period:
+            # #     mask_frames_data[period[0]:period[1]+1] = False
+            #
+            # for channel in np.arange(0, 1):
+            #     print("showing frames")
+            #     fig, ax = plt.subplots(nrows=1, ncols=1,
+            #                            gridspec_kw={'height_ratios': [1]},
+            #                            figsize=(20, 8))
+            #     plt.plot(times_in_sec, frames_data, lw=.5)
+            #     for mvt_period in frames_period:
+            #         color = "red"
+            #         ax.axvspan(mvt_period[0] / self.abf_sampling_rate, mvt_period[1] / self.abf_sampling_rate,
+            #                    alpha=0.5, facecolor=color, zorder=1)
+            #     plt.title(f"channel {channel} {self.description} after correction")
+            #     plt.show()
+            #     plt.close()
+            mask_selection = np.zeros(len(selection), dtype="bool")
+            pos = np.diff(selection)
+            # looking for continuous data between movies
+            to_keep_for_removing = np.where(pos == 1)[0] + 1
+            mask_selection[to_keep_for_removing] = True
+            selection = selection[mask_selection]
+            # print(f"len(selection) {len(selection)}")
+            mask_frames_data[selection] = False
+            frames_data = frames_data[mask_frames_data]
+            len_frames_data_in_s = np.round(len(frames_data) / self.abf_sampling_rate, 3)
+            # print(f"frames_data in sec {len_frames_data_in_s}")
+            # print(f"frames_data in 100 ms {np.round(len_frames_data_in_s/0.1, 2)}")
+            mvt_data = mvt_data[mask_frames_data]
+            times_in_sec = times_in_sec[:-len(np.where(mask_frames_data == 0)[0])]
+            active_frames = np.linspace(0, len(frames_data), 12500).astype(int)
+            mean_diff_active_frames = np.mean(np.diff(active_frames)) / self.abf_sampling_rate
+            print(f"mean diff active_frames {np.round(mean_diff_active_frames, 3)}")
+            if mean_diff_active_frames < 0.09:
+                raise Exception("mean_diff_active_frames < 0.09")
+            # for channel in np.arange(0, 1):
+            #     fig, ax = plt.subplots(nrows=1, ncols=1,
+            #                            gridspec_kw={'height_ratios': [1]},
+            #                            figsize=(20, 8))
+            #     plt.plot(times_in_sec, frames_data, lw=.5)
+            #     plt.title(f"channel {channel} {self.description} after correction")
+            #     plt.show()
+            #     plt.close()
+        else:
+            binary_frames_data = np.zeros(len(frames_data), dtype="int8")
+            binary_frames_data[frames_data >= 0.05] = 1
+            binary_frames_data[frames_data < 0.05] = 0
+            # +1 due to the shift of diff
+            active_frames = np.where(np.diff(binary_frames_data) == 1)[0] + 1
         # active_frames = np.concatenate(([0], active_frames))
-        print(f"active_frames {active_frames}")
+        # print(f"active_frames {active_frames}")
         nb_frames = len(active_frames)
         print(f"nb_frames {nb_frames}")
 
-        if threshold_piezo is None:
+        if (not with_run) and (threshold_piezo is None):
             fig, ax = plt.subplots(nrows=1, ncols=1,
                                    gridspec_kw={'height_ratios': [1]},
                                    figsize=(20, 8))
-            plt.plot(times_in_sec, piezo_data, lw=.5)
+            plt.plot(times_in_sec, mvt_data, lw=.5)
             plt.title(f"piezo {self.description}")
             plt.show()
             plt.close()
             return
 
-        mvt_periods = self.detect_mvt_periods_with_diff(piezo_data=piezo_data, piezo_threshold=threshold_piezo,
-                                                        min_time_between_periods=2 * sampling_rate)
-        print(f"diff method: len(mvt_periods) {len(mvt_periods)}")
-
-        # mvt_periods = self.detect_mvt_periods_with_sliding_window(piezo_data=piezo_data,
-        #                                                           window_duration=int(0.2 * 50000),
-        #                                                           piezo_threshold=threshold_piezo,
-        #                                                           min_time_between_periods=2 * 50000,
-        #                                                           debug_mode=False)
-
-        print(f"len(mvt_periods) {len(mvt_periods)}")
-
+        if with_run:
+            mvt_periods, speed_during_mvt_periods = self.detect_run_periods(mvt_data=mvt_data, min_speed=0.5)
+        else:
+            mvt_periods = self.detect_mvt_periods_with_piezo_and_diff(piezo_data=mvt_data,
+                                                                      piezo_threshold=threshold_piezo,
+                                                                      min_time_between_periods=2 * sampling_rate)
+        # print(f"len(mvt_periods) {len(mvt_periods)}")
+        # print(f"len(mvt_data) {len(mvt_data)}")
         self.mvt_frames = []
         self.mvt_frames_periods = []
-        for mvt_period in mvt_periods:
+        if with_run:
+            self.speed_by_mvt_frame = []
+        for mvt_period_index, mvt_period in enumerate(mvt_periods):
             frames = np.where(np.logical_and(active_frames >= mvt_period[0], active_frames <= mvt_period[1]))[0]
             if len(frames) > 0:
                 self.mvt_frames.extend(frames)
                 self.mvt_frames_periods.append((frames[0], frames[-1]))
+                if with_run:
+                    for frame in frames:
+                        frame_index = active_frames[frame]
+                        index_from_beg_mvt_period = frame_index - mvt_period[0]
+                        # 100 ms
+                        range_around = int(0.1 * self.abf_sampling_rate)
+                        speed_during_mvt_period = speed_during_mvt_periods[mvt_period_index]
+                        # print(f"len(speed_during_mvt_period) {len(speed_during_mvt_period)}")
+                        beg_pos = np.max((0, (index_from_beg_mvt_period - range_around)))
+                        end_pos = np.min((len(speed_during_mvt_period),
+                                          (index_from_beg_mvt_period + range_around + 1)))
+                        # print(f"beg_pos {beg_pos}, end_pos {end_pos}")
+                        # taking the mean speed around the frame, with a 100 ms range
+                        speed = np.mean(speed_during_mvt_period[beg_pos:end_pos])
+                        # print(f"speed: {np.round(speed, 2)}")
+                        self.speed_by_mvt_frame.append(speed)
         self.mvt_frames = np.array(self.mvt_frames)
+        if not with_run:
+            self.detect_twitches()
+
+        # plotting the result
+        check_piezo_threshold = False
+        if check_piezo_threshold:
+            fig, ax = plt.subplots(nrows=1, ncols=1,
+                                   gridspec_kw={'height_ratios': [1]},
+                                   figsize=(20, 8))
+            plt.plot(times_in_sec, mvt_data, lw=.5)
+            if mvt_periods is not None:
+                for mvt_period in mvt_periods:
+                    color = "red"
+                    ax.axvspan(mvt_period[0] / self.abf_sampling_rate, mvt_period[1] / self.abf_sampling_rate,
+                               alpha=0.5, facecolor=color, zorder=1)
+            plt.title(f"piezo {self.description} threshold {threshold_piezo}")
+            plt.show()
+            plt.close()
 
         # savinf the npz file, that will be loaded directly at the next execution
-        np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
-                 mvt_frames=self.mvt_frames)
+        if with_run:
+            np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
+                     mvt_frames=self.mvt_frames, speed_by_mvt_frame=self.speed_by_mvt_frame)
+        else:
+            if threshold_piezo is not None:
+                np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
+                         mvt_frames=self.mvt_frames)
         # continuous_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
         # print(f"continuous_frames_periods {continuous_frames_periods}")
         # print(f"self.mvt_frames_periods {self.mvt_frames_periods}")
-        print(f"len(mvt_frames) {len(self.mvt_frames)}")
+        # print(f"len(mvt_frames) {len(self.mvt_frames)}")
 
-        # plotting the results
-        fig, ax = plt.subplots(nrows=1, ncols=1,
-                               gridspec_kw={'height_ratios': [1]},
-                               figsize=(20, 8))
-        plt.plot(times_in_sec, piezo_data, lw=.5)
-        if mvt_periods is not None:
-            for mvt_period in mvt_periods:
-                color = "red"
-                ax.axvspan(mvt_period[0] / 50000, mvt_period[1] / 50000, alpha=0.5, facecolor=color, zorder=1)
-                plt.title(f"piezo {self.description}")
-        plt.show()
-        plt.close()
+    def detect_run_periods(self, mvt_data, min_speed):
+        nb_period_by_wheel = 500
+        wheel_diam_cm = 2 * math.pi * 1.75
+        cm_by_period = wheel_diam_cm / nb_period_by_wheel
+        binary_mvt_data = np.zeros(len(mvt_data), dtype="int8")
+        speed_by_time = np.zeros(len(mvt_data))
+        is_running = np.zeros(len(mvt_data), dtype="int8")
+        # print(f"len(mvt_data) {len(mvt_data)}")
+        binary_mvt_data[mvt_data >= 4] = 1
+        d_times = np.diff(binary_mvt_data)
+        pos_times = np.where(d_times == 1)[0] + 1
+        for index, pos in enumerate(pos_times[1:]):
+            run_duration = pos - pos_times[index - 1]
+            run_duration_s = run_duration / self.abf_sampling_rate
+            # in cm/s
+            speed = cm_by_period / run_duration_s
+            # if speed < 1:
+            #     print(f"#### speed_i {index}: {np.round(speed, 3)}")
+            # else:
+            #     print(f"speed_i {index}: {np.round(speed, 3)}")
+            if speed >= min_speed:
+                speed_by_time[pos_times[index - 1]:pos] = speed
+                is_running[pos_times[index - 1]:pos] = 1
+                # print(f"is_running {index}: {pos_times[index-1]} to {pos}")
 
-        # fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex=True,
-        #                              gridspec_kw={'height_ratios': [0.5, 0.5], 'width_ratios': [1]},
-        #                              figsize=(15, 10))
-        # # plt.tight_layout(pad=3, w_pad=7, h_pad=3)
-        # ax1.plot(times_in_sec, frames_data, lw=.5)
-        # ax2.plot(times_in_sec, piezo_data, lw=.5)
-        # plt.show()
-        # plt.close()
-
-        # plt.style.use('bmh')
-        # print(f"np.where(abf.sweepC)[0] {np.where(abf.sweepC)[0]}")
-        # print(abf)
-        # l = 50000000
-        # # abf.setSweep(0)  # sweeps start at 0
-        # print("channel 0")
-        # abf.setSweep(sweepNumber=0, channel=0)
-        # print(f"len(abf.sweepY) {len(abf.sweepY)} abf.sweepY {abf.sweepY}")  # sweep data (ADC)
-        # print(f"len(abf.sweepC) {len(abf.sweepC)} abf.sweepC {abf.sweepC}")  # sweep command (DAC)
-        # print(f"len(abf.sweepX) {len(abf.sweepX)} abf.sweepX {abf.sweepX}")  # sweep times (seconds)
-        # print(f"abf.sweepLabelY {abf.sweepLabelY}")
-        # print(f"abf.sweepLabelX {abf.sweepLabelX}")
-        # print(f"abf.sweepLabelC {abf.sweepLabelC}")
-        #
-        # # plt.figure(figsize=(15, 8))
-        # # plt.plot(abf.sweepX[:l], abf.sweepY[:l], lw=.5)
-        # # plt.title("Y")
-        # # plt.show()
-        # # plt.close()
-        #
-        # print("channel 1")
-        # abf.setSweep(sweepNumber=0, channel=1)
-        # print(f"len(abf.sweepY) {len(abf.sweepY)} abf.sweepY {abf.sweepY}")  # sweep data (ADC)
-        # print(f"len(abf.sweepC) {len(abf.sweepC)} abf.sweepC {abf.sweepC}")  # sweep command (DAC)
-        # print(f"len(abf.sweepX) {len(abf.sweepX)} abf.sweepX {abf.sweepX}")  # sweep times (seconds)
-        # print(f"abf.sweepLabelY {abf.sweepLabelY}")
-        # print(f"abf.sweepLabelX {abf.sweepLabelX}")
-        # print(f"abf.sweepLabelC {abf.sweepLabelC}")
-        #
-        # plt.figure(figsize=(8, 5))
-        # plt.plot(abf.sweepX[:l], abf.sweepY[:l], lw=.5)
-        # plt.title("Y")
-        # plt.show()
-        # plt.close()
+        #  1024 cycle = 1 tour de roue (= 2 Pi 1.5) -> Vitesse (cm / temps pour 1024 cycles).
+        # the period of time between two 1 represent a run
+        mvt_periods = get_continous_time_periods(is_running)
+        mvt_periods = self.merging_time_periods(time_periods=mvt_periods,
+                                                min_time_between_periods=0.5 * self.abf_sampling_rate)
+        print(f"mvt_periods {mvt_periods}")
+        speed_during_mvt_periods = []
+        for period in mvt_periods:
+            speed_during_mvt_periods.append(speed_by_time[period[0]:period[1] + 1])
+        return mvt_periods, speed_during_mvt_periods
 
     # 50000 * 2
-    def detect_mvt_periods_with_diff(self, piezo_data, piezo_threshold, min_time_between_periods, debug_mode=False):
+
+    def detect_mvt_periods_with_piezo_and_diff(self, piezo_data, piezo_threshold, min_time_between_periods,
+                                               debug_mode=False):
         binary_piezo_data = np.zeros(len(piezo_data), dtype="int8")
         binary_piezo_data[piezo_data >= piezo_threshold] = 1
         time_periods = get_continous_time_periods(binary_piezo_data)
@@ -688,7 +889,6 @@ class MouseSession:
             self.coord = data[variables_mapping["coord"]][0]
             self.coord_obj = CoordClass(coord=self.coord, nb_col=200,
                                         nb_lines=200)
-            # print(f"self.coord {self.coord}")
         if "spike_durations" in variables_mapping:
             self.spike_struct.set_spike_durations(data[variables_mapping["spike_durations"]])
         elif self.spike_struct.spike_nums_dur is not None:
@@ -1981,6 +2181,7 @@ def box_plot_data_by_age(data_dict, title, filename, y_label, param, save_format
 
     plt.close()
 
+
 def plot_psth_interneurons_events(ms, spike_nums_dur, spike_nums, SCE_times, sliding_window_duration,
                                   param, save_formats="pdf"):
     if spike_nums_dur is None:
@@ -2226,8 +2427,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p6_18_02_07_a001_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a001/p6_18_02_07_001.abf",
-                                          threshold_piezo=7)
+                                          threshold_piezo=25) # 7
         ms_str_to_ms_dict["p6_18_02_07_a001_ms"] = p6_18_02_07_a001_ms
+        # p6_18_02_07_a001_ms.plot_cell_assemblies_on_map()
 
     if "p6_18_02_07_a002_ms" in ms_str_to_load:
         p6_18_02_07_a002_ms = MouseSession(age=6, session_id="18_02_07_a002", nb_ms_by_frame=100, param=param,
@@ -2252,7 +2454,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a002/p6_18_02_07_a002_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p6_18_02_07_a002_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a002/p6_18_02_07_002.abf",
-                                          threshold_piezo=6)
+                                          threshold_piezo=25)
         ms_str_to_ms_dict["p6_18_02_07_a002_ms"] = p6_18_02_07_a002_ms
 
     if "p7_171012_a000_ms" in ms_str_to_load:
@@ -2376,7 +2578,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p7_18_02_08_a001_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a001/p7_18_02_08_a001.abf",
-                                          threshold_piezo=2)
+                                          threshold_piezo=4)
         ms_str_to_ms_dict["p7_18_02_08_a001_ms"] = p7_18_02_08_a001_ms
 
     if "p7_18_02_08_a002_ms" in ms_str_to_load:
@@ -2401,6 +2603,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         variables_mapping = {"coord": "ContoursAll"}
         p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a002/p7_18_02_08_a002_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        p7_18_02_08_a002_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a002/p7_18_02_08_a002.abf",
+                                          threshold_piezo=2.5)
         ms_str_to_ms_dict["p7_18_02_08_a002_ms"] = p7_18_02_08_a002_ms
 
     if "p7_18_02_08_a003_ms" in ms_str_to_load:
@@ -2426,7 +2630,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a003/p7_18_02_08_a003_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p7_18_02_08_a003_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a003/p7_18_02_08_a003.abf",
-                                          threshold_piezo=2.5)
+                                          threshold_piezo=9) # used to be 2.5
         ms_str_to_ms_dict["p7_18_02_08_a003_ms"] = p7_18_02_08_a003_ms
 
     if "p8_18_02_09_a000_ms" in ms_str_to_load:
@@ -2452,7 +2656,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a000/p8_18_02_09_a000_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p8_18_02_09_a000_ms.load_abf_file(abf_file_name="p8/p8_18_02_09_a000/p8_18_02_09_a000.abf",
-                                          threshold_piezo=1.5)
+                                          threshold_piezo=2) # used to be 1.5
         ms_str_to_ms_dict["p8_18_02_09_a000_ms"] = p8_18_02_09_a000_ms
 
     if "p8_18_02_09_a001_ms" in ms_str_to_load:
@@ -2478,7 +2682,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p8_18_02_09_a001_ms.load_abf_file(abf_file_name="p8/p8_18_02_09_a001/p8_18_02_09_a001.abf",
-                                          threshold_piezo=1)
+                                          threshold_piezo=3) # 1.5 before then 2
         ms_str_to_ms_dict["p8_18_02_09_a001_ms"] = p8_18_02_09_a001_ms
 
     if "p8_18_10_17_a000_ms" in ms_str_to_load:
@@ -2528,8 +2732,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p8_18_10_17_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a001/p8_18_10_17_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         # CORRUPTED ABF ??
-        # p8_18_10_17_a001_ms.load_abf_file(abf_file_name="p8/p8_18_10_17_a001/p8_18_10_17_a001.abf",
-        #                                   threshold_piezo=None, piezo_channel=2, sampling_rate=10000)
+        p8_18_10_17_a001_ms.load_abf_file(abf_file_name="p8/p8_18_10_17_a001/p8_18_10_17_a001.abf",
+                                          threshold_piezo=0.4, piezo_channel=2, sampling_rate=10000)
         ms_str_to_ms_dict["p8_18_10_17_a001_ms"] = p8_18_10_17_a001_ms
 
     if "p8_18_10_24_a005_ms" in ms_str_to_load:
@@ -2556,9 +2760,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p8_18_10_24_a005_ms.load_abf_file(abf_file_name="p8/p8_18_10_24_a005/p8_18_10_24_a005.abf",
-                                          threshold_piezo=0.4)
+                                          threshold_piezo=0.5) # used to be 0.4
         ms_str_to_ms_dict["p8_18_10_24_a005_ms"] = p8_18_10_24_a005_ms
-
 
     # p9_17_11_29_a002 low participation comparing to other, dead shortly after the recording
     # p9_17_11_29_a002_ms = MouseSession(age=9, session_id="17_11_29_a002", nb_ms_by_frame=100, param=param,
@@ -2632,7 +2835,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p9_17_12_20_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_20_a001/p9_17_12_20_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p9_17_12_20_a001_ms.load_abf_file(abf_file_name="p9/p9_17_12_20_a001/p9_17_12_20_a001.abf",
-                                          threshold_piezo=2)
+                                          threshold_piezo=3) # used to be 2
         ms_str_to_ms_dict["p9_17_12_20_a001_ms"] = p9_17_12_20_a001_ms
 
     if "p9_18_09_27_a003_ms" in ms_str_to_load:
@@ -2653,8 +2856,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         variables_mapping = {"coord": "ContoursAll"}
         p9_18_09_27_a003_ms.load_data_from_file(file_name_to_load="p9/p9_18_09_27_a003/p9_18_09_27_a003_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
-        # p9_18_09_27_a003_ms.load_abf_file(abf_file_name="p9/p9_18_09_27_a003/p9_18_09_27_a003.abf",
-        #                                   threshold_piezo=None, sampling_rate=10000)
+        p9_18_09_27_a003_ms.load_abf_file(abf_file_name="p9/p9_18_09_27_a003/p9_18_09_27_a003.abf",
+                                          threshold_piezo=0.06, piezo_channel=2, sampling_rate=10000,
+                                          offset=0.1)
         ms_str_to_ms_dict["p9_18_09_27_a003_ms"] = p9_18_09_27_a003_ms
 
     if "p10_17_11_16_a003_ms" in ms_str_to_load:
@@ -2673,11 +2877,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
                                                  variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
-            p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_Traces.mat",
-                                                     variables_mapping=variables_mapping)
+            p10_17_11_16_a003_ms.load_data_from_file(
+                file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
-        p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_CellDetect.mat",
-                                                 variables_mapping=variables_mapping)
+        p10_17_11_16_a003_ms.load_data_from_file(
+            file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_CellDetect.mat",
+            variables_mapping=variables_mapping)
         ms_str_to_ms_dict["p10_17_11_16_a003_ms"] = p10_17_11_16_a003_ms
 
     if "p11_17_11_24_a000_ms" in ms_str_to_load:
@@ -2696,11 +2902,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
                                                  variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
-            p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_Traces.mat",
-                                                     variables_mapping=variables_mapping)
+            p11_17_11_24_a000_ms.load_data_from_file(
+                file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
-        p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
-                                                 variables_mapping=variables_mapping)
+        p11_17_11_24_a000_ms.load_data_from_file(
+            file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
+            variables_mapping=variables_mapping)
         # p11_17_11_24_a000_ms.plot_cell_assemblies_on_map()
         ms_str_to_ms_dict["p11_17_11_24_a000_ms"] = p11_17_11_24_a000_ms
 
@@ -2720,11 +2928,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
                                                  variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
-            p11_17_11_24_a001_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_Traces.mat",
-                                                     variables_mapping=variables_mapping)
+            p11_17_11_24_a001_ms.load_data_from_file(
+                file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
-        p11_17_11_24_a001_ms.load_data_from_file(file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_CellDetect.mat",
-                                                 variables_mapping=variables_mapping)
+        p11_17_11_24_a001_ms.load_data_from_file(
+            file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_CellDetect.mat",
+            variables_mapping=variables_mapping)
         ms_str_to_ms_dict["p11_17_11_24_a001_ms"] = p11_17_11_24_a001_ms
 
     if "p12_171110_a000_ms" in ms_str_to_load:
@@ -2743,13 +2953,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
                                                variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
-            p12_171110_a000_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_Traces.mat",
-                                                   variables_mapping=variables_mapping)
+            p12_171110_a000_ms.load_data_from_file(
+                file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
-        p12_171110_a000_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_CellDetect.mat",
-                                               variables_mapping=variables_mapping)
-        p12_171110_a000_ms.load_abf_file(abf_file_name="p12/p12_17_11_10_a000/p12_17_11_10_a000.abf",
-                                         threshold_piezo=None, with_run=True)
+        p12_171110_a000_ms.load_data_from_file(
+            file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_CellDetect.mat",
+            variables_mapping=variables_mapping)
         ms_str_to_ms_dict["p12_171110_a000_ms"] = p12_171110_a000_ms
 
     if "p12_17_11_10_a002_ms" in ms_str_to_load:
@@ -2768,13 +2978,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
                                                  variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
-            p12_17_11_10_a002_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_Traces.mat",
-                                                     variables_mapping=variables_mapping)
+            p12_17_11_10_a002_ms.load_data_from_file(
+                file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
-        p12_17_11_10_a002_ms.load_data_from_file(file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_CellDetect.mat",
-                                                 variables_mapping=variables_mapping)
-        p12_17_11_10_a002_ms.load_abf_file(abf_file_name="p12/p12_17_11_10_a002/p12_17_11_10_a002.abf",
-                                           threshold_piezo=None, with_run=True)
+        p12_17_11_10_a002_ms.load_data_from_file(
+            file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_CellDetect.mat",
+            variables_mapping=variables_mapping)
         ms_str_to_ms_dict["p12_17_11_10_a002_ms"] = p12_17_11_10_a002_ms
 
     if "p13_18_10_29_a000_ms" in ms_str_to_load:
@@ -2793,14 +3003,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
                                                  variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
-            p13_18_10_29_a000_ms.load_data_from_file(file_name_to_load="p13/p13_18_10_29_a000/p13_18_10_29_a000_Traces.mat",
-                                                     variables_mapping=variables_mapping)
+            p13_18_10_29_a000_ms.load_data_from_file(
+                file_name_to_load="p13/p13_18_10_29_a000/p13_18_10_29_a000_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p13_18_10_29_a000_ms.load_data_from_file(file_name_to_load=
                                                  "p13/p13_18_10_29_a000/p13_18_10_29_a000_CellDetect.mat",
                                                  variables_mapping=variables_mapping)
         p13_18_10_29_a000_ms.load_abf_file(abf_file_name="p13/p13_18_10_29_a000/p13_18_10_29_a000.abf",
-                                           threshold_piezo=None, with_run=True)
+                                           threshold_piezo=None, with_run=True, sampling_rate=10000)
         ms_str_to_ms_dict["p13_18_10_29_a000_ms"] = p13_18_10_29_a000_ms
 
     if "p13_18_10_29_a001_ms" in ms_str_to_load:
@@ -2819,14 +3030,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
                                                  variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
-            p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load="p13/p13_18_10_29_a001/p13_18_10_29_a001_Traces.mat",
-                                                     variables_mapping=variables_mapping)
+            p13_18_10_29_a001_ms.load_data_from_file(
+                file_name_to_load="p13/p13_18_10_29_a001/p13_18_10_29_a001_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
                                                  "p13/p13_18_10_29_a001/p13_18_10_29_a001_CellDetect.mat",
                                                  variables_mapping=variables_mapping)
         p13_18_10_29_a001_ms.load_abf_file(abf_file_name="p13/p13_18_10_29_a001/p13_18_10_29_a001.abf",
-                                           threshold_piezo=None, with_run=True)
+                                           threshold_piezo=None, with_run=True, sampling_rate=10000)
         ms_str_to_ms_dict["p13_18_10_29_a001_ms"] = p13_18_10_29_a001_ms
 
     if "p14_18_10_23_a000_ms" in ms_str_to_load:
@@ -2845,11 +3057,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
                                                  variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
-            p14_18_10_23_a000_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_Traces.mat",
-                                                     variables_mapping=variables_mapping)
+            p14_18_10_23_a000_ms.load_data_from_file(
+                file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
-        p14_18_10_23_a000_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_CellDetect.mat",
-                                                 variables_mapping=variables_mapping)
+        p14_18_10_23_a000_ms.load_data_from_file(
+            file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_CellDetect.mat",
+            variables_mapping=variables_mapping)
         ms_str_to_ms_dict["p14_18_10_23_a000_ms"] = p14_18_10_23_a000_ms
 
     if "p14_18_10_23_a001_ms" in ms_str_to_load:
@@ -2869,11 +3083,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
                                                  variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
-            p14_18_10_23_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_Traces.mat",
-                                                     variables_mapping=variables_mapping)
+            p14_18_10_23_a001_ms.load_data_from_file(
+                file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
-        p14_18_10_23_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_CellDetect.mat",
-                                                 variables_mapping=variables_mapping)
+        p14_18_10_23_a001_ms.load_data_from_file(
+            file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_CellDetect.mat",
+            variables_mapping=variables_mapping)
         ms_str_to_ms_dict["p14_18_10_23_a001_ms"] = p14_18_10_23_a001_ms
 
     if "p14_18_10_30_a001_ms" in ms_str_to_load:
@@ -2892,11 +3108,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
                                                  variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
-            p14_18_10_30_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_30_a001/p14_18_10_30_a001_Traces.mat",
-                                                     variables_mapping=variables_mapping)
+            p14_18_10_30_a001_ms.load_data_from_file(
+                file_name_to_load="p14/p14_18_10_30_a001/p14_18_10_30_a001_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
-        p14_18_10_30_a001_ms.load_data_from_file(file_name_to_load="p14/p14_18_10_30_a001/p14_18_10_30_a001_CellDetect.mat",
-                                                 variables_mapping=variables_mapping)
+        p14_18_10_30_a001_ms.load_data_from_file(
+            file_name_to_load="p14/p14_18_10_30_a001/p14_18_10_30_a001_CellDetect.mat",
+            variables_mapping=variables_mapping)
         ms_str_to_ms_dict["p14_18_10_30_a001_ms"] = p14_18_10_30_a001_ms
 
     # arnaud_ms = MouseSession(age=24, session_id="arnaud", nb_ms_by_frame=50, param=param)
@@ -2925,8 +3143,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
                                           variables_mapping=variables_mapping)
         ms_str_to_ms_dict["p60_arnaud_ms"] = p60_arnaud_ms
 
-
     return ms_str_to_ms_dict
+
 
 def main():
     # for line in np.arange(15):
@@ -2934,7 +3152,7 @@ def main():
     root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
     path_data = root_path + "data/"
     path_results_raw = root_path + "results_hne/"
-    cell_assemblies_data_path = path_data + "cell_assemblies/v1/"
+    cell_assemblies_data_path = path_data + "cell_assemblies/v2/"
 
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     path_results = path_results_raw + f"{time_str}"
@@ -2979,32 +3197,34 @@ def main():
     abf_corrupted = ["p8_18_10_17_a001_ms", "p9_18_09_27_a003_ms"]
 
     ms_with_piezo = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms", "p7_18_02_08_a000_ms",
-                     "p7_18_02_08_a001_ms", "p7_18_02_08_a003_ms", "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                     "p8_18_10_24_a005_ms", "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms"]
-    ms_with_run = ["p13_18_10_29_a001_ms", "p13_18_10_29_a000_ms", "p12_17_11_10_a002_ms", "p12_171110_a000_ms"]
+                     "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms", "p8_18_02_09_a000_ms",
+                     "p8_18_02_09_a001_ms", "p8_18_10_17_a001_ms",
+                     "p8_18_10_24_a005_ms", "p9_18_09_27_a003_ms", "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms"]
+    ms_with_run = ["p13_18_10_29_a001_ms", "p13_18_10_29_a000_ms"]
     run_ms_str = ["p12_17_11_10_a000_ms", "p12_17_11_10_a002_ms", "p13_18_10_29_a000_ms",
                   "p13_18_10_29_a001_ms"]
+    ms_10000_sampling = ["p8_18_10_17_a001_ms", "p9_18_09_27_a003_ms"]
 
     oriens_ms_str = ["p14_18_10_23_a001_ms"]
 
-
     ms_str_to_load = ["p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                        "p8_18_10_24_a005_ms", "p8_18_10_17_a001_ms",
-                        "p8_18_10_17_a000_ms",  # new
-                        "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
-                        "p9_18_09_27_a003_ms",  # new
-                        "p10_17_11_16_a003_ms",
-                        "p11_17_11_24_a001_ms", "p11_17_11_24_a000_ms",
-                        "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
-                        "p13_18_10_29_a000_ms",  # new
-                        "p13_18_10_29_a001_ms",
-                        "p14_18_10_23_a000_ms",
-                        "p14_18_10_30_a001_ms",
-                        "p60_arnaud_ms"]
+                      "p8_18_10_24_a005_ms", "p8_18_10_17_a001_ms",
+                      "p8_18_10_17_a000_ms",  # new
+                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+                      "p9_18_09_27_a003_ms",  # new
+                      "p10_17_11_16_a003_ms",
+                      "p11_17_11_24_a001_ms", "p11_17_11_24_a000_ms",
+                      "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+                      "p13_18_10_29_a000_ms",  # new
+                      "p13_18_10_29_a001_ms",
+                      "p14_18_10_23_a000_ms",
+                      "p14_18_10_30_a001_ms",
+                      "p60_arnaud_ms"]
 
     ms_str_to_load = available_ms_str
-
     ms_str_to_load = ["p60_arnaud_ms"]
+    ms_str_to_load = ms_with_run
+    ms_str_to_load = ["p9_18_09_27_a003_ms"]
     ms_str_to_load = ms_with_piezo
 
     # loading data
@@ -3014,7 +3234,9 @@ def main():
     available_ms = []
     for ms_str in ms_str_to_load:
         available_ms.append(ms_str_to_ms_dict[ms_str])
-
+    # for ms in available_ms:
+    #     ms.plot_each_inter_neuron_connect_map()
+    #     return
     ms_to_analyse = available_ms
 
     just_do_stat_on_event_detection_parameters = True
@@ -3053,7 +3275,7 @@ def main():
     # ##########################################################################################
     # ################################ PATTERNS SEARCH #########################################
     # ##########################################################################################
-    do_pattern_search = True
+    do_pattern_search = False
     split_pattern_search = False
     use_only_uniformity_method = True
     use_loss_score_to_keep_the_best_from_tree = False
@@ -3171,9 +3393,9 @@ def main():
             else:
                 time_window = ms.time_lags_window
             if do_time_graph_correlation_and_connect_best:
-                show_percentiles=[99]
+                show_percentiles = [99]
             else:
-                show_percentiles=None
+                show_percentiles = None
             # show_percentiles = [99]
             # first plotting each individual time-correlation graph with the same x-limits
             time_correlation_graph(time_lags_list=ms.time_lags_list,
@@ -3354,6 +3576,7 @@ def main():
                     # tuple of times
                     SCE_times = sce_detection_result[1]
                     sce_times_numbers = sce_detection_result[3]
+                    sce_times_bool = sce_detection_result[0]
 
                     print(f"ms {ms.description}, {len(SCE_times)} sce "
                           f"activity threshold {activity_threshold}, "
@@ -3371,10 +3594,19 @@ def main():
                     span_area_coords = [SCE_times]
                     span_area_colors = ['lightgrey']
                     if ms.mvt_frames_periods is not None:
-                        span_area_coords.append(ms.twitches_frames_periods)
-                        # span_area_coords.append(ms.mvt_frames_periods)
-                        span_area_colors.append("red")
+                        if (not ms.with_run) and (ms.twitches_frames_periods is not None):
+                            # span_area_coords.append(ms.twitches_frames_periods)
+                            span_area_coords.append(ms.mvt_frames_periods)
+                            span_area_colors.append("red")
+                        elif ms.with_run:
+                            span_area_coords.append(ms.mvt_frames_periods)
+                            # span_area_coords.append(ms.mvt_frames_periods)
+                            span_area_colors.append("red")
                     ms.plot_psth_twitches()
+                    ms.plot_psth_twitches(sce_bool=sce_times_bool, twitches_group=1)
+                    ms.plot_psth_twitches(sce_bool=sce_times_bool, twitches_group=2)
+                    ms.plot_psth_twitches(sce_bool=sce_times_bool, twitches_group=3)
+                    ms.plot_psth_twitches(sce_bool=sce_times_bool, twitches_group=4)
                     plot_spikes_raster(spike_nums=spike_nums_to_use, param=ms.param,
                                        span_cells_to_highlight=inter_neurons,
                                        span_cells_to_highlight_colors=["red"] * len(inter_neurons),
