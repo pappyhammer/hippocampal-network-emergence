@@ -22,6 +22,8 @@ import pyabf
 # add the one containing the folder pattern_discovery
 from pattern_discovery.seq_solver.markov_way import MarkovParameters
 from pattern_discovery.seq_solver.markov_way import find_significant_patterns
+from pattern_discovery.seq_solver.markov_way import find_sequences_in_ordered_spike_nums
+from pattern_discovery.seq_solver.markov_way import save_on_file_seq_detection_results
 import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.tools.misc import get_time_correlation_data
 from pattern_discovery.tools.misc import get_continous_time_periods
@@ -44,7 +46,7 @@ class HNEParameters(MarkovParameters):
     def __init__(self, path_results, time_str, time_inter_seq, min_duration_intra_seq, min_len_seq, min_rep_nb,
                  path_data,
                  max_branches, stop_if_twin, no_reverse_seq, error_rate, spike_rate_weight,
-                 bin_size=1, cell_assemblies_data_path=None):
+                 bin_size=1, cell_assemblies_data_path=None, best_order_data_path=None):
         super().__init__(time_inter_seq=time_inter_seq, min_duration_intra_seq=min_duration_intra_seq,
                          min_len_seq=min_len_seq, min_rep_nb=min_rep_nb, no_reverse_seq=no_reverse_seq,
                          max_branches=max_branches, stop_if_twin=stop_if_twin, error_rate=error_rate,
@@ -52,6 +54,7 @@ class HNEParameters(MarkovParameters):
                          bin_size=bin_size, path_results=path_results, time_str=time_str)
         self.path_data = path_data
         self.cell_assemblies_data_path = cell_assemblies_data_path
+        self.best_order_data_path = best_order_data_path
         # for plotting ages
         self.markers = ['o', '*', 's', 'v', '<', '>', '^', 'x', '+', "."]  # d losange
         self.colors = ["darkmagenta", "white", "saddlebrown", "blue", "red", "darkgrey", "chartreuse", "cornflowerblue",
@@ -79,6 +82,10 @@ class MouseSession:
         self.cell_assemblies = None
         if self.param.cell_assemblies_data_path is not None:
             self.load_cell_assemblies_data()
+        # for seq
+        self.best_order_loaded = None
+        if self.param.best_order_data_path is not None:
+            self.load_best_order_data()
         self.weight = weight
         self.coord_obj = None
 
@@ -88,6 +95,7 @@ class MouseSession:
         self.time_lags_dict = None
         self.correlation_dict = None
         self.time_lags_window = None
+
 
         # initialized when loading abf
         self.abf_sampling_rate = None
@@ -99,6 +107,7 @@ class MouseSession:
         self.with_piezo = False
         self.twitches_frames_periods = None
         self.twitches_frames = None
+        self.sce_bool = None
 
     def detect_twitches(self):
         """
@@ -126,48 +135,31 @@ class MouseSession:
         self.twitches_frames_periods = np.array(self.twitches_frames_periods)
         self.twitches_frames = np.array(self.twitches_frames)
 
-    def plot_psth_twitches(self, sce_bool=None, only_in_sce=False, time_around=100,
-                           twitches_group=0,
-                           save_formats="pdf"):
-        """
-
-        :param sce_bool:
-        :param only_in_sce:
-        :param time_around:
-        :param twitches_group: 5 groups: 0 : all twitches,
-        group 1: those in sce_events
-        group 2: those not in sce-events
-        group 3: those not in sce-events but with sce-events followed less than one second after
-        group 4: those not in sce-events and not followed by sce
-        :param save_formats:
-        :return:
-        """
-
-        if self.twitches_frames_periods is None:
-            return
+    def get_spikes_values_around_twitches(self, sce_bool=None, time_around=100,
+                                          twitches_group=0, low_percentile=25, high_percentile=75):
         spike_nums_dur = self.spike_struct.spike_nums_dur
-        spike_nums = self.spike_struct.spike_nums
+        # spike_nums = self.spike_struct.spike_nums
         spike_nums_to_use = spike_nums_dur
 
         n_times = len(spike_nums_dur[0, :])
         n_cells = len(spike_nums_dur)
-        activity_threshold_percentage = (self.activity_threshold / n_cells) * 100
 
         # key is an int which reprensent the sum of spikes at a certain distance (in frames) of the event,
         # negative or positive
-        spike_at_time_dict = SortedDict()
-
+        spike_sum_at_time_dict = SortedDict()
+        spikes_at_time_dict = SortedDict()
         # frames on which to center the ptsth
         twitches_times = []
         for twitch_period in self.twitches_frames_periods:
             if (sce_bool is None) or (twitches_group == 0):
                 twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
                 continue
-            is_in_sce = np.any(sce_bool[twitch_period[0]: twitch_period[1]])
+            is_in_sce = np.any(sce_bool[twitch_period[0]: twitch_period[1]+1])
             if twitches_group == 1:
                 if is_in_sce:
                     twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
                 continue
+
             if twitches_group == 2:
                 if not is_in_sce:
                     twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
@@ -195,36 +187,204 @@ class MouseSession:
         for twitch_id, twitch_time in enumerate(twitches_times):
 
             beg_time = np.max((0, twitch_time - time_around))
-            end_time = np.min((n_times, twitch_time + time_around))
+            end_time = np.min((n_times, twitch_time + time_around + 1))
 
             # before the event
             sum_spikes = np.sum(spike_nums_to_use[:, beg_time:twitch_time], axis=0)
             # print(f"before time_spikes {time_spikes}")
             time_spikes = np.arange(-(twitch_time - beg_time), 0)
             for i, time_spike in enumerate(time_spikes):
-                spike_at_time_dict[time_spike] = spike_at_time_dict.get(time_spike, 0) + sum_spikes[i]
+                spike_sum_at_time_dict[time_spike] = spike_sum_at_time_dict.get(time_spike, 0) + sum_spikes[i]
+                if time_spike not in spikes_at_time_dict:
+                    spikes_at_time_dict[time_spike] = []
+                spikes_at_time_dict[time_spike].append(sum_spikes[i])
 
             # after the event
             sum_spikes = np.sum(spike_nums_to_use[:, twitch_time:end_time], axis=0)
             time_spikes = np.arange(0, end_time - twitch_time)
             for i, time_spike in enumerate(time_spikes):
-                spike_at_time_dict[time_spike] = spike_at_time_dict.get(time_spike, 0) + sum_spikes[i]
+                spike_sum_at_time_dict[time_spike] = spike_sum_at_time_dict.get(time_spike, 0) + sum_spikes[i]
+                if time_spike not in spikes_at_time_dict:
+                    spikes_at_time_dict[time_spike] = []
+                spikes_at_time_dict[time_spike].append(sum_spikes[i])
 
         distribution = []
-        bar_chart_values = []
+        mean_values = []
+        median_values = []
+        low_values = []
+        high_values = []
+        std_values = []
         time_x_values = np.arange(-1 * time_around, time_around + 1)
-        for time, nb_spikes_at_time in spike_at_time_dict.items():
+        for time, nb_spikes_at_time in spike_sum_at_time_dict.items():
             # print(f"time {time}")
             distribution.extend([time] * nb_spikes_at_time)
             # mean percentage of cells at each twitch
         for time_value in time_x_values:
-            if time_value in spike_at_time_dict:
-                bar_chart_values.append(((spike_at_time_dict[time_value] / n_twitches) / n_cells) * 100)
+            if time_value in spike_sum_at_time_dict:
+                mean_values.append((np.mean(spikes_at_time_dict[time_value]) / n_cells) * 100)
+                median_values.append((np.median(spikes_at_time_dict[time_value]) / n_cells) * 100)
+                std_values.append((np.std(spikes_at_time_dict[time_value]) / n_cells) * 100)
+                low_values.append((np.percentile(spikes_at_time_dict[time_value], low_percentile) / n_cells) * 100)
+                high_values.append((np.percentile(spikes_at_time_dict[time_value], high_percentile) / n_cells) * 100)
             else:
-                bar_chart_values.append(0)
+                print(f"time {time_value} not there")
+                mean_values.append(0)
+                std_values.append(0)
+                median_values.append(0)
+                low_values.append(0)
+                high_values.append(0)
+        return n_twitches, time_x_values, np.array(mean_values), \
+               np.array(median_values), np.array(low_values), np.array(high_values), np.array(std_values)
+
+    def plot_psth_twitches(self, time_around=100,
+                           twitches_group=0, line_mode=False,
+                           with_other_ms=None,
+                           save_formats="pdf"):
+        """
+
+        :param sce_bool:
+        :param only_in_sce:
+        :param time_around:
+        :param twitches_group: 5 groups: 0 : all twitches,
+        group 1: those in sce_events
+        group 2: those not in sce-events
+        group 3: those not in sce-events but with sce-events followed less than one second after
+        group 4: those not in sce-events and not followed by sce
+        :param save_formats:
+        :return:
+        """
+
+        if self.twitches_frames_periods is None:
+            return
+
+        sce_bool = self.sce_bool
+
+        if with_other_ms is not None:
+            line_mode = True
+
+        results = \
+            self.get_spikes_values_around_twitches(sce_bool=sce_bool, time_around=time_around,
+                                                   twitches_group=twitches_group)
+
+        if results is None:
+            return
+        n_twitches, time_x_values, mean_values, median_values, low_values, high_values, std_values = results
+
+        n_cells = len(self.spike_struct.spike_nums_dur)
+        activity_threshold_percentage = (self.activity_threshold / n_cells) * 100
 
         hist_color = "blue"
         edge_color = "white"
+        # bar chart
+
+        """
+        groups: 0 : all twitches,
+        group 1: those in sce_events
+        group 2: those not in sce-events
+        group 3: those not in sce-events but with sce-events followed less than one second after
+        group 4: those not in sce-events and not followed by sce
+        """
+        title_option = ""
+        if twitches_group == 0:
+            title_option = "all"
+        elif twitches_group == 1:
+            title_option = "in_events"
+        elif twitches_group == 2:
+            title_option = "outside_events"
+        elif twitches_group == 3:
+            title_option = "just_before_events"
+        elif twitches_group == 4:
+            title_option = "nothing_special"
+        for mean_version in [True, False]:
+            max_value = 0
+            fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                    gridspec_kw={'height_ratios': [1]},
+                                    figsize=(15, 10))
+            ax1.set_facecolor("black")
+            if line_mode:
+                ms_to_plot = [self]
+                if with_other_ms is not None:
+                    ms_to_plot.extend(with_other_ms)
+                for index_ms, ms in enumerate(ms_to_plot):
+                    if ms.description == self.description:
+                        ms_mean_values = mean_values
+                        ms_std_values = std_values
+                        ms_median_values = median_values
+                        ms_low_values = low_values
+                        ms_high_values = high_values
+                    else:
+                        results = \
+                            ms.get_spikes_values_around_twitches(sce_bool=ms.sce_bool, time_around=time_around,
+                                                                 twitches_group=twitches_group)
+
+                        if results is None:
+                            continue
+                        ms_n_twitches, ms_time_x_values, ms_mean_values, ms_median_values, \
+                        ms_low_values, ms_high_values, ms_std_values = results
+
+                    if with_other_ms is None:
+                        color = hist_color
+                    else:
+                        color = cm.nipy_spectral(float(index_ms + 1) / (len(with_other_ms) + 2))
+                    if mean_version:
+                        plt.plot(time_x_values,
+                                 ms_mean_values, color=color, lw=2, label=f"{ms.description}")
+                        if with_other_ms is None:
+                            ax1.fill_between(time_x_values, ms_mean_values - ms_std_values,
+                                             ms_mean_values + ms_std_values,
+                                             alpha=0.5, facecolor=color)
+                        max_value = np.max((max_value, np.max(ms_mean_values + ms_std_values)))
+                    else:
+                        plt.plot(time_x_values,
+                                 ms_median_values, color=color, lw=2, label=f"{ms.description}")
+                        if with_other_ms is None:
+                            ax1.fill_between(time_x_values, ms_low_values, ms_high_values,
+                                             alpha=0.5, facecolor=color)
+                        max_value = np.max((max_value, np.max(ms_high_values)))
+            else:
+                plt.bar(time_x_values,
+                        mean_values, color=hist_color, edgecolor=edge_color)
+                max_value = np.max((max_value, np.max(mean_values)))
+            ax1.vlines(0, 0,
+                       np.max(mean_values), color="white", linewidth=2,
+                       linestyles="dashed")
+            ax1.hlines(activity_threshold_percentage, -1 * time_around, time_around,
+                       color="white", linewidth=1,
+                       linestyles="dashed")
+
+            if with_other_ms is not None:
+                ax1.legend()
+
+            extra_info = ""
+            if line_mode:
+                extra_info = "lines_"
+            if mean_version:
+                extra_info += "mean_"
+            else:
+                extra_info += "median_"
+
+            descr = self.description
+            if with_other_ms is not None:
+                descr = f"p{self.age}"
+
+            plt.title(f"{descr} {n_twitches} twitches bar chart {title_option} {extra_info}")
+            ax1.set_ylabel(f"Spikes (%)")
+            ax1.set_xlabel("time (frames)")
+            ax1.set_ylim(0, np.max((activity_threshold_percentage, max_value)) + 1)
+            # xticks = np.arange(0, len(data_dict))
+            # ax1.set_xticks(xticks)
+            # # sce clusters labels
+            # ax1.set_xticklabels(labels)
+            if isinstance(save_formats, str):
+                save_formats = [save_formats]
+            for save_format in save_formats:
+                fig.savefig(f'{self.param.path_results}/{descr}_bar_chart_'
+                            f'{n_twitches}_twitches_{title_option}'
+                            f'_{extra_info}{self.param.time_str}.{save_format}',
+                            format=f"{save_format}")
+
+            plt.close()
+
         # if len(distribution) == 0:
         #     continue
         # distribution = np.array(distribution)
@@ -265,57 +425,31 @@ class MouseSession:
         #
         # plt.close()
 
-        # bar chart
+    def load_best_order_data(self):
+        file_names = []
 
-        """
-        groups: 0 : all twitches,
-        group 1: those in sce_events
-        group 2: those not in sce-events
-        group 3: those not in sce-events but with sce-events followed less than one second after
-        group 4: those not in sce-events and not followed by sce
-        """
-        title_option = ""
-        if twitches_group == 0:
-            title_option = "all"
-        elif twitches_group == 1:
-            title_option = "in_events"
-        elif twitches_group == 2:
-            title_option = "outside_events"
-        elif twitches_group == 3:
-            title_option = "just_before_events"
-        elif twitches_group == 4:
-            title_option = "nothing_special"
+        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(self.param.best_order_data_path):
+            file_names.extend(local_filenames)
+            break
+        if len(file_names) == 0:
+            return
 
-        fig, ax1 = plt.subplots(nrows=1, ncols=1,
-                                gridspec_kw={'height_ratios': [1]},
-                                figsize=(15, 10))
-        ax1.set_facecolor("black")
-        plt.bar(time_x_values,
-                bar_chart_values, color=hist_color, edgecolor=edge_color)
-        ax1.vlines(0, 0,
-                   np.max(bar_chart_values), color="white", linewidth=2,
-                   linestyles="dashed")
-        ax1.hlines(activity_threshold_percentage, -1 * time_around, time_around,
-                   color="white", linewidth=1,
-                   linestyles="dashed")
-        plt.title(f"{self.description} {n_twitches} twitches bar chart {title_option}")
-        ax1.set_ylabel(f"Spikes (%)")
-        ax1.set_xlabel("time (frames)")
-        ax1.set_ylim(0, np.max((activity_threshold_percentage + 1, np.max(bar_chart_values) + 1)))
-        # xticks = np.arange(0, len(data_dict))
-        # ax1.set_xticks(xticks)
-        # # sce clusters labels
-        # ax1.set_xticklabels(labels)
+        for file_name in file_names:
+            file_name_original = file_name
+            file_name = file_name.lower()
+            descr = self.description.lower()
+            if descr not in file_name:
+                continue
 
-        if isinstance(save_formats, str):
-            save_formats = [save_formats]
-        for save_format in save_formats:
-            fig.savefig(f'{self.param.path_results}/{self.description}_bar_chart_'
-                        f'{n_twitches}_twitches_{title_option}'
-                        f'_{self.param.time_str}.{save_format}',
-                        format=f"{save_format}")
-
-        plt.close()
+            with open(self.param.best_order_data_path + file_name_original, "r", encoding='UTF-8') as file:
+                for nb_line, line in enumerate(file):
+                    if line.startswith("best_order"):
+                        line_list = line.split(':')
+                        cells = line_list[1].split(" ")
+                        self.best_order_loaded = np.array([int(cell) for cell in cells])
+                        # print(f"{self.description} {len(self.best_order_loaded)} :self.best_order_loaded {self.best_order_loaded}")
+                        # raise Exception()
 
     def load_cell_assemblies_data(self):
         file_names = []
@@ -2303,6 +2437,79 @@ def get_ratio_spikes_on_events_vs_total_events_by_cell(spike_nums,
     return result
 
 
+def test_seq_detect(ms):
+    # print(f"test_seq_detect {ms.description} {ms.best_order_loaded}")
+    if ms.best_order_loaded is None:
+        return
+
+    spike_nums_dur = ms.spike_struct.spike_nums_dur
+    spike_nums_dur_ordered = spike_nums_dur[ms.best_order_loaded, :]
+    seq_dict = find_sequences_in_ordered_spike_nums(spike_nums_dur_ordered, param=ms.param)
+    # save_on_file_seq_detection_results(best_cells_order=ms.best_order_loaded,
+    #                                    seq_dict=seq_dict,
+    #                                    file_name=f"sorting_results_with_timestamps{ms.description}.txt",
+    #                                    param=ms.param,
+    #                                    significant_category_dict=None)
+
+
+    colors_for_seq_list = ["blue", "red", "limegreen", "grey", "orange", "cornflowerblue", "yellow", "seagreen",
+                           "magenta"]
+    ordered_labels_real_data = []
+    labels = np.arange(len(spike_nums_dur_ordered))
+    for old_cell_index in ms.best_order_loaded:
+        ordered_labels_real_data.append(labels[old_cell_index])
+    plot_spikes_raster(spike_nums=spike_nums_dur_ordered, param=ms.param,
+                       title=f"{ms.description}_spike_nums_ordered_seq_test",
+                       spike_train_format=False,
+                       file_name=f"{ms.description}_spike_nums_ordered_seq_test",
+                       y_ticks_labels=ordered_labels_real_data,
+                       save_raster=True,
+                       show_raster=False,
+                       sliding_window_duration=1,
+                       show_sum_spikes_as_percentage=True,
+                       plot_with_amplitude=False,
+                       activity_threshold=ms.activity_threshold,
+                       save_formats="pdf",
+                       seq_times_to_color_dict=seq_dict,
+                       link_seq_color=colors_for_seq_list,
+                       link_seq_line_width=1,
+                       link_seq_alpha=0.9,
+                       jitter_links_range=5,
+                       min_len_links_seq=3,
+                       spike_shape="|",
+                       spike_shape_size=10)
+
+    print(f"n_cells: {len(spike_nums_dur_ordered)}")
+
+    if ms.cell_assemblies is not None:
+        total_cells_in_ca = 0
+        for cell_assembly_index, cell_assembly in enumerate(ms.cell_assemblies):
+            total_cells_in_ca += len(cell_assembly)
+            print(f"CA {cell_assembly_index}: {cell_assembly}")
+        print(f"n_cells in cell assemblies: {total_cells_in_ca}")
+        n_cell_assemblies = len(ms.cell_assemblies)
+        sequences_with_ca_numbers = []
+        cells_seq_with_correct_indices = []
+        # we need to find the indices from the organized seq
+        for seq in seq_dict.keys():
+            cells_seq_with_correct_indices.append(ms.best_order_loaded[np.array(seq)])
+        for seq in cells_seq_with_correct_indices:
+            new_seq = np.ones(len(seq), dtype="int16")
+            new_seq *= - 1
+            for cell_assembly_index, cell_assembly in enumerate(ms.cell_assemblies):
+                for index_cell, cell in enumerate(seq):
+                    if cell in cell_assembly:
+                        new_seq[index_cell] = cell_assembly_index
+            sequences_with_ca_numbers.append(new_seq)
+
+    print("")
+    print("Seq with cell assemblies index")
+    for index, seq in enumerate(sequences_with_ca_numbers):
+        print(f"Original: {cells_seq_with_correct_indices[index]}")
+        print(f"Cell assemblies {seq}")
+
+
+
 def get_ratio_spikes_on_events_vs_total_spikes_by_cell(spike_nums,
                                                        spike_nums_dur,
                                                        sce_times_numbers):
@@ -2427,7 +2634,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p6_18_02_07_a001_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a001/p6_18_02_07_001.abf",
-                                          threshold_piezo=25) # 7
+                                          threshold_piezo=25)  # 7
         ms_str_to_ms_dict["p6_18_02_07_a001_ms"] = p6_18_02_07_a001_ms
         # p6_18_02_07_a001_ms.plot_cell_assemblies_on_map()
 
@@ -2630,7 +2837,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a003/p7_18_02_08_a003_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p7_18_02_08_a003_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a003/p7_18_02_08_a003.abf",
-                                          threshold_piezo=9) # used to be 2.5
+                                          threshold_piezo=9)  # used to be 2.5
         ms_str_to_ms_dict["p7_18_02_08_a003_ms"] = p7_18_02_08_a003_ms
 
     if "p8_18_02_09_a000_ms" in ms_str_to_load:
@@ -2656,7 +2863,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a000/p8_18_02_09_a000_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p8_18_02_09_a000_ms.load_abf_file(abf_file_name="p8/p8_18_02_09_a000/p8_18_02_09_a000.abf",
-                                          threshold_piezo=2) # used to be 1.5
+                                          threshold_piezo=2)  # used to be 1.5
         ms_str_to_ms_dict["p8_18_02_09_a000_ms"] = p8_18_02_09_a000_ms
 
     if "p8_18_02_09_a001_ms" in ms_str_to_load:
@@ -2682,7 +2889,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p8_18_02_09_a001_ms.load_abf_file(abf_file_name="p8/p8_18_02_09_a001/p8_18_02_09_a001.abf",
-                                          threshold_piezo=3) # 1.5 before then 2
+                                          threshold_piezo=3)  # 1.5 before then 2
         ms_str_to_ms_dict["p8_18_02_09_a001_ms"] = p8_18_02_09_a001_ms
 
     if "p8_18_10_17_a000_ms" in ms_str_to_load:
@@ -2760,7 +2967,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p8_18_10_24_a005_ms.load_abf_file(abf_file_name="p8/p8_18_10_24_a005/p8_18_10_24_a005.abf",
-                                          threshold_piezo=0.5) # used to be 0.4
+                                          threshold_piezo=0.5)  # used to be 0.4
         ms_str_to_ms_dict["p8_18_10_24_a005_ms"] = p8_18_10_24_a005_ms
 
     # p9_17_11_29_a002 low participation comparing to other, dead shortly after the recording
@@ -2835,7 +3042,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p9_17_12_20_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_20_a001/p9_17_12_20_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p9_17_12_20_a001_ms.load_abf_file(abf_file_name="p9/p9_17_12_20_a001/p9_17_12_20_a001.abf",
-                                          threshold_piezo=3) # used to be 2
+                                          threshold_piezo=3)  # used to be 2
         ms_str_to_ms_dict["p9_17_12_20_a001_ms"] = p9_17_12_20_a001_ms
 
     if "p9_18_09_27_a003_ms" in ms_str_to_load:
@@ -3143,6 +3350,34 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
                                           variables_mapping=variables_mapping)
         ms_str_to_ms_dict["p60_arnaud_ms"] = p60_arnaud_ms
 
+    if "p60_a529_2015_02_25_ms" in ms_str_to_load:
+        p60_a529_2015_02_25_ms = MouseSession(age=60, session_id="a529_2015_02_25", nb_ms_by_frame=100, param=param)
+        p60_a529_2015_02_25_ms.activity_threshold = 10
+        p60_a529_2015_02_25_ms.set_inter_neurons([])
+        # duration of those interneurons:
+        variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+                             "spike_nums": "filt_Bin100ms_spikedigital",
+                             "spike_durations": "LOC3"}
+        p60_a529_2015_02_25_ms.load_data_from_file(file_name_to_load=
+                                          "p60/a529_2015_02_25/a529_2015_02_25_RasterDur.mat",
+                                          variables_mapping=variables_mapping)
+
+        ms_str_to_ms_dict["p60_a529_2015_02_25_ms"] = p60_a529_2015_02_25_ms
+
+    if "p60_a529_2015_02_25_v_arnaud_ms" in ms_str_to_load:
+        p60_a529_2015_02_25_v_arnaud_ms = MouseSession(age=60, session_id="a529_2015_02_25_v_arnaud",
+                                                       nb_ms_by_frame=100, param=param)
+        # p60_a529_2015_02_25_v_arnaud_ms.activity_threshold = 5
+        p60_a529_2015_02_25_v_arnaud_ms.set_inter_neurons([])
+        # duration of those interneurons:
+        variables_mapping = {"traces": "Tr1b",
+                             "spike_nums": "Raster"}
+        p60_a529_2015_02_25_v_arnaud_ms.load_data_from_file(file_name_to_load=
+                                                            "p60/a529_2015_02_25_v_arnaud/a529-20150225_Raster_all_cells.mat.mat",
+                                                            variables_mapping=variables_mapping)
+
+        ms_str_to_ms_dict["p60_a529_2015_02_25_v_arnaud_ms"] = p60_a529_2015_02_25_v_arnaud_ms
+
     return ms_str_to_ms_dict
 
 
@@ -3153,6 +3388,7 @@ def main():
     path_data = root_path + "data/"
     path_results_raw = root_path + "results_hne/"
     cell_assemblies_data_path = path_data + "cell_assemblies/v2/"
+    best_order_data_path = path_data + "best_order_data/v1/"
 
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     path_results = path_results_raw + f"{time_str}"
@@ -3165,6 +3401,7 @@ def main():
     # param will be set later when the spike_nums will have been constructed
     param = HNEParameters(time_str=time_str, path_results=path_results, error_rate=2,
                           cell_assemblies_data_path=cell_assemblies_data_path,
+                          best_order_data_path=best_order_data_path,
                           time_inter_seq=50, min_duration_intra_seq=-3, min_len_seq=10, min_rep_nb=4,
                           max_branches=20, stop_if_twin=False,
                           no_reverse_seq=False, spike_rate_weight=False, path_data=path_data)
@@ -3193,7 +3430,7 @@ def main():
                         "p13_18_10_29_a001_ms",
                         "p14_18_10_23_a000_ms",
                         "p14_18_10_30_a001_ms",
-                        "p60_arnaud_ms"]
+                        "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
     abf_corrupted = ["p8_18_10_17_a001_ms", "p9_18_09_27_a003_ms"]
 
     ms_with_piezo = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms", "p7_18_02_08_a000_ms",
@@ -3222,10 +3459,13 @@ def main():
                       "p60_arnaud_ms"]
 
     ms_str_to_load = available_ms_str
-    ms_str_to_load = ["p60_arnaud_ms"]
     ms_str_to_load = ms_with_run
     ms_str_to_load = ["p9_18_09_27_a003_ms"]
     ms_str_to_load = ms_with_piezo
+    ms_str_to_load = available_ms_str
+    # ms_str_to_load = ["p60_a529_2015_02_25_v_arnaud_ms"]
+    ms_str_to_load = ["p60_arnaud_ms"]
+    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -3240,11 +3480,12 @@ def main():
     ms_to_analyse = available_ms
 
     just_do_stat_on_event_detection_parameters = True
+    do_plot_psth_twitches = False
 
     # for events (sce) detection
     perc_threshold = 99
     use_max_of_each_surrogate = False
-    n_surrogate_activity_threshold = 50
+    n_surrogate_activity_threshold = 1000
     use_raster_dur = True
     determine_low_activity_by_variation = False
 
@@ -3259,7 +3500,7 @@ def main():
     do_clustering = False
     # if False, clustering will be done using kmean
     do_fca_clustering = False
-    with_cells_in_cluster_seq_sorted = True
+    with_cells_in_cluster_seq_sorted = False
 
     # ##### for fca #####
     n_surrogate_fca = 20
@@ -3267,7 +3508,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(3, 10)
+    range_n_clusters_k_mean = np.arange(10, 13)
     # range_n_clusters_k_mean = np.array([3])
     n_surrogate_k_mean = 10
     keep_only_the_best_kmean_cluster = False
@@ -3284,12 +3525,12 @@ def main():
     n_surrogate_for_pattern_search = 100
     # seq params:
     # TODO: error_rate that change with the number of element in the sequence
-    param.error_rate = 0.25
+    param.error_rate = 0.3 # 0.25
     param.max_branches = 10
-    param.time_inter_seq = 50
-    param.min_duration_intra_seq = 0
-    param.min_len_seq = 5
-    param.min_rep_nb = 5
+    param.time_inter_seq = 20 # 50
+    param.min_duration_intra_seq = -5
+    param.min_len_seq = 20 # 5
+    param.min_rep_nb = 3
 
     debug_mode = False
 
@@ -3297,8 +3538,11 @@ def main():
 
     ms_by_age = dict()
     for ms in ms_to_analyse:
+        test_seq_detect(ms)
+        raise Exception("toto")
         if ms.age not in ms_by_age:
             ms_by_age[ms.age] = []
+
         ms_by_age[ms.age].append(ms)
 
         if do_plot_interneurons_connect_maps or do_plot_connect_hist:
@@ -3575,8 +3819,12 @@ def main():
                     print(f"sce_with_sliding_window detected")
                     # tuple of times
                     SCE_times = sce_detection_result[1]
+
+                    # print(f"SCE_times {SCE_times}")
                     sce_times_numbers = sce_detection_result[3]
                     sce_times_bool = sce_detection_result[0]
+                    # useful for plotting twitches
+                    ms.sce_bool = sce_times_bool
 
                     print(f"ms {ms.description}, {len(SCE_times)} sce "
                           f"activity threshold {activity_threshold}, "
@@ -3595,18 +3843,20 @@ def main():
                     span_area_colors = ['lightgrey']
                     if ms.mvt_frames_periods is not None:
                         if (not ms.with_run) and (ms.twitches_frames_periods is not None):
-                            # span_area_coords.append(ms.twitches_frames_periods)
-                            span_area_coords.append(ms.mvt_frames_periods)
+                            span_area_coords.append(ms.twitches_frames_periods)
+                            # span_area_coords.append(ms.mvt_frames_periods)
                             span_area_colors.append("red")
                         elif ms.with_run:
                             span_area_coords.append(ms.mvt_frames_periods)
                             # span_area_coords.append(ms.mvt_frames_periods)
                             span_area_colors.append("red")
-                    ms.plot_psth_twitches()
-                    ms.plot_psth_twitches(sce_bool=sce_times_bool, twitches_group=1)
-                    ms.plot_psth_twitches(sce_bool=sce_times_bool, twitches_group=2)
-                    ms.plot_psth_twitches(sce_bool=sce_times_bool, twitches_group=3)
-                    ms.plot_psth_twitches(sce_bool=sce_times_bool, twitches_group=4)
+                    if do_plot_psth_twitches:
+                        line_mode = True
+                        ms.plot_psth_twitches(line_mode=line_mode)
+                        ms.plot_psth_twitches(twitches_group=1, line_mode=line_mode)
+                        ms.plot_psth_twitches(twitches_group=2, line_mode=line_mode)
+                        ms.plot_psth_twitches( twitches_group=3, line_mode=line_mode)
+                        ms.plot_psth_twitches(twitches_group=4, line_mode=line_mode)
                     plot_spikes_raster(spike_nums=spike_nums_to_use, param=ms.param,
                                        span_cells_to_highlight=inter_neurons,
                                        span_cells_to_highlight_colors=["red"] * len(inter_neurons),
@@ -3632,7 +3882,7 @@ def main():
                                        spike_shape=spike_shape,
                                        spike_shape_size=0.5,
                                        save_formats="pdf")
-                    just_plot_raster = True
+                    just_plot_raster = False
                     if just_plot_raster:
                         continue
                     plot_psth_interneurons_events(ms=ms, spike_nums_dur=ms.spike_struct.spike_nums_dur,
@@ -3741,6 +3991,17 @@ def main():
                                                   colors=colors,
                                                   xlabel="spikes in event vs total events (%)",
                                                   param=param)
+        if do_plot_psth_twitches:
+            for age, ms_of_this_age in ms_by_age.items():
+                ms_of_this_age[0].plot_psth_twitches(line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
+                ms_of_this_age[0].plot_psth_twitches(twitches_group=1,
+                                                     line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
+                ms_of_this_age[0].plot_psth_twitches(twitches_group=2,
+                                                     line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
+                ms_of_this_age[0].plot_psth_twitches(twitches_group=3,
+                                                     line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
+                ms_of_this_age[0].plot_psth_twitches(twitches_group=4,
+                                                     line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
 
         ratio_spikes_events_non_interneurons_by_age = dict()
         ratio_spikes_events_interneurons_by_age = dict()
@@ -4031,7 +4292,6 @@ def main():
                                               )
 
             else:
-                # TODO: split spikes_nums in 3 to 4 part
                 print("Start of use_new_pattern_package")
                 find_significant_patterns(spike_nums=spike_nums_to_use, param=param,
                                           activity_threshold=activity_threshold,
@@ -4045,7 +4305,8 @@ def main():
                                           use_loss_score_to_keep_the_best_from_tree=
                                           use_loss_score_to_keep_the_best_from_tree,
                                           spike_shape="|",
-                                          spike_shape_size=5)
+                                          spike_shape_size=5,
+                                          keep_the_longest_seq=True)
 
     return
 
