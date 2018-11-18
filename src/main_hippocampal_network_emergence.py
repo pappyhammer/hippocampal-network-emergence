@@ -2487,7 +2487,6 @@ def test_seq_detect(ms):
             total_cells_in_ca += len(cell_assembly)
             print(f"CA {cell_assembly_index}: {cell_assembly}")
         print(f"n_cells in cell assemblies: {total_cells_in_ca}")
-        n_cell_assemblies = len(ms.cell_assemblies)
         sequences_with_ca_numbers = []
         cells_seq_with_correct_indices = []
         # we need to find the indices from the organized seq
@@ -2504,11 +2503,59 @@ def test_seq_detect(ms):
 
     print("")
     print("Seq with cell assemblies index")
+    max_index_seq = 0
+    max_rep = 0
+    for seq in seq_dict.keys():
+        if max_rep < len(seq_dict[seq]):
+            max_rep = len(seq_dict[seq])
+            max_index_seq = np.max(seq)
+            # max_index_seq = np.max((max_index_seq, np.max(seq)))
+
     for index, seq in enumerate(sequences_with_ca_numbers):
         print(f"Original: {cells_seq_with_correct_indices[index]}")
         print(f"Cell assemblies {seq}")
 
+    cells_to_highlight = []
+    cells_to_highlight_colors = []
 
+    n_cell_assemblies = len(ms.cell_assemblies)
+
+    for cell_assembly_index, cell_assembly in enumerate(ms.cell_assemblies):
+        color = cm.nipy_spectral(float(cell_assembly_index + 1) / (n_cell_assemblies + 1))
+        cell_indices_to_color = []
+        for cell in cell_assembly:
+            cell_index = np.where(ms.best_order_loaded == cell)[0][0]
+            if cell_index <= max_index_seq:
+                cell_indices_to_color.append(cell_index)
+        cells_to_highlight.extend(cell_indices_to_color)
+        cells_to_highlight_colors.extend([color] * len(cell_indices_to_color))
+
+    colors_for_seq_list = ["white"]
+    plot_spikes_raster(spike_nums=spike_nums_dur_ordered[:max_index_seq+1, :], param=ms.param,
+                       title=f"{ms.description}_spike_nums_ordered_cell_assemblies_colored",
+                       spike_train_format=False,
+                       file_name=f"{ms.description}_spike_nums_ordered_cell_assemblies_colored",
+                       y_ticks_labels=ordered_labels_real_data[:max_index_seq+1],
+                       save_raster=True,
+                       show_raster=False,
+                       sliding_window_duration=1,
+                       show_sum_spikes_as_percentage=True,
+                       plot_with_amplitude=False,
+                       save_formats="pdf",
+                       cells_to_highlight=cells_to_highlight,
+                       cells_to_highlight_colors=cells_to_highlight_colors,
+                       # seq_times_to_color_dict=seq_dict,
+                       # link_seq_color=colors_for_seq_list,
+                       # link_seq_line_width=0.5,
+                       link_seq_alpha=0.9,
+                       jitter_links_range=5,
+                       min_len_links_seq=3,
+                       spike_shape="o",
+                       spike_shape_size=5,
+                       without_activity_sum=True,
+                       size_fig=(15, 6))
+    # cells_to_highlight = None,
+    # cells_to_highlight_colors = None,
 
 def get_ratio_spikes_on_events_vs_total_spikes_by_cell(spike_nums,
                                                        spike_nums_dur,
