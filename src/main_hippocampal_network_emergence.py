@@ -4,10 +4,11 @@ from sklearn.cluster import KMeans
 import matplotlib
 import matplotlib.cm as cm
 import matplotlib.gridspec as gridspec
+import seaborn as sns
 from bisect import bisect
 
 # important to avoid a bug when using virtualenv
-matplotlib.use('TkAgg')
+# matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import numpy as np
 import hdf5storage
@@ -114,6 +115,14 @@ class MouseSession:
         self.speed_by_mvt_frame = None
         self.with_run = False
         self.with_piezo = False
+        # raw piezo: after removing period not corresponding to the movie, and using absolute value
+        self.raw_piezo = None
+        # represents the frames such as defined in the abf file, used to match the frames index to the raw_piezo data.
+        # for frames f with index 10, x = abf_frames[f] will give us the index of f such that self.raw_piezo[x] represent
+        # the piezzo value at frame x
+        self.abf_frames = None
+        self.abf_times_in_sec = None
+        self.threshold_piezo = None
         self.twitches_frames_periods = None
         self.twitches_frames = None
         self.sce_bool = None
@@ -759,6 +768,287 @@ class MouseSession:
                 # print(f"self.sce_times_in_cell_assemblies {self.sce_times_in_cell_assemblies}")
                 # raise Exception("titi")
 
+    def plot_raw_traces_around_twitches(self):
+        if self.twitches_frames_periods is None:
+            return
+        twitches_periods = self.twitches_frames_periods
+        twitches_frames = []
+        for twitch_period in twitches_periods:
+            twitches_frames.append(int((twitch_period[0] + twitch_period[1]) // 2))
+        self.plot_raw_traces_around_frames(frames_indices=np.array(twitches_frames), data_descr="twitches")
+
+    def plot_raw_traces_around_frames(self, frames_indices, data_descr, show_plot=False, range_in_frames=50,
+                                      save_formats="pdf"):
+        if self.traces is None:
+            return
+        n_cells = len(self.traces)
+        n_times = len(self.traces[0, :])
+
+        grouped_mean_values = []
+        grouped_std_values = []
+        n_lines = 10
+        n_col = 5
+        n_plots_by_fig = n_lines * n_col
+
+        for cell in np.arange(n_cells):
+
+            len_plot = int((range_in_frames * 2) + 1)
+            x_times = np.arange(-range_in_frames, range_in_frames + 1)
+            all_values = np.zeros((len(frames_indices), len_plot))
+
+            for frame_count, frame_index in enumerate(frames_indices):
+                beg_time = np.max((0, frame_index - range_in_frames))
+                end_time = np.min((n_times, frame_index + range_in_frames + 1))
+                len_data = end_time - beg_time
+                if frame_index - range_in_frames >= 0:
+                    value_beg = 0
+                else:
+                    value_beg = 0 - (frame_index - range_in_frames)
+
+                # print(f"piezo_beg_time {piezo_beg_time}, piezo_end_time {piezo_end_time}, value_beg {value_beg}, "
+                #       f"sce_time {sce_time}")
+
+                all_values[frame_count, value_beg:value_beg + len_data] = self.traces[cell, beg_time:end_time]
+
+            mean_values = np.mean(all_values, axis=0)
+            std_values = np.std(all_values, axis=0)
+
+            grouped_mean_values.append(mean_values)
+            grouped_std_values.append(std_values)
+
+            plt.title(f"trace around {data_descr} of {self.description} {len(frames_indices)} {data_descr}")
+
+            if ((cell + 1) % n_plots_by_fig == 0) or (cell == (n_cells - 1)):
+                n_cells_to_plot = n_cells
+                if ((cell + 1) % n_plots_by_fig == 0):
+                    first_cell = cell - n_plots_by_fig + 1
+                else:
+                    first_cell = cell - ((cell + 1) % n_plots_by_fig) + 1
+
+                if (cell == (n_cells - 1)):
+                    n_cells_to_plot = len(grouped_mean_values)
+
+                fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                                         gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
+                                         figsize=(20, 15))
+                fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+                axes = axes.flatten()
+                for ax_index, ax in enumerate(axes):
+                    if (ax_index + 1) > n_cells_to_plot:
+                        break
+                    ax.set_facecolor("black")
+
+                    ax.plot(x_times,
+                            grouped_mean_values[ax_index], color="blue", lw=2, label=f"cell {ax_index+first_cell}")
+                    ax.fill_between(x_times, grouped_mean_values[ax_index] - grouped_std_values[ax_index],
+                                    grouped_mean_values[ax_index] + grouped_std_values[ax_index],
+                                    alpha=0.5, facecolor="blue")
+                    ax.legend()
+                    ax.vlines(0, np.min(grouped_mean_values[ax_index] - grouped_std_values[ax_index]),
+                            np.max(grouped_mean_values[ax_index] + grouped_std_values[ax_index]), color="white",
+                              linewidth=1,
+                               linestyles="dashed")
+                    xticks = np.arange(-range_in_frames, range_in_frames + 1, 10)
+                    xticks_labels = np.arange(-(range_in_frames // 10), (range_in_frames // 10) + 1)
+                    ax.set_xticks(xticks)
+                    # sce clusters labels
+                    ax.set_xticklabels(xticks_labels)
+
+                if isinstance(save_formats, str):
+                    save_formats = [save_formats]
+                for save_format in save_formats:
+                    fig.savefig(f'{self.param.path_results}/{self.description}_cells_{first_cell}-{cell}_'
+                                f'traces_around_{len(frames_indices)}_{data_descr}_'
+                                f'{range_in_frames}_frames'
+                                f'_{self.param.time_str}.{save_format}',
+                                format=f"{save_format}")
+
+                if show_plot:
+                    plt.show()
+                plt.close()
+
+                grouped_mean_values = []
+                grouped_std_values = []
+
+    def plot_piezo_around_event(self, show_plot=False, range_in_sec=2, save_formats="pdf"):
+        print(f"plot_piezo_around_event: {self.description}")
+        if self.raw_piezo is None:
+            print(f"{self.description} has no raw piezo")
+            return
+        sce_periods = self.SCE_times
+
+        n_time_by_sec = int(len(self.abf_times_in_sec) // self.abf_times_in_sec[-1])
+        # print(f"n_time_by_sec {n_time_by_sec}")
+        len_plot = int((range_in_sec * n_time_by_sec * 2) + 1)
+        x_times = np.linspace((-n_time_by_sec * range_in_sec), ((n_time_by_sec * range_in_sec) + 1), len_plot)
+        all_values = np.zeros((len(sce_periods), len_plot))
+        # mean_values = np.zeros(len_plot)
+        # std_values = np.zeros(len_plot)
+
+        for sce_index, sce_period in enumerate(sce_periods):
+            index_peak = sce_period[0] + np.argmax(np.sum(
+                self.spike_struct.spike_nums_dur[:, sce_period[0]:sce_period[1] + 1], axis=0))
+            sce_time = self.abf_frames[index_peak]
+            piezo_beg_time = np.max((0, sce_time - (range_in_sec * n_time_by_sec)))
+            piezo_end_time = np.min((len(self.raw_piezo), sce_time + (range_in_sec * n_time_by_sec) + 1))
+            len_data = piezo_end_time - piezo_beg_time
+            if (sce_time - (range_in_sec * n_time_by_sec)) >= 0:
+                value_beg = 0
+            else:
+                value_beg = 0 - (sce_time - (range_in_sec * n_time_by_sec))
+
+            # print(f"piezo_beg_time {piezo_beg_time}, piezo_end_time {piezo_end_time}, value_beg {value_beg}, "
+            #       f"sce_time {sce_time}")
+
+            all_values[sce_index, value_beg:value_beg + len_data] = self.raw_piezo[piezo_beg_time:piezo_end_time]
+
+        mean_values = np.mean(all_values, axis=0)
+        std_values = np.std(all_values, axis=0)
+
+        fig, ax = plt.subplots(nrows=1, ncols=1,
+                               gridspec_kw={'height_ratios': [1]},
+                               figsize=(20, 8))
+
+        ax.set_facecolor("black")
+
+        plt.plot(x_times,
+                 mean_values, color="blue", lw=2)
+        ax.fill_between(x_times, mean_values - std_values,
+                        mean_values + std_values,
+                        alpha=0.5, facecolor="blue")
+
+        plt.title(f"piezo around events of {self.description}")
+
+        xticks = np.arange((-n_time_by_sec * range_in_sec), ((n_time_by_sec * range_in_sec) + 1), n_time_by_sec)
+        xticks_labels = np.arange(-range_in_sec, range_in_sec + 1)
+        ax.set_xticks(xticks)
+        # sce clusters labels
+        ax.set_xticklabels(xticks_labels)
+
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+        for save_format in save_formats:
+            fig.savefig(f'{self.param.path_results}/{self.description}_piezo_around_events'
+                        f'_{self.param.time_str}.{save_format}',
+                        format=f"{save_format}")
+
+        if show_plot:
+            plt.show()
+        plt.close()
+
+    def plot_piezo_with_extra_info(self, show_plot=True, save_formats="pdf"):
+        if (self.raw_piezo is None) or (self.abf_frames is None):
+            return
+
+        print(f"plot_piezo_with_extra_info {self.description}")
+
+        span_areas_coords = []
+        span_area_colors = []
+        span_areas_coords.append(self.mvt_frames_periods)
+        span_area_colors.append('red')
+        # if with_cell_assemblies_sce and self.sce_times_in_cell_assemblies is not None:
+        #     span_areas_coords.append(self.sce_times_in_cell_assemblies)
+        #     span_area_colors.append('green')
+        # else:
+        span_areas_coords.append(self.SCE_times)
+        span_area_colors.append('green')
+        # span_areas_coords.append(self.twitches_frames_periods)
+        # span_area_colors.append('blue')
+
+        fig, ax = plt.subplots(nrows=1, ncols=1,
+                               gridspec_kw={'height_ratios': [1]},
+                               figsize=(20, 8))
+        plt.plot(self.abf_times_in_sec, self.raw_piezo, lw=.5, color="black")
+
+        if span_areas_coords is not None:
+            for index, span_area_coord in enumerate(span_areas_coords):
+                for coord in span_area_coord:
+                    color = span_area_colors[index]
+                    coord_0 = self.abf_times_in_sec[self.abf_frames[coord[0]]]
+                    coord_1 = self.abf_times_in_sec[self.abf_frames[coord[1]] + 1]
+                    ax.axvspan(coord_0, coord_1, alpha=0.5,
+                               facecolor=color, zorder=1)
+        for twitch_index, twitch_period in enumerate(self.twitches_frames_periods):
+            twitch_time_beg = self.abf_times_in_sec[self.abf_frames[twitch_period[0]]]
+            twitch_time_end = self.abf_times_in_sec[self.abf_frames[twitch_period[1]]]
+            # print(f"twitch {twitch_index} beg-end "
+            #       f"{np.round(twitch_time_beg, 2)}-"
+            #       f"{np.round(twitch_time_end, 2)}")
+            pos = (twitch_time_beg + twitch_time_end) / 2
+
+            y = np.max(self.raw_piezo[self.abf_frames[twitch_period[0]]:
+                                      self.abf_frames[twitch_period[1]] + 1])
+            # y = np.percentile(self.raw_piezo, 99)
+            if twitch_index == 0:
+                ax.scatter(x=pos, y=y,
+                           marker="*",
+                           color=["blue"], s=10, zorder=20, label="twitch")
+            else:
+                ax.scatter(x=pos, y=y,
+                           marker="*",
+                           color=["blue"], s=10, zorder=20)
+
+        sce_periods = self.SCE_times
+
+        for sce_index, sce_period in enumerate(sce_periods):
+            sce_time_beg = self.abf_times_in_sec[self.abf_frames[sce_period[0]]]
+            sce_time_end = self.abf_times_in_sec[self.abf_frames[sce_period[1]]]
+            pos = (sce_time_beg + sce_time_end) / 2
+            y = np.max(self.raw_piezo[self.abf_frames[sce_period[0]]:
+                                      self.abf_frames[sce_period[1]] + 1])
+            label = "sce"
+            if sce_index == 0:
+                ax.scatter(x=pos, y=y,
+                           marker="o",
+                           color=["lightgreen"], s=20, zorder=10, label=label)
+            else:
+                ax.scatter(x=pos, y=y,
+                           marker="o",
+                           color=["lightgreen"], s=20, zorder=10)
+
+        if self.sce_times_in_cell_assemblies is not None:
+            sce_periods = self.sce_times_in_cell_assemblies
+
+            for sce_index, sce_period in enumerate(sce_periods):
+                sce_time_beg = self.abf_times_in_sec[self.abf_frames[sce_period[0]]]
+                sce_time_end = self.abf_times_in_sec[self.abf_frames[sce_period[1]]]
+                pos = (sce_time_beg + sce_time_end) / 2
+                y = np.max(self.raw_piezo[self.abf_frames[sce_period[0]]:
+                                          self.abf_frames[sce_period[1]] + 1])
+                # y = np.percentile(self.raw_piezo, 99)
+                label = "sce in cell assemblies"
+                if sce_index == 0:
+                    ax.scatter(x=pos, y=y,
+                               marker="o",
+                               color=["cornflowerblue"], s=20, zorder=15, label=label)
+                else:
+                    ax.scatter(x=pos, y=y,
+                               marker="o",
+                               color=["cornflowerblue"], s=20, zorder=15)
+
+        if self.threshold_piezo is not None:
+            ax.hlines(self.threshold_piezo, 0, np.max(self.abf_times_in_sec),
+                      color="orange", linewidth=1,
+                      linestyles="dashed")
+
+        plt.title(f"piezo {self.description} threshold {self.threshold_piezo}")
+
+        plt.legend()
+
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+        for save_format in save_formats:
+            extra_str = ""
+            if self.sce_times_in_cell_assemblies is not None:
+                extra_str = "_with_cell_assemblies_sce"
+            fig.savefig(f'{self.param.path_results}/{self.description}_raw_piezo_{extra_str}'
+                        f'_{self.param.time_str}.{save_format}',
+                        format=f"{save_format}")
+
+        if show_plot:
+            plt.show()
+        plt.close()
+
     def plot_raster_with_cells_assemblies_events_and_mvts(self):
         if self.sce_times_in_cell_assemblies is None:
             return
@@ -784,6 +1074,46 @@ class MouseSession:
         span_areas_coords.append(self.twitches_frames_periods)
         span_area_colors.append('blue')
 
+        ## ratio
+        for cell_assembly_index in np.arange(-1, len(self.cell_assemblies)):
+
+            if cell_assembly_index == -1:
+                this_sce_times_in_cell_assemblies = self.sce_times_in_cell_assemblies
+            else:
+                this_sce_times_in_cell_assemblies = self.sce_times_in_single_cell_assemblies[cell_assembly_index]
+
+            n_times = len(self.spike_struct.spike_nums_dur[0, :])
+            mvt_frames_bool = np.zeros(n_times, dtype="bool")
+            twtich_frames_bool = np.zeros(n_times, dtype="bool")
+
+            n_sce_in_mvt = 0
+            n_sce_in_twitch = 0
+            n_sce = len(this_sce_times_in_cell_assemblies)
+            n_sce_rest = 0
+
+            for mvt_period in self.mvt_frames_periods:
+                mvt_frames_bool[mvt_period[0]:mvt_period[1] + 1] = True
+
+            for twitch_period in self.twitches_frames_periods:
+                twtich_frames_bool[twitch_period[0]:twitch_period[1] + 1] = True
+
+            for sce_period in this_sce_times_in_cell_assemblies:
+                if np.any(mvt_frames_bool[sce_period[0]:sce_period[1] + 1]):
+                    if np.any(twtich_frames_bool[sce_period[0]:sce_period[1] + 1]):
+                        n_sce_in_twitch += 1
+                    else:
+                        n_sce_in_mvt += 1
+                else:
+                    n_sce_rest += 1
+            bonus_str = "for all cell assemblies"
+            if cell_assembly_index > -1:
+                bonus_str = f" for cell_assembly n° {cell_assembly_index}"
+            print(f"Cell assemblies sce in {self.description}{bonus_str}")
+            print(f"n_sce {n_sce}")
+            print(f"n_sce_rest {n_sce_rest}")
+            print(f"n_sce_in_mvt {n_sce_in_mvt}")
+            print(f"n_sce_in_twitch {n_sce_in_twitch}")
+
         labels = np.arange(len(self.spike_struct.spike_nums_dur))
         plot_spikes_raster(spike_nums=self.spike_struct.spike_nums_dur, param=self.param,
                            title=f"{self.description}_spike_nums_with_mvt_and_cell_assemblies_events",
@@ -806,7 +1136,6 @@ class MouseSession:
                            span_area_only_on_raster=False,
                            without_activity_sum=False,
                            size_fig=(15, 6))
-
 
     def plot_each_inter_neuron_connect_map(self):
         # plot n_in and n_out map of the interneurons
@@ -981,6 +1310,7 @@ class MouseSession:
         print(f"abf: ms {self.description}")
 
         self.abf_sampling_rate = sampling_rate
+        self.threshold_piezo = threshold_piezo
 
         if with_run:
             self.with_run = True
@@ -1007,6 +1337,12 @@ class MouseSession:
                         self.mvt_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
                         if "speed_by_mvt_frame" in npzfile:
                             self.speed_by_mvt_frame = npzfile['speed_by_mvt_frame']
+                        if "raw_piezo" in npzfile:
+                            self.raw_piezo = npzfile['raw_piezo']
+                        if "abf_frames" in npzfile:
+                            self.abf_frames = npzfile['abf_frames']
+                        if "abf_times_in_sec" in npzfile:
+                            self.abf_times_in_sec = npzfile['abf_times_in_sec']
                         if not with_run:
                             self.detect_twitches()
                         return
@@ -1103,6 +1439,8 @@ class MouseSession:
             binary_frames_data[frames_data < 0.05] = 0
             # +1 due to the shift of diff
             active_frames = np.where(np.diff(binary_frames_data) == 1)[0] + 1
+        if not with_run:
+            self.raw_piezo = mvt_data
         # active_frames = np.concatenate(([0], active_frames))
         # print(f"active_frames {active_frames}")
         nb_frames = len(active_frames)
@@ -1156,7 +1494,7 @@ class MouseSession:
             self.detect_twitches()
 
         # plotting the result
-        check_piezo_threshold = True
+        check_piezo_threshold = False
         if check_piezo_threshold:
             fig, ax = plt.subplots(nrows=1, ncols=1,
                                    gridspec_kw={'height_ratios': [1]},
@@ -1177,8 +1515,12 @@ class MouseSession:
                      mvt_frames=self.mvt_frames, speed_by_mvt_frame=self.speed_by_mvt_frame)
         else:
             if threshold_piezo is not None:
+                # print(f"len(self.raw_piezo): {len(self.raw_piezo)}")
+                self.abf_frames = active_frames
+                self.abf_times_in_sec = times_in_sec
                 np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
-                         mvt_frames=self.mvt_frames)
+                         mvt_frames=self.mvt_frames, raw_piezo=self.raw_piezo, abf_frames=active_frames,
+                         abf_times_in_sec=times_in_sec)
         # continuous_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
         # print(f"continuous_frames_periods {continuous_frames_periods}")
         # print(f"self.mvt_frames_periods {self.mvt_frames_periods}")
@@ -2397,6 +2739,7 @@ def plot_hist_ratio_spikes_events(ratio_spikes_events, description, values_to_sc
     #     plt.xlim(min_range, max_range)
     plt.xlim(0, 100)
     xticks = np.arange(0, 110, 10)
+
     ax1.set_xticks(xticks)
     # sce clusters labels
     ax1.set_xticklabels(xticks)
@@ -2807,8 +3150,8 @@ def test_seq_detect(ms):
         total_cells_in_ca = 0
         for cell_assembly_index, cell_assembly in enumerate(ms.cell_assemblies):
             total_cells_in_ca += len(cell_assembly)
-            print(f"CA {cell_assembly_index}: {cell_assembly}")
-        print(f"n_cells in cell assemblies: {total_cells_in_ca}")
+        #     print(f"CA {cell_assembly_index}: {cell_assembly}")
+        # print(f"n_cells in cell assemblies: {total_cells_in_ca}")
         sequences_with_ca_numbers = []
         cells_seq_with_correct_indices = []
         # we need to find the indices from the organized seq
@@ -2823,9 +3166,9 @@ def test_seq_detect(ms):
                         new_seq[index_cell] = cell_assembly_index
             sequences_with_ca_numbers.append(new_seq)
 
-    print("")
-    print("Seq with cell assemblies index")
-    choose_manually = False
+    # print("")
+    # print("Seq with cell assemblies index")
+    choose_manually = True
     if choose_manually:
         max_index_seq = 0
         max_rep = 0
@@ -2834,7 +3177,7 @@ def test_seq_detect(ms):
         for seq in seq_dict.keys():
             # if (seq[0] > 10):
             #     break
-            if len(seq_dict[seq]):  # len(seq_dict[seq]): max_rep < len(seq)
+            if len(seq_dict[seq]) > max_rep:  # len(seq_dict[seq]): max_rep < len(seq)
                 max_rep = len(seq_dict[seq])  # len(seq)  #
                 max_index_seq = np.max(seq)
                 seq_elu = seq
@@ -2843,11 +3186,11 @@ def test_seq_detect(ms):
             if seq[-1] <= seq_elu[-1]:
                 seq_dict_for_best_seq[seq] = seq_dict[seq]
 
-        for index, seq in enumerate(sequences_with_ca_numbers):
-            print(f"Original: {cells_seq_with_correct_indices[index]}")
-            print(f"Cell assemblies {seq}")
+        # for index, seq in enumerate(sequences_with_ca_numbers):
+        #     print(f"Original: {cells_seq_with_correct_indices[index]}")
+        #     print(f"Cell assemblies {seq}")
     else:
-        max_index_seq = 80
+        max_index_seq = 15
 
     cells_to_highlight = []
     cells_to_highlight_colors = []
@@ -2864,16 +3207,25 @@ def test_seq_detect(ms):
         cells_to_highlight.extend(cell_indices_to_color)
         cells_to_highlight_colors.extend([color] * len(cell_indices_to_color))
 
+        span_areas_coords = []
+        span_area_colors = []
+        span_areas_coords.append(ms.mvt_frames_periods)
+        span_area_colors.append('red')
+        span_areas_coords.append(ms.sce_times_in_cell_assemblies)
+        span_area_colors.append('green')
+        span_areas_coords.append(ms.twitches_frames_periods)
+        span_area_colors.append('blue')
+
     colors_for_seq_list = ["white"]
-    span_area_coords = [ms.SCE_times]
-    span_area_colors = ['lightgrey']
+    # span_area_coords = [ms.SCE_times]
+    # span_area_colors = ['lightgrey']
     plot_spikes_raster(spike_nums=spike_nums_dur_ordered[:max_index_seq + 1, :], param=ms.param,
                        title=f"{ms.description}_spike_nums_ordered_cell_assemblies_colored",
                        spike_train_format=False,
                        file_name=f"{ms.description}_spike_nums_ordered_cell_assemblies_colored",
                        y_ticks_labels=ordered_labels_real_data[:max_index_seq + 1],
                        save_raster=True,
-                       show_raster=True,
+                       show_raster=False,
                        sliding_window_duration=1,
                        show_sum_spikes_as_percentage=True,
                        plot_with_amplitude=False,
@@ -2888,13 +3240,193 @@ def test_seq_detect(ms):
                        min_len_links_seq=3,
                        spike_shape="o",
                        spike_shape_size=1,
+                       # span_area_coords=span_areas_coords,
+                       # span_area_colors=span_area_colors,
                        # span_area_coords=span_area_coords,
                        # span_area_colors=span_area_colors,
                        # span_area_only_on_raster=False,
                        without_activity_sum=True,
                        size_fig=(15, 6))
+    # with amplitude, using traces
+    # print(f"ms.traces.shape {ms.traces.shape}")
+    amplitude_spike_nums = ms.traces
+    n_times = len(amplitude_spike_nums[0, :])
+    # normalizing it
+    for cell, amplitudes in enumerate(amplitude_spike_nums):
+        # print(f"cell {cell}, min: {np.mean(amplitudes)}, max {np.max(amplitudes)}, mean {np.mean(amplitudes)}")
+        # amplitude_spike_nums[cell, :] = amplitudes / np.median(amplitudes)
+        amplitude_spike_nums[cell, :] = amplitude_spike_nums[cell, :] / np.median(amplitude_spike_nums[cell, :])
+        amplitude_spike_nums[cell, :] = norm01(gaussblur1D(amplitude_spike_nums[cell, :], n_times / 2, 0))
+        amplitude_spike_nums[cell, :] = norm01(amplitude_spike_nums[cell, :])
+        amplitude_spike_nums[cell, :] = amplitude_spike_nums[cell, :] - np.median(amplitude_spike_nums[cell, :])
+    #     print(f"cell {cell}, min: {np.mean(amplitudes)}, max {np.max(amplitudes)}, mean {np.mean(amplitudes)}")
+    amplitude_spike_nums_ordered = amplitude_spike_nums[ms.best_order_loaded, :]
+
+    n_cells = len(amplitude_spike_nums_ordered)
+    cells_range_to_display = np.arange(max_index_seq + 1)
+    cells_range_to_display = np.arange(n_cells)
+    use_heatmap = True
+    if use_heatmap:
+        with_one_ax = True
+        if with_one_ax:
+            fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                    gridspec_kw={'height_ratios': [1],
+                                                 'width_ratios': [1]},
+                                    figsize=(15, 6))
+            ax1.imshow(amplitude_spike_nums_ordered[cells_range_to_display, :],
+                       cmap=plt.get_cmap("hot"), extent=[0, 10, 0, 10], aspect='auto', vmin=0, vmax=0.5)
+            ax1.axis('image')
+            ax1.axis('off')
+
+            # ax1.imshow(,  cmap=plt.get_cmap("hot")) # extent=[0, 1, 0, 1],
+            # sns.heatmap(amplitude_spike_nums_ordered[:max_index_seq + 1, :],
+            #             cbar=False, ax=ax1, cmap=plt.get_cmap("hot"), rasterized=True) #
+
+            fig.savefig(f'{ms.param.path_results}/{ms.description}spike_nums_ordered_heatmap_.pdf',
+                        format=f"pdf")
+            show_fig = True
+            if show_fig:
+                plt.show()
+            plt.close()
+        else:
+            fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=4, ncols=1,
+                                                     gridspec_kw={'height_ratios': [0.25, 0.25, 0.25, 0.25],
+                                                                  'width_ratios': [1]},
+                                                     figsize=(15, 6))
+            vmax = 0.9
+            ax1.imshow(amplitude_spike_nums_ordered[cells_range_to_display, :n_times // 4],
+                       cmap=plt.get_cmap("hot"), extent=[0, 10, 0, 1], aspect='auto', vmin=0, vmax=0.5)
+            ax1.axis('image')
+            ax1.axis('off')
+            ax2.imshow(amplitude_spike_nums_ordered[cells_range_to_display, (n_times // 4):(2 * (n_times // 4))],
+                       cmap=plt.get_cmap("hot"), extent=[0, 10, 0, 1], aspect='auto', vmin=0, vmax=0.5)
+            # matshow
+            ax2.axis('image')
+            ax2.axis('off')
+            ax3.imshow(amplitude_spike_nums_ordered[cells_range_to_display, (2 * (n_times // 4)):(3 * (n_times // 4))],
+                       cmap=plt.get_cmap("hot"), extent=[0, 10, 0, 1], aspect='auto', vmin=0,
+                       vmax=0.5)  # vmin=0, vmax=vmax,
+
+            ax3.axis('image')
+            ax3.axis('off')
+            ax4.imshow(amplitude_spike_nums_ordered[cells_range_to_display, (3 * (n_times // 4)):(4 * (n_times // 4))],
+                       cmap=plt.get_cmap("hot"), extent=[0, 10, 0, 1], aspect='auto', vmin=0, vmax=0.5)
+            ax4.axis('image')
+            ax4.axis('off')
+
+            # ax1.imshow(,  cmap=plt.get_cmap("hot")) # extent=[0, 1, 0, 1],
+            # sns.heatmap(amplitude_spike_nums_ordered[:max_index_seq + 1, :],
+            #             cbar=False, ax=ax1, cmap=plt.get_cmap("hot"), rasterized=True) #
+
+            fig.savefig(f'{ms.param.path_results}/{ms.description}spike_nums_ordered_heatmap_.pdf',
+                        format=f"pdf")
+            show_fig = True
+            if show_fig:
+                plt.show()
+            plt.close()
+    else:
+        # cells_range_to_display = np.arange(n_cells)
+        labels_to_display = []
+        for i in cells_range_to_display:
+            labels_to_display.append(ordered_labels_real_data[i])
+        # putting all values > 0.8 to 1
+        amplitude_spike_nums_ordered[amplitude_spike_nums_ordered > 0.8] = 1
+        plot_spikes_raster(spike_nums=amplitude_spike_nums_ordered[cells_range_to_display, :], param=ms.param,
+                           title=f"{ms.description}_spike_nums_ordered_cell_assemblies_colored",
+                           spike_train_format=False,
+                           file_name=f"{ms.description}_spike_nums_ordered_with_amplitude",
+                           y_ticks_labels=labels_to_display,
+                           save_raster=True,
+                           show_raster=False,
+                           sliding_window_duration=1,
+                           show_sum_spikes_as_percentage=True,
+                           plot_with_amplitude=True,
+                           save_formats="pdf",
+                           # cells_to_highlight=cells_to_highlight,
+                           # cells_to_highlight_colors=cells_to_highlight_colors,
+                           # seq_times_to_color_dict=seq_dict_for_best_seq,
+                           # link_seq_color=colors_for_seq_list,
+                           # link_seq_line_width=0.8,
+                           # link_seq_alpha=0.9,
+                           # jitter_links_range=0,
+                           # min_len_links_seq=3,
+                           spike_shape="|",
+                           spike_shape_size=0.2,
+                           # span_area_coords=span_areas_coords,
+                           # span_area_colors=span_area_colors,
+                           # span_area_coords=span_area_coords,
+                           # span_area_colors=span_area_colors,
+                           # span_area_only_on_raster=False,
+                           without_activity_sum=False,
+                           spike_nums_for_activity_sum=spike_nums_dur_ordered[cells_range_to_display, :],
+                           size_fig=(15, 6),
+                           cmap_name="hot")
+
     # cells_to_highlight = None,
     # cells_to_highlight_colors = None,
+
+
+def norm01(data):
+    min_value = np.min(data)
+    max_value = np.max(data)
+
+    difference = max_value - min_value
+
+    data -= min_value
+
+    if difference > 0:
+        data = data / difference
+
+    return data
+
+
+def gaussblur1D(data, dw, dim):
+    n_times = data.shape[dim]
+
+    if n_times % 2 == 0:
+        kt = np.arange((-n_times / 2) + 0.5, (n_times / 2) - 0.5 + 1)
+    else:
+        kt = np.arange(-(n_times - 1) / 2, ((n_times - 1) / 2 + 1))
+
+    if dim == 0:
+        fil = np.exp(-np.square(kt) / dw ** 2) * np.ones(data.shape[0])
+    elif dim == 1:
+        fil = np.ones(data.shape[1]) * np.exp(-np.square(kt) / dw ** 2)
+    elif dim == 2:
+        fil = np.zeros((data.shape[0], data.shape[1], data.shape[2]))
+        for i in np.arange(n_times):
+            fil[:, :, i] = np.ones((data.shape[0], data.shape[1])) * np.exp(-np.square(kt[i]) / dw ** 2)
+
+    tfA = np.fft.fftshift(np.fft.fft(data, axis=dim))
+    b = np.real(np.fft.ifft(np.fft.ifftshift(tfA * fil), axis=dim))
+
+    return b
+
+
+"""
+function B=GaussBlur1d(A,dw,dim)
+
+
+    nt=size(A,dim);
+    if rem(nt,2)==0
+        kt=-nt/2+0.5:nt/2-0.5;
+    else
+        kt=-(nt-1)/2:(nt-1)/2;
+    end
+    if dim==1
+        Fil=exp(-kt'.^2/dw^2)*ones(1,size(A,2));
+    end
+    if dim==2
+        Fil=ones(size(A,1),1)*exp(-kt.^2/dw^2);
+    end
+    if dim==3
+        for i=1:nt
+            Fil(:,:,i)=ones(size(A,1),size(A,2))*exp(-kt(i).^2/dw^2);
+        end
+    end
+    tfA=fftshift(fft(A,[],dim));
+    B=real(ifft(ifftshift(tfA.*Fil),[],dim));
+"""
 
 
 def get_ratio_spikes_on_events_vs_total_spikes_by_cell(spike_nums,
@@ -3436,7 +3968,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p9_18_09_27_a003_ms = MouseSession(age=9, session_id="18_09_27_a003", nb_ms_by_frame=100, param=param,
                                            weight=6.65)
         # calculated with 99th percentile on raster dur
-        p9_18_09_27_a003_ms.activity_threshold = 9
+        # p9_18_09_27_a003_ms.activity_threshold = 9
         # p9_18_09_27_a003_ms.set_low_activity_threshold(threshold=, percentile_value=1)
         p9_18_09_27_a003_ms.set_inter_neurons([2, 9, 67, 206])
         # duration of those interneurons: 59.1, 32, 28, 35.15
@@ -3801,7 +4333,7 @@ def main():
         compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v5/", param=param)
         return
 
-    load_traces = False
+    load_traces = True
 
     available_ms_str = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
                         "p7_171012_a000_ms", "p7_18_02_08_a000_ms",
@@ -3864,9 +4396,11 @@ def main():
     ms_str_to_load = ["p60_arnaud_ms"]
     ms_str_to_load = available_ms_str
     ms_str_to_load = ["p60_a529_2015_02_25_ms"]
-    ms_str_to_load = ["p9_18_09_27_a003_ms"]
     ms_str_to_load = ["p6_18_02_07_a002_ms"]
     ms_str_to_load = ["p7_18_02_08_a000_ms"]
+    ms_str_to_load = ms_with_piezo
+    ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    ms_str_to_load = ["p9_18_09_27_a003_ms"]
     ms_str_to_load = ms_with_piezo
 
     # loading data
@@ -3881,12 +4415,12 @@ def main():
     #     return
     ms_to_analyse = available_ms
 
-    just_do_stat_on_event_detection_parameters = False
+    just_do_stat_on_event_detection_parameters = True
     do_plot_psth_twitches = False
     just_plot_raster = False
 
     # for events (sce) detection
-    perc_threshold = 99
+    perc_threshold = 80
     use_max_of_each_surrogate = False
     n_surrogate_activity_threshold = 1000
     use_raster_dur = True
@@ -3902,7 +4436,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = True
+    do_clustering = False
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
@@ -3914,8 +4448,8 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    # range_n_clusters_k_mean = np.arange(2, 10)
-    range_n_clusters_k_mean = np.array([6])
+    range_n_clusters_k_mean = np.arange(4, 10)
+    # range_n_clusters_k_mean = np.array([6])
     n_surrogate_k_mean = 10
     keep_only_the_best_kmean_cluster = False
 
@@ -3945,50 +4479,62 @@ def main():
 
     ms_by_age = dict()
     for ms_index, ms in enumerate(ms_to_analyse):
-        ms.plot_time_correlation_graph_over_twitches()
-        if ms_index == len(ms_to_analyse) - 1:
-            raise Exception("loko")
-        continue
+        # ms.plot_time_correlation_graph_over_twitches()
+        # if ms_index == len(ms_to_analyse) - 1:
+        #     raise Exception("loko")
+        # continue
         # ms.plot_raster_with_cells_assemblies_events_and_mvts()
-        # raise Exception("koko")
+        # if ms_index == len(ms_to_analyse) - 1:
+        #     raise Exception("koko")
+        # continue
 
-        # spike_nums_to_use = ms.spike_struct.spike_nums_dur
-        # sliding_window_duration = 1
-        # if ms.activity_threshold is None:
-        #     activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use,
-        #                                                      window_duration=sliding_window_duration,
-        #                                                      spike_train_mode=False,
-        #                                                      use_max_of_each_surrogate=use_max_of_each_surrogate,
-        #                                                      n_surrogate=n_surrogate_activity_threshold,
-        #                                                      perc_threshold=perc_threshold,
-        #                                                      debug_mode=False)
+        spike_nums_to_use = ms.spike_struct.spike_nums_dur
+        sliding_window_duration = 1
+        if ms.activity_threshold is None:
+            activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use,
+                                                             window_duration=sliding_window_duration,
+                                                             spike_train_mode=False,
+                                                             use_max_of_each_surrogate=use_max_of_each_surrogate,
+                                                             n_surrogate=n_surrogate_activity_threshold,
+                                                             perc_threshold=perc_threshold,
+                                                             debug_mode=False)
+
+            ms.spike_struct.activity_threshold = activity_threshold
+            # param.activity_threshold = activity_threshold
+        else:
+            activity_threshold = ms.activity_threshold
+            ms.spike_struct.activity_threshold = ms.activity_threshold
+
+        sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
+                                                              window_duration=sliding_window_duration,
+                                                              perc_threshold=perc_threshold,
+                                                              activity_threshold=activity_threshold,
+                                                              debug_mode=False,
+                                                              no_redundancy=no_redundancy)
+
+        print(f"sce_with_sliding_window detected")
+        # tuple of times
+        SCE_times = sce_detection_result[1]
+
+        # print(f"SCE_times {SCE_times}")
+        sce_times_numbers = sce_detection_result[3]
+        sce_times_bool = sce_detection_result[0]
+        # useful for plotting twitches
+        ms.sce_bool = sce_times_bool
+        ms.sce_times_numbers = sce_times_numbers
+        ms.SCE_times = SCE_times
+
+        # ms.plot_piezo_with_extra_info(show_plot=False, save_formats="pdf")
+        # ms.plot_piezo_around_event(range_in_sec=5, save_formats="png")
+        ms.plot_raw_traces_around_twitches()
+        # ms.plot_piezo_with_extra_info(show_plot=True, with_cell_assemblies_sce=False, save_formats="pdf")
+        if ms_index == len(ms_to_analyse) - 1:
+            raise Exception("lala")
+        continue
         #
-        #     spike_struct.activity_threshold = activity_threshold
-        #     # param.activity_threshold = activity_threshold
-        # else:
-        #     activity_threshold = ms.activity_threshold
-        #     ms.spike_struct.activity_threshold = ms.activity_threshold
-        #
-        # sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
-        #                                                       window_duration=sliding_window_duration,
-        #                                                       perc_threshold=perc_threshold,
-        #                                                       activity_threshold=activity_threshold,
-        #                                                       debug_mode=False,
-        #                                                       no_redundancy=no_redundancy)
-        #
-        # print(f"sce_with_sliding_window detected")
-        # # tuple of times
-        # SCE_times = sce_detection_result[1]
-        #
-        # # print(f"SCE_times {SCE_times}")
-        # sce_times_numbers = sce_detection_result[3]
-        # sce_times_bool = sce_detection_result[0]
-        # # useful for plotting twitches
-        # ms.sce_bool = sce_times_bool
-        # ms.sce_times_numbers = sce_times_numbers
-        # ms.SCE_times = SCE_times
         # test_seq_detect(ms)
         # raise Exception("toto")
+
         # ms.plot_cell_assemblies_on_map()
         # raise Exception("toto")
         if ms.age not in ms_by_age:
@@ -4656,7 +5202,8 @@ def main():
                                                               perc_threshold=perc_threshold,
                                                               activity_threshold=activity_threshold,
                                                               debug_mode=False,
-                                                              no_redundancy=no_redundancy)
+                                                              no_redundancy=no_redundancy,
+                                                              keep_only_the_peak=True)
         print(f"sce_with_sliding_window detected")
         cellsinpeak = sce_detection_result[2]
         SCE_times = sce_detection_result[1]
