@@ -6,7 +6,8 @@ import matplotlib.cm as cm
 import matplotlib.gridspec as gridspec
 import seaborn as sns
 from bisect import bisect
-
+from scipy.signal import find_peaks
+from scipy import signal
 # important to avoid a bug when using virtualenv
 # matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -117,14 +118,21 @@ class MouseSession:
         self.with_piezo = False
         # raw piezo: after removing period not corresponding to the movie, and using absolute value
         self.raw_piezo = None
+        self.raw_piezo_without_abs = None
+        self.peaks_raw_piezo = None
         # represents the frames such as defined in the abf file, used to match the frames index to the raw_piezo data.
-        # for frames f with index 10, x = abf_frames[f] will give us the index of f such that self.raw_piezo[x] represent
+        # for frames f with index 10, x = abf_frames[f] will give us the index of f such that self.raw_piezo[x]
+        # represent
         # the piezzo value at frame x
         self.abf_frames = None
         self.abf_times_in_sec = None
         self.threshold_piezo = None
         self.twitches_frames_periods = None
         self.twitches_frames = None
+        self.short_lasting_mvt = None
+        self.complex_mvt = None
+        self.intermediate_behavourial_events = None
+        self.noise_mvt = None
         self.sce_bool = None
         self.sce_times_numbers = None
         self.SCE_times = None
@@ -280,81 +288,93 @@ class MouseSession:
 
         ratio_spike_twitch_total_twitches = np.array(ratio_spike_twitch_total_twitches)
         ratio_spike_twitch_total_spikes = np.array(ratio_spike_twitch_total_spikes)
+        ratio_cells = np.array(ratio_cells)
 
-        # inter_neurons = np.array(self.spike_struct.inter_neurons)
+        inter_neurons = np.array(self.spike_struct.inter_neurons)
+        # keeping only interneurons that are among the selected cells
+        inter_neurons = np.intersect1d(ratio_cells, inter_neurons)
         values_to_scatter = []
-        # non_inter_neurons = np.setdiff1d(np.arange(len(ratio_spike_twitch_total_spikes)), inter_neurons)
-        # ratio_interneurons = list(ratio_spike_twitch_total_spikes[inter_neurons])
-        # ratio_non_interneurons = list(ratio_spike_twitch_total_spikes[non_inter_neurons])
+        non_inter_neurons = np.setdiff1d(ratio_cells, inter_neurons)
+        ratio_interneurons = []
+        for inter_neuron in inter_neurons:
+            index = np.where(ratio_cells == inter_neuron)[0]
+            ratio_interneurons.append(ratio_spike_twitch_total_spikes[index])
+        ratio_non_interneurons = []
+        for non_inter_neuron in non_inter_neurons:
+            index = np.where(ratio_cells == non_inter_neuron)[0]
+            ratio_non_interneurons.append(ratio_spike_twitch_total_spikes[index])
         labels = []
         scatter_shapes = []
         colors = []
-        values_to_scatter.append(np.mean(ratio_spike_twitch_total_spikes))
-        labels.extend(["mean"])
-        scatter_shapes.extend(["o"])
-        colors.extend(["white"])
-        # if len(ratio_non_interneurons) > 0:
-        #     values_to_scatter.append(np.mean(ratio_non_interneurons))
-        #     values_to_scatter.append(np.median(ratio_non_interneurons))
-        #     labels.extend(["mean", "median"])
-        #     scatter_shapes.extend(["o", "s"])
-        #     colors.extend(["white", "white"])
-        # if len(ratio_interneurons) > 0:
-        #     values_to_scatter.append(np.mean(ratio_interneurons))
-        #     values_to_scatter.append(np.median(ratio_interneurons))
-        #     values_to_scatter.extend(ratio_interneurons)
-        #     labels.extend(["mean", "median", f"interneuron (x{len(inter_neurons)})"])
-        #     scatter_shapes.extend(["o", "s"])
-        #     scatter_shapes.extend(["*"] * len(inter_neurons))
-        #     colors.extend(["red", "red"])
-        #     colors.extend(["red"] * len(inter_neurons))
+        # values_to_scatter.append(np.mean(ratio_spike_twitch_total_spikes))
+        # labels.extend(["mean"])
+        # scatter_shapes.extend(["o"])
+        # colors.extend(["white"])
+        if len(ratio_non_interneurons) > 0:
+            values_to_scatter.append(np.mean(ratio_non_interneurons))
+            labels.extend(["mean"])
+            scatter_shapes.extend(["o"])
+            colors.extend(["white"])
+        if len(ratio_interneurons) > 0:
+            values_to_scatter.append(np.mean(ratio_interneurons))
+            values_to_scatter.extend(ratio_interneurons)
+            labels.extend(["mean", f"interneuron (x{len(inter_neurons)})"])
+            scatter_shapes.extend(["o"])
+            scatter_shapes.extend(["*"] * len(inter_neurons))
+            colors.extend(["red"])
+            colors.extend(["red"] * len(inter_neurons))
 
         plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spike_twitch_total_spikes,
                                       description=f"{self.description}_hist_spike_twitches_ratio_over_total_spikes",
                                       values_to_scatter=np.array(values_to_scatter),
                                       labels=labels,
                                       scatter_shapes=scatter_shapes,
-                                      colors=colors,
+                                      colors=colors, twice_more_bins=True,
                                       xlabel="spikes in twitch vs total spikes (%)",
                                       param=self.param)
 
+        # keeping only interneurons that are among the selected cells
+        inter_neurons = np.intersect1d(ratio_cells, inter_neurons)
         values_to_scatter = []
-        # non_inter_neurons = np.setdiff1d(np.arange(len(ratio_spike_twitch_total_twitches)), inter_neurons)
-        # ratio_interneurons = list(ratio_spike_twitch_total_twitches[inter_neurons])
-        # ratio_non_interneurons = list(ratio_spike_twitch_total_twitches[non_inter_neurons])
+        non_inter_neurons = np.setdiff1d(ratio_cells, inter_neurons)
+        ratio_interneurons = []
+        for inter_neuron in inter_neurons:
+            index = np.where(ratio_cells == inter_neuron)[0]
+            ratio_interneurons.append(ratio_spike_twitch_total_twitches[index])
+        ratio_non_interneurons = []
+        for non_inter_neuron in non_inter_neurons:
+            index = np.where(ratio_cells == non_inter_neuron)[0]
+            ratio_non_interneurons.append(ratio_spike_twitch_total_twitches[index])
         labels = []
         scatter_shapes = []
         colors = []
-        values_to_scatter.append(np.mean(ratio_spike_twitch_total_twitches))
-        labels.extend(["mean"])
-        scatter_shapes.extend(["o"])
-        colors.extend(["white"])
-        # if len(ratio_non_interneurons) > 0:
-        #     values_to_scatter.append(np.mean(ratio_non_interneurons))
-        #     values_to_scatter.append(np.median(ratio_non_interneurons))
-        #     labels.extend(["mean", "median"])
-        #     scatter_shapes.extend(["o", "s"])
-        #     colors.extend(["white", "white"])
-        # if len(ratio_interneurons) > 0:
-        #     values_to_scatter.append(np.mean(ratio_interneurons))
-        #     values_to_scatter.append(np.median(ratio_interneurons))
-        #     values_to_scatter.extend(ratio_interneurons)
-        #     labels.extend(["mean", "median", f"interneuron (x{len(inter_neurons)})"])
-        #     scatter_shapes.extend(["o", "s"])
-        #     scatter_shapes.extend(["*"] * len(inter_neurons))
-        #     colors.extend(["red", "red"])
-        #     colors.extend(["red"] * len(inter_neurons))
+        # values_to_scatter.append(np.mean(ratio_spike_twitch_total_spikes))
+        # labels.extend(["mean"])
+        # scatter_shapes.extend(["o"])
+        # colors.extend(["white"])
+        if len(ratio_non_interneurons) > 0:
+            values_to_scatter.append(np.mean(ratio_non_interneurons))
+            labels.extend(["mean"])
+            scatter_shapes.extend(["o"])
+            colors.extend(["white"])
+        if len(ratio_interneurons) > 0:
+            values_to_scatter.append(np.mean(ratio_interneurons))
+            values_to_scatter.extend(ratio_interneurons)
+            labels.extend(["mean", f"interneuron (x{len(inter_neurons)})"])
+            scatter_shapes.extend(["o"])
+            scatter_shapes.extend(["*"] * len(inter_neurons))
+            colors.extend(["red"])
+            colors.extend(["red"] * len(inter_neurons))
 
         plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spike_twitch_total_twitches,
                                       description=f"{self.description}_hist_spike_twitches_ratio_over_total_twitches",
                                       values_to_scatter=np.array(values_to_scatter),
                                       labels=labels,
                                       scatter_shapes=scatter_shapes,
-                                      colors=colors,
+                                      colors=colors, twice_more_bins=True,
                                       xlabel="spikes in twitch vs total twitches (%)",
                                       param=self.param)
         #
-
 
         cells_groups = []
         groups_colors = []
@@ -390,6 +410,8 @@ class MouseSession:
                                ms_scale=200,
                                size_cells_in_groups=150,
                                show_percentiles=show_percentiles)
+
+        # now we take the cells that are the most correlated to twitches
 
     def plot_time_correlation_graph_over_twitches(self):
         if self.twitches_frames_periods is None:
@@ -435,7 +457,7 @@ class MouseSession:
                                show_percentiles=show_percentiles)
 
     def define_twitches_events(self):
-        if self.twitches_frames is None:
+        if self.twitches_frames_periods is None:
             return
 
         spike_nums_dur = self.spike_struct.spike_nums_dur
@@ -1013,6 +1035,132 @@ class MouseSession:
             twitches_frames.append(int((twitch_period[0] + twitch_period[1]) // 2))
         self.plot_raw_traces_around_frames(frames_indices=np.array(twitches_frames), data_descr="twitches")
 
+    def plot_raw_traces_around_each_sce_for_each_cell(self):
+        sce_times = self.SCE_times
+        for sce_index, sce_period in enumerate(sce_times):
+            index_peak = sce_period[0] + np.argmax(np.sum(
+                self.spike_struct.spike_nums_dur[:, sce_period[0]:sce_period[1] + 1], axis=0))
+            cells_to_color = []
+            colors_for_cells = []
+            cells_to_color.append(np.where(np.sum(
+                self.spike_struct.spike_nums_dur[:, sce_period[0]:sce_period[1] + 1], axis=1))[0])
+            colors_for_cells.append("red")
+            v_lines = []
+            v_lines_colors = []
+            if index_peak != sce_period[0]:
+                v_lines.append(sce_period[0] - index_peak)
+                v_lines_colors.append("white")
+            if index_peak != sce_period[1]:
+                v_lines.append(sce_period[1] - index_peak)
+                v_lines_colors.append("white")
+            # print(f"index_peak {index_peak}, sce_period[0] {sce_period[0]}, sce_period[1] {sce_period[1]}, "
+            #       f"v_lines {v_lines}")
+            self.plot_raw_traces_around_frame_for_each_cell(frame_index=index_peak,
+                                                            data_descr=f"SCE_{sce_index}",
+                                                            cells_to_color=cells_to_color,
+                                                            colors_for_cells=colors_for_cells,
+                                                            range_in_frames=100,
+                                                            v_lines=v_lines,
+                                                            v_lines_colors=v_lines_colors)
+
+    def plot_raw_traces_around_frame_for_each_cell(self, frame_index, data_descr, show_plot=False, range_in_frames=50,
+                                                   cells_to_color=None, colors_for_cells=None,
+                                                   v_lines=None, v_lines_colors=None,
+                                                   save_formats="pdf"):
+        if self.traces is None:
+            return
+        n_cells = len(self.traces)
+        n_times = len(self.traces[0, :])
+
+        grouped_values = []
+        n_lines = 10
+        n_col = 10
+        n_plots_by_fig = n_lines * n_col
+
+        for cell in np.arange(n_cells):
+
+            len_plot = int((range_in_frames * 2) + 1)
+            x_times = np.arange(-range_in_frames, range_in_frames + 1)
+            all_values = np.zeros(len_plot)
+
+            beg_time = np.max((0, frame_index - range_in_frames))
+            end_time = np.min((n_times, frame_index + range_in_frames + 1))
+            len_data = end_time - beg_time
+            if frame_index - range_in_frames >= 0:
+                value_beg = 0
+            else:
+                value_beg = 0 - (frame_index - range_in_frames)
+
+            all_values[value_beg:value_beg + len_data] = self.traces[cell, beg_time:end_time]
+
+            # mean_values = np.mean(all_values, axis=0)
+            # std_values = np.std(all_values, axis=0)
+
+            grouped_values.append(all_values)
+            # grouped_std_values.append(std_values)
+
+            # plt.title(f"trace around {data_descr} of {self.description} {frame_index}")
+
+            if ((cell + 1) % n_plots_by_fig == 0) or (cell == (n_cells - 1)):
+                n_cells_to_plot = n_cells
+                if ((cell + 1) % n_plots_by_fig == 0):
+                    first_cell = cell - n_plots_by_fig + 1
+                else:
+                    first_cell = cell - ((cell + 1) % n_plots_by_fig) + 1
+
+                if (cell == (n_cells - 1)):
+                    n_cells_to_plot = len(grouped_values)
+
+                fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                                         gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
+                                         figsize=(30, 20))
+                fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+                axes = axes.flatten()
+                for ax_index, ax in enumerate(axes):
+                    if (ax_index + 1) > n_cells_to_plot:
+                        break
+                    ax.set_facecolor("black")
+                    color_to_use = "blue"
+                    for index_group, cells in enumerate(cells_to_color):
+                        if (ax_index + first_cell) in cells:
+                            color_to_use = colors_for_cells[index_group]
+                            break
+                    ax.plot(x_times,
+                            grouped_values[ax_index], color=color_to_use, lw=2, label=f"cell {ax_index+first_cell}")
+                    # ax.fill_between(x_times, grouped_mean_values[ax_index] - grouped_std_values[ax_index],
+                    #                 grouped_mean_values[ax_index] + grouped_std_values[ax_index],
+                    #                 alpha=0.5, facecolor="blue")
+                    ax.legend()
+                    ax.vlines(0, 0,
+                              np.max(grouped_values[ax_index]), color="white",
+                              linewidth=1,
+                              linestyles="dashed")
+                    for v_line_index, v_line in enumerate(v_lines):
+                        ax.vlines(v_line, 0,
+                                  np.max(grouped_values[ax_index]), color=v_lines_colors[v_line_index],
+                                  linewidth=1,
+                                  linestyles="dashed")
+                    xticks = np.arange(-range_in_frames, range_in_frames + 1, 10)
+                    xticks_labels = np.arange(-(range_in_frames // 10), (range_in_frames // 10) + 1)
+                    ax.set_xticks(xticks)
+                    # sce clusters labels
+                    ax.set_xticklabels(xticks_labels)
+
+                if isinstance(save_formats, str):
+                    save_formats = [save_formats]
+                for save_format in save_formats:
+                    fig.savefig(f'{self.param.path_results}/{self.description}_cells_{first_cell}-{cell}_'
+                                f'traces_around_{frame_index}_{data_descr}_'
+                                f'{range_in_frames}_frames'
+                                f'_{self.param.time_str}.{save_format}',
+                                format=f"{save_format}")
+
+                if show_plot:
+                    plt.show()
+                plt.close()
+
+                grouped_values = []
+
     def plot_raw_traces_around_frames(self, frames_indices, data_descr, show_plot=False, range_in_frames=50,
                                       save_formats="pdf"):
         if self.traces is None:
@@ -1422,7 +1570,9 @@ class MouseSession:
                                       data_id=self.description, show_polygons=False,
                                       title_option=f"n_in_{cell_descr}_{cell_to_map}",
                                       connections_dict=connections_dict_in,
-                                      with_cell_numbers=True)
+                                      with_cell_numbers=True,
+                                      background_color="white", default_cells_color="black",
+                                      link_connect_color="black")
 
         cells_groups_colors = [cell_color]
         cells_groups = [[cell_to_map]]
@@ -1441,7 +1591,10 @@ class MouseSession:
                                       data_id=self.description, show_polygons=False,
                                       title_option=f"n_out_{cell_descr}_{cell_to_map}",
                                       connections_dict=connections_dict_out,
-                                      with_cell_numbers=True)
+                                      with_cell_numbers=True,
+                                      background_color="white", default_cells_color="black",
+                                      link_connect_color="black"
+                                      )
 
     def plot_all_inter_neurons_connect_map(self):
         # plot n_in and n_out map of the interneurons
@@ -1619,7 +1772,7 @@ class MouseSession:
         # print(f"first_frame_index {first_frame_index}")
         times_in_sec = times_in_sec[:-first_frame_index]
         frames_data = frames_data[first_frame_index:]
-        mvt_data = np.abs(mvt_data[first_frame_index:])
+        mvt_data = mvt_data[first_frame_index:]
 
         if (self.abf_sampling_rate < 50000):
             mask_frames_data = np.ones(len(frames_data), dtype="bool")
@@ -1675,8 +1828,14 @@ class MouseSession:
             binary_frames_data[frames_data < 0.05] = 0
             # +1 due to the shift of diff
             active_frames = np.where(np.diff(binary_frames_data) == 1)[0] + 1
+
+        mvt_data_without_abs = mvt_data
+        mvt_data = np.abs(mvt_data)
         if not with_run:
             self.raw_piezo = mvt_data
+            self.raw_piezo_without_abs = mvt_data_without_abs
+
+        self.abf_times_in_sec = times_in_sec
         # active_frames = np.concatenate(([0], active_frames))
         # print(f"active_frames {active_frames}")
         nb_frames = len(active_frames)
@@ -1694,40 +1853,42 @@ class MouseSession:
 
         if with_run:
             mvt_periods, speed_during_mvt_periods = self.detect_run_periods(mvt_data=mvt_data, min_speed=0.5)
+            # else:
+            #     mvt_periods = self.detect_mvt_periods_with_piezo_and_diff(piezo_data=mvt_data,
+            #                                                               piezo_threshold=threshold_piezo,
+            #                                                               min_time_between_periods=2 * sampling_rate)
+            # print(f"len(mvt_periods) {len(mvt_periods)}")
+            # print(f"len(mvt_data) {len(mvt_data)}")
+            self.mvt_frames = []
+            self.mvt_frames_periods = []
+            if with_run:
+                self.speed_by_mvt_frame = []
+            for mvt_period_index, mvt_period in enumerate(mvt_periods):
+                frames = np.where(np.logical_and(active_frames >= mvt_period[0], active_frames <= mvt_period[1]))[0]
+                if len(frames) > 0:
+                    self.mvt_frames.extend(frames)
+                    self.mvt_frames_periods.append((frames[0], frames[-1]))
+                    if with_run:
+                        for frame in frames:
+                            frame_index = active_frames[frame]
+                            index_from_beg_mvt_period = frame_index - mvt_period[0]
+                            # 100 ms
+                            range_around = int(0.1 * self.abf_sampling_rate)
+                            speed_during_mvt_period = speed_during_mvt_periods[mvt_period_index]
+                            # print(f"len(speed_during_mvt_period) {len(speed_during_mvt_period)}")
+                            beg_pos = np.max((0, (index_from_beg_mvt_period - range_around)))
+                            end_pos = np.min((len(speed_during_mvt_period),
+                                              (index_from_beg_mvt_period + range_around + 1)))
+                            # print(f"beg_pos {beg_pos}, end_pos {end_pos}")
+                            # taking the mean speed around the frame, with a 100 ms range
+                            speed = np.mean(speed_during_mvt_period[beg_pos:end_pos])
+                            # print(f"speed: {np.round(speed, 2)}")
+                            self.speed_by_mvt_frame.append(speed)
+            self.mvt_frames = np.array(self.mvt_frames)
+            # if not with_run:
+            #     self.detect_twitches()
         else:
-            mvt_periods = self.detect_mvt_periods_with_piezo_and_diff(piezo_data=mvt_data,
-                                                                      piezo_threshold=threshold_piezo,
-                                                                      min_time_between_periods=2 * sampling_rate)
-        # print(f"len(mvt_periods) {len(mvt_periods)}")
-        # print(f"len(mvt_data) {len(mvt_data)}")
-        self.mvt_frames = []
-        self.mvt_frames_periods = []
-        if with_run:
-            self.speed_by_mvt_frame = []
-        for mvt_period_index, mvt_period in enumerate(mvt_periods):
-            frames = np.where(np.logical_and(active_frames >= mvt_period[0], active_frames <= mvt_period[1]))[0]
-            if len(frames) > 0:
-                self.mvt_frames.extend(frames)
-                self.mvt_frames_periods.append((frames[0], frames[-1]))
-                if with_run:
-                    for frame in frames:
-                        frame_index = active_frames[frame]
-                        index_from_beg_mvt_period = frame_index - mvt_period[0]
-                        # 100 ms
-                        range_around = int(0.1 * self.abf_sampling_rate)
-                        speed_during_mvt_period = speed_during_mvt_periods[mvt_period_index]
-                        # print(f"len(speed_during_mvt_period) {len(speed_during_mvt_period)}")
-                        beg_pos = np.max((0, (index_from_beg_mvt_period - range_around)))
-                        end_pos = np.min((len(speed_during_mvt_period),
-                                          (index_from_beg_mvt_period + range_around + 1)))
-                        # print(f"beg_pos {beg_pos}, end_pos {end_pos}")
-                        # taking the mean speed around the frame, with a 100 ms range
-                        speed = np.mean(speed_during_mvt_period[beg_pos:end_pos])
-                        # print(f"speed: {np.round(speed, 2)}")
-                        self.speed_by_mvt_frame.append(speed)
-        self.mvt_frames = np.array(self.mvt_frames)
-        if not with_run:
-            self.detect_twitches()
+            self.analyse_piezo_the_khazipov_way()
 
         # plotting the result
         check_piezo_threshold = False
@@ -1753,7 +1914,6 @@ class MouseSession:
             if threshold_piezo is not None:
                 # print(f"len(self.raw_piezo): {len(self.raw_piezo)}")
                 self.abf_frames = active_frames
-                self.abf_times_in_sec = times_in_sec
                 np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
                          mvt_frames=self.mvt_frames, raw_piezo=self.raw_piezo, abf_frames=active_frames,
                          abf_times_in_sec=times_in_sec)
@@ -1761,6 +1921,133 @@ class MouseSession:
         # print(f"continuous_frames_periods {continuous_frames_periods}")
         # print(f"self.mvt_frames_periods {self.mvt_frames_periods}")
         # print(f"len(mvt_frames) {len(self.mvt_frames)}")
+
+    def analyse_piezo_the_khazipov_way(self):
+        """
+        Using self.raw_piezo will determine different variables:
+        self.twitch_periods: periods of less than 600 ms separated of 1 sec from other events
+        self.short_lasting_mvt: mvt less than 600 ms but with other mvt in less than 1 sec range
+        self.complex_mvt: mvt than last more than 900 ms
+        Using a window of 10 ms to determine the std and base on that threshold, detecting local maximum
+        :return:
+        """
+        lowest_std = None
+        window_in_ms = 10 ** 5
+        piezo = self.raw_piezo
+        times_for_1_ms = self.abf_sampling_rate / 1000
+        window_in_times = int(times_for_1_ms * window_in_ms)
+        n_times = len(piezo)
+        # windows have a 50% overlap
+        for index in np.arange(0, n_times - window_in_times, window_in_times // 2):
+            std_value = np.std(piezo[index:index + window_in_times])
+            if index == 0:
+                lowest_std = std_value
+            lowest_std = min(lowest_std, std_value)
+        print(f"threshold_piezo {self.threshold_piezo}, window {window_in_ms}: "
+              f"lowest_std {np.round(lowest_std, 3)}")
+        lowest_std *= 2
+
+        mvt_periods = self.detect_mvt_periods_with_piezo_and_diff(piezo_data=self.raw_piezo,
+                                                                  piezo_threshold=lowest_std,
+                                                                  min_time_between_periods=times_for_1_ms*300)
+        first_derivative = np.diff(piezo)/np.diff(np.arange(n_times))
+        # extending periods with first_derivative_period
+        for mvt_period in mvt_periods:
+            zero_times = np.where(first_derivative[mvt_period[0]-(self.abf_sampling_rate//2):mvt_period[0]+1] == 0)[0]
+            if len(zero_times) > 0:
+                zero_times += (mvt_period[0]-(self.abf_sampling_rate//2))
+                # print(f"mvt_period[0]-zero_times[-1] {np.round(mvt_period[0]-zero_times[-1], 3)}")
+                mvt_period[0] = zero_times[-1]
+            zero_times = np.where(first_derivative[mvt_period[1]:mvt_period[1]+(self.abf_sampling_rate//2)] == 0)[0]
+            if len(zero_times) > 0:
+                zero_times += mvt_period[1]
+                # print(f"zero_times[0]-mvt_period[1] {np.round(zero_times[0]-mvt_period[1], 3)}")
+                mvt_period[1] = zero_times[0]
+        peaks = self.peaks_raw_piezo
+
+        # classifying mvts
+        self.twitches_frames_periods = []
+        self.twitches_frames = []
+        self.short_lasting_mvt = []
+        self.complex_mvt = []
+        self.intermediate_behavourial_events = []
+        self.noise_mvt = []
+        interval_before_twitch = times_for_1_ms*700
+        interval_after_twitch = times_for_1_ms * 400
+        for mvt_index, mvt_period in enumerate(mvt_periods):
+            duration = mvt_period[1] - mvt_period[0]
+            if duration >= (times_for_1_ms*900):
+                self.complex_mvt.append(mvt_period)
+            elif duration <= (times_for_1_ms*600):
+                it_is_a_twitch = True
+                if mvt_index > 0:
+                    last_mvt_period = mvt_periods[mvt_index-1]
+                    if (mvt_period[0] - last_mvt_period[1]) < interval_before_twitch:
+                        it_is_a_twitch = False
+                if mvt_index < (len(mvt_periods)-1):
+                    next_mvt_period = mvt_periods[mvt_index + 1]
+                    if (next_mvt_period[0] - mvt_period[1]) < interval_after_twitch:
+                        it_is_a_twitch = False
+                if it_is_a_twitch:
+                    self.twitches_frames_periods.append(mvt_period)
+                    self.twitches_frames.extend(list(np.arange(mvt_period[0], mvt_period[1]+1)))
+                else:
+                    self.short_lasting_mvt.append(mvt_period)
+            else:
+                self.intermediate_behavourial_events.append(mvt_period)
+
+        # print("before find_peaks")
+        # peaks, _ = find_peaks(piezo, height=(lowest_std, None), prominence=(1, None))
+        # peaks = signal.find_peaks_cwt(piezo, np.arange(int(times_for_1_ms*10), int(times_for_1_ms*100), 10))
+        # print("after find_peaks")
+        fig, ax = plt.subplots(nrows=1, ncols=1,
+                               gridspec_kw={'height_ratios': [1]},
+                               figsize=(20, 8))
+        plt.plot(self.abf_times_in_sec, piezo, lw=.5, color="black")
+        plt.plot(self.abf_times_in_sec[:-1], np.abs(first_derivative), lw=.5, zorder=10, color="green")
+        ax.hlines(lowest_std, 0,
+                  self.abf_times_in_sec[-1], color="red", linewidth=1,
+                  linestyles="dashed", zorder=1)
+        plt.scatter(x=self.abf_times_in_sec[peaks], y=piezo[peaks], marker="*",
+                    color=["black"], s=5, zorder=15)
+       
+        periods_to_color = [self.twitches_frames_periods, self.short_lasting_mvt, self.complex_mvt,
+                            self.intermediate_behavourial_events, self.noise_mvt]
+        periods_to_color_names = ["twitches", "short lasting mvt", "complex mvt", "intermediate behavourial events",
+                                  "noise mvt"]
+        colors = ["blue", "cornflowerblue", "red", "green", "grey"]
+        for period_index, period_to_color in enumerate(periods_to_color):
+            for mvt_period in period_to_color:
+                color = "red"
+                ax.axvspan(mvt_period[0] / self.abf_sampling_rate, mvt_period[1] / self.abf_sampling_rate,
+                               alpha=0.5, facecolor=colors[period_index], zorder=1)
+        for twitch_period in self.twitches_frames_periods:
+            # twith_time = (twitch_period[0] + twitch_period[1]) // 2
+            pos = twitch_period[0] + np.argmax(piezo[twitch_period[0]:twitch_period[1]+1])
+            plt.scatter(x=self.abf_times_in_sec[pos], y=piezo[pos], marker="o",
+                        color=["blue"], s=10, zorder=20)
+
+        plt.title(f"piezo {self.description}")
+
+        legend_elements = []
+        # [Line2D([0], [0], color='b', lw=4, label='Line')
+        for period_index, periods_to_color_name in enumerate(periods_to_color_names):
+            n_events = len(periods_to_color[period_index])
+            legend_elements.append(Patch(facecolor=colors[period_index],
+                                         edgecolor='black', label=f'{periods_to_color_name} x{n_events}'))
+
+        legend_elements.append(Line2D([0], [0], marker="*", color="w", lw=0, label="peaks",
+                                          markerfacecolor='black', markersize=10))
+
+        legend_elements.append(Line2D([0], [0], marker="o", color="w", lw=0, label="twitches",
+                                      markerfacecolor='blue', markersize=10))
+
+        ax.legend(handles=legend_elements)
+
+        plt.show()
+        plt.close()
+
+        raise Exception("piezo haha")
 
     def detect_run_periods(self, mvt_data, min_speed):
         nb_period_by_wheel = 500
@@ -1806,15 +2093,17 @@ class MouseSession:
         binary_piezo_data[piezo_data >= piezo_threshold] = 1
         time_periods = get_continous_time_periods(binary_piezo_data)
         return self.merging_time_periods(time_periods=time_periods,
-                                         min_time_between_periods=min_time_between_periods)
+                                         min_time_between_periods=min_time_between_periods, use_peaks=True,
+                                         data=piezo_data)
 
-    def merging_time_periods(self, time_periods, min_time_between_periods):
+    def merging_time_periods(self, time_periods, min_time_between_periods, use_peaks=False, data=None):
         n_periods = len(time_periods)
         # print(f"n_periods {n_periods}")
         # for i, time_period in enumerate(time_periods):
         #     print(f"time_period {i}: {np.round(time_period[0]/50000, 2)} - {np.round(time_period[1]/50000, 2)}")
         merged_time_periods = []
         index = 0
+        self.peaks_raw_piezo = []
         while index < n_periods:
             time_period = time_periods[index]
             if len(merged_time_periods) == 0:
@@ -1822,8 +2111,16 @@ class MouseSession:
                 index += 1
                 continue
             # we check if the time between both is superior at min_time_between_periods
-            last_time_period = merged_time_periods[-1]
-            if (time_period[0] - last_time_period[1]) < min_time_between_periods:
+            last_time_period = time_periods[index-1]
+            beg_time = last_time_period[1]
+            end_time = time_period[0]
+            if use_peaks:
+                beg_time = last_time_period[0] + np.argmax(data[last_time_period[0]:last_time_period[1]+1])
+                if index == 1:
+                    self.peaks_raw_piezo.append(beg_time)
+                end_time = time_period[0] + np.argmax(data[time_period[0]:time_period[1] + 1])
+                self.peaks_raw_piezo.append(end_time)
+            if (end_time - beg_time) <= min_time_between_periods:
                 # then we merge them
                 merged_time_periods[-1][1] = time_period[1]
                 index += 1
@@ -2916,6 +3213,7 @@ def plot_duration_spikes_by_age(mouse_sessions, ms_ages,
 
 def plot_hist_ratio_spikes_events(ratio_spikes_events, description, values_to_scatter,
                                   labels, scatter_shapes, colors, param, tight_x_range=False,
+                                  twice_more_bins=False,
                                   xlabel="", ylabel=None, save_formats="pdf"):
     distribution = np.array(ratio_spikes_events)
     hist_color = "blue"
@@ -2933,6 +3231,8 @@ def plot_hist_ratio_spikes_events(ratio_spikes_events, description, values_to_sc
                             figsize=(12, 12))
     ax1.set_facecolor("black")
     bins = int(np.sqrt(len(distribution)))
+    if twice_more_bins:
+        bins *= 2
     hist_plt, edges_plt, patches_plt = plt.hist(distribution, bins=bins, range=(min_range, max_range),
                                                 facecolor=hist_color,
                                                 edgecolor=edge_color,
@@ -4633,11 +4933,11 @@ def main():
     ms_str_to_load = available_ms_str
     ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     ms_str_to_load = ["p6_18_02_07_a002_ms"]
-    ms_str_to_load = ["p7_18_02_08_a000_ms"]
     ms_str_to_load = ms_with_piezo
     ms_str_to_load = ["p6_18_02_07_a002_ms"]
     ms_str_to_load = ["p9_18_09_27_a003_ms"]
     ms_str_to_load = ms_with_piezo
+    ms_str_to_load = ["p7_18_02_08_a000_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -4666,7 +4966,7 @@ def main():
     do_plot_interneurons_connect_maps = False
     do_plot_connect_hist = False
     do_plot_connect_hist_for_all_ages = False
-    do_time_graph_correlation = False
+    do_time_graph_correlation = True
     do_time_graph_correlation_and_connect_best = False
 
     # ##########################################################################################
@@ -4763,8 +5063,9 @@ def main():
         # ms.plot_piezo_with_extra_info(show_plot=False, save_formats="pdf")
         # ms.plot_piezo_around_event(range_in_sec=5, save_formats="png")
         # ms.plot_raw_traces_around_twitches()
-        ms.plot_psth_over_twitches_time_correlation_graph_style()
+        # ms.plot_psth_over_twitches_time_correlation_graph_style()
         # ms.plot_piezo_with_extra_info(show_plot=True, with_cell_assemblies_sce=False, save_formats="pdf")
+        ms.plot_raw_traces_around_each_sce_for_each_cell()
         if ms_index == len(ms_to_analyse) - 1:
             raise Exception("lala")
         continue
@@ -4813,6 +5114,11 @@ def main():
             # tuple of times
             SCE_times = sce_detection_result[1]
 
+            # for Robin
+            for sce_index, sce_time in enumerate(SCE_times):
+                print(f"sce n° {sce_index}: {sce_time[0]}-{sce_time[1]}: "
+                      f"{np.where(np.sum(spike_struct.spike_nums_dur[:, sce_time[0]:sce_time[1]+1], axis=1))[0]}")
+            return
             events_peak_times = []
             for sce_time in SCE_times:
                 events_peak_times.append(sce_time[0] +
