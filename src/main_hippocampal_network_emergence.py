@@ -1695,7 +1695,8 @@ class MouseSession:
     def load_abf_file(self, abf_file_name, threshold_piezo=None, with_run=False,
                       frames_channel=0, piezo_channel=1, run_channel=2,
                       sampling_rate=50000, offset=None):
-        # return
+
+        return
         print(f"abf: ms {self.description}")
 
         self.abf_sampling_rate = sampling_rate
@@ -2036,8 +2037,8 @@ class MouseSession:
             legend_elements.append(Patch(facecolor=colors[period_index],
                                          edgecolor='black', label=f'{periods_to_color_name} x{n_events}'))
 
-        legend_elements.append(Line2D([0], [0], marker="*", color="w", lw=0, label="peaks",
-                                          markerfacecolor='black', markersize=10))
+        # legend_elements.append(Line2D([0], [0], marker="*", color="w", lw=0, label="peaks",
+        #                                   markerfacecolor='black', markersize=10))
 
         legend_elements.append(Line2D([0], [0], marker="o", color="w", lw=0, label="twitches",
                                       markerfacecolor='blue', markersize=10))
