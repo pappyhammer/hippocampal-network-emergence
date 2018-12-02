@@ -1592,21 +1592,26 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p6_18_02_07_a002_ms = MouseSession(age=6, session_id="18_02_07_a002", nb_ms_by_frame=100, param=param,
                                            weight=4.35)
         # calculated with 99th percentile on raster dur
-        p6_18_02_07_a002_ms.activity_threshold = 8
+        # p6_18_02_07_a002_ms.activity_threshold = 8
         # p6_18_02_07_a002_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
         # p6_18_02_07_a002_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
         p6_18_02_07_a002_ms.set_inter_neurons([40, 90])
         # duration of those interneurons: 16.27  23.33
-        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                             "spike_nums": "filt_Bin100ms_spikedigital",
-                             "spike_durations": "LOC3"}
+        # variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+        #                      "spike_nums": "filt_Bin100ms_spikedigital",
+        #                      "spike_durations": "LOC3"}
+        variables_mapping = {"spike_nums_dur": "rasterdur"}
         p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load=
-                                                "p6/p6_18_02_07_a002/p6_18_02_07_002_Corrected_RasterDur.mat",
+                                                "p6/p6_18_02_07_a002/p6_18_02_07_a002_RasterDur_2nd_dec.mat",
                                                 variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a002/p6_18_02_07_a002_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a002/p6_18_02_07_a002_raw_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+
         variables_mapping = {"coord": "ContoursAll"}
         p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a002/p6_18_02_07_a002_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
@@ -2101,15 +2106,16 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces):
         p12_171110_a000_ms = MouseSession(age=12, session_id="171110_a000", nb_ms_by_frame=100, param=param,
                                           weight=7)
         # calculated with 99th percentile on raster dur
-        p12_171110_a000_ms.activity_threshold = 9
+        # p12_171110_a000_ms.activity_threshold = 9
         # p12_171110_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
         p12_171110_a000_ms.set_inter_neurons([106, 144])
         # duration of those interneurons: 18.29  14.4
-        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                             "spike_nums": "filt_Bin100ms_spikedigital",
-                             "spike_durations": "LOC3"}
+        # variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+        #                      "spike_nums": "filt_Bin100ms_spikedigital",
+        #                      "spike_durations": "LOC3"}
+        variables_mapping = {"spike_nums_dur": "rasterdur"}
         p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                                               "p12/p12_17_11_10_a000/p12_17_11_10_a000_Corrected_RasterDur.mat",
+                                               "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur_2nd_dec.mat",
                                                variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
@@ -2426,6 +2432,7 @@ def main():
     ms_with_cell_assemblies = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
                                "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
                                "p11_17_11_24_a000_ms"]
+    ms_new_from_Robin_2nd_dec = ["p12_171110_a000_ms", "p6_18_02_07_a002_ms"]
     ms_str_to_load = available_ms_str
     ms_str_to_load = ms_with_run
     # ms_str_to_load = ["p60_a529_2015_02_25_v_arnaud_ms"]
@@ -2440,12 +2447,13 @@ def main():
     ms_str_to_load = available_ms_str
     ms_str_to_load = ["p6_18_02_07_a002_ms"]
     ms_str_to_load = ms_with_piezo
-    ms_str_to_load = ["p6_18_02_07_a002_ms"]
     ms_str_to_load = ms_with_piezo
     ms_str_to_load = ["p7_18_02_08_a000_ms"]
     ms_str_to_load = ["p7_17_10_18_a002_ms"]
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     ms_str_to_load = ["p9_18_09_27_a003_ms"]
+    ms_str_to_load = ms_new_from_Robin_2nd_dec
+    ms_str_to_load = ["p6_18_02_07_a002_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -2459,10 +2467,12 @@ def main():
     #     return
     ms_to_analyse = available_ms
 
-    just_do_stat_on_event_detection_parameters = True
+    just_do_stat_on_event_detection_parameters = False
     just_plot_time_correlation_graph_over_twitches = False
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_piezo_with_extra_info = False
+    just_plot_raw_traces_around_each_sce_for_each_cell = True
+    just_plot_cell_assemblies_on_map = False
     do_plot_psth_twitches = False
     just_plot_raster = False
 
@@ -2495,9 +2505,9 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    # range_n_clusters_k_mean = np.arange(8, 9)
-    range_n_clusters_k_mean = np.array([8])
-    n_surrogate_k_mean = 10
+    range_n_clusters_k_mean = np.arange(2, 9)
+    # range_n_clusters_k_mean = np.array([8])
+    n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
 
     # ##########################################################################################
@@ -2584,16 +2594,23 @@ def main():
         # # ms.plot_raw_traces_around_twitches()
         # # ms.plot_psth_over_twitches_time_correlation_graph_style()
         # # ms.plot_piezo_with_extra_info(show_plot=True, with_cell_assemblies_sce=False, save_formats="pdf")
-        # ms.plot_raw_traces_around_each_sce_for_each_cell()
-        if ms_index == len(ms_to_analyse) - 1:
-            raise Exception("lala")
-        continue
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_plot_piezo_with_extra_info exception")
+            continue
+        if just_plot_raw_traces_around_each_sce_for_each_cell:
+            ms.plot_raw_traces_around_each_sce_for_each_cell()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("plot_raw_traces_around_each_sce_for_each_cell exception")
+            continue
         #
         # test_seq_detect(ms)
         # raise Exception("toto")
+        if just_plot_cell_assemblies_on_map:
+            ms.plot_cell_assemblies_on_map()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_plot_cell_assemblies_on_map exception")
+            continue
 
-        # ms.plot_cell_assemblies_on_map()
-        # raise Exception("toto")
         if ms.age not in ms_by_age:
             ms_by_age[ms.age] = []
 
@@ -3200,7 +3217,7 @@ def main():
         ###################################################################
 
         spike_struct = ms.spike_struct
-        n_cells = len(spike_struct.spike_nums)
+        n_cells = len(spike_struct.spike_nums_dur)
         # spike_struct.build_spike_trains()
 
         # ######  parameters setting #########
@@ -3229,7 +3246,7 @@ def main():
                                                              n_surrogate=n_surrogate_activity_threshold,
                                                              perc_threshold=perc_threshold,
                                                              use_max_of_each_surrogate=use_max_of_each_surrogate,
-                                                             debug_mode=True)
+                                                             debug_mode=False)
         else:
             activity_threshold = ms.activity_threshold
 

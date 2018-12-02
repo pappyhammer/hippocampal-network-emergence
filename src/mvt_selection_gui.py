@@ -24,6 +24,11 @@ class MvtSelectionGui:
         self.categories_code["short lasting mvt"] = 1
         self.categories_code["noise"] = 2
 
+        self.keyboard_code = dict()
+        self.keyboard_code[0] = "t"
+        self.keyboard_code[1] = "m"
+        self.keyboard_code[2] = "n"
+
         self.categories_color = dict()
         self.categories_color[0] = "blue"
         self.categories_color[1] = "yellow"
@@ -260,8 +265,6 @@ class MvtSelectionGui:
                     s=f"{n_ms} ms", color="dimgrey", zorder=22,
                     ha='center', va="center", fontsize=6, fontweight='bold')
 
-        # TODO: display a line between two period of mvt with the length in ms between both
-
         plt.title(f"piezo {self.ms.description} mvt {self.mvt_index_to_display}/{self.n_mvt_periods}")
 
         legend_elements = []
@@ -269,7 +272,8 @@ class MvtSelectionGui:
         for category in self.categories_name.keys():
             count = self.mvts_count[category]
             legend_elements.append(Patch(facecolor=self.categories_color[category],
-                                         edgecolor='black', label=f'{self.categories_name[category]} (x{count})'))
+                                         edgecolor='black',
+                                         label=f'{self.keyboard_code[category]}: {self.categories_name[category]} (x{count})'))
 
         legend_elements.append(Patch(facecolor="red",
                                      edgecolor='black', label="complex mvt"))
@@ -331,7 +335,7 @@ class MvtSelectionGui:
             self.plot_graph()
 
     def key_release_action(self, event):
-        print(f"event.key {event.key}")
+        # print(f"event.key {event.key}")
         if event.key in ["t", "T"]:
             self.change_actual_mvt(code_name="twitches")
         elif event.key in ["m", "M"]:

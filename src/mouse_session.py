@@ -110,12 +110,22 @@ class MouseSession:
         self.abf_frames = None
         self.abf_times_in_sec = None
         self.threshold_piezo = None
-        self.twitches_frames_periods = None
         self.twitches_frames = None
+        self.twitches_frames_periods = None
+        # periods (tuples of int)
         self.short_lasting_mvt = None
+        self.short_lasting_mvt_frames = None
+        self.short_lasting_mvt_frames_periods = None
         self.complex_mvt = None
+        self.complex_mvt_frames = None
+        self.complex_mvt_frames_periods = None
         self.intermediate_behavourial_events = None
+        self.intermediate_behavourial_events_frames = None
+        self.intermediate_behavourial_events_frames_periods = None
         self.noise_mvt = None
+        self.noise_mvt_frames = None
+        self.noise_mvt_frames_periods = None
+
         self.sce_bool = None
         self.sce_times_numbers = None
         self.SCE_times = None
@@ -1081,7 +1091,7 @@ class MouseSession:
                                                    cells_to_color=None, colors_for_cells=None,
                                                    v_lines=None, v_lines_colors=None, extra_info_by_cell=None,
                                                    save_formats="pdf"):
-        traces = self.traces
+        traces = self.raw_traces
         if traces is None:
             return
         n_cells = len(traces)
@@ -1713,10 +1723,9 @@ class MouseSession:
         self.spike_struct.inter_neurons = np.array(inter_neurons).astype(int)
 
     def load_abf_file(self, abf_file_name, threshold_piezo=None, with_run=False,
-                      frames_channel=0, piezo_channel=1, run_channel=2,
+                      frames_channel=0, piezo_channel=1, run_channel=2, threshold_ratio=2,
                       sampling_rate=50000, offset=None):
 
-        # return
         print(f"abf: ms {self.description}")
 
         self.abf_sampling_rate = sampling_rate
@@ -1741,10 +1750,12 @@ class MouseSession:
             for file_name in file_names:
                 if file_name.endswith(".npz"):
                     if file_name.find("abf") > -1:
+                        do_detect_twitches = True
                         # loading data
                         npzfile = np.load(self.param.path_data + path_abf_data + file_name)
-                        self.mvt_frames = npzfile['mvt_frames']
-                        self.mvt_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
+                        if "mvt_frames" in npzfile:
+                            self.mvt_frames = npzfile['mvt_frames']
+                            self.mvt_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
                         if "speed_by_mvt_frame" in npzfile:
                             self.speed_by_mvt_frame = npzfile['speed_by_mvt_frame']
                         if "raw_piezo" in npzfile:
@@ -1753,7 +1764,27 @@ class MouseSession:
                             self.abf_frames = npzfile['abf_frames']
                         if "abf_times_in_sec" in npzfile:
                             self.abf_times_in_sec = npzfile['abf_times_in_sec']
-                        if not with_run:
+                        if "twitches_frames" in npzfile:
+                            self.twitches_frames = npzfile['twitches_frames']
+                            self.twitches_frames_periods = tools_misc.find_continuous_frames_period(self.twitches_frames)
+                            do_detect_twitches = False
+                        if "short_lasting_mvt_frames" in npzfile:
+                            self.short_lasting_mvt_frames = npzfile['short_lasting_mvt_frames']
+                            self.short_lasting_mvt_frames_periods = \
+                                tools_misc.find_continuous_frames_period(self.short_lasting_mvt_frames)
+                        if "complex_mvt_frames" in npzfile:
+                            self.complex_mvt_frames = npzfile['complex_mvt_frames']
+                            self.complex_mvt_frames_periods = \
+                                tools_misc.find_continuous_frames_period(self.complex_mvt_frames)
+                        if "intermediate_behavourial_events_frames" in npzfile:
+                            self.intermediate_behavourial_events_frames = npzfile['intermediate_behavourial_events_frames']
+                            self.intermediate_behavourial_events_frames_periods = \
+                                tools_misc.find_continuous_frames_period(self.intermediate_behavourial_events_frames)
+                        if "noise_mvt_frames" in npzfile:
+                            self.noise_mvt_frames = npzfile['noise_mvt_frames']
+                            self.noise_mvt_frames_periods = \
+                                tools_misc.find_continuous_frames_period(self.noise_mvt_frames)
+                        if (not with_run) and do_detect_twitches:
                             self.detect_twitches()
                         return
 
@@ -1860,6 +1891,7 @@ class MouseSession:
         # active_frames = np.concatenate(([0], active_frames))
         # print(f"active_frames {active_frames}")
         nb_frames = len(active_frames)
+        self.abf_frames = active_frames
         print(f"nb_frames {nb_frames}")
 
         if (not with_run) and (threshold_piezo is None):
@@ -1909,7 +1941,7 @@ class MouseSession:
             # if not with_run:
             #     self.detect_twitches()
         else:
-            self.analyse_piezo_the_khazipov_way()
+            self.analyse_piezo_the_khazipov_way(threshold_ratio=threshold_ratio)
 
         # plotting the result
         check_piezo_threshold = False
@@ -1933,17 +1965,25 @@ class MouseSession:
                      mvt_frames=self.mvt_frames, speed_by_mvt_frame=self.speed_by_mvt_frame)
         else:
             if threshold_piezo is not None:
-                # print(f"len(self.raw_piezo): {len(self.raw_piezo)}")
-                self.abf_frames = active_frames
-                np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
-                         mvt_frames=self.mvt_frames, raw_piezo=self.raw_piezo, abf_frames=active_frames,
-                         abf_times_in_sec=times_in_sec)
+                khazipow_way = True
+                if khazipow_way:
+                    np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
+                             raw_piezo=self.raw_piezo, abf_frames=self.abf_frames,
+                             abf_times_in_sec=times_in_sec, twitches_frames=self.twitches_frames,
+                             short_lasting_mvt_frames=self.short_lasting_mvt_frames,
+                             complex_mvt_frames=self.complex_mvt_frames,
+                             intermediate_behavourial_events_frames=self.intermediate_behavourial_events_frames,
+                             noise_mvt_frames=self.noise_mvt_frames)
+                else:
+                    np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
+                             mvt_frames=self.mvt_frames, raw_piezo=self.raw_piezo, abf_frames=self.abf_frames,
+                             abf_times_in_sec=times_in_sec)
         # continuous_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
         # print(f"continuous_frames_periods {continuous_frames_periods}")
         # print(f"self.mvt_frames_periods {self.mvt_frames_periods}")
         # print(f"len(mvt_frames) {len(self.mvt_frames)}")
 
-    def analyse_piezo_the_khazipov_way(self):
+    def analyse_piezo_the_khazipov_way(self, threshold_ratio):
         """
         Using self.raw_piezo will determine different variables:
         self.twitch_periods: periods of less than 600 ms separated of 1 sec from other events
@@ -1966,8 +2006,7 @@ class MouseSession:
             lowest_std = min(lowest_std, std_value)
         print(f"threshold_piezo {self.threshold_piezo}, window {window_in_ms}: "
               f"lowest_std {np.round(lowest_std, 3)}")
-        # TODO: multiply by a threshold factor define in the param
-        self.lowest_std_in_piezo = lowest_std * 2
+        self.lowest_std_in_piezo = lowest_std * threshold_ratio
 
         mvt_periods = self.detect_mvt_periods_with_piezo_and_diff(piezo_data=self.raw_piezo,
                                                                   piezo_threshold=self.lowest_std_in_piezo,
@@ -1990,7 +2029,6 @@ class MouseSession:
 
         # classifying mvts
         self.twitches_frames_periods = []
-        self.twitches_frames = []
         self.short_lasting_mvt = []
         self.noise_mvt = []
         self.complex_mvt = []
@@ -1999,10 +2037,14 @@ class MouseSession:
         interval_after_twitch = times_for_1_ms * 400
         min_interval = times_for_1_ms * 100
         last_one_is_noise = False
+        last_one_is_complex_mvt = False
         for mvt_index, mvt_period in enumerate(mvt_periods):
             duration = mvt_period[1] - mvt_period[0]
             if duration >= (times_for_1_ms * 900):
                 self.complex_mvt.append(mvt_period)
+                last_one_is_complex_mvt = True
+                last_one_is_noise = False
+                continue
             elif duration <= (times_for_1_ms * 600):
                 it_is_a_twitch = True
                 it_is_noise = False
@@ -2020,17 +2062,28 @@ class MouseSession:
                         it_is_noise = True
                 if it_is_a_twitch:
                     self.twitches_frames_periods.append(mvt_period)
-                    self.twitches_frames.extend(list(np.arange(mvt_period[0], mvt_period[1] + 1)))
+                    # self.twitches_frames.extend(list(np.arange(mvt_period[0], mvt_period[1] + 1)))
                 elif it_is_noise:
                     # not keeping those noise events
                     # self.noise_mvt.append(mvt_period)
                     last_one_is_noise = True
+                    last_one_is_complex_mvt = False
                     continue
                 else:
                     self.short_lasting_mvt.append(mvt_period)
             else:
-                self.intermediate_behavourial_events.append(mvt_period)
+                if last_one_is_complex_mvt:
+                    last_mvt_period = mvt_periods[mvt_index - 1]
+                    if ((mvt_period[0] - last_mvt_period[1]) < min_interval):
+                        # then it becomes a complex mvt
+                        self.complex_mvt.append(mvt_period)
+                        last_one_is_complex_mvt = True
+                        last_one_is_noise = False
+                        continue
+                    else:
+                        self.intermediate_behavourial_events.append(mvt_period)
             last_one_is_noise = False
+            last_one_is_complex_mvt = False
 
         # print("before find_peaks")
         # peaks, _ = find_peaks(piezo, height=(lowest_std_in_piezo, None), prominence=(1, None))
@@ -2086,8 +2139,41 @@ class MouseSession:
             plt.close()
 
         gui = MvtSelectionGui(mouse_session=self)
+        # getting the results from the gui
+        self.twitches_frames_periods = []
+        self.short_lasting_mvt = []
+        self.noise_mvt = []
+        for period_times, category in gui.mvt_categories.items():
+            if category == gui.categories_code["twitches"]:
+                self.twitches_frames_periods.append(period_times)
+            elif category == gui.categories_code["short lasting mvt"]:
+                self.short_lasting_mvt.append(period_times)
+            elif category == gui.categories_code["noise"]:
+                self.noise_mvt.append(period_times)
 
-        raise Exception("piezo haha")
+        periods_to_frames = []
+        self.twitches_frames = []
+        self.short_lasting_mvt_frames = []
+        self.complex_mvt_frames = []
+        self.intermediate_behavourial_events_frames = []
+        self.noise_mvt_frames = []
+        periods_to_frames.append((self.twitches_frames_periods, self.twitches_frames))
+        periods_to_frames.append((self.short_lasting_mvt, self.short_lasting_mvt_frames))
+        periods_to_frames.append((self.complex_mvt, self.complex_mvt_frames))
+        periods_to_frames.append((self.intermediate_behavourial_events, self.intermediate_behavourial_events_frames))
+        periods_to_frames.append((self.noise_mvt, self.noise_mvt_frames))
+        # now with put all mvt periods in frame indices and as np.array to save it in a numpy file
+        for mvt_periods, frames_list in periods_to_frames:
+            for mvt_period in mvt_periods:
+                frames = np.where(np.logical_and(self.abf_frames >= mvt_period[0], self.abf_frames <= mvt_period[1]))[0]
+                if len(frames) > 0:
+                    frames_list.extend(frames)
+
+        self.twitches_frames = np.array(self.twitches_frames)
+        self.short_lasting_mvt_frames = np.array(self.short_lasting_mvt_frames)
+        self.complex_mvt_frames = np.array(self.complex_mvt_frames)
+        self.intermediate_behavourial_events_frames = np.array(self.intermediate_behavourial_events_frames)
+        self.noise_mvt_frames = np.array(self.noise_mvt_frames)
 
     def detect_run_periods(self, mvt_data, min_speed):
         nb_period_by_wheel = 500
