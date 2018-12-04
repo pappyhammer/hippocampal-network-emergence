@@ -6,7 +6,6 @@ import matplotlib.cm as cm
 import matplotlib.gridspec as gridspec
 import seaborn as sns
 from bisect import bisect
-from scipy.signal import find_peaks
 from scipy import signal
 # important to avoid a bug when using virtualenv
 # matplotlib.use('TkAgg')
@@ -18,6 +17,7 @@ from datetime import datetime
 # import keras
 import os
 import pyabf
+import matplotlib.image as mpimg
 # to add homemade package, go to preferences, then project interpreter, then click on the wheel symbol
 # then show all, then select the interpreter and lick on the more right icon to display a list of folder and
 # add the one containing the folder pattern_discovery
@@ -62,6 +62,7 @@ class MouseSession:
         self.low_activity_threshold_by_percentile = dict()
         self.percentile_for_low_activity_threshold = percentile_for_low_activity_threshold
         self.low_activity_threshold = None
+        self.avg_cell_map_img = None
         self.param = param
         # list of list of int representing cell indices
         # initiated when loading_cell_assemblies
@@ -2306,6 +2307,9 @@ class MouseSession:
         return self.merging_time_periods(time_periods=mvt_periods_tuples,
                                          min_time_between_periods=min_time_between_periods)
         # return mvt_periods_bool, mvt_periods_tuples, mvt_periods_times_numbers
+
+    def set_avg_cell_map_tif(self, file_name):
+        self.avg_cell_map_img = mpimg.imread(self.param.path_data + file_name)
 
     def load_data_from_file(self, file_name_to_load, variables_mapping, frames_filter=None):
         """
