@@ -157,6 +157,7 @@ class ChooseSessionFrame(tk.Frame):
         self.create_buttons()
 
     def go_go(self):
+        self.go_button['state'] = DISABLED
         ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=[self.option_menu_variable.get()],
                                                 param=self.data_and_param,
                                                 load_traces=True, load_abf=False)
@@ -731,8 +732,8 @@ class ManualOnsetFrame(tk.Frame):
             self.map_img_canvas.draw()
             self.map_img_canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=YES)
 
-        magnifier_frame = Frame(side_bar_frame)
-        magnifier_frame.pack(side=TOP, expand=YES, fill=BOTH)
+        self.magnifier_frame = Frame(side_bar_frame)
+        self.magnifier_frame.pack(side=TOP, expand=YES, fill=BOTH)
         self.magnifier_fig = plt.figure(figsize=(4, 4))
         self.axe_plot_magnifier = None
         # represent the x_value on which the magnifier is centered
@@ -740,7 +741,10 @@ class ManualOnsetFrame(tk.Frame):
         # how many frames before and after the center
         self.magnifier_range = 50
         # self.plot_canvas = MyCanvas(self.fig, canvas_frame, self)
-        self.magnifier_canvas = FigureCanvasTkAgg(self.magnifier_fig, magnifier_frame)
+        self.magnifier_canvas = FigureCanvasTkAgg(self.magnifier_fig, self.magnifier_frame)
+        # used to update the plot
+        self.magnifier_marker = None
+        self.magnifier_line = None
         self.plot_magnifier(first_time=True)
 
         self.magnifier_canvas.draw()
@@ -816,8 +820,8 @@ class ManualOnsetFrame(tk.Frame):
         empty_label = Label(bottom_frame)
         empty_label["text"] = " " * 5
         empty_label.pack(side=RIGHT)
-
-        self.spin_box_threshold = Spinbox(bottom_frame, from_=1, to=3, fg="blue", justify=CENTER,
+        # from_=1, to=3
+        self.spin_box_threshold = Spinbox(bottom_frame, values=np.arange(0.5, 3, 0.2), fg="blue", justify=CENTER,
                                           width=3, state="readonly")
         self.spin_box_threshold["command"] = event_lambda(self.spin_box_threshold_update)
         # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
@@ -879,6 +883,15 @@ class ManualOnsetFrame(tk.Frame):
         self.remove_cell_button["command"] = event_lambda(self.remove_cell)
         self.remove_cell_button.pack(side=RIGHT)
 
+        self.magnifier_button = Button(bottom_frame)
+
+        self.magnifier_button["text"] = ' magnified OFF '
+        self.magnifier_button["fg"] = "black"
+        self.magnifier_mode = False
+
+        self.magnifier_button["command"] = event_lambda(self.switch_magnifier)
+        self.magnifier_button.pack(side=RIGHT)
+
         # used for association of keys
         self.keys_pressed = dict()
         self.root.bind_all("<KeyRelease>", self.key_release_action)
@@ -886,6 +899,16 @@ class ManualOnsetFrame(tk.Frame):
 
     def neuron_entry_change(self, *args):
         print(f"Neuron: {self.neuron_string_var.get()}")
+
+    def switch_magnifier(self):
+        if self.magnifier_mode:
+            self.magnifier_button["text"] = ' magnified OFF '
+            self.magnifier_button["fg"] = "black"
+            self.magnifier_mode = False
+        else:
+            self.magnifier_button["text"] = ' magnified ON '
+            self.magnifier_button["fg"] = "red"
+            self.magnifier_mode = True
 
     def set_inter_neuron(self):
         if self.inter_neurons[self.current_neuron] == 0:
@@ -953,6 +976,8 @@ class ManualOnsetFrame(tk.Frame):
             self.add_onset_switch_mode()
         elif event.char in ["r", "R", "-"]:
             self.remove_onset_switch_mode()
+        elif event.char in ["m", "M"]:
+            self.switch_magnifier()
         if event.keysym == 'Right':
             # C as cell
             if ("Meta_L" in self.keys_pressed) or ("Control_L" in self.keys_pressed):
@@ -1166,6 +1191,9 @@ class ManualOnsetFrame(tk.Frame):
         :param event:
         :return:
         """
+        if not self.magnifier_mode:
+            return
+
         if (not self.add_onset_mode) and (not self.remove_onset_mode) \
                 and (not self.add_peak_mode) and (not self.remove_peak_mode) \
                 and (not self.remove_all_mode):
@@ -1177,14 +1205,18 @@ class ManualOnsetFrame(tk.Frame):
         if (event.xdata < 0) or (event.xdata > (self.nb_times_traces - 1)):
             return
 
+        change_frame_ref = False
         if self.x_center_magnified is None:
             self.x_center_magnified = event.xdata
+            change_frame_ref = True
         else:
             # changing the window only when there is a change > 20% of the range
             if np.abs(event.xdata - self.x_center_magnified) >= (self.magnifier_range * 0.5):
                 self.x_center_magnified = event.xdata
+                change_frame_ref = True
 
-        self.update_plot_magnifier(mouse_x_position=event.xdata, mouse_y_position=event.ydata)
+        self.update_plot_magnifier(mouse_x_position=event.xdata, mouse_y_position=event.ydata,
+                                   change_frame_ref=change_frame_ref)
 
         # print(f"Mouse position: {event.xdata} { event.ydata}")
 
@@ -1391,7 +1423,7 @@ class ManualOnsetFrame(tk.Frame):
         self.update_plot()
 
     def spin_box_threshold_update(self):
-        self.nb_std_thresold = int(self.spin_box_threshold.get())
+        self.nb_std_thresold = float(self.spin_box_threshold.get())
         if self.display_threshold:
             self.update_plot()
 
@@ -1655,11 +1687,7 @@ class ManualOnsetFrame(tk.Frame):
             self.axe_plot_magnifier = self.magnifier_fig.add_subplot(111)
 
         if self.x_center_magnified is not None:
-            corrected_mouse_x_position = None
-            corrected_mouse_y_position = None
             pos_beg_x = int(np.max((0, self.x_center_magnified - self.magnifier_range)))
-            if mouse_x_position is not None:
-                corrected_mouse_x_position = mouse_x_position - pos_beg_x
             pos_end_x = int(np.min((self.nb_times, self.x_center_magnified + self.magnifier_range + 1)))
 
             max_value = max(np.max(self.traces[self.current_neuron, pos_beg_x:pos_end_x]),
@@ -1668,9 +1696,6 @@ class ManualOnsetFrame(tk.Frame):
                             np.min(self.raw_traces[self.current_neuron, pos_beg_x:pos_end_x]))
 
             nb_times_to_display = pos_end_x - pos_beg_x
-
-            if mouse_y_position is not None:
-                corrected_mouse_y_position = np.min((mouse_y_position, max_value))
 
             color_trace = self.color_trace
             self.line1, = self.axe_plot_magnifier.plot(np.arange(nb_times_to_display),
@@ -1684,25 +1709,19 @@ class ManualOnsetFrame(tk.Frame):
 
             onsets = np.where(self.onset_times[self.current_neuron, pos_beg_x:pos_end_x] > 0)[0]
             # plotting onsets
-            self.axe_plot_magnifier.vlines(onsets, min_value, max_value, color=self.color_onset, linewidth=1,
+            self.axe_plot_magnifier.vlines(onsets, min_value, max_value,
+                                                                  color=self.color_onset, linewidth=1,
                                            linestyles="dashed")
 
             peaks = np.where(self.peak_nums[self.current_neuron, pos_beg_x:pos_end_x] > 0)[0]
             if len(peaks) > 0:
                 reduced_traces = self.traces[self.current_neuron, pos_beg_x:pos_end_x]
                 y_peaks = reduced_traces[peaks]
-                self.ax1_bottom_scatter = self.axe_plot_magnifier.scatter(peaks, y_peaks,
-                                                                          marker='o', c=self.color_peak,
-                                                                          edgecolors=self.color_edge_peak, s=30,
-                                                                          zorder=10)
-            if corrected_mouse_x_position is not None:
-                self.axe_plot_magnifier.scatter(corrected_mouse_x_position, corrected_mouse_y_position,
-                                                marker='x',
-                                                c="black", s=20)
-                self.axe_plot_magnifier.vlines(corrected_mouse_x_position, min_value, max_value, color="red",
-                                               linewidth=1,
-                                               linestyles=":")
-
+                self.axe_plot_magnifier.scatter(peaks, y_peaks,
+                                                marker='o', c=self.color_peak,
+                                                edgecolors=self.color_edge_peak, s=30,
+                                                zorder=10)
+            self.draw_magnifier_marker(mouse_x_position=mouse_x_position, mouse_y_position=mouse_y_position)
             self.axe_plot_magnifier.set_ylim(min_value, max_value+1)
 
         if self.x_center_magnified is None:
@@ -1714,9 +1733,58 @@ class ManualOnsetFrame(tk.Frame):
         if first_time:
             self.magnifier_fig.tight_layout()
 
-    def update_plot_magnifier(self, mouse_x_position, mouse_y_position):
-        self.axe_plot_magnifier.clear()
-        self.plot_magnifier(first_time=False, mouse_x_position=mouse_x_position, mouse_y_position=mouse_y_position)
+    def draw_magnifier_marker(self, mouse_x_position=None, mouse_y_position=None):
+        if (mouse_x_position is None) or (mouse_y_position is None):
+            return
+
+        pos_beg_x = int(np.max((0, self.x_center_magnified - self.magnifier_range)))
+        pos_end_x = int(np.min((self.nb_times, self.x_center_magnified + self.magnifier_range + 1)))
+
+        max_value = max(np.max(self.traces[self.current_neuron, pos_beg_x:pos_end_x]),
+                        np.max(self.raw_traces[self.current_neuron, pos_beg_x:pos_end_x]))
+        min_value = min(np.min(self.traces[self.current_neuron, pos_beg_x:pos_end_x]),
+                        np.min(self.raw_traces[self.current_neuron, pos_beg_x:pos_end_x]))
+
+        corrected_mouse_y_position = np.min((mouse_y_position, max_value))
+
+        corrected_mouse_x_position = None
+        corrected_mouse_y_position = None
+
+        corrected_mouse_x_position = mouse_x_position - pos_beg_x
+
+        if self.magnifier_marker is not None:
+            self.magnifier_marker.set_visible(False)
+
+        if self.magnifier_line is not None:
+            self.magnifier_line.set_visible(False)
+
+        self.magnifier_marker = self.axe_plot_magnifier.scatter(corrected_mouse_x_position,
+                                                                corrected_mouse_y_position,
+                                                                marker='x',
+                                                                c="black", s=20)
+        self.magnifier_line = self.axe_plot_magnifier.vlines(corrected_mouse_x_position, min_value, max_value,
+                                                              color="red",
+                                                              linewidth=1,
+                                                              linestyles=":")
+
+    def update_plot_magnifier(self, mouse_x_position, mouse_y_position, change_frame_ref):
+        if change_frame_ref:
+            self.magnifier_fig.clear()
+            plt.close(self.magnifier_fig)
+            self.magnifier_canvas.get_tk_widget().destroy()
+            self.magnifier_fig = plt.figure(figsize=(4, 4))
+            self.magnifier_canvas = FigureCanvasTkAgg(self.magnifier_fig, self.magnifier_frame)
+
+            self.plot_magnifier(first_time=True, mouse_x_position=mouse_x_position,
+                                mouse_y_position=mouse_y_position)
+
+            self.magnifier_canvas.draw()
+            self.magnifier_canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=YES)
+            # self.axe_plot_magnifier.clear()
+            # self.plot_magnifier(first_time=False, mouse_x_position=mouse_x_position,
+            #                     mouse_y_position=mouse_y_position)
+        else:
+            self.draw_magnifier_marker(mouse_x_position=mouse_x_position, mouse_y_position=mouse_y_position)
 
         self.magnifier_fig.canvas.draw()
         self.magnifier_fig.canvas.flush_events()
@@ -1753,7 +1821,7 @@ class ManualOnsetFrame(tk.Frame):
         self.cell_contour = patches.Polygon(xy=xy,
                                             fill=False, linewidth=0, facecolor="red",
                                             edgecolor="red",
-                                            zorder=15, lw=1)
+                                            zorder=15, lw=2)
         self.axe_plot_map_img.add_patch(self.cell_contour)
 
     def update_plot_map_img(self):

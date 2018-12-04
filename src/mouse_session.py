@@ -1706,13 +1706,14 @@ class MouseSession:
             cells_groups_colors.append(cm.nipy_spectral(float(i + 1) / (n_assemblies + 1)))
         # print(f"cells_groups_colors {cells_groups_colors}")
         self.coord_obj.compute_center_coord(cells_groups=self.cell_assemblies,
-                                            cells_groups_colors=cells_groups_colors)
+                                            cells_groups_colors=cells_groups_colors,
+                                            dont_fill_cells_not_in_groups=True)
 
         self.coord_obj.plot_cells_map(param=self.param,
-                                      data_id=self.description, show_polygons=True,
-                                      fill_polygons=True,
+                                      data_id=self.description, show_polygons=False,
+                                      fill_polygons=False,
                                       title_option="cell_assemblies", connections_dict=None,
-                                      with_cell_numbers=True)
+                                      with_cell_numbers=False, save_formats=["eps", "png"])
 
     def set_low_activity_threshold(self, threshold, percentile_value):
         self.low_activity_threshold_by_percentile[percentile_value] = threshold
@@ -1726,7 +1727,7 @@ class MouseSession:
     def load_abf_file(self, abf_file_name, threshold_piezo=None, with_run=False,
                       frames_channel=0, piezo_channel=1, run_channel=2, threshold_ratio=2,
                       sampling_rate=50000, offset=None):
-
+        return
         print(f"abf: ms {self.description}")
 
         self.abf_sampling_rate = sampling_rate

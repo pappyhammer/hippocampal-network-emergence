@@ -1,5 +1,6 @@
 from mouse_session import MouseSession
 
+
 def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
     ms_str_to_ms_dict = dict()
 
@@ -22,9 +23,14 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             variables_mapping = {"traces": "C_df"}
             p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p6_18_02_07_a001_ms.load_data_from_file(
+                file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        p6_18_02_07_a001_ms.set_avg_cell_map_tif(file_name="p6/p6_18_02_07_a001/AVG_p6_18_02_07_a001.tif")
         if load_abf:
             p6_18_02_07_a001_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a001/p6_18_02_07_001.abf",
                                               threshold_piezo=25)  # 7
@@ -52,16 +58,17 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a002/p6_18_02_07_a002_Traces.mat",
                                                     variables_mapping=variables_mapping)
             variables_mapping = {"raw_traces": "raw_traces"}
-            p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a002/p6_18_02_07_a002_raw_Traces.mat",
-                                                    variables_mapping=variables_mapping)
+            p6_18_02_07_a002_ms.load_data_from_file(
+                file_name_to_load="p6/p6_18_02_07_a002/p6_18_02_07_a002_raw_Traces.mat",
+                variables_mapping=variables_mapping)
 
         variables_mapping = {"coord": "ContoursAll"}
         p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a002/p6_18_02_07_a002_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
-        p6_18_02_07_a002_ms.set_avg_cell_map_tif(file_name="p6/p6_18_02_07_a002/p6_18_02_07_a002_AVG.tif")
+        p6_18_02_07_a002_ms.set_avg_cell_map_tif(file_name="p6/p6_18_02_07_a002/AVG_p6_18_02_07_a002.tif")
         if load_abf:
             p6_18_02_07_a002_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a002/p6_18_02_07_002.abf",
-                                          threshold_piezo=25)
+                                              threshold_piezo=25)
         ms_str_to_ms_dict["p6_18_02_07_a002_ms"] = p6_18_02_07_a002_ms
 
     if "p7_171012_a000_ms" in ms_str_to_load:
@@ -79,10 +86,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         p7_171012_a000_ms.load_data_from_file(
             file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Corrected_RasterDur.mat",
             variables_mapping=variables_mapping)
+        p7_171012_a000_ms.set_avg_cell_map_tif(file_name="p7/p7_17_10_12_a000/AVG_p7_17_10_12_a000.tif")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Traces.mat",
                                                   variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p7_171012_a000_ms.load_data_from_file(
+                file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         # variables_mapping = {"coord": "ContoursAll"} ContoursSoma ContoursIntNeur
         # p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_CellDetect.mat",
         #                                          variables_mapping=variables_mapping)
@@ -103,10 +115,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load=
                                                 "p7/p7_17_10_18_a002/p7_17_10_18_a002_Corrected_RasterDur.mat",
                                                 variables_mapping=variables_mapping)
+        p7_17_10_18_a002_ms.set_avg_cell_map_tif(file_name="p7/p7_17_10_18_a002/AVG_p7_17_10_18_a002.tif")
         if load_traces:
             variables_mapping = {"raw_traces": "Tr"}
-            p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a002/p7_17_10_18_a002_raw_traces.mat",
-                                                    variables_mapping=variables_mapping)
+            p7_17_10_18_a002_ms.load_data_from_file(
+                file_name_to_load="p7/p7_17_10_18_a002/p7_17_10_18_a002_raw_traces.mat",
+                variables_mapping=variables_mapping)
             variables_mapping = {"traces": "C_df"}
             p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a002/p7_17_10_18_a002_Traces.mat",
                                                     variables_mapping=variables_mapping)
@@ -130,10 +144,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         p7_17_10_18_a004_ms.load_data_from_file(file_name_to_load=
                                                 "p7/p7_17_10_18_a004/p7_17_10_18_a004_Corrected_RasterDur.mat",
                                                 variables_mapping=variables_mapping)
+        p7_17_10_18_a004_ms.set_avg_cell_map_tif(file_name="p7/p7_17_10_18_a004/AVG_p7_17_10_18_a004.tif")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p7_17_10_18_a004_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a004/p7_17_10_18_a004_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p7_17_10_18_a004_ms.load_data_from_file(
+                file_name_to_load="p7/p7_17_10_18_a004/p7_17_10_18_a004_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p7_17_10_18_a004_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a004/p7_17_10_18_a004_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
@@ -154,16 +173,21 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load=
                                                 "p7/p7_18_02_08_a000/p7_18_02_18_a000_Corrected_RasterDur.mat",
                                                 variables_mapping=variables_mapping)
+        p7_18_02_08_a000_ms.set_avg_cell_map_tif(file_name="p7/p7_18_02_08_a000/AVG_p7_18_02_08_a000.tif")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a000/p7_18_02_08_a000_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p7_18_02_08_a000_ms.load_data_from_file(
+                file_name_to_load="p7/p7_18_02_08_a000/p7_18_02_08_a000_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a000/p7_18_02_08_a000_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         if load_abf:
             p7_18_02_08_a000_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a000/p7_18_02_08_a000.abf",
-                                          threshold_piezo=4)
+                                              threshold_piezo=4)
         ms_str_to_ms_dict["p7_18_02_08_a000_ms"] = p7_18_02_08_a000_ms
 
     if "p7_18_02_08_a001_ms" in ms_str_to_load:
@@ -181,16 +205,21 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load=
                                                 "p7/p7_18_02_08_a001/p7_18_02_18_a001_Corrected_RasterDur.mat",
                                                 variables_mapping=variables_mapping)
+        p7_18_02_08_a001_ms.set_avg_cell_map_tif(file_name="p7/p7_18_02_08_a001/AVG_p7_18_02_08_a001.tif")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p7_18_02_08_a001_ms.load_data_from_file(
+                file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         if load_abf:
             p7_18_02_08_a001_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a001/p7_18_02_08_a001.abf",
-                                          threshold_piezo=4)
+                                              threshold_piezo=4)
         ms_str_to_ms_dict["p7_18_02_08_a001_ms"] = p7_18_02_08_a001_ms
 
     if "p7_18_02_08_a002_ms" in ms_str_to_load:
@@ -208,16 +237,21 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load=
                                                 "p7/p7_18_02_08_a002/p7_18_02_08_a002_Corrected_RasterDur.mat",
                                                 variables_mapping=variables_mapping)
+        p7_18_02_08_a002_ms.set_avg_cell_map_tif(file_name="p7/p7_18_02_08_a002/AVG_p7_18_02_08_a002.tif")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a002/p7_18_02_08_a002_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p7_18_02_08_a002_ms.load_data_from_file(
+                file_name_to_load="p7/p7_18_02_08_a002/p7_18_02_08_a002_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a002/p7_18_02_08_a002_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         if load_abf:
             p7_18_02_08_a002_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a002/p7_18_02_08_a002.abf",
-                                          threshold_piezo=2.5)
+                                              threshold_piezo=2.5)
         ms_str_to_ms_dict["p7_18_02_08_a002_ms"] = p7_18_02_08_a002_ms
 
     if "p7_18_02_08_a003_ms" in ms_str_to_load:
@@ -235,16 +269,21 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load=
                                                 "p7/p7_18_02_08_a003/p7_18_02_08_a003_Corrected_RasterDur.mat",
                                                 variables_mapping=variables_mapping)
+        p7_18_02_08_a003_ms.set_avg_cell_map_tif(file_name="p7/p7_18_02_08_a003/AVG_p7_18_02_08_a003.tif")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a003/p7_18_02_08_a003_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p7_18_02_08_a003_ms.load_data_from_file(
+                file_name_to_load="p7/p7_18_02_08_a003/p7_18_02_08_a003_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a003/p7_18_02_08_a003_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         if load_abf:
             p7_18_02_08_a003_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a003/p7_18_02_08_a003.abf",
-                                          threshold_piezo=9)  # used to be 2.5
+                                              threshold_piezo=9)  # used to be 2.5
         ms_str_to_ms_dict["p7_18_02_08_a003_ms"] = p7_18_02_08_a003_ms
 
     if "p8_18_02_09_a000_ms" in ms_str_to_load:
@@ -262,16 +301,21 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load=
                                                 "p8/p8_18_02_09_a000/p8_18_02_09_a000_Corrected_RasterDur.mat",
                                                 variables_mapping=variables_mapping)
+        p8_18_02_09_a000_ms.set_avg_cell_map_tif(file_name="p8/p8_18_02_09_a000/AVG_p8_18_02_09_a000.tif")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a000/p8_18_02_09_a000_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p8_18_02_09_a000_ms.load_data_from_file(
+                file_name_to_load="p8/p8_18_02_09_a000/p8_18_02_09_a000_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a000/p8_18_02_09_a000_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         if load_abf:
             p8_18_02_09_a000_ms.load_abf_file(abf_file_name="p8/p8_18_02_09_a000/p8_18_02_09_a000.abf",
-                                          threshold_piezo=2)  # used to be 1.5
+                                              threshold_piezo=2)  # used to be 1.5
         ms_str_to_ms_dict["p8_18_02_09_a000_ms"] = p8_18_02_09_a000_ms
 
     if "p8_18_02_09_a001_ms" in ms_str_to_load:
@@ -293,12 +337,17 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             variables_mapping = {"traces": "C_df"}
             p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p8_18_02_09_a001_ms.load_data_from_file(
+                file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        p8_18_02_09_a001_ms.set_avg_cell_map_tif(file_name="p8/p8_18_02_09_a001/AVG_p8_18_02_09_a001.tif")
         if load_abf:
             p8_18_02_09_a001_ms.load_abf_file(abf_file_name="p8/p8_18_02_09_a001/p8_18_02_09_a001.abf",
-                                          threshold_piezo=3)  # 1.5 before then 2
+                                              threshold_piezo=3)  # 1.5 before then 2
         ms_str_to_ms_dict["p8_18_02_09_a001_ms"] = p8_18_02_09_a001_ms
 
     if "p8_18_10_17_a000_ms" in ms_str_to_load:
@@ -320,6 +369,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             variables_mapping = {"traces": "C_df"}
             p8_18_10_17_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a000/p8_18_10_17_a000_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p8_18_10_17_a000_ms.load_data_from_file(
+                file_name_to_load="p8/p8_18_10_17_a000/p8_18_10_17_a000_raw_Traces.mat",
+                variables_mapping=variables_mapping)
+        p8_18_10_17_a000_ms.set_avg_cell_map_tif(file_name="p8/p8_18_10_17_a000/AVG_p8_18_10_17_a000.tif")
         variables_mapping = {"coord": "ContoursAll"}
         p8_18_10_17_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a000/p8_18_10_17_a000_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
@@ -344,13 +398,18 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             variables_mapping = {"traces": "C_df"}
             p8_18_10_17_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a001/p8_18_10_17_a001_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p8_18_10_17_a001_ms.load_data_from_file(
+                file_name_to_load="p8/p8_18_10_17_a001/p8_18_10_17_a001_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p8_18_10_17_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a001/p8_18_10_17_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        p8_18_10_17_a001_ms.set_avg_cell_map_tif(file_name="p8/p8_18_10_17_a001/AVG_p8_18_10_17_a001.tif")
         # CORRUPTED ABF ??
         if load_abf:
             p8_18_10_17_a001_ms.load_abf_file(abf_file_name="p8/p8_18_10_17_a001/p8_18_10_17_a001.abf",
-                                          threshold_piezo=0.4, piezo_channel=2, sampling_rate=10000)
+                                              threshold_piezo=0.4, piezo_channel=2, sampling_rate=10000)
         ms_str_to_ms_dict["p8_18_10_17_a001_ms"] = p8_18_10_17_a001_ms
 
     if "p8_18_10_24_a005_ms" in ms_str_to_load:
@@ -369,16 +428,21 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load=
                                                 "p8/p8_18_10_24_a005/p8_18_10_24_a005_Corrected_RasterDur.mat",
                                                 variables_mapping=variables_mapping)
+        p8_18_10_24_a005_ms.set_avg_cell_map_tif(file_name="p8/p8_18_10_24_a005/AVG_p8_18_10_24_a005.tif")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p8_18_10_24_a005_ms.load_data_from_file(
+                file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         if load_abf:
             p8_18_10_24_a005_ms.load_abf_file(abf_file_name="p8/p8_18_10_24_a005/p8_18_10_24_a005.abf",
-                                          threshold_piezo=0.5)  # used to be 0.4
+                                              threshold_piezo=0.5)  # used to be 0.4
         ms_str_to_ms_dict["p8_18_10_24_a005_ms"] = p8_18_10_24_a005_ms
 
     # p9_17_11_29_a002 low participation comparing to other, dead shortly after the recording
@@ -420,16 +484,21 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         p9_17_12_06_a001_ms.load_data_from_file(file_name_to_load=
                                                 "p9/p9_17_12_06_a001/p9_17_12_06_a001_Corrected_RasterDur.mat",
                                                 variables_mapping=variables_mapping)
+        p9_17_12_06_a001_ms.set_avg_cell_map_tif(file_name="p9/p9_17_12_06_a001/AVG_p9_17_12_06_a001.tif")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p9_17_12_06_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_06_a001/p9_17_12_06_a001_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p9_17_12_06_a001_ms.load_data_from_file(
+                file_name_to_load="p9/p9_17_12_06_a001/p9_17_12_06_a001_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p9_17_12_06_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_06_a001/p9_17_12_06_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         if load_abf:
             p9_17_12_06_a001_ms.load_abf_file(abf_file_name="p9/p9_17_12_06_a001/p9_17_12_06_a001.abf",
-                                          threshold_piezo=1.5)
+                                              threshold_piezo=1.5)
         ms_str_to_ms_dict["p9_17_12_06_a001_ms"] = p9_17_12_06_a001_ms
 
     if "p9_17_12_20_a001_ms" in ms_str_to_load:
@@ -450,12 +519,17 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             variables_mapping = {"traces": "C_df"}
             p9_17_12_20_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_20_a001/p9_17_12_20_a001_Traces.mat",
                                                     variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p9_17_12_20_a001_ms.load_data_from_file(
+                file_name_to_load="p9/p9_17_12_20_a001/p9_17_12_20_a001_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p9_17_12_20_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_20_a001/p9_17_12_20_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        p9_17_12_20_a001_ms.set_avg_cell_map_tif(file_name="p9/p9_17_12_20_a001/AVG_p9_17_12_20_a001.tif")
         if load_abf:
             p9_17_12_20_a001_ms.load_abf_file(abf_file_name="p9/p9_17_12_20_a001/p9_17_12_20_a001.abf",
-                                          threshold_piezo=3)  # used to be 2
+                                              threshold_piezo=3)  # used to be 2
         ms_str_to_ms_dict["p9_17_12_20_a001_ms"] = p9_17_12_20_a001_ms
 
     if "p9_18_09_27_a003_ms" in ms_str_to_load:
@@ -473,13 +547,19 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
                                                 "p9/p9_18_09_27_a003/p9_18_09_27_a003_Corrected_RasterDur.mat",
                                                 variables_mapping=variables_mapping)
 
+        variables_mapping = {"raw_traces": "raw_traces"}
+        p9_18_09_27_a003_ms.load_data_from_file(
+            file_name_to_load="p9/p9_18_09_27_a003/p9_18_09_27_a003_raw_Traces.mat",
+            variables_mapping=variables_mapping)
+
         variables_mapping = {"coord": "ContoursAll"}
         p9_18_09_27_a003_ms.load_data_from_file(file_name_to_load="p9/p9_18_09_27_a003/p9_18_09_27_a003_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        p9_18_09_27_a003_ms.set_avg_cell_map_tif(file_name="p9/p9_18_09_27_a003/AVG_p9_18_09_27_a003.tif")
         if load_abf:
             p9_18_09_27_a003_ms.load_abf_file(abf_file_name="p9/p9_18_09_27_a003/p9_18_09_27_a003.abf",
-                                          threshold_piezo=0.06, piezo_channel=2, sampling_rate=10000,
-                                          offset=0.1)
+                                              threshold_piezo=0.06, piezo_channel=2, sampling_rate=10000,
+                                              offset=0.1)
         ms_str_to_ms_dict["p9_18_09_27_a003_ms"] = p9_18_09_27_a003_ms
 
     if "p10_17_11_16_a003_ms" in ms_str_to_load:
@@ -501,6 +581,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             p10_17_11_16_a003_ms.load_data_from_file(
                 file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_Traces.mat",
                 variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p10_17_11_16_a003_ms.load_data_from_file(
+                file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_raw_Traces.mat",
+                variables_mapping=variables_mapping)
+        p10_17_11_16_a003_ms.set_avg_cell_map_tif(file_name="p10/p10_17_11_16_a003/AVG_p10_17_11_16_a003.tif")
         variables_mapping = {"coord": "ContoursAll"}
         p10_17_11_16_a003_ms.load_data_from_file(
             file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_CellDetect.mat",
@@ -526,10 +611,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             p11_17_11_24_a000_ms.load_data_from_file(
                 file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_Traces.mat",
                 variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p11_17_11_24_a000_ms.load_data_from_file(
+                file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p11_17_11_24_a000_ms.load_data_from_file(
             file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
             variables_mapping=variables_mapping)
+        p11_17_11_24_a000_ms.set_avg_cell_map_tif(file_name="p11/p11_17_11_24_a000/AVG_p11_17_11_24_a000.tif")
         # p11_17_11_24_a000_ms.plot_cell_assemblies_on_map()
         ms_str_to_ms_dict["p11_17_11_24_a000_ms"] = p11_17_11_24_a000_ms
 
@@ -552,10 +642,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             p11_17_11_24_a001_ms.load_data_from_file(
                 file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_Traces.mat",
                 variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p11_17_11_24_a001_ms.load_data_from_file(
+                file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p11_17_11_24_a001_ms.load_data_from_file(
             file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_CellDetect.mat",
             variables_mapping=variables_mapping)
+        p11_17_11_24_a001_ms.set_avg_cell_map_tif(file_name="p11/p11_17_11_24_a001/AVG_p11_17_11_24_a001.tif")
         ms_str_to_ms_dict["p11_17_11_24_a001_ms"] = p11_17_11_24_a001_ms
 
     if "p12_171110_a000_ms" in ms_str_to_load:
@@ -578,10 +673,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             p12_171110_a000_ms.load_data_from_file(
                 file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_Traces.mat",
                 variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p12_171110_a000_ms.load_data_from_file(
+                file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p12_171110_a000_ms.load_data_from_file(
             file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_CellDetect.mat",
             variables_mapping=variables_mapping)
+        p12_171110_a000_ms.set_avg_cell_map_tif(file_name="p12/p12_17_11_10_a000/AVG_p12_17_11_10_a000.tif")
         ms_str_to_ms_dict["p12_171110_a000_ms"] = p12_171110_a000_ms
 
     if "p12_17_11_10_a002_ms" in ms_str_to_load:
@@ -603,10 +703,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             p12_17_11_10_a002_ms.load_data_from_file(
                 file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_Traces.mat",
                 variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p12_17_11_10_a002_ms.load_data_from_file(
+                file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p12_17_11_10_a002_ms.load_data_from_file(
             file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_CellDetect.mat",
             variables_mapping=variables_mapping)
+        p12_17_11_10_a002_ms.set_avg_cell_map_tif(file_name="p12/p12_17_11_10_a002/AVG_p12_17_11_10_a002.tif")
         ms_str_to_ms_dict["p12_17_11_10_a002_ms"] = p12_17_11_10_a002_ms
 
     if "p13_18_10_29_a000_ms" in ms_str_to_load:
@@ -628,13 +733,18 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             p13_18_10_29_a000_ms.load_data_from_file(
                 file_name_to_load="p13/p13_18_10_29_a000/p13_18_10_29_a000_Traces.mat",
                 variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p13_18_10_29_a000_ms.load_data_from_file(
+                file_name_to_load="p13/p13_17_11_10_a002/p13_17_11_10_a002_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p13_18_10_29_a000_ms.load_data_from_file(file_name_to_load=
                                                  "p13/p13_18_10_29_a000/p13_18_10_29_a000_CellDetect.mat",
                                                  variables_mapping=variables_mapping)
+        p13_18_10_29_a000_ms.set_avg_cell_map_tif(file_name="p13/p13_18_10_29_a000/AVG_p13_18_10_29_a000.tif")
         if load_abf:
             p13_18_10_29_a000_ms.load_abf_file(abf_file_name="p13/p13_18_10_29_a000/p13_18_10_29_a000.abf",
-                                           threshold_piezo=None, with_run=True, sampling_rate=10000)
+                                               threshold_piezo=None, with_run=True, sampling_rate=10000)
         ms_str_to_ms_dict["p13_18_10_29_a000_ms"] = p13_18_10_29_a000_ms
 
     if "p13_18_10_29_a001_ms" in ms_str_to_load:
@@ -656,13 +766,18 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             p13_18_10_29_a001_ms.load_data_from_file(
                 file_name_to_load="p13/p13_18_10_29_a001/p13_18_10_29_a001_Traces.mat",
                 variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p13_18_10_29_a001_ms.load_data_from_file(
+                file_name_to_load="p13/p13_18_10_29_a001/p13_18_10_29_a001_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
                                                  "p13/p13_18_10_29_a001/p13_18_10_29_a001_CellDetect.mat",
                                                  variables_mapping=variables_mapping)
+        p13_18_10_29_a001_ms.set_avg_cell_map_tif(file_name="p13/p13_18_10_29_a001/AVG_p13_18_10_29_a001.tif")
         if load_abf:
             p13_18_10_29_a001_ms.load_abf_file(abf_file_name="p13/p13_18_10_29_a001/p13_18_10_29_a001.abf",
-                                           threshold_piezo=None, with_run=True, sampling_rate=10000)
+                                               threshold_piezo=None, with_run=True, sampling_rate=10000)
         ms_str_to_ms_dict["p13_18_10_29_a001_ms"] = p13_18_10_29_a001_ms
 
     if "p14_18_10_23_a000_ms" in ms_str_to_load:
@@ -684,10 +799,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             p14_18_10_23_a000_ms.load_data_from_file(
                 file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_Traces.mat",
                 variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p14_18_10_23_a000_ms.load_data_from_file(
+                file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p14_18_10_23_a000_ms.load_data_from_file(
             file_name_to_load="p14/p14_18_10_23_a000/p14_18_10_23_a000_CellDetect.mat",
             variables_mapping=variables_mapping)
+        p14_18_10_23_a000_ms.set_avg_cell_map_tif(file_name="p14/p14_18_10_23_a000/AVG_p14_18_10_23_a000.tif")
         ms_str_to_ms_dict["p14_18_10_23_a000_ms"] = p14_18_10_23_a000_ms
 
     if "p14_18_10_23_a001_ms" in ms_str_to_load:
@@ -710,10 +830,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             p14_18_10_23_a001_ms.load_data_from_file(
                 file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_Traces.mat",
                 variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p14_18_10_23_a001_ms.load_data_from_file(
+                file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p14_18_10_23_a001_ms.load_data_from_file(
             file_name_to_load="p14/p14_18_10_23_a001/p14_18_10_23_a001_CellDetect.mat",
             variables_mapping=variables_mapping)
+        p14_18_10_23_a001_ms.set_avg_cell_map_tif(file_name="p14/p14_18_10_23_a001/AVG_p14_18_10_23_a001.tif")
         ms_str_to_ms_dict["p14_18_10_23_a001_ms"] = p14_18_10_23_a001_ms
 
     if "p14_18_10_30_a001_ms" in ms_str_to_load:
@@ -735,10 +860,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             p14_18_10_30_a001_ms.load_data_from_file(
                 file_name_to_load="p14/p14_18_10_30_a001/p14_18_10_30_a001_Traces.mat",
                 variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p14_18_10_30_a001_ms.load_data_from_file(
+                file_name_to_load="p14/p14_18_10_30_a001/p14_18_10_30_a001_raw_Traces.mat",
+                variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p14_18_10_30_a001_ms.load_data_from_file(
             file_name_to_load="p14/p14_18_10_30_a001/p14_18_10_30_a001_CellDetect.mat",
             variables_mapping=variables_mapping)
+        p14_18_10_30_a001_ms.set_avg_cell_map_tif(file_name="p14/p14_18_10_30_a001/AVG_p14_18_10_30_a001.tif")
         ms_str_to_ms_dict["p14_18_10_30_a001_ms"] = p14_18_10_30_a001_ms
 
     # arnaud_ms = MouseSession(age=24, session_id="arnaud", nb_ms_by_frame=50, param=param)

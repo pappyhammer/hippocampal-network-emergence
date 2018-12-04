@@ -1666,9 +1666,10 @@ def main():
     ms_str_to_load = ["p7_18_02_08_a000_ms"]
     ms_str_to_load = ["p7_17_10_18_a002_ms"]
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
-    ms_str_to_load = ["p9_18_09_27_a003_ms"]
     ms_str_to_load = ms_new_from_Robin_2nd_dec
     ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    ms_str_to_load = ["p9_18_09_27_a003_ms"]
+    # 256
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -1686,8 +1687,8 @@ def main():
     just_plot_time_correlation_graph_over_twitches = False
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_piezo_with_extra_info = False
-    just_plot_raw_traces_around_each_sce_for_each_cell = True
-    just_plot_cell_assemblies_on_map = False
+    just_plot_raw_traces_around_each_sce_for_each_cell = False
+    just_plot_cell_assemblies_on_map = True
     do_plot_psth_twitches = False
     just_plot_raster = False
 
