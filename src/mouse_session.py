@@ -1079,13 +1079,15 @@ class MouseSession:
                 cells_groups_colors = ["red"]
                 cells_groups = cells_to_color
 
-                self.coord_obj.compute_center_coord(cells_groups=cells_groups,
-                                                    cells_groups_colors=cells_groups_colors)
+                # self.coord_obj.compute_center_coord(cells_groups=cells_groups,
+                #                                     cells_groups_colors=cells_groups_colors)
 
                 self.coord_obj.plot_cells_map(param=self.param,
                                               data_id=self.description, show_polygons=False,
                                               title_option=f"cells_in_sce_{sce_index}",
                                               with_cell_numbers=True,
+                                              cells_groups=cells_groups,
+                                              cells_groups_colors=cells_groups_colors,
                                               background_color="black", default_cells_color="blue")
 
     def plot_raw_traces_around_frame_for_each_cell(self, frame_index, data_descr, show_plot=False, range_in_frames=50,
@@ -1594,14 +1596,17 @@ class MouseSession:
                 cells_groups.append(list(connections_dict_in[cell_to_map].keys()))
                 cells_groups_colors.append(links_cell_color)
 
-        self.coord_obj.compute_center_coord(cells_groups=cells_groups,
-                                            cells_groups_colors=cells_groups_colors)
+        # self.coord_obj.compute_center_coord(cells_groups=cells_groups,
+        #                                     cells_groups_colors=cells_groups_colors)
 
         self.coord_obj.plot_cells_map(param=self.param,
                                       data_id=self.description, show_polygons=False,
                                       title_option=f"n_in_{cell_descr}_{cell_to_map}",
                                       connections_dict=connections_dict_in,
-                                      with_cell_numbers=True,
+                                      with_cell_numbers=False,
+                                      cells_groups=cells_groups,
+                                      dont_fill_cells_not_in_groups=True,
+                                      cells_groups_colors=cells_groups_colors,
                                       background_color="white", default_cells_color="black",
                                       link_connect_color="black")
 
@@ -1615,16 +1620,19 @@ class MouseSession:
                 cells_groups.append(list(connections_dict_out[cell_to_map].keys()))
                 cells_groups_colors.append(links_cell_color)
 
-        self.coord_obj.compute_center_coord(cells_groups=cells_groups,
-                                            cells_groups_colors=cells_groups_colors)
+        # self.coord_obj.compute_center_coord(cells_groups=cells_groups,
+        #                                     cells_groups_colors=cells_groups_colors)
 
         self.coord_obj.plot_cells_map(param=self.param,
                                       data_id=self.description, show_polygons=False,
                                       title_option=f"n_out_{cell_descr}_{cell_to_map}",
                                       connections_dict=connections_dict_out,
-                                      with_cell_numbers=True,
-                                      background_color="white", default_cells_color="black",
-                                      link_connect_color="black"
+                                      with_cell_numbers=False,
+                                      cells_groups=cells_groups,
+                                      dont_fill_cells_not_in_groups=True,
+                                      cells_groups_colors=cells_groups_colors,
+                                      background_color="black", default_cells_color="white",
+                                      link_connect_color="white", save_formats=["png", "eps"]
                                       )
 
     def plot_all_inter_neurons_connect_map(self):
@@ -1665,13 +1673,15 @@ class MouseSession:
                     cells_groups.append(list(connections_dict_in[inter_neuron].keys()))
                     cells_groups_colors.append(cm.nipy_spectral(float(index_inter_neuron + 1) / (n_inter_neurons + 1)))
 
-        self.coord_obj.compute_center_coord(cells_groups=cells_groups,
-                                            cells_groups_colors=cells_groups_colors)
+        # self.coord_obj.compute_center_coord(cells_groups=cells_groups,
+        #                                     cells_groups_colors=cells_groups_colors)
 
         self.coord_obj.plot_cells_map(param=self.param,
                                       data_id=self.description, show_polygons=False,
                                       title_option=f"n_in_interneurons_x_{n_inter_neurons}",
                                       connections_dict=connections_dict_in,
+                                      cells_groups=cells_groups,
+                                      cells_groups_colors=cells_groups_colors,
                                       with_cell_numbers=True)
 
         cells_groups_colors = ["red"]
@@ -1685,13 +1695,15 @@ class MouseSession:
                     cells_groups.append(list(connections_dict_out[inter_neuron].keys()))
                     cells_groups_colors.append(cm.nipy_spectral(float(index_inter_neuron + 1) / (n_inter_neurons + 1)))
 
-        self.coord_obj.compute_center_coord(cells_groups=cells_groups,
-                                            cells_groups_colors=cells_groups_colors)
+        # self.coord_obj.compute_center_coord(cells_groups=cells_groups,
+        #                                     cells_groups_colors=cells_groups_colors)
 
         self.coord_obj.plot_cells_map(param=self.param,
                                       data_id=self.description, show_polygons=False,
                                       title_option=f"n_out_interneurons_x_{n_inter_neurons}",
                                       connections_dict=connections_dict_out,
+                                      cells_groups=cells_groups,
+                                      cells_groups_colors=cells_groups_colors,
                                       with_cell_numbers=True)
 
     def plot_cell_assemblies_on_map(self):
@@ -1705,14 +1717,17 @@ class MouseSession:
             #       f"{cm.nipy_spectral(float(i + 1) / (n_assemblies + 1))}")
             cells_groups_colors.append(cm.nipy_spectral(float(i + 1) / (n_assemblies + 1)))
         # print(f"cells_groups_colors {cells_groups_colors}")
-        self.coord_obj.compute_center_coord(cells_groups=self.cell_assemblies,
-                                            cells_groups_colors=cells_groups_colors,
-                                            dont_fill_cells_not_in_groups=True)
+        # self.coord_obj.compute_center_coord(cells_groups=self.cell_assemblies,
+        #                                     cells_groups_colors=cells_groups_colors,
+        #                                     dont_fill_cells_not_in_groups=True)
 
         self.coord_obj.plot_cells_map(param=self.param,
                                       data_id=self.description, show_polygons=False,
                                       fill_polygons=False,
                                       title_option="cell_assemblies", connections_dict=None,
+                                      cells_groups=self.cell_assemblies,
+                                      cells_groups_colors=cells_groups_colors,
+                                      dont_fill_cells_not_in_groups=True,
                                       with_cell_numbers=False, save_formats=["eps", "png"])
 
     def set_low_activity_threshold(self, threshold, percentile_value):

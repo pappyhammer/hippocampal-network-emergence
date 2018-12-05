@@ -97,6 +97,7 @@ class HNESpikeStructure:
         # then the number of times is connected to it
         self.n_in_dict = dict()
         self.n_out_dict = dict()
+        # initialized when loading rasters
         self.n_in_matrix = None
         self.n_out_matrix = None
 
@@ -182,6 +183,17 @@ class HNESpikeStructure:
                     self.n_out_dict[neuron][neuron_to_consider] = 1
                     self.n_out_matrix[neuron][neuron_to_consider] = 1
 
+        # best_cell = -1
+        # best_score = 0
+        # for cell in np.arange(nb_neurons):
+        #     score = np.sum(self.n_out_matrix[cell])
+        #     if best_score < score:
+        #         best_cell = cell
+        #         best_score = score
+        #     print(f"cell {cell}: {score}")
+        # print(f"Most connected cell: {best_cell} with {best_score} connections")
+        #
+        # raise Exception("connnnnecc")
 
     def set_spike_durations(self, spike_durations_array=None):
         if self.spike_durations is not None:

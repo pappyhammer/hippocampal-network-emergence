@@ -87,7 +87,7 @@ class MvtSelectionGui:
         :return:
         """
         period_times = self.original_mvt_categories_onsets[self.onset_mvts[self.mvt_index_to_display]]
-        print(f"period_times {period_times} self.mvt_index_to_display {self.mvt_index_to_display}")
+        # print(f"period_times {period_times} self.mvt_index_to_display {self.mvt_index_to_display}")
         if period_times in self.mvt_categories:
             category = self.mvt_categories[period_times]
         else:
@@ -97,7 +97,7 @@ class MvtSelectionGui:
         window_size = self.ms.abf_sampling_rate * 4
         min_time = np.max((0, period_times[0]-window_size))
         max_time = np.min((self.n_times, period_times[1]+1+window_size))
-        print(f"min_time {min_time}, max_time {max_time}")
+        # print(f"min_time {min_time}, max_time {max_time}")
         if period_times[0]-window_size < 0:
             min_local_period_times = window_size
         else:

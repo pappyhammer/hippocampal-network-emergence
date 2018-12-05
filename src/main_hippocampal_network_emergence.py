@@ -1688,7 +1688,7 @@ def main():
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
-    just_plot_cell_assemblies_on_map = True
+    just_plot_cell_assemblies_on_map = False
     do_plot_psth_twitches = False
     just_plot_raster = False
 
@@ -1700,7 +1700,7 @@ def main():
     no_redundancy = False
     determine_low_activity_by_variation = False
 
-    do_plot_interneurons_connect_maps = False
+    do_plot_interneurons_connect_maps = True
     do_plot_connect_hist = False
     do_plot_connect_hist_for_all_ages = False
     do_time_graph_correlation = False
@@ -1709,7 +1709,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = True
+    do_clustering = False
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
@@ -1834,6 +1834,11 @@ def main():
 
         if do_plot_interneurons_connect_maps or do_plot_connect_hist:
             ms.detect_n_in_n_out()
+            # For p9_a003 good out connec: cell 8, 235, 201,  151, 17
+            for cell_to_map in [8, 235, 201,  151, 17]:
+                ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="",
+                                                cell_color="red", links_cell_color="cornflowerblue")
+            raise Exception("it's over")
         elif do_time_graph_correlation_and_connect_best and do_time_graph_correlation:
             ms.detect_n_in_n_out()
 

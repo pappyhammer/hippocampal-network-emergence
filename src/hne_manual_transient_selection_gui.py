@@ -201,13 +201,26 @@ class ChooseSessionFrame(tk.Frame):
 
             if data_to_load_str == "onsets & peaks":
                 if "LocPeakMatrix" in data_file:
-                    data_and_param.peak_nums = data_file['LocPeakMatrix'].astype(int)
+                    peak_nums_matlab = data_file['LocPeakMatrix'].astype(int)
+                    peak_nums = np.zeros((len(peak_nums_matlab), len(peak_nums_matlab[0, :])), dtype="int8")
+                    for i in np.arange(len(peak_nums_matlab)):
+                        peak_nums[i, np.where(peak_nums_matlab[i, :])[0]-1] = 1
+                    data_and_param.peak_nums = peak_nums
+                elif "LocPeakMatrix_Python" in data_file:
+                    data_and_param.peak_nums = data_file['LocPeakMatrixPython'].astype(int)
                 else:
                     e = ErrorMessageFrame(error_message="LocPeakMatrix not found")
                     e.mainloop()
                     return
                 if "Bin100ms_spikedigital" in data_file:
-                    data_and_param.spike_nums = data_file['Bin100ms_spikedigital'].astype(int)
+                    spike_nums_matlab = data_file['Bin100ms_spikedigital'].astype(int)
+                    spike_nums = np.zeros((len(spike_nums_matlab), len(spike_nums_matlab[0, :])), dtype="int8")
+                    for i in np.arange(len(spike_nums_matlab)):
+                        spike_nums[i, np.where(spike_nums_matlab[i, :])[0] - 1] = 1
+                    data_and_param.spike_nums = spike_nums
+                    # data_and_param.spike_nums = data_file['Bin100ms_spikedigital'].astype(int)
+                elif "Bin100ms_spikedigital_Python" in data_file:
+                    data_and_param.spike_nums = data_file['Bin100ms_spikedigital_Python'].astype(int)
                 else:
                     e = ErrorMessageFrame(error_message="Bin100ms_spikedigital not found")
                     e.mainloop()
@@ -389,7 +402,7 @@ class AddPeakAction(ManualAction):
 
     def redo(self):
         super().redo()
-        self.session_frame.peak_nums[self.neuron, self.added_time] = self.amplitude
+        self.session_frame.peak_nums[self.neuron, self.added_time] = 1
 
 
 def get_file_name_and_path(path_file):
@@ -821,7 +834,7 @@ class ManualOnsetFrame(tk.Frame):
         empty_label["text"] = " " * 5
         empty_label.pack(side=RIGHT)
         # from_=1, to=3
-        self.spin_box_threshold = Spinbox(bottom_frame, values=np.arange(0.5, 3, 0.2), fg="blue", justify=CENTER,
+        self.spin_box_threshold = Spinbox(bottom_frame, values=list(np.arange(0.1, 10, 0.2)), fg="blue", justify=CENTER,
                                           width=3, state="readonly")
         self.spin_box_threshold["command"] = event_lambda(self.spin_box_threshold_update)
         # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
@@ -1502,11 +1515,13 @@ class ManualOnsetFrame(tk.Frame):
         self.update_after_onset_change()
 
     def add_peak(self, at_time, amplitude=0):
+        # print("add_peak")
         if self.peak_nums[self.current_neuron, at_time] > 0:
             return
 
+        # print(f"add_peak {at_time}")
         # using the amplitude from self.traces, the amplitude as argument is where the click was made
-        self.peak_nums[self.current_neuron, at_time] = self.traces[self.current_neuron, at_time]
+        self.peak_nums[self.current_neuron, at_time] = 1
 
         left_x_limit, right_x_limit = self.axe_plot.get_xlim()
         bottom_limit, top_limit = self.axe_plot.get_ylim()
@@ -1539,6 +1554,8 @@ class ManualOnsetFrame(tk.Frame):
                 self.remove_onset_switch_mode(from_remove_onset_button=False)
             if self.add_onset_mode:
                 self.add_onset_switch_mode(from_add_onset_button=False)
+            if self.remove_all_mode:
+                self.remove_all_switch_mode(from_remove_all_button=False)
         self.add_peak_mode = not self.add_peak_mode
         if self.add_peak_mode:
             self.add_peak_button["fg"] = 'green'
@@ -1668,8 +1685,8 @@ class ManualOnsetFrame(tk.Frame):
         # matlab format
         cells_to_remove = np.where(self.cells_to_remove)[0]
         inter_neurons = np.where(self.inter_neurons)[0]
-        sio.savemat(self.save_path + self.save_file_name, {'Bin100ms_spikedigital': self.spike_nums,
-                                                           'LocPeakMatrix': self.peak_nums,
+        sio.savemat(self.save_path + self.save_file_name, {'Bin100ms_spikedigital_Python': self.spike_nums,
+                                                           'LocPeakMatrix_Python': self.peak_nums,
                                                            'C_df': self.traces, 'raw_traces': self.raw_traces,
                                                            'cells_to_remove': cells_to_remove,
                                                            'inter_neurons': inter_neurons})
@@ -2032,19 +2049,21 @@ class ManualOnsetFrame(tk.Frame):
         if not new_neuron:
             self.axe_plot.set_xlim(left=left_x_limit_1, right=right_x_limit_1, auto=None)
             self.axe2_plot.set_xlim(left=left_x_limit_2, right=right_x_limit_2, auto=None)
-            if amplitude_zoom_fit:
-                if self.display_raw_traces and (self.raw_traces is not None):
-                    self.axe_plot.set_ylim(min(0, np.min(self.raw_traces[self.current_neuron, :])),
-                                           self.current_max_amplitude())
-                else:
-                    self.axe_plot.set_ylim(0, self.current_max_amplitude())
-            else:
-                if not raw_trace_display_action:
-                    self.axe_plot.set_ylim(bottom=bottom_limit_1, top=top_limit_1, auto=None)
-                self.axe2_plot.set_ylim(bottom=bottom_limit_2, top=top_limit_2, auto=None)
-                if self.raw_traces_seperate_plot and (self.raw_traces is not None):
-                    self.axe_plot_raw.set_ylim(bottom=bottom_limit_raw, top=top_limit_raw,
-                                               auto=None)
+            self.axe_plot.set_ylim(bottom=bottom_limit_1, top=top_limit_1, auto=None)
+            self.axe2_plot.set_ylim(bottom=bottom_limit_2, top=top_limit_2, auto=None)
+            # if amplitude_zoom_fit:
+            #     if self.display_raw_traces and (self.raw_traces is not None):
+            #         self.axe_plot.set_ylim(min(0, np.min(self.raw_traces[self.current_neuron, :])),
+            #                                self.current_max_amplitude())
+            #     else:
+            #         self.axe_plot.set_ylim(0, self.current_max_amplitude())
+            # else:
+            #     if not raw_trace_display_action:
+            #         self.axe_plot.set_ylim(bottom=bottom_limit_1, top=top_limit_1, auto=None)
+            #     self.axe2_plot.set_ylim(bottom=bottom_limit_2, top=top_limit_2, auto=None)
+            #     if self.raw_traces_seperate_plot and (self.raw_traces is not None):
+            #         self.axe_plot_raw.set_ylim(bottom=bottom_limit_raw, top=top_limit_raw,
+            #                                    auto=None)
         if new_x_limit is not None:
             self.axe_plot.set_xlim(left=new_x_limit[0], right=new_x_limit[1], auto=None)
             self.axe2_plot.set_xlim(left=new_x_limit[0], right=new_x_limit[1], auto=None)
