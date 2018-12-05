@@ -16,6 +16,7 @@ import matplotlib.gridspec as gridspec
 from mouse_session_loader import load_mouse_sessions
 import pattern_discovery.tools.param as p_disc_tools_param
 from matplotlib import patches
+import scipy.signal as signal
 
 if sys.version_info[0] < 3:
     import Tkinter as tk
@@ -164,8 +165,34 @@ class ChooseSessionFrame(tk.Frame):
         self.data_and_param.ms = ms_str_to_ms_dict[self.option_menu_variable.get()]
         self.data_and_param.traces = self.data_and_param.ms.traces
         self.data_and_param.raw_traces = self.data_and_param.ms.raw_traces
-        # if data_and_param.cells_map_img
 
+        n_cells = len(self.data_and_param.traces)
+        n_times = len(self.data_and_param.traces[0, :])
+        if (self.data_and_param.peak_nums is None) or (self.data_and_param.spike_nums is None):
+            # then we do an automatic detection
+            self.data_and_param.peak_nums = np.zeros((n_cells, n_times), dtype="uint8")
+            for cell in np.arange(n_cells):
+                peaks, properties = signal.find_peaks(x=self.data_and_param.traces[cell], distance=2)
+                # print(f"peaks {peaks}")
+                self.data_and_param.peak_nums[cell, peaks] = 1
+            self.data_and_param.spike_nums = np.zeros((n_cells, n_times), dtype="uint8")
+            for cell in np.arange(n_cells):
+                # first_derivative = np.diff(self.data_and_param.traces[cell]) / np.diff(np.arange(n_times))
+                # onsets = np.where(np.abs(first_derivative) < 0.1)[0]
+                # print(f"np.min(first_derivative) {np.min(first_derivative)}")
+                # fig = plt.figure()
+                # plt.plot(first_derivative)
+                # plt.show()
+                onsets = []
+                diff_values = np.diff(self.data_and_param.traces[cell])
+                for index, value in enumerate(diff_values):
+                    if index == (len(diff_values) - 1):
+                        continue
+                    if value < 0:
+                        if diff_values[index + 1] >= 0:
+                            onsets.append(index + 1)
+                # print(f"onsets {len(onsets)}")
+                self.data_and_param.spike_nums[cell, np.array(onsets)] = 1
         f = ManualOnsetFrame(data_and_param=self.data_and_param,
                              default_path=self.last_path_open)
         f.mainloop()
@@ -204,7 +231,7 @@ class ChooseSessionFrame(tk.Frame):
                     peak_nums_matlab = data_file['LocPeakMatrix'].astype(int)
                     peak_nums = np.zeros((len(peak_nums_matlab), len(peak_nums_matlab[0, :])), dtype="int8")
                     for i in np.arange(len(peak_nums_matlab)):
-                        peak_nums[i, np.where(peak_nums_matlab[i, :])[0]-1] = 1
+                        peak_nums[i, np.where(peak_nums_matlab[i, :])[0] - 1] = 1
                     data_and_param.peak_nums = peak_nums
                 elif "LocPeakMatrix_Python" in data_file:
                     data_and_param.peak_nums = data_file['LocPeakMatrixPython'].astype(int)
@@ -246,10 +273,10 @@ class ChooseSessionFrame(tk.Frame):
 
             self.file_selection_buttons[data_to_load_str]["fg"] = "grey"
 
-            if data_and_param.peak_nums is None:
-                return
-            if data_and_param.spike_nums is None:
-                return
+            # if data_and_param.peak_nums is None:
+            #     return
+            # if data_and_param.spike_nums is None:
+            #     return
             # if data_and_param.traces is None:
             #     return
             # if data_and_param.raw_traces is None:
@@ -257,7 +284,7 @@ class ChooseSessionFrame(tk.Frame):
             # if data_and_param.cells_map_img is None:
             #     return
 
-            self.go_button['state'] = "normal"
+            # self.go_button['state'] = "normal"
 
     def create_buttons(self):
         colors = ["blue", "orange", "green"]
@@ -303,7 +330,8 @@ class ChooseSessionFrame(tk.Frame):
         self.go_button = MySessionButton(button_frame)
         self.go_button["text"] = f'GO'
         self.go_button["fg"] = "red"
-        self.go_button['state'] = DISABLED
+        # self.go_button['state'] = DISABLED
+        self.go_button['state'] = "normal"
         # button["style"] = f'black/{c}.TButton'
         self.go_button.pack(side=LEFT)
         self.go_button["command"] = event_lambda(self.go_go)
@@ -468,7 +496,8 @@ class ManualOnsetFrame(tk.Frame):
         self.color_mark_to_remove = "black"
         self.color_run_period = "lightcoral"
         self.color_trace_activity = "black"
-        self.color_raw_trace = "darkgoldenrod"
+        # self.color_raw_trace = "darkgoldenrod"
+        self.color_raw_trace = "cornflowerblue"
         # ------------- colors (end) --------
 
         # filename on which to save spikenums, is defined when save as is clicked
@@ -481,7 +510,7 @@ class ManualOnsetFrame(tk.Frame):
         # factor to multiply to decay to define delay between onset and peak
         self.decay_factor = 1
         # number of std of trace to add to the threshold
-        self.nb_std_thresold = 1
+        self.nb_std_thresold = 0.1
         self.data_and_param = data_and_param
         self.path_result = self.data_and_param.result_path
         self.spike_nums = data_and_param.spike_nums
@@ -496,6 +525,18 @@ class ManualOnsetFrame(tk.Frame):
         self.peak_nums = self.data_and_param.peak_nums
         # print(f"len(peak_nums) {len(peak_nums)}")
         self.raw_traces = self.data_and_param.raw_traces
+
+        self.raw_traces_binned = None
+        # self.raw_traces_binned = np.zeros((self.nb_neurons, self.nb_times // 10), dtype="float")
+        # # mean by 10 frames +
+        # for cell, trace in enumerate(self.raw_traces):
+        #     # mean by 10 frames
+        #     self.raw_traces_binned[cell] = np.mean(np.split(np.array(trace), (self.nb_times // 10)), axis=1)
+        #     # z_score
+        #     self.raw_traces_binned[cell] = (self.raw_traces_binned[cell] - np.mean(self.raw_traces_binned[cell])) \
+        #                                    / np.std(self.raw_traces_binned[cell])
+        #     self.raw_traces_binned[cell] -= 4
+        #     # print(f"np.min(self.raw_traces_binned[cell, :]) {np.min(self.raw_traces_binned[cell, :])}")
         # Y alignment
         self.normalize_traces()
         # array of 1 D, representing the number of spikes at each time
@@ -1345,7 +1386,7 @@ class ManualOnsetFrame(tk.Frame):
         peaks = np.where(self.peak_nums[self.current_neuron, left_x_limit:right_x_limit] > 0)[0]
         peaks += left_x_limit
         threshold = self.get_threshold()
-        peaks_under_threshold = np.where(self.peak_nums[self.current_neuron, peaks] < threshold)[0]
+        peaks_under_threshold = np.where(self.traces[self.current_neuron, peaks] < threshold)[0]
         if len(peaks_under_threshold) == 0:
             return
         removed_times = peaks[peaks_under_threshold]
@@ -1696,7 +1737,7 @@ class ManualOnsetFrame(tk.Frame):
 
     def get_threshold(self):
         trace = self.traces[self.current_neuron, :]
-        threshold = np.mean(trace) + (self.nb_std_thresold * np.std(trace))
+        threshold = (self.nb_std_thresold * np.std(trace)) + np.min(self.traces[self.current_neuron, :])
         return threshold
 
     def plot_magnifier(self, first_time=False, mouse_x_position=None, mouse_y_position=None):
@@ -1727,7 +1768,7 @@ class ManualOnsetFrame(tk.Frame):
             onsets = np.where(self.onset_times[self.current_neuron, pos_beg_x:pos_end_x] > 0)[0]
             # plotting onsets
             self.axe_plot_magnifier.vlines(onsets, min_value, max_value,
-                                                                  color=self.color_onset, linewidth=1,
+                                           color=self.color_onset, linewidth=1,
                                            linestyles="dashed")
 
             peaks = np.where(self.peak_nums[self.current_neuron, pos_beg_x:pos_end_x] > 0)[0]
@@ -1739,7 +1780,7 @@ class ManualOnsetFrame(tk.Frame):
                                                 edgecolors=self.color_edge_peak, s=30,
                                                 zorder=10)
             self.draw_magnifier_marker(mouse_x_position=mouse_x_position, mouse_y_position=mouse_y_position)
-            self.axe_plot_magnifier.set_ylim(min_value, max_value+1)
+            self.axe_plot_magnifier.set_ylim(min_value, max_value + 1)
 
         if self.x_center_magnified is None:
             main_plot_bottom_y, main_plot_top_y = self.axe_plot.get_ylim()
@@ -1780,9 +1821,9 @@ class ManualOnsetFrame(tk.Frame):
                                                                 marker='x',
                                                                 c="black", s=20)
         self.magnifier_line = self.axe_plot_magnifier.vlines(corrected_mouse_x_position, min_value, max_value,
-                                                              color="red",
-                                                              linewidth=1,
-                                                              linestyles=":")
+                                                             color="red",
+                                                             linewidth=1,
+                                                             linestyles=":")
 
     def update_plot_magnifier(self, mouse_x_position, mouse_y_position, change_frame_ref):
         if change_frame_ref:
@@ -1866,17 +1907,23 @@ class ManualOnsetFrame(tk.Frame):
             y_max_lim = math.ceil(np.max(self.traces))
         color_trace = self.color_trace
         self.line1, = self.axe_plot.plot(np.arange(self.nb_times_traces), self.traces[self.current_neuron, :],
-                                         color=color_trace, zorder=8)
+                                         color=color_trace, zorder=10)
         if not self.raw_traces_seperate_plot:
             if (self.raw_traces is not None) and self.display_raw_traces:
                 self.axe_plot.plot(np.arange(self.nb_times_traces),
                                    self.raw_traces[self.current_neuron, :],
-                                   color=self.color_raw_trace, alpha=0.6, zorder=9)
+                                   color=self.color_raw_trace, alpha=0.8, zorder=9)
+            if self.raw_traces_binned is not None:
+                self.axe_plot.plot(np.arange(0, self.nb_times_traces, 10),
+                                   self.raw_traces_binned[self.current_neuron, :],
+                                   color="green", alpha=0.9, zorder=8)
                 # O y-axis line
                 # self.axe_plot.hlines(0, 0, self.nb_times_traces - 1, color="black", linewidth=1)
         onsets = np.where(self.onset_times[self.current_neuron, :] > 0)[0]
         max_value = max(np.max(self.traces[self.current_neuron, :]), np.max(self.raw_traces[self.current_neuron, :]))
         min_value = min(np.min(self.traces[self.current_neuron, :]), np.min(self.raw_traces[self.current_neuron, :]))
+        if self.raw_traces_binned is not None:
+            min_value = min(min_value, np.min(self.raw_traces_binned[self.current_neuron, :]))
         # plotting onsets
         # self.ax1_bottom_scatter = self.axe_plot.scatter(onsets, [0.1] * len(onsets), marker='*', c=self.color_onset, s=20)
         self.axe_plot.vlines(onsets, min_value, max_value, color=self.color_onset, linewidth=1,
@@ -1928,6 +1975,8 @@ class ManualOnsetFrame(tk.Frame):
                             np.max(self.traces[self.current_neuron, :]))
             min_value = min(np.min(self.raw_traces[self.current_neuron, :]),
                             np.min(self.traces[self.current_neuron, :]))
+            if self.raw_traces_binned is not None:
+                min_value = min(min_value, np.min(self.raw_traces_binned[self.current_neuron, :]))
 
             self.axe_plot.set_ylim(min_value,
                                    math.ceil(max_value))

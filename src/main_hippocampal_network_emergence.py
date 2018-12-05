@@ -784,7 +784,7 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
         if len(age_tuple) == 1:
             ages_groups[age_tuple[0]] = age_str
         else:
-            for age in np.arange(age_tuple[0], age_tuple[1]+1):
+            for age in np.arange(age_tuple[0], age_tuple[1] + 1):
                 ages_groups[age] = age_str
         ages_key_order.append(age_str)
 
@@ -894,7 +894,7 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
                         color = manual_colors[age]
                     else:
                         color = param.colors[age_index % (len(param.colors))]
-                    scatter_size = 50 + 1.2*x_pos + 1.2*y_pos
+                    scatter_size = 50 + 1.2 * x_pos + 1.2 * y_pos
                     if scale_scatter:
                         scatter_size = 15 + 5 * np.sqrt(n_seq_normalized)
                     marker_to_use = "o"
@@ -1558,6 +1558,7 @@ def print_surprise_for_michou(n_lines, actual_line):
 
     print(f"{result}")
 
+
 def main():
     # for line in np.arange(15):
     #     print_surprise_for_michou(n_lines=15, actual_line=line)
@@ -1667,8 +1668,8 @@ def main():
     ms_str_to_load = ["p7_17_10_18_a002_ms"]
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     ms_str_to_load = ms_new_from_Robin_2nd_dec
-    ms_str_to_load = ["p6_18_02_07_a002_ms"]
     ms_str_to_load = ["p9_18_09_27_a003_ms"]
+    ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # 256
 
     # loading data
@@ -1686,6 +1687,7 @@ def main():
     just_do_stat_on_event_detection_parameters = False
     just_plot_time_correlation_graph_over_twitches = False
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
+    just_plot_traces_raster = True
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = False
@@ -1700,7 +1702,7 @@ def main():
     no_redundancy = False
     determine_low_activity_by_variation = False
 
-    do_plot_interneurons_connect_maps = True
+    do_plot_interneurons_connect_maps = False
     do_plot_connect_hist = False
     do_plot_connect_hist_for_all_ages = False
     do_time_graph_correlation = False
@@ -1804,12 +1806,43 @@ def main():
         ms.sce_times_numbers = sce_times_numbers
         ms.SCE_times = SCE_times
 
+        if just_plot_traces_raster:
+            print("just_plot_traces_raster")
+            raw_traces = ms.raw_traces
+            for i in np.arange(len(raw_traces)):
+                raw_traces[i] = (raw_traces[i] - np.mean(raw_traces[i]) / np.std(raw_traces[i]))
+            plot_spikes_raster(spike_nums=spike_nums_to_use, param=ms.param,
+                               traces=raw_traces,
+                               display_traces=True,
+                               spike_train_format=False,
+                               title="traces raster",
+                               file_name="traces raster",
+                               y_ticks_labels=np.arange(len(raw_traces)),
+                               y_ticks_labels_size=2,
+                               save_raster=True,
+                               show_raster=False,
+                               plot_with_amplitude=False,
+                               activity_threshold= ms.spike_struct.activity_threshold,
+                               # 500 ms window
+                               sliding_window_duration=sliding_window_duration,
+                               show_sum_spikes_as_percentage=True,
+                               # vertical_lines=SCE_times,
+                               # vertical_lines_colors=['white'] * len(SCE_times),
+                               # vertical_lines_sytle="solid",
+                               # vertical_lines_linewidth=[0.2] * len(SCE_times),
+                               span_area_only_on_raster=False,
+                               spike_shape_size=0.5,
+                               save_formats="png")
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_plot_traces_raster exception")
+            continue
+
         if just_plot_piezo_with_extra_info:
             ms.plot_piezo_with_extra_info(show_plot=False, save_formats="pdf")
-        # # ms.plot_piezo_around_event(range_in_sec=5, save_formats="png")
-        # # ms.plot_raw_traces_around_twitches()
-        # # ms.plot_psth_over_twitches_time_correlation_graph_style()
-        # # ms.plot_piezo_with_extra_info(show_plot=True, with_cell_assemblies_sce=False, save_formats="pdf")
+            # # ms.plot_piezo_around_event(range_in_sec=5, save_formats="png")
+            # # ms.plot_raw_traces_around_twitches()
+            # # ms.plot_psth_over_twitches_time_correlation_graph_style()
+            # # ms.plot_piezo_with_extra_info(show_plot=True, with_cell_assemblies_sce=False, save_formats="pdf")
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_plot_piezo_with_extra_info exception")
             continue
@@ -1835,9 +1868,9 @@ def main():
         if do_plot_interneurons_connect_maps or do_plot_connect_hist:
             ms.detect_n_in_n_out()
             # For p9_a003 good out connec: cell 8, 235, 201,  151, 17
-            for cell_to_map in [8, 235, 201,  151, 17]:
+            for cell_to_map in [8, 235, 201, 151, 17]:
                 ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="",
-                                                cell_color="red", links_cell_color="cornflowerblue")
+                                                    cell_color="red", links_cell_color="cornflowerblue")
             raise Exception("it's over")
         elif do_time_graph_correlation_and_connect_best and do_time_graph_correlation:
             ms.detect_n_in_n_out()
