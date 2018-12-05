@@ -161,7 +161,7 @@ class ChooseSessionFrame(tk.Frame):
         self.go_button['state'] = DISABLED
         ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=[self.option_menu_variable.get()],
                                                 param=self.data_and_param,
-                                                load_traces=True, load_abf=False)
+                                                load_traces=True, load_abf=True)
         self.data_and_param.ms = ms_str_to_ms_dict[self.option_menu_variable.get()]
         self.data_and_param.traces = self.data_and_param.ms.traces
         self.data_and_param.raw_traces = self.data_and_param.ms.raw_traces
@@ -525,6 +525,17 @@ class ManualOnsetFrame(tk.Frame):
         self.peak_nums = self.data_and_param.peak_nums
         # print(f"len(peak_nums) {len(peak_nums)}")
         self.raw_traces = self.data_and_param.raw_traces
+        self.display_mvt = False
+        self.mvt_frames_periods = None
+        if self.data_and_param.ms.mvt_frames_periods is not None:
+            # mouse is running
+            self.mvt_frames_periods = self.data_and_param.ms.mvt_frames_periods
+        elif self.data_and_param.ms.complex_mvt_frames_periods is not None:
+            # print(f"self.data_and_param.ms.complex_mvt_frames_periods")
+            self.mvt_frames_periods = []
+            self.mvt_frames_periods.extend(self.data_and_param.ms.complex_mvt_frames_periods)
+            self.mvt_frames_periods.extend(self.data_and_param.ms.intermediate_behavourial_events_frames_periods)
+
 
         self.raw_traces_binned = None
         # self.raw_traces_binned = np.zeros((self.nb_neurons, self.nb_times // 10), dtype="float")
@@ -922,7 +933,7 @@ class ManualOnsetFrame(tk.Frame):
         self.inter_neuron_button.pack(side=RIGHT)
 
         empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 3
+        empty_label["text"] = " " * 1
         empty_label.pack(side=RIGHT)
 
         self.remove_cell_button = Button(bottom_frame)
@@ -937,6 +948,10 @@ class ManualOnsetFrame(tk.Frame):
         self.remove_cell_button["command"] = event_lambda(self.remove_cell)
         self.remove_cell_button.pack(side=RIGHT)
 
+        empty_label = Label(bottom_frame)
+        empty_label["text"] = " " * 1
+        empty_label.pack(side=RIGHT)
+
         self.magnifier_button = Button(bottom_frame)
 
         self.magnifier_button["text"] = ' magnified OFF '
@@ -946,6 +961,19 @@ class ManualOnsetFrame(tk.Frame):
         self.magnifier_button["command"] = event_lambda(self.switch_magnifier)
         self.magnifier_button.pack(side=RIGHT)
 
+        empty_label = Label(bottom_frame)
+        empty_label["text"] = " " * 1
+        empty_label.pack(side=RIGHT)
+
+        if self.mvt_frames_periods is not None:
+            self.display_mvt_button = Button(bottom_frame)
+
+            self.display_mvt_button["text"] = ' mvt OFF '
+            self.display_mvt_button["fg"] = "black"
+
+            self.display_mvt_button["command"] = event_lambda(self.switch_mvt_display)
+            self.display_mvt_button.pack(side=RIGHT)
+
         # used for association of keys
         self.keys_pressed = dict()
         self.root.bind_all("<KeyRelease>", self.key_release_action)
@@ -953,6 +981,17 @@ class ManualOnsetFrame(tk.Frame):
 
     def neuron_entry_change(self, *args):
         print(f"Neuron: {self.neuron_string_var.get()}")
+
+    def switch_mvt_display(self):
+        if self.display_mvt:
+            self.display_mvt_button["text"] = ' mvt OFF '
+            self.display_mvt_button["fg"] = "black"
+            self.display_mvt = False
+        else:
+            self.display_mvt_button["text"] = ' mvt ON '
+            self.display_mvt_button["fg"] = "red"
+            self.display_mvt = True
+        self.update_plot()
 
     def switch_magnifier(self):
         if self.magnifier_mode:
@@ -1935,15 +1974,24 @@ class ManualOnsetFrame(tk.Frame):
             peaks_under_threshold = np.where(self.traces[self.current_neuron, peaks] < threshold)[0]
             peaks_under_threshold_index = peaks[peaks_under_threshold]
             peaks_under_threshold_value = self.traces[self.current_neuron, peaks][peaks_under_threshold]
+            peaks_under_threshold_value_raw = self.raw_traces[self.current_neuron, peaks][peaks_under_threshold]
             peaks_over_threshold = np.where(self.traces[self.current_neuron, peaks] >= threshold)[0]
             peaks_over_threshold_index = peaks[peaks_over_threshold]
             peaks_over_threshold_value = self.traces[self.current_neuron, peaks][peaks_over_threshold]
+            peaks_over_threshold_value_raw = self.raw_traces[self.current_neuron, peaks][peaks_over_threshold]
             # plotting peaks
             # z_order=10 indicate that the scatter will be on top
             self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_over_threshold_index, peaks_over_threshold_value,
                                                             marker='o', c=self.color_peak,
                                                             edgecolors=self.color_edge_peak, s=30, zorder=10)
             self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_under_threshold_index, peaks_under_threshold_value,
+                                                            marker='o', c=self.color_peak_under_threshold,
+                                                            edgecolors=self.color_edge_peak, s=30, zorder=10)
+            self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_over_threshold_index, peaks_over_threshold_value_raw,
+                                                            marker='o', c=self.color_peak,
+                                                            edgecolors=self.color_edge_peak, s=30, zorder=10)
+            self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_under_threshold_index,
+                                                            peaks_under_threshold_value_raw,
                                                             marker='o', c=self.color_peak_under_threshold,
                                                             edgecolors=self.color_edge_peak, s=30, zorder=10)
 
@@ -1955,12 +2003,21 @@ class ManualOnsetFrame(tk.Frame):
             self.ax1_bottom_scatter = self.axe_plot.scatter(peaks, self.traces[self.current_neuron, peaks],
                                                             marker='o', c=self.color_peak,
                                                             edgecolors=self.color_edge_peak, s=30, zorder=10)
+            self.ax1_bottom_scatter = self.axe_plot.scatter(peaks, self.raw_traces[self.current_neuron, peaks],
+                                                            marker='o', c=self.color_peak,
+                                                            edgecolors=self.color_edge_peak, s=30, zorder=10)
         # not plotting top scatter of onsets
         # self.ax1_top_scatter = self.axe_plot.scatter(onsets, [max_value] * len(onsets),
         # marker='*', c=self.color_onset, s=40)
         if self.first_click_to_remove is not None:
             self.axe_plot.scatter(self.first_click_to_remove["x"], self.first_click_to_remove["y"], marker='x',
                                   c=self.color_mark_to_remove, s=20)
+
+        if (self.mvt_frames_periods is not None) and self.display_mvt:
+            for mvt_frames_period in self.mvt_frames_periods:
+                # print(f"mvt_frames_period[0], mvt_frames_period[1] {mvt_frames_period[0]} {mvt_frames_period[1]}")
+                self.axe_plot.axvspan(mvt_frames_period[0], mvt_frames_period[1], ymax=1,
+                                      alpha=0.8, facecolor="red", zorder=1)
 
         # by default the y axis zoom is set to fit the wider amplitude of the current neuron
         fit_plot_to_all_max = False

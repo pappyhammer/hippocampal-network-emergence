@@ -1742,7 +1742,7 @@ class MouseSession:
     def load_abf_file(self, abf_file_name, threshold_piezo=None, with_run=False,
                       frames_channel=0, piezo_channel=1, run_channel=2, threshold_ratio=2,
                       sampling_rate=50000, offset=None):
-        return
+
         print(f"abf: ms {self.description}")
 
         self.abf_sampling_rate = sampling_rate
@@ -1801,10 +1801,11 @@ class MouseSession:
                             self.noise_mvt_frames = npzfile['noise_mvt_frames']
                             self.noise_mvt_frames_periods = \
                                 tools_misc.find_continuous_frames_period(self.noise_mvt_frames)
-                        if (not with_run) and do_detect_twitches:
-                            self.detect_twitches()
+                        # if (not with_run) and do_detect_twitches:
+                        #     self.detect_twitches()
                         return
-
+        # manual selection deactivated
+        return
         # 50000 Hz
         abf = pyabf.ABF(self.param.path_data + abf_file_name)
 
