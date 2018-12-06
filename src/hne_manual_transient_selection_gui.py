@@ -17,6 +17,9 @@ from mouse_session_loader import load_mouse_sessions
 import pattern_discovery.tools.param as p_disc_tools_param
 from matplotlib import patches
 import scipy.signal as signal
+import matplotlib.image as mpimg
+from random import randint
+import scipy.ndimage.morphology as morphology
 
 if sys.version_info[0] < 3:
     import Tkinter as tk
@@ -234,7 +237,7 @@ class ChooseSessionFrame(tk.Frame):
                         peak_nums[i, np.where(peak_nums_matlab[i, :])[0] - 1] = 1
                     data_and_param.peak_nums = peak_nums
                 elif "LocPeakMatrix_Python" in data_file:
-                    data_and_param.peak_nums = data_file['LocPeakMatrixPython'].astype(int)
+                    data_and_param.peak_nums = data_file['LocPeakMatrix_Python'].astype(int)
                 else:
                     e = ErrorMessageFrame(error_message="LocPeakMatrix not found")
                     e.mainloop()
@@ -745,6 +748,8 @@ class ManualOnsetFrame(tk.Frame):
         main_plot_frame = Frame(canvas_frame)
         main_plot_frame.pack(side=LEFT, expand=YES, fill=BOTH)
 
+        self.display_michou = False
+
         # plt.ion()
         self.fig = plt.figure(figsize=(10, 6))
         # self.plot_canvas = MyCanvas(self.fig, canvas_frame, self)
@@ -790,8 +795,70 @@ class ManualOnsetFrame(tk.Frame):
             self.map_img_fig = plt.figure(figsize=(4, 4))
             self.axe_plot_map_img = None
             self.cell_contour = None
+            # creating all cell_contours
+            self.cell_contours = dict()
+            self.cell_in_pixel = np.ones((200, 200), dtype="int16")
+            self.cell_in_pixel *= -1
+            for cell in np.arange(self.nb_neurons):
+                # cell contour
+                coord = self.data_and_param.ms.coord_obj.coord[cell]
+                coord = coord - 1
+                coord = coord.astype(int)
+                n_coord = len(coord[0, :])
+                xy = np.zeros((n_coord, 2))
+                for n in np.arange(n_coord):
+                    xy[n, 0] = coord[0, n]
+                    xy[n, 1] = coord[1, n]
+                self.cell_contours[cell] = patches.Polygon(xy=xy,
+                                                           fill=False, linewidth=0, facecolor="red",
+                                                           edgecolor="red",
+                                                           zorder=15, lw=2)
+                bw = np.zeros((200, 200), dtype="int8")
+                # morphology.binary_fill_holes(input
+                # print(f"coord[1, :] {coord[1, :]}")
+                bw[coord[1, :], coord[0, :]] = 1
+
+                img_filled = np.zeros((200, 200), dtype="int8")
+                # specifying output, otherwise binary_fill_holes return a boolean array
+                morphology.binary_fill_holes(bw, output=img_filled)
+                for pixel in np.arange(200):
+                    self.cell_in_pixel[pixel, np.where(img_filled[pixel, :])[0]] = cell
+
+            #
+            # x, y = np.meshgrid(np.arange(200), np.arange(200))  # make a canvas with coordinates
+            # x, y = x.flatten(), y.flatten()
+            # points = np.vstack((x, y)).T
+            #
+            # for cell, cell_contour in self.cell_contours.items():
+            #     grid = cell_contour.contains_points(points)
+            #     cell_contour.set_fill(False)
+            #     mask = grid.reshape(200, 200)
+            #     print(f"mask0 {len(np.where(mask[0])[0])} mask1 {len(np.where(mask[1])[0])}")
+            #     # x, y = np.meshgrid(np.arange(200), np.arange(200))
+            #     # x = x[mask[0]]
+            #     # y = y[mask[1]]
+            #     # x, y = x.flatten(), y.flatten()
+            #     # new_points = np.vstack((x, y)).T
+            # raise Exception("mask")
+                # print(f"cell {cell}, points: {new_points}")
+
+            # for x in np.arange(200):
+            #     for y in np.arange(200):
+            #         cell_found = False
+            #         for cell, cell_contour in self.cell_contours.items():
+            #             if cell_contour.contains_point((x, y)):
+            #                 self.cell_in_pixel[x, y] = cell
+            # cell_found = True
+            #                 print(f"cell {cell}, x {x}, y {y}")
+            #                 break
+            #         if cell_found:
+            #             continue
+            # for pixel in np.arange(200):
+            #     print(f"pixel_row {pixel} {len(np.where(self.cell_in_pixel[pixel, :]>=0)[0])}")
+            #
             # self.plot_canvas = MyCanvas(self.fig, canvas_frame, self)
             self.map_img_canvas = FigureCanvasTkAgg(self.map_img_fig, map_frame)
+            self.map_img_fig.canvas.mpl_connect('button_release_event', self.onrelease_map)
             self.plot_map_img(first_time=True)
 
             self.map_img_canvas.draw()
@@ -974,6 +1041,16 @@ class ManualOnsetFrame(tk.Frame):
             self.display_mvt_button["command"] = event_lambda(self.switch_mvt_display)
             self.display_mvt_button.pack(side=RIGHT)
 
+        self.michou_path = "michou/"
+        self.michou_img_file_names = ["Michel_OM_PSG.png", "michou_st_Patrick.png", "michou_BG.png",
+                                      "michou_BG2.png", "michou_BG3.png", "michou_NY.png"]
+        self.michou_imgs = []
+        for file_name in self.michou_img_file_names:
+            self.michou_imgs.append(mpimg.imread(self.data_and_param.path_data + self.michou_path + file_name))
+
+        self.n_michou_img = len(self.michou_img_file_names)
+        self.michou_img_to_display = -1
+
         # used for association of keys
         self.keys_pressed = dict()
         self.root.bind_all("<KeyRelease>", self.key_release_action)
@@ -981,6 +1058,15 @@ class ManualOnsetFrame(tk.Frame):
 
     def neuron_entry_change(self, *args):
         print(f"Neuron: {self.neuron_string_var.get()}")
+
+    def switch_michou(self):
+        if self.display_michou:
+            self.display_michou = False
+            self.update_plot_map_img(after_michou=True)
+        else:
+            self.display_michou = True
+            self.michou_img_to_display = randint(0, self.n_michou_img-1)
+            self.update_plot_map_img()
 
     def switch_mvt_display(self):
         if self.display_mvt:
@@ -1071,6 +1157,8 @@ class ManualOnsetFrame(tk.Frame):
             self.remove_onset_switch_mode()
         elif event.char in ["m", "M"]:
             self.switch_magnifier()
+        elif event.char in ["p", "P"]:
+            self.switch_michou()
         if event.keysym == 'Right':
             # C as cell
             if ("Meta_L" in self.keys_pressed) or ("Control_L" in self.keys_pressed):
@@ -1234,6 +1322,28 @@ class ManualOnsetFrame(tk.Frame):
                 self.update_plot()
             self.remove_all_button["fg"] = 'red'
             self.remove_all_button["text"] = ' REMOVE ALL OFF '
+
+    def onrelease_map(self, event):
+        """
+                        Action when a mouse button is released on cell map
+                        :param event:
+                        :return:
+        """
+        if event.dblclick:
+            return
+
+        if event.xdata is None:
+            return
+
+        # print(f"event.xdata {event.xdata}, event.ydata {event.ydata}")
+        x = int(event.xdata)
+        y = int(event.ydata)
+
+        new_neuron = self.cell_in_pixel[y, x]
+        if new_neuron >= 0:
+            if new_neuron != self.current_neuron:
+                self.update_neuron(new_neuron = new_neuron)
+        # print(f"cell: {self.cell_in_pixel[y, x]}")
 
     def onrelease(self, event):
         """
@@ -1887,15 +1997,18 @@ class ManualOnsetFrame(tk.Frame):
         self.magnifier_fig.canvas.flush_events()
 
     def plot_map_img(self, first_time=True):
-        if self.data_and_param.ms.avg_cell_map_img is None:
+        if (self.data_and_param.ms.avg_cell_map_img is None) and (not self.display_michou):
             return
 
         if first_time:
             self.axe_plot_map_img = self.map_img_fig.add_subplot(111)
 
-        im1 = self.axe_plot_map_img.imshow(self.data_and_param.ms.avg_cell_map_img)
-        im1.set_zorder(5)
-        self.draw_cell_contour()
+        if self.display_michou:
+            im1 = self.axe_plot_map_img.imshow(self.michou_imgs[self.michou_img_to_display])
+        else:
+            im1 = self.axe_plot_map_img.imshow(self.data_and_param.ms.avg_cell_map_img)
+            im1.set_zorder(5)
+            self.draw_cell_contour()
 
         frame = plt.gca()
         frame.axes.get_xaxis().set_visible(False)
@@ -1906,28 +2019,39 @@ class ManualOnsetFrame(tk.Frame):
     def draw_cell_contour(self):
         if self.cell_contour is not None:
             self.cell_contour.set_visible(False)
-        # cell contour
-        coord = self.data_and_param.ms.coord_obj.coord[self.current_neuron]
-        coord = coord - 1
-        # c_filtered = c.astype(int)
-        n_coord = len(coord[0, :])
-        xy = np.zeros((n_coord, 2))
-        for n in np.arange(n_coord):
-            xy[n, 0] = coord[0, n]
-            xy[n, 1] = coord[1, n]
-        self.cell_contour = patches.Polygon(xy=xy,
-                                            fill=False, linewidth=0, facecolor="red",
-                                            edgecolor="red",
-                                            zorder=15, lw=2)
+        self.cell_contour = self.cell_contours[self.current_neuron]
+        self.cell_contour.set_visible(True)
         self.axe_plot_map_img.add_patch(self.cell_contour)
+        # # cell contour
+        # coord = self.data_and_param.ms.coord_obj.coord[self.current_neuron]
+        # coord = coord - 1
+        # # c_filtered = c.astype(int)
+        # n_coord = len(coord[0, :])
+        # xy = np.zeros((n_coord, 2))
+        # for n in np.arange(n_coord):
+        #     xy[n, 0] = coord[0, n]
+        #     xy[n, 1] = coord[1, n]
+        # self.cell_contour = patches.Polygon(xy=xy,
+        #                                     fill=False, linewidth=0, facecolor="red",
+        #                                     edgecolor="red",
+        #                                     zorder=15, lw=2)
+        # self.axe_plot_map_img.add_patch(self.cell_contour)
 
-    def update_plot_map_img(self):
-        # self.axe_plot_map_img.clear()
+    def update_plot_map_img(self, after_michou=False):
+        if self.display_michou:
+            self.axe_plot_map_img.clear()
+            self.plot_map_img()
+            self.map_img_fig.canvas.draw()
+            self.map_img_fig.canvas.flush_events()
+        else:
+            if after_michou:
+                self.axe_plot_map_img.clear()
+                self.plot_map_img()
 
-        self.draw_cell_contour()
+            self.draw_cell_contour()
 
-        self.map_img_fig.canvas.draw()
-        self.map_img_fig.canvas.flush_events()
+            self.map_img_fig.canvas.draw()
+            self.map_img_fig.canvas.flush_events()
 
     def plot_graph(self, y_max_lim=None, first_time=False):
         """
@@ -2243,6 +2367,7 @@ class ManualOnsetFrame(tk.Frame):
         # self.spin_box_button.icursor(new_neuron)
         self.clear_and_update_entry_neuron_widget()
         self.onset_numbers_label["text"] = f"{self.numbers_of_onset()}"
+        self.peak_numbers_label["text"] = f"{self.numbers_of_peak()}"
 
         if (self.current_neuron + 1) == self.nb_neurons:
             self.next_button['state'] = DISABLED
