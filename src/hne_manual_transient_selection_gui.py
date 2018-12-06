@@ -2098,11 +2098,11 @@ class ManualOnsetFrame(tk.Frame):
             peaks_under_threshold = np.where(self.traces[self.current_neuron, peaks] < threshold)[0]
             peaks_under_threshold_index = peaks[peaks_under_threshold]
             peaks_under_threshold_value = self.traces[self.current_neuron, peaks][peaks_under_threshold]
-            peaks_under_threshold_value_raw = self.raw_traces[self.current_neuron, peaks][peaks_under_threshold]
+            # peaks_under_threshold_value_raw = self.raw_traces[self.current_neuron, peaks][peaks_under_threshold]
             peaks_over_threshold = np.where(self.traces[self.current_neuron, peaks] >= threshold)[0]
             peaks_over_threshold_index = peaks[peaks_over_threshold]
             peaks_over_threshold_value = self.traces[self.current_neuron, peaks][peaks_over_threshold]
-            peaks_over_threshold_value_raw = self.raw_traces[self.current_neuron, peaks][peaks_over_threshold]
+            # peaks_over_threshold_value_raw = self.raw_traces[self.current_neuron, peaks][peaks_over_threshold]
             # plotting peaks
             # z_order=10 indicate that the scatter will be on top
             self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_over_threshold_index, peaks_over_threshold_value,
@@ -2111,13 +2111,13 @@ class ManualOnsetFrame(tk.Frame):
             self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_under_threshold_index, peaks_under_threshold_value,
                                                             marker='o', c=self.color_peak_under_threshold,
                                                             edgecolors=self.color_edge_peak, s=30, zorder=10)
-            self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_over_threshold_index, peaks_over_threshold_value_raw,
-                                                            marker='o', c=self.color_peak,
-                                                            edgecolors=self.color_edge_peak, s=30, zorder=10)
-            self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_under_threshold_index,
-                                                            peaks_under_threshold_value_raw,
-                                                            marker='o', c=self.color_peak_under_threshold,
-                                                            edgecolors=self.color_edge_peak, s=30, zorder=10)
+            # self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_over_threshold_index, peaks_over_threshold_value_raw,
+            #                                                 marker='o', c=self.color_peak,
+            #                                                 edgecolors=self.color_edge_peak, s=30, zorder=10)
+            # self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_under_threshold_index,
+            #                                                 peaks_under_threshold_value_raw,
+            #                                                 marker='o', c=self.color_peak_under_threshold,
+            #                                                 edgecolors=self.color_edge_peak, s=30, zorder=10)
 
             self.axe_plot.hlines(threshold, 0, self.nb_times_traces - 1, color=self.color_threshold_line, linewidth=1,
                                  linestyles="dashed")
@@ -2127,9 +2127,9 @@ class ManualOnsetFrame(tk.Frame):
             self.ax1_bottom_scatter = self.axe_plot.scatter(peaks, self.traces[self.current_neuron, peaks],
                                                             marker='o', c=self.color_peak,
                                                             edgecolors=self.color_edge_peak, s=30, zorder=10)
-            self.ax1_bottom_scatter = self.axe_plot.scatter(peaks, self.raw_traces[self.current_neuron, peaks],
-                                                            marker='o', c=self.color_peak,
-                                                            edgecolors=self.color_edge_peak, s=30, zorder=10)
+            # self.ax1_bottom_scatter = self.axe_plot.scatter(peaks, self.raw_traces[self.current_neuron, peaks],
+            #                                                 marker='o', c=self.color_peak,
+            #                                                 edgecolors=self.color_edge_peak, s=30, zorder=10)
         # not plotting top scatter of onsets
         # self.ax1_top_scatter = self.axe_plot.scatter(onsets, [max_value] * len(onsets),
         # marker='*', c=self.color_onset, s=40)
