@@ -1753,59 +1753,7 @@ class MouseSession:
         else:
             self.with_piezo = True
 
-        # first checking if the data has been saved in a file before
-        index_reverse = abf_file_name[::-1].find("/")
 
-        path_abf_data = abf_file_name[:len(abf_file_name) - index_reverse]
-        file_names = []
-
-        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
-        for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_abf_data):
-            file_names.extend(local_filenames)
-            break
-        if len(file_names) > 0:
-            for file_name in file_names:
-                if file_name.endswith(".npz"):
-                    if file_name.find("abf") > -1:
-                        do_detect_twitches = True
-                        # loading data
-                        npzfile = np.load(self.param.path_data + path_abf_data + file_name)
-                        if "mvt_frames" in npzfile:
-                            self.mvt_frames = npzfile['mvt_frames']
-                            self.mvt_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
-                        if "speed_by_mvt_frame" in npzfile:
-                            self.speed_by_mvt_frame = npzfile['speed_by_mvt_frame']
-                        if "raw_piezo" in npzfile:
-                            self.raw_piezo = npzfile['raw_piezo']
-                        if "abf_frames" in npzfile:
-                            self.abf_frames = npzfile['abf_frames']
-                        if "abf_times_in_sec" in npzfile:
-                            self.abf_times_in_sec = npzfile['abf_times_in_sec']
-                        if "twitches_frames" in npzfile:
-                            self.twitches_frames = npzfile['twitches_frames']
-                            self.twitches_frames_periods = tools_misc.find_continuous_frames_period(self.twitches_frames)
-                            do_detect_twitches = False
-                        if "short_lasting_mvt_frames" in npzfile:
-                            self.short_lasting_mvt_frames = npzfile['short_lasting_mvt_frames']
-                            self.short_lasting_mvt_frames_periods = \
-                                tools_misc.find_continuous_frames_period(self.short_lasting_mvt_frames)
-                        if "complex_mvt_frames" in npzfile:
-                            self.complex_mvt_frames = npzfile['complex_mvt_frames']
-                            self.complex_mvt_frames_periods = \
-                                tools_misc.find_continuous_frames_period(self.complex_mvt_frames)
-                        if "intermediate_behavourial_events_frames" in npzfile:
-                            self.intermediate_behavourial_events_frames = npzfile['intermediate_behavourial_events_frames']
-                            self.intermediate_behavourial_events_frames_periods = \
-                                tools_misc.find_continuous_frames_period(self.intermediate_behavourial_events_frames)
-                        if "noise_mvt_frames" in npzfile:
-                            self.noise_mvt_frames = npzfile['noise_mvt_frames']
-                            self.noise_mvt_frames_periods = \
-                                tools_misc.find_continuous_frames_period(self.noise_mvt_frames)
-                        # if (not with_run) and do_detect_twitches:
-                        #     self.detect_twitches()
-                        return
-        # manual selection deactivated
-        return
         # 50000 Hz
         abf = pyabf.ABF(self.param.path_data + abf_file_name)
 
@@ -1912,6 +1860,62 @@ class MouseSession:
         self.abf_frames = active_frames
         print(f"nb_frames {nb_frames}")
 
+        # first checking if the data has been saved in a file before
+        index_reverse = abf_file_name[::-1].find("/")
+        path_abf_data = abf_file_name[:len(abf_file_name) - index_reverse]
+        file_names = []
+
+        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_abf_data):
+            file_names.extend(local_filenames)
+            break
+        if len(file_names) > 0:
+            for file_name in file_names:
+                if file_name.endswith(".npz"):
+                    if file_name.find("abf") > -1:
+                        do_detect_twitches = True
+                        # loading data
+                        npzfile = np.load(self.param.path_data + path_abf_data + file_name)
+                        if "mvt_frames" in npzfile:
+                            self.mvt_frames = npzfile['mvt_frames']
+                            self.mvt_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
+                        if "speed_by_mvt_frame" in npzfile:
+                            self.speed_by_mvt_frame = npzfile['speed_by_mvt_frame']
+                        # if "raw_piezo" in npzfile:
+                        #     self.raw_piezo = npzfile['raw_piezo']
+                        # if "abf_frames" in npzfile:
+                        #     self.abf_frames = npzfile['abf_frames']
+                        # if "abf_times_in_sec" in npzfile:
+                        #     self.abf_times_in_sec = npzfile['abf_times_in_sec']
+                        if "twitches_frames" in npzfile:
+                            self.twitches_frames = npzfile['twitches_frames']
+                            self.twitches_frames_periods = tools_misc.find_continuous_frames_period(
+                                self.twitches_frames)
+                            do_detect_twitches = False
+                        if "short_lasting_mvt_frames" in npzfile:
+                            self.short_lasting_mvt_frames = npzfile['short_lasting_mvt_frames']
+                            self.short_lasting_mvt_frames_periods = \
+                                tools_misc.find_continuous_frames_period(self.short_lasting_mvt_frames)
+                        if "complex_mvt_frames" in npzfile:
+                            self.complex_mvt_frames = npzfile['complex_mvt_frames']
+                            self.complex_mvt_frames_periods = \
+                                tools_misc.find_continuous_frames_period(self.complex_mvt_frames)
+                        if "intermediate_behavourial_events_frames" in npzfile:
+                            self.intermediate_behavourial_events_frames = npzfile[
+                                'intermediate_behavourial_events_frames']
+                            self.intermediate_behavourial_events_frames_periods = \
+                                tools_misc.find_continuous_frames_period(self.intermediate_behavourial_events_frames)
+                        if "noise_mvt_frames" in npzfile:
+                            self.noise_mvt_frames = npzfile['noise_mvt_frames']
+                            self.noise_mvt_frames_periods = \
+                                tools_misc.find_continuous_frames_period(self.noise_mvt_frames)
+                        # if (not with_run) and do_detect_twitches:
+                        #     self.detect_twitches()
+                        return
+
+        # manual selection deactivated
+        return
+
         if (not with_run) and (threshold_piezo is None):
             fig, ax = plt.subplots(nrows=1, ncols=1,
                                    gridspec_kw={'height_ratios': [1]},
@@ -1986,8 +1990,7 @@ class MouseSession:
                 khazipow_way = True
                 if khazipow_way:
                     np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
-                             raw_piezo=self.raw_piezo, abf_frames=self.abf_frames,
-                             abf_times_in_sec=times_in_sec, twitches_frames=self.twitches_frames,
+                             twitches_frames=self.twitches_frames,
                              short_lasting_mvt_frames=self.short_lasting_mvt_frames,
                              complex_mvt_frames=self.complex_mvt_frames,
                              intermediate_behavourial_events_frames=self.intermediate_behavourial_events_frames,
