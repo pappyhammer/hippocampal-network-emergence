@@ -38,6 +38,7 @@ from sortedcontainers import SortedList, SortedDict
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import compute_and_plot_clusters_raster_kmean_version
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import give_stat_one_sce
 from pattern_discovery.clustering.fca.fca import compute_and_plot_clusters_raster_fca_version
+from pattern_discovery.graph.force_directed_graphs import plot_graph_using_fa2
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 from scipy import stats
@@ -45,6 +46,96 @@ from mouse_session import MouseSession
 from hne_parameters import HNEParameters
 from hne_spike_structure import HNESpikeStructure
 from mouse_session_loader import load_mouse_sessions
+import networkx as nx
+
+
+def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
+                     cells_to_highlights_shape=None, cells_to_highlights_colors=None, cells_to_highlights_legend=None):
+    # print(f"connec_func_stat {mouse_session.session_numbers[0]}")
+    interneurons_pos = np.zeros(0, dtype="uint16")
+    total_nb_neurons = 0
+    for ms in mouse_sessions:
+        total_nb_neurons += ms.spike_struct.n_cells
+    n_outs_total = np.zeros(total_nb_neurons)
+    n_ins_total = np.zeros(total_nb_neurons)
+    neurons_count_so_far = 0
+    for ms_nb, ms in enumerate(mouse_sessions):
+        nb_neurons = ms.spike_struct.n_cells
+        n_ins = np.sum(ms.spike_struct.n_in_matrix, axis=1) / nb_neurons
+        n_ins = np.round(n_ins * 100, 2)
+        n_outs = np.sum(ms.spike_struct.n_out_matrix, axis=1) / nb_neurons
+        n_outs = np.round(n_outs * 100, 2)
+        if len(ms.spike_struct.inter_neurons) > 0:
+            interneurons_pos = np.concatenate((interneurons_pos,
+                                               np.array(ms.spike_struct.inter_neurons) + neurons_count_so_far))
+        n_ins_total[neurons_count_so_far:(neurons_count_so_far + nb_neurons)] = n_ins
+        n_outs_total[neurons_count_so_far:(neurons_count_so_far + nb_neurons)] = n_outs
+        neurons_count_so_far += nb_neurons
+
+    values_to_scatter = []
+    labels = []
+    scatter_shapes = []
+    colors = []
+    values_to_scatter.append(np.mean(n_outs_total))
+    values_to_scatter.append(np.median(n_outs_total))
+    labels.extend(["mean", "median"])
+    scatter_shapes.extend(["o", "s"])
+    colors.extend(["white", "white"])
+    if show_interneurons and len(interneurons_pos) > 0:
+        values_to_scatter.extend(list(n_outs_total[interneurons_pos]))
+        labels.extend([f"interneuron (x{len(interneurons_pos)})"])
+        scatter_shapes.extend(["*"] * len(n_outs_total[interneurons_pos]))
+        colors.extend(["red"] * len(n_outs_total[interneurons_pos]))
+    if cells_to_highlights is not None:
+        for index, cells in enumerate(cells_to_highlights):
+            values_to_scatter.extend(list(n_outs_total[np.array(cells)]))
+            labels.append(cells_to_highlights_legend[index])
+            scatter_shapes.extend([cells_to_highlights_shape[index]] * len(cells))
+            colors.extend([cells_to_highlights_colors[index]] * len(cells))
+
+    plot_hist_ratio_spikes_events(ratio_spikes_events=n_outs_total,
+                                  description=f"{data_descr}_distribution_n_out",
+                                  values_to_scatter=np.array(values_to_scatter),
+                                  labels=labels,
+                                  scatter_shapes=scatter_shapes,
+                                  colors=colors, twice_more_bins=True,
+                                  tight_x_range=True,
+                                  xlabel="Active cells (%)",
+                                  ylabel="Probability distribution (%)",
+                                  param=param)
+
+    values_to_scatter = []
+    scatter_shapes = []
+    labels = []
+    colors = []
+    values_to_scatter.append(np.mean(n_ins_total))
+    values_to_scatter.append(np.median(n_ins_total))
+    labels.extend(["mean", "median"])
+    scatter_shapes.extend(["o", "s"])
+    colors.extend(["white", "white"])
+    if show_interneurons and len(interneurons_pos) > 0:
+        values_to_scatter.extend(list(n_ins_total[interneurons_pos]))
+        labels.extend([f"interneuron (x{len(interneurons_pos)})"])
+        scatter_shapes.extend(["*"] * len(n_ins_total[interneurons_pos]))
+        colors.extend(["red"] * len(n_ins_total[interneurons_pos]))
+    if cells_to_highlights is not None:
+        for index, cells in enumerate(cells_to_highlights):
+            values_to_scatter.extend(list(n_ins_total[np.array(cells)]))
+            labels.append(cells_to_highlights_legend)
+            scatter_shapes.extend([cells_to_highlights_shape[index]] * len(cells))
+            colors.extend([cells_to_highlights_colors[index]] * len(cells))
+
+    plot_hist_ratio_spikes_events(ratio_spikes_events=n_ins_total,
+                                  description=f"{data_descr}_distribution_n_in",
+                                  values_to_scatter=np.array(values_to_scatter),
+                                  labels=labels,
+                                  scatter_shapes=scatter_shapes,
+                                  colors=colors, twice_more_bins=True,
+                                  tight_x_range=True,
+                                  xlabel="Active cells (%)",
+                                  ylabel="Probability distribution (%)",
+                                  param=param)
+    return n_ins_total, n_outs_total
 
 
 def save_stat_by_age(ratio_spikes_events_by_age, ratio_spikes_total_events_by_age, mouse_sessions,
@@ -704,14 +795,15 @@ def plot_hist_ratio_spikes_events(ratio_spikes_events, description, values_to_sc
         else:
             plt.scatter(x=value_to_scatter, y=hist_plt[scatter_bins[i]] * decay[i], marker=scatter_shapes[i],
                         color=colors[i], s=60, zorder=20)
-    # if tight_x_range:
-    #     plt.xlim(min_range, max_range)
-    plt.xlim(0, 100)
-    xticks = np.arange(0, 110, 10)
+    if tight_x_range:
+        plt.xlim(min_range, max_range)
+    else:
+        plt.xlim(0, 100)
+        xticks = np.arange(0, 110, 10)
 
-    ax1.set_xticks(xticks)
-    # sce clusters labels
-    ax1.set_xticklabels(xticks)
+        ax1.set_xticks(xticks)
+        # sce clusters labels
+        ax1.set_xticklabels(xticks)
 
     if ylabel is None:
         ax1.set_ylabel("Distribution (%)")
@@ -745,11 +837,11 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
     :param save_formats:
     :return:
     """
-    file_names = []
     n_categories = 4
     marker_cat = ["*", "d", "o", "s"]
     # categories that should be displayed
     banned_categories = []
+    file_names = []
     # look for filenames in the fisrst directory, if we don't break, it will go through all directories
     for (dirpath, dirnames, local_filenames) in os.walk(files_path):
         file_names.extend(local_filenames)
@@ -1396,6 +1488,37 @@ def test_seq_detect(ms):
 
     # cells_to_highlight = None,
     # cells_to_highlight_colors = None,
+def find_hubs(graph, ms):
+    n_cells = ms.spike_struct.n_cells
+    # first selecting cells conencted to more than 5% cells
+    cells_connectivity_perc_threshold = 5
+    # step 1
+    cells_selected_s1 = []
+    cells_connectivity = []
+    for cell in np.arange(n_cells):
+        cells_connectivity.append(len(graph[cell]))
+        if ((len(graph[cell]) / n_cells) * 100) >= cells_connectivity_perc_threshold:
+            cells_selected_s1.append(cell)
+    if len(cells_selected_s1) == 0:
+        return cells_selected_s1
+    cells_selected_s2 = []
+    connec_treshold = np.percentile(cells_connectivity, 80)
+    for cell in cells_selected_s1:
+        if cells_connectivity[cell] >= connec_treshold:
+            cells_selected_s2.append(cell)
+
+    if len(cells_selected_s2) == 0:
+        return cells_selected_s2
+    
+    cells_selected_s3 = []
+    bc_dict = nx.betweenness_centrality(graph) # , np.arange(n_cells)
+    bc_values = list(bc_dict.values())
+    bc_perc_threshold = np.percentile(bc_values, 80)
+    for cell in cells_selected_s2:
+        if bc_dict[cell] >= bc_perc_threshold:
+            cells_selected_s3.append(cell)
+
+    return cells_selected_s3
 
 
 def norm01(data):
@@ -1657,7 +1780,6 @@ def main():
     ms_str_to_load = available_ms_str
     ms_str_to_load = ["p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms"]
     ms_str_to_load = ms_with_cell_assemblies
-    ms_str_to_load = ["p6_18_02_07_a001_ms", ]
     ms_str_to_load = ["p6_18_02_07_a001_ms", "p12_17_11_10_a002_ms"]
     ms_str_to_load = ["p60_arnaud_ms"]
     ms_str_to_load = available_ms_str
@@ -1669,12 +1791,45 @@ def main():
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     ms_str_to_load = ms_new_from_Robin_2nd_dec
     ms_str_to_load = ["p9_18_09_27_a003_ms"]
+    ms_str_to_load = ["p6_18_02_07_a001_ms"]
+    ms_str_to_load = ["p9_18_09_27_a003_ms"]
+    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
+    ms_str_to_load = ["p6_18_02_07_a001_ms"]
+    no_spike_nums = ["p6_18_02_07_a002_ms", "p12_171110_a000_ms"]
+    ms_str_to_load = ["p13_18_10_29_a000_ms",  # new
+                      "p13_18_10_29_a001_ms",
+                      "p14_18_10_23_a000_ms",
+                      "p14_18_10_30_a001_ms",
+                      "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
+    for_graph = ["p6_18_02_07_a001_ms",
+                 "p7_171012_a000_ms", "p7_18_02_08_a000_ms",
+                 "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                 "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+                 "p7_18_02_08_a003_ms",
+                 "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+                 "p8_18_10_24_a005_ms", "p8_18_10_17_a001_ms",
+                 "p8_18_10_17_a000_ms",  # new
+                 "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+                 "p9_18_09_27_a003_ms",  # new
+                 "p10_17_11_16_a003_ms",
+                 "p11_17_11_24_a001_ms", "p11_17_11_24_a000_ms",
+                 "p12_17_11_10_a002_ms",
+                 "p13_18_10_29_a000_ms",  # new
+                 "p13_18_10_29_a001_ms",
+                 "p14_18_10_23_a000_ms",
+                 "p14_18_10_30_a001_ms",
+                 "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
+    ms_str_to_load = for_graph
+    ms_str_to_load = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
+    ms_str_to_load = ["p13_18_10_29_a001_ms"]
     ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    ms_str_to_load = ["p6_18_02_07_a001_ms"]
+
     # 256
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
-                                            load_traces=load_traces)
+                                            load_traces=load_traces, load_abf=True)
 
     available_ms = []
     for ms_str in ms_str_to_load:
@@ -1704,6 +1859,8 @@ def main():
 
     do_plot_interneurons_connect_maps = False
     do_plot_connect_hist = False
+    do_plot_graph = False
+    do_find_hubs = False
     do_plot_connect_hist_for_all_ages = False
     do_time_graph_correlation = False
     do_time_graph_correlation_and_connect_best = False
@@ -1780,7 +1937,7 @@ def main():
                                                              n_surrogate=n_surrogate_activity_threshold,
                                                              perc_threshold=perc_threshold,
                                                              debug_mode=False)
-
+            print(f"{ms.description} activity_threshold: {activity_threshold}")
             ms.spike_struct.activity_threshold = activity_threshold
             # param.activity_threshold = activity_threshold
         else:
@@ -1811,6 +1968,19 @@ def main():
             raw_traces = ms.raw_traces
             for i in np.arange(len(raw_traces)):
                 raw_traces[i] = (raw_traces[i] - np.mean(raw_traces[i]) / np.std(raw_traces[i]))
+                raw_traces[i] = norm01(raw_traces[i]) * 5
+
+            span_area_coords = []
+            span_area_colors = []
+            if (not ms.with_run) and (ms.twitches_frames_periods is not None):
+                span_area_coords.append(ms.twitches_frames_periods)
+                span_area_colors.append("blue")
+                span_area_coords.append(ms.complex_mvt_frames_periods)
+                span_area_colors.append("red")
+                span_area_coords.append(ms.intermediate_behavourial_events_frames_periods)
+                span_area_colors.append("red")
+                span_area_coords.append(ms.short_lasting_mvt_frames_periods)
+                span_area_colors.append("black")
             plot_spikes_raster(spike_nums=spike_nums_to_use, param=ms.param,
                                traces=raw_traces,
                                display_traces=True,
@@ -1820,9 +1990,12 @@ def main():
                                y_ticks_labels=np.arange(len(raw_traces)),
                                y_ticks_labels_size=2,
                                save_raster=True,
-                               show_raster=False,
+                               show_raster=True,
+                               span_area_coords=span_area_coords,
+                               span_area_colors=span_area_colors,
                                plot_with_amplitude=False,
-                               activity_threshold= ms.spike_struct.activity_threshold,
+                               activity_threshold=ms.spike_struct.activity_threshold,
+                               raster_face_color="white",
                                # 500 ms window
                                sliding_window_duration=sliding_window_duration,
                                show_sum_spikes_as_percentage=True,
@@ -1865,13 +2038,13 @@ def main():
 
         ms_by_age[ms.age].append(ms)
 
-        if do_plot_interneurons_connect_maps or do_plot_connect_hist:
+        if do_plot_interneurons_connect_maps or do_plot_connect_hist or do_plot_graph or do_find_hubs:
             ms.detect_n_in_n_out()
             # For p9_a003 good out connec: cell 8, 235, 201,  151, 17
-            for cell_to_map in [8, 235, 201, 151, 17]:
-                ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="",
-                                                    cell_color="red", links_cell_color="cornflowerblue")
-            raise Exception("it's over")
+            # for cell_to_map in [8, 235, 201, 151, 17]:
+            #     ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="",
+            #                                         cell_color="red", links_cell_color="cornflowerblue")
+            # raise Exception("it's over")
         elif do_time_graph_correlation_and_connect_best and do_time_graph_correlation:
             ms.detect_n_in_n_out()
 
@@ -1936,8 +2109,37 @@ def main():
                     ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="hub_cell",
                                                         cell_color="red", links_cell_color="cornflowerblue")
 
+        if do_find_hubs:
+            for cell_to_map in [61, 73, 130, 138, 142]:
+                ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="", not_in=False,
+                                                    cell_color="red", links_cell_color="cornflowerblue")
+            # hubs = find_hubs(graph=ms.spike_struct.graph_out, ms=ms)
+            # print(f"{ms.description} hubs: {hubs}")
+            # P13_18_10_29_a001 hubs: [61, 73, 130, 138, 142]
+            # P60_arnaud_a_529 hubs: [65, 102]
+            # P60_a529_2015_02_25 hubs: [2, 8, 88, 97, 109, 123, 127, 142]
+        if do_plot_graph:
+            plot_graph_using_fa2(graph=ms.spike_struct.graph_out, file_name=f"{ms.description} graph out",
+                                 title=f"{ms.description}",
+                                 param=param, iterations=15000, save_raster=True, with_labels=False,
+                                 save_formats="pdf", show_plot=False)
+            # ms.spike_struct.graph_out.add_edges_from(ms.spike_struct.graph_in.edges())
+            # plot_graph_using_fa2(graph=ms.spike_struct.graph_out, file_name=f"{ms.description} graph in-out",
+            #                      title=f"{ms.description} in-out",
+            #                      param=param, iterations=5000, save_raster=True, with_labels=False,
+            #                      save_formats="pdf", show_plot=False)
         if do_plot_connect_hist:
             connec_func_stat([ms], data_descr=ms.description, param=param)
+            # best_cell = -1
+            # best_score = 0
+            # for cell in np.arange(ms.spike_struct.n_cells):
+            #     score = np.sum(ms.spike_struct.n_out_matrix[cell])
+            #     if best_score < score:
+            #         best_cell = cell
+            #         best_score = score
+            # for cell_to_map in [best_cell]:
+            #     ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="", not_in=False,
+            #                                         cell_color="red", links_cell_color="cornflowerblue")
 
         if do_plot_interneurons_connect_maps:
             if ms.coord is None:

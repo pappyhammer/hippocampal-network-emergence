@@ -63,6 +63,7 @@ class MouseSession:
         self.percentile_for_low_activity_threshold = percentile_for_low_activity_threshold
         self.low_activity_threshold = None
         self.avg_cell_map_img = None
+        self.tif_movie_file_name = None
         self.param = param
         # list of list of int representing cell indices
         # initiated when loading_cell_assemblies
@@ -1564,8 +1565,10 @@ class MouseSession:
         for inter_neuron in inter_neurons:
             self.plot_connectivity_maps_of_a_cell(cell_to_map=inter_neuron, cell_descr="inter_neuron")
 
-    def plot_connectivity_maps_of_a_cell(self, cell_to_map, cell_descr,
+    def plot_connectivity_maps_of_a_cell(self, cell_to_map, cell_descr, not_in=False,
                                          cell_color="red", links_cell_color="cornflowerblue"):
+        if self.coord_obj is None:
+            return
         color_each_cells_link_to_cell = True
 
         connections_dict_in = dict()
@@ -1598,8 +1601,8 @@ class MouseSession:
 
         # self.coord_obj.compute_center_coord(cells_groups=cells_groups,
         #                                     cells_groups_colors=cells_groups_colors)
-
-        self.coord_obj.plot_cells_map(param=self.param,
+        if not not_in:
+            self.coord_obj.plot_cells_map(param=self.param,
                                       data_id=self.description, show_polygons=False,
                                       title_option=f"n_in_{cell_descr}_{cell_to_map}",
                                       connections_dict=connections_dict_in,
@@ -1804,7 +1807,12 @@ class MouseSession:
                                 tools_misc.find_continuous_frames_period(self.noise_mvt_frames)
                         # if (not with_run) and do_detect_twitches:
                         #     self.detect_twitches()
-
+            # np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf_new.npz",
+            #          twitches_frames=self.twitches_frames,
+            #          short_lasting_mvt_frames=self.short_lasting_mvt_frames,
+            #          complex_mvt_frames=self.complex_mvt_frames,
+            #          intermediate_behavourial_events_frames=self.intermediate_behavourial_events_frames,
+            #          noise_mvt_frames=self.noise_mvt_frames)
         if just_load_npz_file:
             return
         # 50000 Hz
@@ -2332,6 +2340,25 @@ class MouseSession:
 
     def set_avg_cell_map_tif(self, file_name):
         self.avg_cell_map_img = mpimg.imread(self.param.path_data + file_name)
+
+    def load_tif_movie(self, path):
+        file_names = []
+
+        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path):
+            file_names.extend(local_filenames)
+            break
+        if len(file_names) == 0:
+            return
+
+        for file_name in file_names:
+            file_name_original = file_name
+            file_name = file_name.lower()
+            descr = self.description.lower() + ".tif"
+            if descr != file_name:
+                continue
+            self.tif_movie_file_name = self.param.path_data + path + file_name_original
+            # print(f"self.tif_movie_file_name {self.tif_movie_file_name}")
 
     def load_data_from_file(self, file_name_to_load, variables_mapping, frames_filter=None):
         """

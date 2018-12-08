@@ -33,7 +33,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         p6_18_02_07_a001_ms.set_avg_cell_map_tif(file_name="p6/p6_18_02_07_a001/AVG_p6_18_02_07_a001.tif")
         if load_abf:
             p6_18_02_07_a001_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a001/p6_18_02_07_001.abf",
-                                              threshold_piezo=25)  # 7
+                                              threshold_piezo=25, just_load_npz_file=False)  # 7
         ms_str_to_ms_dict["p6_18_02_07_a001_ms"] = p6_18_02_07_a001_ms
         # p6_18_02_07_a001_ms.plot_cell_assemblies_on_map()
 
@@ -41,7 +41,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         p6_18_02_07_a002_ms = MouseSession(age=6, session_id="18_02_07_a002", nb_ms_by_frame=100, param=param,
                                            weight=4.35)
         # calculated with 99th percentile on raster dur
-        # p6_18_02_07_a002_ms.activity_threshold = 8
+        p6_18_02_07_a002_ms.activity_threshold = 10
         # p6_18_02_07_a002_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
         # p6_18_02_07_a002_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
         p6_18_02_07_a002_ms.set_inter_neurons([40, 90])
@@ -117,7 +117,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
                                                 variables_mapping=variables_mapping)
         p7_17_10_18_a002_ms.set_avg_cell_map_tif(file_name="p7/p7_17_10_18_a002/AVG_p7_17_10_18_a002.tif")
         if load_traces:
-            variables_mapping = {"raw_traces": "Tr"}
+            variables_mapping = {"raw_traces": "raw_traces"}
             p7_17_10_18_a002_ms.load_data_from_file(
                 file_name_to_load="p7/p7_17_10_18_a002/p7_17_10_18_a002_raw_traces.mat",
                 variables_mapping=variables_mapping)
@@ -654,7 +654,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         ms_str_to_ms_dict["p11_17_11_24_a001_ms"] = p11_17_11_24_a001_ms
 
     if "p12_171110_a000_ms" in ms_str_to_load:
-        p12_171110_a000_ms = MouseSession(age=12, session_id="171110_a000", nb_ms_by_frame=100, param=param,
+        p12_171110_a000_ms = MouseSession(age=12, session_id="17_11_10_a000", nb_ms_by_frame=100, param=param,
                                           weight=7)
         # calculated with 99th percentile on raster dur
         # p12_171110_a000_ms.activity_threshold = 9
@@ -682,6 +682,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_CellDetect.mat",
             variables_mapping=variables_mapping)
         p12_171110_a000_ms.set_avg_cell_map_tif(file_name="p12/p12_17_11_10_a000/AVG_p12_17_11_10_a000.tif")
+        p12_171110_a000_ms.load_tif_movie(path="p12/p12_17_11_10_a000/")
         ms_str_to_ms_dict["p12_171110_a000_ms"] = p12_171110_a000_ms
 
     if "p12_17_11_10_a002_ms" in ms_str_to_load:
@@ -735,7 +736,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
                 variables_mapping=variables_mapping)
             variables_mapping = {"raw_traces": "raw_traces"}
             p13_18_10_29_a000_ms.load_data_from_file(
-                file_name_to_load="p13/p13_17_11_10_a002/p13_17_11_10_a002_raw_Traces.mat",
+                file_name_to_load="p13/p13_18_10_29_a000/p13_2018_10_29_a000_raw_Traces.mat",
                 variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p13_18_10_29_a000_ms.load_data_from_file(file_name_to_load=
@@ -768,7 +769,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
                 variables_mapping=variables_mapping)
             variables_mapping = {"raw_traces": "raw_traces"}
             p13_18_10_29_a001_ms.load_data_from_file(
-                file_name_to_load="p13/p13_18_10_29_a001/p13_18_10_29_a001_raw_Traces.mat",
+                file_name_to_load="p13/p13_18_10_29_a001/p13_2018_10_29_a001_raw_Traces.mat",
                 variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=

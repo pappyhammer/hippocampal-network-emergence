@@ -20,6 +20,7 @@ import scipy.signal as signal
 import matplotlib.image as mpimg
 from random import randint
 import scipy.ndimage.morphology as morphology
+import os
 
 if sys.version_info[0] < 3:
     import Tkinter as tk
@@ -1042,8 +1043,15 @@ class ManualOnsetFrame(tk.Frame):
             self.display_mvt_button.pack(side=RIGHT)
 
         self.michou_path = "michou/"
-        self.michou_img_file_names = ["Michel_OM_PSG.png", "michou_st_Patrick.png", "michou_BG.png",
-                                      "michou_BG2.png", "michou_BG3.png", "michou_NY.png"]
+        # self.michou_img_file_names = ["Michel_OM_PSG.png", "michou_st_Patrick.png", "michou_BG.png",
+        #                               "michou_BG2.png", "michou_BG3.png", "michou_NY.png"]
+        self.michou_img_file_names = []
+        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(self.data_and_param.path_data + self.michou_path):
+            for file_name in local_filenames:
+                if file_name.endswith(".png") or file_name.endswith(".jpg"):
+                    self.michou_img_file_names.append(file_name)
+            break
         self.michou_imgs = []
         for file_name in self.michou_img_file_names:
             self.michou_imgs.append(mpimg.imread(self.data_and_param.path_data + self.michou_path + file_name))
@@ -1158,7 +1166,8 @@ class ManualOnsetFrame(tk.Frame):
         elif event.char in ["m", "M"]:
             self.switch_magnifier()
         elif event.char in ["p", "P"]:
-            self.switch_michou()
+            if self.n_michou_img > 0:
+                self.switch_michou()
         if event.keysym == 'Right':
             # C as cell
             if ("Meta_L" in self.keys_pressed) or ("Control_L" in self.keys_pressed):

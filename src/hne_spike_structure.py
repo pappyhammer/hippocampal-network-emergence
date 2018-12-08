@@ -41,6 +41,7 @@ from pattern_discovery.clustering.fca.fca import compute_and_plot_clusters_raste
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 from scipy import stats
+import networkx as nx
 
 class HNESpikeStructure:
 
@@ -91,7 +92,7 @@ class HNESpikeStructure:
         self.spike_amplitudes = None
 
         # nb frames (1 frame == 100 ms) to look for connection near a neuron that spike
-        self.nb_frames_for_func_connect = 5
+        self.nb_frames_for_func_connect = 15
         # contain the list of neurons connected to the EB as keys, and the number of connection as values
         # first key is a dict of neuron, the second key is other neurons to which the first connect,
         # then the number of times is connected to it
@@ -100,6 +101,8 @@ class HNESpikeStructure:
         # initialized when loading rasters
         self.n_in_matrix = None
         self.n_out_matrix = None
+        self.graph_in = None
+        self.graph_out = None
 
     def detect_n_in_n_out(self):
         # look neuron by neuron, at each spike and make a pair wise for each other neurons according to the spike
@@ -128,6 +131,7 @@ class HNESpikeStructure:
 
             event_index = self.nb_frames_for_func_connect
             # looping on each spike of the main neuron
+            # to build the distribution of each other neurons around the spikes of this one
             for n, event in enumerate(neuron_spikes):
                 # only taking in consideration events that are not too close from bottom range or upper range
                 min_limit = max(event - self.nb_frames_for_func_connect, 0)
@@ -151,6 +155,9 @@ class HNESpikeStructure:
                     if sum_spike > 0:
                         distribution_for_test[i_n:i_n + sum_spike] = frames_time[i_time]
                         i_n += sum_spike
+
+                # print(f"neuron {neuron} to {neuron_to_consider}: len {len(distribution_for_test)}: "
+                #       f"{distribution_array_2_d[neuron_to_consider, :]}")
                 if len(distribution_for_test) >= 20:
                     stat_n, p_value = stats.normaltest(distribution_for_test)
                     ks, p_ks = stats.kstest(distribution_for_test, stats.randint.cdf,
@@ -161,28 +168,45 @@ class HNESpikeStructure:
                     # if the distribution is normal or uniform, we skip it
                     if is_normal_distribution or is_uniform_distribution:
                         continue
-
-                n_in_sum = np.sum(distribution_array[:event_index])
-                n_out_sum = np.sum(distribution_array[(event_index + 1):])
-                # means we have the same number of spikes before and after
-                if n_in_sum == n_out_sum:
-                    continue
-                max_value = max(n_in_sum, n_out_sum)
-                min_value = min(n_in_sum, n_out_sum)
-                # we should have at least twice more spikes on one side
-                if max_value < (min_value * 2):
-                    continue
-                # and twice as more as the spikes at time 0
-                if max_value < (distribution_array[event_index] * 2):
-                    continue
-
-                if n_in_sum > n_out_sum:
-                    self.n_in_dict[neuron][neuron_to_consider] = 1
-                    self.n_in_matrix[neuron][neuron_to_consider] = 1
+                    else:
+                        n_in_sum = np.sum(distribution_array[:event_index])
+                        n_out_sum = np.sum(distribution_array[(event_index + 1):])
+                        if n_in_sum > n_out_sum:
+                            self.n_in_dict[neuron][neuron_to_consider] = 1
+                            self.n_in_matrix[neuron][neuron_to_consider] = 1
+                        else:
+                            self.n_out_dict[neuron][neuron_to_consider] = 1
+                            self.n_out_matrix[neuron][neuron_to_consider] = 1
                 else:
-                    self.n_out_dict[neuron][neuron_to_consider] = 1
-                    self.n_out_matrix[neuron][neuron_to_consider] = 1
+                    continue
+                # # means we have the same number of spikes before and after
+                # if n_in_sum == n_out_sum:
+                #     continue
+                # max_value = max(n_in_sum, n_out_sum)
+                # min_value = min(n_in_sum, n_out_sum)
+                # # we should have at least twice more spikes on one side
+                # if max_value < (min_value * 2):
+                #     continue
+                # # and twice as more as the spikes at time 0
+                # if max_value < (distribution_array[event_index] * 2):
+                #     continue
 
+        # building graph using Networkx package
+        # DiGraph means directed graph
+        self.graph_in = nx.DiGraph()
+        self.graph_in.add_nodes_from(np.arange(self.n_cells))
+        self.graph_out = nx.DiGraph()
+        self.graph_out.add_nodes_from(np.arange(self.n_cells))
+
+        for cell, cells_connected in self.n_in_dict.items():
+            for cell_connected in cells_connected.keys():
+                self.graph_in.add_edge(cell, cell_connected)
+
+        for cell, cells_connected in self.n_out_dict.items():
+            for cell_connected in cells_connected.keys():
+                self.graph_out.add_edge(cell, cell_connected)
+
+        # raise Exception("testing")
         # best_cell = -1
         # best_score = 0
         # for cell in np.arange(nb_neurons):
@@ -319,90 +343,3 @@ class HNESpikeStructure:
             self.spike_trains.append(np.where(cell_spikes)[0].astype(float))
 
 
-def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
-                     cells_to_highlights_shape=None, cells_to_highlights_colors=None, cells_to_highlights_legend=None):
-    # print(f"connec_func_stat {mouse_session.session_numbers[0]}")
-    interneurons_pos = np.zeros(0, dtype="uint16")
-    total_nb_neurons = 0
-    for ms in mouse_sessions:
-        total_nb_neurons += ms.spike_struct.n_cells
-    n_outs_total = np.zeros(total_nb_neurons)
-    n_ins_total = np.zeros(total_nb_neurons)
-    neurons_count_so_far = 0
-    for ms_nb, ms in enumerate(mouse_sessions):
-        nb_neurons = ms.spike_struct.n_cells
-        n_ins = np.sum(ms.spike_struct.n_in_matrix, axis=1) / nb_neurons
-        n_ins = np.round(n_ins * 100, 2)
-        n_outs = np.sum(ms.spike_struct.n_out_matrix, axis=1) / nb_neurons
-        n_outs = np.round(n_outs * 100, 2)
-        if len(ms.spike_struct.inter_neurons) > 0:
-            interneurons_pos = np.concatenate((interneurons_pos,
-                                               np.array(ms.spike_struct.inter_neurons) + neurons_count_so_far))
-        n_ins_total[neurons_count_so_far:(neurons_count_so_far + nb_neurons)] = n_ins
-        n_outs_total[neurons_count_so_far:(neurons_count_so_far + nb_neurons)] = n_outs
-        neurons_count_so_far += nb_neurons
-
-    values_to_scatter = []
-    labels = []
-    scatter_shapes = []
-    colors = []
-    values_to_scatter.append(np.mean(n_outs_total))
-    values_to_scatter.append(np.median(n_outs_total))
-    labels.extend(["mean", "median"])
-    scatter_shapes.extend(["o", "s"])
-    colors.extend(["white", "white"])
-    if show_interneurons and len(interneurons_pos) > 0:
-        values_to_scatter.extend(list(n_outs_total[interneurons_pos]))
-        labels.extend([f"interneuron (x{len(interneurons_pos)})"])
-        scatter_shapes.extend(["*"] * len(n_outs_total[interneurons_pos]))
-        colors.extend(["red"] * len(n_outs_total[interneurons_pos]))
-    if cells_to_highlights is not None:
-        for index, cells in enumerate(cells_to_highlights):
-            values_to_scatter.extend(list(n_outs_total[np.array(cells)]))
-            labels.append(cells_to_highlights_legend[index])
-            scatter_shapes.extend([cells_to_highlights_shape[index]] * len(cells))
-            colors.extend([cells_to_highlights_colors[index]] * len(cells))
-
-    plot_hist_ratio_spikes_events(ratio_spikes_events=n_outs_total,
-                                  description=f"{data_descr}_distribution_n_out",
-                                  values_to_scatter=np.array(values_to_scatter),
-                                  labels=labels,
-                                  scatter_shapes=scatter_shapes,
-                                  colors=colors,
-                                  tight_x_range=True,
-                                  xlabel="Active cells (%)",
-                                  ylabel="Probability distribution (%)",
-                                  param=param)
-
-    values_to_scatter = []
-    scatter_shapes = []
-    labels = []
-    colors = []
-    values_to_scatter.append(np.mean(n_ins_total))
-    values_to_scatter.append(np.median(n_ins_total))
-    labels.extend(["mean", "median"])
-    scatter_shapes.extend(["o", "s"])
-    colors.extend(["white", "white"])
-    if show_interneurons and len(interneurons_pos) > 0:
-        values_to_scatter.extend(list(n_ins_total[interneurons_pos]))
-        labels.extend([f"interneuron (x{len(interneurons_pos)})"])
-        scatter_shapes.extend(["*"] * len(n_ins_total[interneurons_pos]))
-        colors.extend(["red"] * len(n_ins_total[interneurons_pos]))
-    if cells_to_highlights is not None:
-        for index, cells in enumerate(cells_to_highlights):
-            values_to_scatter.extend(list(n_ins_total[np.array(cells)]))
-            labels.append(cells_to_highlights_legend)
-            scatter_shapes.extend([cells_to_highlights_shape[index]] * len(cells))
-            colors.extend([cells_to_highlights_colors[index]] * len(cells))
-
-    plot_hist_ratio_spikes_events(ratio_spikes_events=n_ins_total,
-                                  description=f"{data_descr}_distribution_n_in",
-                                  values_to_scatter=np.array(values_to_scatter),
-                                  labels=labels,
-                                  scatter_shapes=scatter_shapes,
-                                  colors=colors,
-                                  tight_x_range=True,
-                                  xlabel="Active cells (%)",
-                                  ylabel="Probability distribution (%)",
-                                  param=param)
-    return n_ins_total, n_outs_total
