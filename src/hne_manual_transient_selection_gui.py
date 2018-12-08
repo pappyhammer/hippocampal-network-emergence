@@ -24,7 +24,9 @@ import os
 import cv2
 from PIL import Image, ImageSequence
 import PIL
-from PIL import ImageTk
+# from PIL import ImageTk
+from itertools import cycle
+from matplotlib import animation
 
 if sys.version_info[0] < 3:
     import Tkinter as tk
@@ -797,7 +799,21 @@ class ManualOnsetFrame(tk.Frame):
         map_frame.pack(side=TOP, expand=YES, fill=BOTH)
 
         # tif movie loading
+        self.last_img_displayed = None
+        self.trace_movie_p1 = None
+        self.trace_movie_p2 = None
         self.movie_available = False
+        self.play_movie = False
+        self.n_frames_movie = 1
+        self.first_frame_movie = 0
+        self.last_frame_movie = 1
+        # to avoid garbage collector
+        self.anim_movie = None
+        self.last_frame_label = None
+        # delay between 2 frames, in ms
+        self.movie_delay = 10
+        # frames to be played by the movie
+        self.movie_frames = None
         if self.data_and_param.ms.tif_movie_file_name is not None:
             self.movie_available = True
             im = PIL.Image.open(self.data_and_param.ms.tif_movie_file_name)
@@ -841,6 +857,7 @@ class ManualOnsetFrame(tk.Frame):
 
         if self.data_and_param.ms.avg_cell_map_img is not None:
             self.map_img_fig = plt.figure(figsize=(4, 4))
+            self.background_map_fig = None
             self.axe_plot_map_img = None
             self.cell_contour = None
             # creating all cell_contours
@@ -860,7 +877,7 @@ class ManualOnsetFrame(tk.Frame):
                 self.cell_contours[cell] = patches.Polygon(xy=xy,
                                                            fill=False, linewidth=0, facecolor="red",
                                                            edgecolor="red",
-                                                           zorder=15, lw=1)
+                                                           zorder=15, lw=0.6)
                 bw = np.zeros((200, 200), dtype="int8")
                 # morphology.binary_fill_holes(input
                 # print(f"coord[1, :] {coord[1, :]}")
@@ -889,7 +906,7 @@ class ManualOnsetFrame(tk.Frame):
             #     # x, y = x.flatten(), y.flatten()
             #     # new_points = np.vstack((x, y)).T
             # raise Exception("mask")
-                # print(f"cell {cell}, points: {new_points}")
+            # print(f"cell {cell}, points: {new_points}")
 
             # for x in np.arange(200):
             #     for y in np.arange(200):
@@ -1104,7 +1121,6 @@ class ManualOnsetFrame(tk.Frame):
             self.movie_button["command"] = event_lambda(self.switch_movie_mode)
             self.movie_button.pack(side=RIGHT)
 
-
         # self.avg_cell_map_img = None
         # if self.data_and_param.ms.avg_cell_map_img_file_name is not None:
         #     self.avg_cell_map_img = cv2.imread(self.data_and_param.ms.avg_cell_map_img_file_name)
@@ -1114,7 +1130,6 @@ class ManualOnsetFrame(tk.Frame):
         #     # convert the images to PIL format...
         #     self.avg_cell_map_img = Image.fromarray(self.avg_cell_map_img)
         #     self.avg_cell_map_img = ImageTk.PhotoImage(self.avg_cell_map_img)
-
 
         # used for association of keys
         self.keys_pressed = dict()
@@ -1130,7 +1145,7 @@ class ManualOnsetFrame(tk.Frame):
             self.update_plot_map_img(after_michou=True)
         else:
             self.display_michou = True
-            self.michou_img_to_display = randint(0, self.n_michou_img-1)
+            self.michou_img_to_display = randint(0, self.n_michou_img - 1)
             self.update_plot_map_img()
 
     def switch_movie_mode(self, from_movie_button=True):
@@ -1150,6 +1165,13 @@ class ManualOnsetFrame(tk.Frame):
             self.movie_button["text"] = ' movie OFF '
             self.movie_button["fg"] = "black"
             self.movie_mode = False
+            if self.play_movie:
+                self.play_movie = False
+                if self.anim_movie is not None:
+                    self.anim_movie.event_source.stop()
+                    self.update_contour_for_cell(cell=self.current_neuron)
+                    self.update_plot_map_img(after_michou=True)
+
         else:
             self.movie_button["text"] = ' movie ON '
             self.movie_button["fg"] = "red"
@@ -1158,7 +1180,6 @@ class ManualOnsetFrame(tk.Frame):
         if self.first_click_to_remove is not None:
             self.first_click_to_remove = None
             self.update_plot()
-
 
     def switch_mvt_display(self):
         if self.display_mvt:
@@ -1252,6 +1273,8 @@ class ManualOnsetFrame(tk.Frame):
         elif event.char in ["p", "P"]:
             if self.n_michou_img > 0:
                 self.switch_michou()
+        elif (event.keysym == "space") and (self.tiff_movie is not None):
+            self.switch_movie_mode()
         if event.keysym == 'Right':
             # C as cell
             if ("Meta_L" in self.keys_pressed) or ("Control_L" in self.keys_pressed):
@@ -1368,6 +1391,23 @@ class ManualOnsetFrame(tk.Frame):
             self.remove_onset_button["fg"] = 'red'
             self.remove_onset_button["text"] = ' REMOVE ONSET OFF '
 
+    def update_contour_for_cell(self, cell):
+        # used in order to have access to contour after animation
+
+        # cell contour
+        coord = self.data_and_param.ms.coord_obj.coord[cell]
+        coord = coord - 1
+        coord = coord.astype(int)
+        n_coord = len(coord[0, :])
+        xy = np.zeros((n_coord, 2))
+        for n in np.arange(n_coord):
+            xy[n, 0] = coord[0, n]
+            xy[n, 1] = coord[1, n]
+        self.cell_contours[cell] = patches.Polygon(xy=xy,
+                                                   fill=False, linewidth=0, facecolor="red",
+                                                   edgecolor="red",
+                                                   zorder=15, lw=0.6)
+
     def remove_peak_switch_mode(self, from_remove_peak_button=True):
         if from_remove_peak_button and (not self.remove_peak_mode):
             if self.add_peak_mode:
@@ -1443,7 +1483,7 @@ class ManualOnsetFrame(tk.Frame):
         new_neuron = self.cell_in_pixel[y, x]
         if new_neuron >= 0:
             if new_neuron != self.current_neuron:
-                self.update_neuron(new_neuron = new_neuron)
+                self.update_neuron(new_neuron=new_neuron)
         # print(f"cell: {self.cell_in_pixel[y, x]}")
 
     def onrelease(self, event):
@@ -1484,7 +1524,7 @@ class ManualOnsetFrame(tk.Frame):
                 elif self.remove_peak_mode:
                     self.remove_peak(x_from=self.first_click_to_remove["x"], x_to=int(round(event.xdata)))
                 elif self.movie_mode:
-                    pass # activating movie
+                    self.start_playing_movie(x_from=self.first_click_to_remove["x"], x_to=int(round(event.xdata)))
                 else:
                     self.remove_all(x_from=self.first_click_to_remove["x"], x_to=int(round(event.xdata)))
             else:
@@ -2101,32 +2141,114 @@ class ManualOnsetFrame(tk.Frame):
         self.magnifier_fig.canvas.draw()
         self.magnifier_fig.canvas.flush_events()
 
-    def plot_map_img(self, first_time=True):
+    def start_playing_movie(self, x_from, x_to):
+        self.play_movie = True
+        self.first_frame_movie = x_from
+        self.last_frame_movie = x_to
+        self.n_frames_movie = x_to - x_from
+        self.movie_frames = cycle((frame_tiff, frame_index + x_from)
+                                  for frame_index, frame_tiff in enumerate(self.tiff_movie[x_from:x_to]))
+        self.update_plot_map_img()
+
+    def animate_movie(self, i):
+        if not self.play_movie:
+            return []
+        frame_tiff, frame_index = next(self.movie_frames)
+        self.last_img_displayed.set_array(frame_tiff)
+        if self.last_frame_label is not None:
+            self.last_frame_label.set_visible(False)
+        self.last_frame_label = self.axe_plot_map_img.text(x=10, y=10,
+                                                           s=f"{frame_index}", color="red", zorder=20,
+                                                           ha='center', va="center", fontsize=10, fontweight='bold')
+        if self.trace_movie_p1 is not None:
+            self.trace_movie_p1[0].set_visible(False)
+        if self.trace_movie_p2 is not None:
+            self.trace_movie_p2[0].set_visible(False)
+
+        first_frame = self.first_frame_movie
+        last_frame = self.last_frame_movie
+        len_x = frame_tiff.shape[1]
+        if self.n_frames_movie > len_x:
+            new_x_values = np.linspace(0, len_x - 1, self.n_frames_movie)
+        else:
+            new_x_values = np.arange(self.n_frames_movie) + ((len_x - self.n_frames_movie) / 2)
+        # back to zero with +2 then inceasing the amplitude
+        raw_traces = (self.raw_traces + 2) * 5
+        # y-axis is reverse, so we need to inverse the trace
+        raw_traces = (frame_tiff.shape[1] * 0.9) - raw_traces
+        # need to match the length of our trace to the len
+        if first_frame < frame_index:
+            self.trace_movie_p1 = self.axe_plot_map_img.plot(new_x_values[:frame_index - first_frame],
+                                                             raw_traces[self.current_neuron, first_frame:frame_index],
+                                                             color="red", alpha=1, zorder=10, lw=1)
+        if last_frame > frame_index:
+            self.trace_movie_p2 = self.axe_plot_map_img.plot(new_x_values[frame_index - first_frame:],
+                                                             raw_traces[self.current_neuron, frame_index:last_frame],
+                                                             color="white", alpha=1, zorder=10, lw=1)
+
+        self.draw_cell_contour()
+        artists = [self.last_img_displayed, self.last_frame_label, self.cell_contour]
+        if self.trace_movie_p1 is not None:
+            artists.append(self.trace_movie_p1[0])
+        if self.trace_movie_p2 is not None:
+            artists.append(self.trace_movie_p2[0])
+
+        return artists
+
+    def plot_map_img(self, first_time=True, do_blit=False):
         if (self.data_and_param.ms.avg_cell_map_img is None) and (not self.display_michou):
             return
 
         if first_time:
             self.axe_plot_map_img = self.map_img_fig.add_subplot(111)
+            if do_blit:
+                self.background_map_fig = self.map_img_fig.canvas.copy_from_bbox(self.axe_plot_map_img.bbox)
+        # if self.last_img_displayed is not None:
+        #     self.last_img_displayed.set_visible(False)
+
+        if (not first_time) and do_blit:
+            # restore background
+            self.map_img_fig.canvas.restore_region(self.background_map_fig)
 
         if self.display_michou:
-            im1 = self.axe_plot_map_img.imshow(self.michou_imgs[self.michou_img_to_display])
-        else:
-            if self.tiff_movie is not None:
-                print("display tiff_movie")
-                im1 = self.axe_plot_map_img.imshow(self.tiff_movie[10], cmap=plt.get_cmap('gray'))
-                self.axe_plot_map_img.text(x=10, y=10,
-                         s="10", color="red", zorder=20,
-                         ha='center', va="center", fontsize=10, fontweight='bold')
+            if first_time:
+                self.last_img_displayed = self.axe_plot_map_img.imshow(self.michou_imgs[self.michou_img_to_display])
             else:
-                im1 = self.axe_plot_map_img.imshow(self.data_and_param.ms.avg_cell_map_img)
-            im1.set_zorder(5)
+                self.last_img_displayed.set_array(self.michou_imgs[self.michou_img_to_display])
+        else:
+            if self.play_movie:
+                # frame_tiff is numpy array of 2D
+                frame_tiff, frame_index = next(self.movie_frames)
+                self.last_img_displayed = self.axe_plot_map_img.imshow(frame_tiff, cmap=plt.get_cmap('gray'))
+                if self.last_frame_label is not None:
+                    self.last_frame_label.set_visible(False)
+                self.last_frame_label = self.axe_plot_map_img.text(x=10, y=10,
+                                                                   s=f"{frame_index}", color="red", zorder=20,
+                                                                   ha='center', va="center", fontsize=10,
+                                                                   fontweight='bold')
+            else:
+                if self.last_frame_label is not None:
+                    self.last_frame_label.set_visible(False)
+                    self.last_frame_label = None
+                if first_time:
+                    self.last_img_displayed = self.axe_plot_map_img.imshow(self.data_and_param.ms.avg_cell_map_img,
+                                                                           cmap=plt.get_cmap('gray'))
+                else:
+                    self.last_img_displayed.set_array(self.data_and_param.ms.avg_cell_map_img)
+                self.last_img_displayed.set_zorder(1)
+            # self.last_img_displayed.set_visible(True)
             self.draw_cell_contour()
 
-        frame = plt.gca()
-        frame.axes.get_xaxis().set_visible(False)
-        frame.axes.get_yaxis().set_visible(False)
+        if (not first_time) and do_blit:
+            # fill in the axes rectangle
+            self.map_img_fig.canvas.blit(self.axe_plot_map_img.bbox)
 
-        self.map_img_fig.tight_layout()
+        if first_time:
+            frame = plt.gca()
+            frame.axes.get_xaxis().set_visible(False)
+            frame.axes.get_yaxis().set_visible(False)
+
+            self.map_img_fig.tight_layout()
 
     def draw_cell_contour(self):
         if self.cell_contour is not None:
@@ -2149,19 +2271,28 @@ class ManualOnsetFrame(tk.Frame):
         #                                     zorder=15, lw=2)
         # self.axe_plot_map_img.add_patch(self.cell_contour)
 
-    def update_plot_map_img(self, after_michou=False):
-        if self.display_michou:
+    def update_plot_map_img(self, after_michou=False, do_blit=False):
+        if self.display_michou and (not self.play_movie):
             self.axe_plot_map_img.clear()
-            self.plot_map_img()
+            self.plot_map_img(do_blit=do_blit)
+        elif self.play_movie:
+            # self.axe_plot_map_img.clear()
+            self.plot_map_img(do_blit=do_blit)
             self.map_img_fig.canvas.draw()
             self.map_img_fig.canvas.flush_events()
+            self.anim_movie = animation.FuncAnimation(self.map_img_fig, func=self.animate_movie,
+                                                      frames=self.n_frames_movie,
+                                                      blit=True, interval=50, repeat=True)  # repeat=True,
+            return
+            # self.after(self.movie_delay, self.update_plot_map_img)
         else:
             if after_michou:
                 self.axe_plot_map_img.clear()
-                self.plot_map_img()
+                self.plot_map_img(do_blit=do_blit)
+            else:
+                self.draw_cell_contour()
 
-            self.draw_cell_contour()
-
+        if not do_blit:
             self.map_img_fig.canvas.draw()
             self.map_img_fig.canvas.flush_events()
 
