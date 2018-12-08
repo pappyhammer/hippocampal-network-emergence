@@ -21,6 +21,10 @@ import matplotlib.image as mpimg
 from random import randint
 import scipy.ndimage.morphology as morphology
 import os
+import cv2
+from PIL import Image, ImageSequence
+import PIL
+from PIL import ImageTk
 
 if sys.version_info[0] < 3:
     import Tkinter as tk
@@ -540,7 +544,7 @@ class ManualOnsetFrame(tk.Frame):
             self.mvt_frames_periods.extend(self.data_and_param.ms.complex_mvt_frames_periods)
             self.mvt_frames_periods.extend(self.data_and_param.ms.intermediate_behavourial_events_frames_periods)
 
-
+        self.tiff_movie = None
         self.raw_traces_binned = None
         # self.raw_traces_binned = np.zeros((self.nb_neurons, self.nb_times // 10), dtype="float")
         # # mean by 10 frames +
@@ -792,6 +796,49 @@ class ManualOnsetFrame(tk.Frame):
         map_frame = Frame(side_bar_frame)
         map_frame.pack(side=TOP, expand=YES, fill=BOTH)
 
+        # tif movie loading
+        self.movie_available = False
+        if self.data_and_param.ms.tif_movie_file_name is not None:
+            self.movie_available = True
+            im = PIL.Image.open(self.data_and_param.ms.tif_movie_file_name)
+            # im.show()
+            # nb of frames should be 12500
+            n_frames = 0
+            dim_x = None
+            dim_y = None
+            for i, page in enumerate(ImageSequence.Iterator(im)):
+                n_frames += 1
+                if dim_x is None:
+                    imarray = np.array(page)
+                    dim_x, dim_y = imarray.shape[0], imarray.shape[1]
+            print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
+            self.tiff_movie = np.zeros((n_frames, dim_x, dim_y), dtype="int16")
+            for frame, page in enumerate(ImageSequence.Iterator(im)):
+                self.tiff_movie[frame] = np.array(page)
+
+        self.michou_path = "michou/"
+        self.michou_img_file_names = []
+        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(self.data_and_param.path_data + self.michou_path):
+            for file_name in local_filenames:
+                if file_name.endswith(".png") or file_name.endswith(".jpg"):
+                    self.michou_img_file_names.append(file_name)
+            break
+        self.michou_imgs = []
+        for file_name in self.michou_img_file_names:
+            # image = cv2.imread(self.data_and_param.path_data + self.michou_path + file_name)
+            # # OpenCV represents images in BGR order; however PIL represents
+            # # images in RGB order, so we need to swap the channels
+            # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            # # convert the images to PIL format...
+            # image = Image.fromarray(image)
+            # image = ImageTk.PhotoImage(image)
+            # self.michou_imgs.append(image)
+            self.michou_imgs.append(mpimg.imread(self.data_and_param.path_data + self.michou_path + file_name))
+
+        self.n_michou_img = len(self.michou_img_file_names)
+        self.michou_img_to_display = -1
+
         if self.data_and_param.ms.avg_cell_map_img is not None:
             self.map_img_fig = plt.figure(figsize=(4, 4))
             self.axe_plot_map_img = None
@@ -813,12 +860,13 @@ class ManualOnsetFrame(tk.Frame):
                 self.cell_contours[cell] = patches.Polygon(xy=xy,
                                                            fill=False, linewidth=0, facecolor="red",
                                                            edgecolor="red",
-                                                           zorder=15, lw=2)
+                                                           zorder=15, lw=1)
                 bw = np.zeros((200, 200), dtype="int8")
                 # morphology.binary_fill_holes(input
                 # print(f"coord[1, :] {coord[1, :]}")
                 bw[coord[1, :], coord[0, :]] = 1
 
+                # used to know which cell has been clicked
                 img_filled = np.zeros((200, 200), dtype="int8")
                 # specifying output, otherwise binary_fill_holes return a boolean array
                 morphology.binary_fill_holes(bw, output=img_filled)
@@ -940,7 +988,7 @@ class ManualOnsetFrame(tk.Frame):
         self.undo_button.pack(side=RIGHT)
 
         empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 10
+        empty_label["text"] = " " * 5
         empty_label.pack(side=RIGHT)
 
         self.remove_peaks_under_threshold_button = Button(bottom_frame)
@@ -951,7 +999,7 @@ class ManualOnsetFrame(tk.Frame):
         self.remove_peaks_under_threshold_button.pack(side=RIGHT)
 
         empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 5
+        empty_label["text"] = " " * 2
         empty_label.pack(side=RIGHT)
         # from_=1, to=3
         self.spin_box_threshold = Spinbox(bottom_frame, values=list(np.arange(0.1, 10, 0.2)), fg="blue", justify=CENTER,
@@ -961,7 +1009,7 @@ class ManualOnsetFrame(tk.Frame):
         self.spin_box_threshold.pack(side=RIGHT)
 
         empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 4
+        empty_label["text"] = " " * 2
         empty_label.pack(side=RIGHT)
 
         self.treshold_var = IntVar()
@@ -972,7 +1020,7 @@ class ManualOnsetFrame(tk.Frame):
 
         if self.raw_traces is not None:
             empty_label = Label(bottom_frame)
-            empty_label["text"] = " " * 6
+            empty_label["text"] = " " * 2
             empty_label.pack(side=RIGHT)
 
             self.raw_trace_var = IntVar()
@@ -985,7 +1033,7 @@ class ManualOnsetFrame(tk.Frame):
             self.raw_trace_check_box.pack(side=RIGHT)
 
         empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 5
+        empty_label["text"] = " " * 2
         empty_label.pack(side=RIGHT)
 
         self.inter_neuron_button = Button(bottom_frame)
@@ -1029,11 +1077,11 @@ class ManualOnsetFrame(tk.Frame):
         self.magnifier_button["command"] = event_lambda(self.switch_magnifier)
         self.magnifier_button.pack(side=RIGHT)
 
-        empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 1
-        empty_label.pack(side=RIGHT)
-
         if self.mvt_frames_periods is not None:
+            empty_label = Label(bottom_frame)
+            empty_label["text"] = " " * 1
+            empty_label.pack(side=RIGHT)
+
             self.display_mvt_button = Button(bottom_frame)
 
             self.display_mvt_button["text"] = ' mvt OFF '
@@ -1042,22 +1090,31 @@ class ManualOnsetFrame(tk.Frame):
             self.display_mvt_button["command"] = event_lambda(self.switch_mvt_display)
             self.display_mvt_button.pack(side=RIGHT)
 
-        self.michou_path = "michou/"
-        # self.michou_img_file_names = ["Michel_OM_PSG.png", "michou_st_Patrick.png", "michou_BG.png",
-        #                               "michou_BG2.png", "michou_BG3.png", "michou_NY.png"]
-        self.michou_img_file_names = []
-        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
-        for (dirpath, dirnames, local_filenames) in os.walk(self.data_and_param.path_data + self.michou_path):
-            for file_name in local_filenames:
-                if file_name.endswith(".png") or file_name.endswith(".jpg"):
-                    self.michou_img_file_names.append(file_name)
-            break
-        self.michou_imgs = []
-        for file_name in self.michou_img_file_names:
-            self.michou_imgs.append(mpimg.imread(self.data_and_param.path_data + self.michou_path + file_name))
+        if self.tiff_movie is not None:
+            empty_label = Label(bottom_frame)
+            empty_label["text"] = " " * 1
+            empty_label.pack(side=RIGHT)
 
-        self.n_michou_img = len(self.michou_img_file_names)
-        self.michou_img_to_display = -1
+            self.movie_button = Button(bottom_frame)
+
+            self.movie_button["text"] = ' movie OFF '
+            self.movie_button["fg"] = "black"
+            self.movie_mode = False
+
+            self.movie_button["command"] = event_lambda(self.switch_movie_mode)
+            self.movie_button.pack(side=RIGHT)
+
+
+        # self.avg_cell_map_img = None
+        # if self.data_and_param.ms.avg_cell_map_img_file_name is not None:
+        #     self.avg_cell_map_img = cv2.imread(self.data_and_param.ms.avg_cell_map_img_file_name)
+        #     # OpenCV represents images in BGR order; however PIL represents
+        #     # images in RGB order, so we need to swap the channels
+        #     self.avg_cell_map_img = cv2.cvtColor(self.avg_cell_map_img, cv2.COLOR_BGR2RGB)
+        #     # convert the images to PIL format...
+        #     self.avg_cell_map_img = Image.fromarray(self.avg_cell_map_img)
+        #     self.avg_cell_map_img = ImageTk.PhotoImage(self.avg_cell_map_img)
+
 
         # used for association of keys
         self.keys_pressed = dict()
@@ -1075,6 +1132,33 @@ class ManualOnsetFrame(tk.Frame):
             self.display_michou = True
             self.michou_img_to_display = randint(0, self.n_michou_img-1)
             self.update_plot_map_img()
+
+    def switch_movie_mode(self, from_movie_button=True):
+        if from_movie_button and (not self.movie_mode):
+            if self.remove_peak_mode:
+                self.remove_peak_switch_mode(from_remove_peak_button=False)
+            if self.remove_onset_mode:
+                self.remove_onset_switch_mode(from_remove_onset_button=False)
+            if self.add_peak_mode:
+                self.add_peak_switch_mode(from_add_peak_button=False)
+            if self.add_onset_mode:
+                self.add_onset_switch_mode(from_add_onset_button=False)
+            if self.remove_all_mode:
+                self.remove_all_switch_mode(from_remove_all_button=False)
+
+        if self.movie_mode:
+            self.movie_button["text"] = ' movie OFF '
+            self.movie_button["fg"] = "black"
+            self.movie_mode = False
+        else:
+            self.movie_button["text"] = ' movie ON '
+            self.movie_button["fg"] = "red"
+            self.movie_mode = True
+
+        if self.first_click_to_remove is not None:
+            self.first_click_to_remove = None
+            self.update_plot()
+
 
     def switch_mvt_display(self):
         if self.display_mvt:
@@ -1248,6 +1332,8 @@ class ManualOnsetFrame(tk.Frame):
                 self.add_peak_switch_mode(from_add_peak_button=False)
             if self.remove_all_mode:
                 self.remove_all_switch_mode(from_remove_all_button=False)
+            if self.movie_mode:
+                self.switch_movie_mode(from_movie_button=False)
         self.add_onset_mode = not self.add_onset_mode
         if self.add_onset_mode:
             self.add_onset_button["fg"] = 'green'
@@ -1267,6 +1353,8 @@ class ManualOnsetFrame(tk.Frame):
                 self.remove_peak_switch_mode(from_remove_peak_button=False)
             if self.remove_all_mode:
                 self.remove_all_switch_mode(from_remove_all_button=False)
+            if self.movie_mode:
+                self.switch_movie_mode(from_movie_button=False)
         self.remove_onset_mode = not self.remove_onset_mode
 
         if self.remove_onset_mode:
@@ -1290,6 +1378,8 @@ class ManualOnsetFrame(tk.Frame):
                 self.add_onset_switch_mode(from_add_onset_button=False)
             if self.remove_all_mode:
                 self.remove_all_switch_mode(from_remove_all_button=False)
+            if self.movie_mode:
+                self.switch_movie_mode(from_movie_button=False)
         self.remove_peak_mode = not self.remove_peak_mode
 
         if self.remove_peak_mode:
@@ -1316,6 +1406,8 @@ class ManualOnsetFrame(tk.Frame):
                 self.remove_onset_switch_mode(from_remove_onset_button=False)
             if self.add_onset_mode:
                 self.add_onset_switch_mode(from_add_onset_button=False)
+            if self.movie_mode:
+                self.switch_movie_mode(from_movie_button=False)
         self.remove_all_mode = not self.remove_all_mode
 
         if self.remove_all_mode:
@@ -1362,7 +1454,7 @@ class ManualOnsetFrame(tk.Frame):
         """
         if (not self.remove_onset_mode) and (not self.add_onset_mode) and (not self.remove_peak_mode) \
                 and (not self.add_peak_mode) \
-                and (not self.remove_all_mode):
+                and (not self.remove_all_mode) and (not self.movie_mode):
             return
 
         if event.dblclick:
@@ -1385,12 +1477,14 @@ class ManualOnsetFrame(tk.Frame):
             return
 
         if self.remove_onset_mode or self.remove_peak_mode or \
-                self.remove_all_mode:
+                self.remove_all_mode or self.movie_mode:
             if self.first_click_to_remove is not None:
                 if self.remove_onset_mode:
                     self.remove_onset(x_from=self.first_click_to_remove["x"], x_to=int(round(event.xdata)))
                 elif self.remove_peak_mode:
                     self.remove_peak(x_from=self.first_click_to_remove["x"], x_to=int(round(event.xdata)))
+                elif self.movie_mode:
+                    pass # activating movie
                 else:
                     self.remove_all(x_from=self.first_click_to_remove["x"], x_to=int(round(event.xdata)))
             else:
@@ -1755,6 +1849,8 @@ class ManualOnsetFrame(tk.Frame):
                 self.add_onset_switch_mode(from_add_onset_button=False)
             if self.remove_all_mode:
                 self.remove_all_switch_mode(from_remove_all_button=False)
+            if self.movie_mode:
+                self.switch_movie_mode(from_movie_button=False)
         self.add_peak_mode = not self.add_peak_mode
         if self.add_peak_mode:
             self.add_peak_button["fg"] = 'green'
@@ -2015,7 +2111,14 @@ class ManualOnsetFrame(tk.Frame):
         if self.display_michou:
             im1 = self.axe_plot_map_img.imshow(self.michou_imgs[self.michou_img_to_display])
         else:
-            im1 = self.axe_plot_map_img.imshow(self.data_and_param.ms.avg_cell_map_img)
+            if self.tiff_movie is not None:
+                print("display tiff_movie")
+                im1 = self.axe_plot_map_img.imshow(self.tiff_movie[10], cmap=plt.get_cmap('gray'))
+                self.axe_plot_map_img.text(x=10, y=10,
+                         s="10", color="red", zorder=20,
+                         ha='center', va="center", fontsize=10, fontweight='bold')
+            else:
+                im1 = self.axe_plot_map_img.imshow(self.data_and_param.ms.avg_cell_map_img)
             im1.set_zorder(5)
             self.draw_cell_contour()
 

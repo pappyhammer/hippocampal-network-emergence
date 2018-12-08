@@ -63,6 +63,7 @@ class MouseSession:
         self.percentile_for_low_activity_threshold = percentile_for_low_activity_threshold
         self.low_activity_threshold = None
         self.avg_cell_map_img = None
+        self.avg_cell_map_img_file_name = None
         self.tif_movie_file_name = None
         self.param = param
         # list of list of int representing cell indices
@@ -2340,6 +2341,7 @@ class MouseSession:
 
     def set_avg_cell_map_tif(self, file_name):
         self.avg_cell_map_img = mpimg.imread(self.param.path_data + file_name)
+        self.avg_cell_map_img_file_name = self.param.path_data + file_name
 
     def load_tif_movie(self, path):
         file_names = []
