@@ -1171,7 +1171,6 @@ class ManualOnsetFrame(tk.Frame):
                     self.anim_movie.event_source.stop()
                     self.update_contour_for_cell(cell=self.current_neuron)
                     self.update_plot_map_img(after_michou=True)
-
         else:
             self.movie_button["text"] = ' movie ON '
             self.movie_button["fg"] = "red"
@@ -1267,7 +1266,7 @@ class ManualOnsetFrame(tk.Frame):
         if event.char in ["a", "A", "+"]:
             self.add_onset_switch_mode()
         elif event.char in ["r", "R", "-"]:
-            self.remove_onset_switch_mode()
+            self.remove_all_switch_mode()
         elif event.char in ["m", "M"]:
             self.switch_magnifier()
         elif event.char in ["p", "P"]:

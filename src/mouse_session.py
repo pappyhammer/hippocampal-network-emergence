@@ -1923,19 +1923,19 @@ class MouseSession:
         print(f"nb_frames {nb_frames}")
 
         # manual selection deactivated
-        do_manual_selection=False
+        do_manual_selection=True
         if not do_manual_selection:
             return
 
-        if (not with_run) and (threshold_piezo is None):
-            fig, ax = plt.subplots(nrows=1, ncols=1,
-                                   gridspec_kw={'height_ratios': [1]},
-                                   figsize=(20, 8))
-            plt.plot(times_in_sec, mvt_data, lw=.5)
-            plt.title(f"piezo {self.description}")
-            plt.show()
-            plt.close()
-            return
+        # if (not with_run) and (threshold_piezo is None):
+        #     fig, ax = plt.subplots(nrows=1, ncols=1,
+        #                            gridspec_kw={'height_ratios': [1]},
+        #                            figsize=(20, 8))
+        #     plt.plot(times_in_sec, mvt_data, lw=.5)
+        #     plt.title(f"piezo {self.description}")
+        #     plt.show()
+        #     plt.close()
+        #     return
 
         if with_run:
             mvt_periods, speed_during_mvt_periods = self.detect_run_periods(mvt_data=mvt_data, min_speed=0.5)
@@ -1997,16 +1997,16 @@ class MouseSession:
             np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
                      mvt_frames=self.mvt_frames, speed_by_mvt_frame=self.speed_by_mvt_frame)
         else:
-            if threshold_piezo is not None:
-                khazipow_way = True
-                if khazipow_way:
-                    np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
-                             twitches_frames=self.twitches_frames,
-                             short_lasting_mvt_frames=self.short_lasting_mvt_frames,
-                             complex_mvt_frames=self.complex_mvt_frames,
-                             intermediate_behavourial_events_frames=self.intermediate_behavourial_events_frames,
-                             noise_mvt_frames=self.noise_mvt_frames)
-                else:
+            khazipow_way = True
+            if khazipow_way:
+                np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
+                         twitches_frames=self.twitches_frames,
+                         short_lasting_mvt_frames=self.short_lasting_mvt_frames,
+                         complex_mvt_frames=self.complex_mvt_frames,
+                         intermediate_behavourial_events_frames=self.intermediate_behavourial_events_frames,
+                         noise_mvt_frames=self.noise_mvt_frames)
+            else:
+                if threshold_piezo is not None:
                     np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
                              mvt_frames=self.mvt_frames, raw_piezo=self.raw_piezo, abf_frames=self.abf_frames,
                              abf_times_in_sec=times_in_sec)
@@ -2036,7 +2036,7 @@ class MouseSession:
             if index == 0:
                 lowest_std = std_value
             lowest_std = min(lowest_std, std_value)
-        print(f"threshold_piezo {self.threshold_piezo}, window {window_in_ms}: "
+        print(f"threshold_ratio {threshold_ratio}, window {window_in_ms}: "
               f"lowest_std {np.round(lowest_std, 3)}")
         self.lowest_std_in_piezo = lowest_std * threshold_ratio
 
@@ -2084,14 +2084,14 @@ class MouseSession:
                     last_mvt_period = mvt_periods[mvt_index - 1]
                     if (mvt_period[0] - last_mvt_period[1]) < interval_before_twitch:
                         it_is_a_twitch = False
-                    if (not last_one_is_noise) and ((mvt_period[0] - last_mvt_period[1]) < min_interval):
-                        it_is_noise = True
+                    # if (not last_one_is_noise) and ((mvt_period[0] - last_mvt_period[1]) < min_interval):
+                    #     it_is_noise = True
                 if mvt_index < (len(mvt_periods) - 1):
                     next_mvt_period = mvt_periods[mvt_index + 1]
                     if (next_mvt_period[0] - mvt_period[1]) < interval_after_twitch:
                         it_is_a_twitch = False
-                    if (next_mvt_period[0] - mvt_period[1]) < min_interval:
-                        it_is_noise = True
+                    # if (next_mvt_period[0] - mvt_period[1]) < min_interval:
+                    #     it_is_noise = True
                 if it_is_a_twitch:
                     self.twitches_frames_periods.append(mvt_period)
                     # self.twitches_frames.extend(list(np.arange(mvt_period[0], mvt_period[1] + 1)))
@@ -2104,16 +2104,15 @@ class MouseSession:
                 else:
                     self.short_lasting_mvt.append(mvt_period)
             else:
-                if last_one_is_complex_mvt:
-                    last_mvt_period = mvt_periods[mvt_index - 1]
-                    if ((mvt_period[0] - last_mvt_period[1]) < min_interval):
-                        # then it becomes a complex mvt
-                        self.complex_mvt.append(mvt_period)
-                        last_one_is_complex_mvt = True
-                        last_one_is_noise = False
-                        continue
-                    else:
-                        self.intermediate_behavourial_events.append(mvt_period)
+                # if last_one_is_complex_mvt:
+                #     last_mvt_period = mvt_periods[mvt_index - 1]
+                #     if ((mvt_period[0] - last_mvt_period[1]) < min_interval):
+                #         # then it becomes a complex mvt
+                #         self.complex_mvt.append(mvt_period)
+                #         last_one_is_complex_mvt = True
+                #         last_one_is_noise = False
+                #         continue
+                self.intermediate_behavourial_events.append(mvt_period)
             last_one_is_noise = False
             last_one_is_complex_mvt = False
 
@@ -2127,21 +2126,23 @@ class MouseSession:
                                    gridspec_kw={'height_ratios': [1]},
                                    figsize=(20, 8))
             plt.plot(self.abf_times_in_sec, piezo, lw=.5, color="black")
-            plt.plot(self.abf_times_in_sec[:-1], np.abs(first_derivative), lw=.5, zorder=10, color="green")
+            # plt.plot(self.abf_times_in_sec[:-1], np.abs(first_derivative), lw=.5, zorder=10, color="green")
             ax.hlines(self.lowest_std_in_piezo, 0,
                       self.abf_times_in_sec[-1], color="red", linewidth=1,
                       linestyles="dashed", zorder=1)
             # plt.scatter(x=self.abf_times_in_sec[peaks], y=piezo[peaks], marker="*",
             #             color=["black"], s=5, zorder=15)
 
-            periods_to_color = [self.twitches_frames_periods, self.short_lasting_mvt, self.complex_mvt,
-                                self.intermediate_behavourial_events, self.noise_mvt]
-            periods_to_color_names = ["twitches", "short lasting mvt", "complex mvt", "intermediate behavourial events",
-                                      "noise mvt"]
-            colors = ["blue", "cornflowerblue", "red", "green", "grey"]
+            # periods_to_color = [self.twitches_frames_periods, self.short_lasting_mvt, self.complex_mvt,
+            #                     self.intermediate_behavourial_events, self.noise_mvt]
+            # periods_to_color_names = ["twitches", "short lasting mvt", "complex mvt", "intermediate behavourial events",
+            #                           "noise mvt"]
+            # colors = ["blue", "cornflowerblue", "red", "green", "grey"]
+            periods_to_color = [self.complex_mvt]
+            periods_to_color_names = ["complex mvt"]
+            colors = ["red"]
             for period_index, period_to_color in enumerate(periods_to_color):
                 for mvt_period in period_to_color:
-                    color = "red"
                     ax.axvspan(mvt_period[0] / self.abf_sampling_rate, mvt_period[1] / self.abf_sampling_rate,
                                alpha=0.5, facecolor=colors[period_index], zorder=1)
             for twitch_period in self.twitches_frames_periods:
@@ -2175,6 +2176,7 @@ class MouseSession:
         self.twitches_frames_periods = []
         self.short_lasting_mvt = []
         self.noise_mvt = []
+        self.intermediate_behavourial_events = []
         for period_times, category in gui.mvt_categories.items():
             if category == gui.categories_code["twitches"]:
                 self.twitches_frames_periods.append(period_times)
@@ -2182,6 +2184,8 @@ class MouseSession:
                 self.short_lasting_mvt.append(period_times)
             elif category == gui.categories_code["noise"]:
                 self.noise_mvt.append(period_times)
+            elif category == gui.categories_code["behavourial events"]:
+                self.intermediate_behavourial_events.append(period_times)
 
         periods_to_frames = []
         self.twitches_frames = []
@@ -2251,7 +2255,7 @@ class MouseSession:
         binary_piezo_data[piezo_data >= piezo_threshold] = 1
         time_periods = get_continous_time_periods(binary_piezo_data)
         return self.merging_time_periods(time_periods=time_periods,
-                                         min_time_between_periods=min_time_between_periods, use_peaks=True,
+                                         min_time_between_periods=min_time_between_periods, use_peaks=False,
                                          data=piezo_data)
 
     def merging_time_periods(self, time_periods, min_time_between_periods, use_peaks=False, data=None):

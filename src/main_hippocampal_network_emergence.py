@@ -1824,6 +1824,7 @@ def main():
     ms_str_to_load = ["p13_18_10_29_a001_ms"]
     ms_str_to_load = ["p6_18_02_07_a002_ms"]
     ms_str_to_load = ["p6_18_02_07_a001_ms"]
+    ms_str_to_load = ["p7_18_02_08_a000_ms"]
 
     # 256
 

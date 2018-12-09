@@ -23,16 +23,20 @@ class MvtSelectionGui:
         self.categories_code["twitches"] = 0
         self.categories_code["short lasting mvt"] = 1
         self.categories_code["noise"] = 2
+        self.categories_code["behavourial events"] = 3
+
 
         self.keyboard_code = dict()
         self.keyboard_code[0] = "t"
         self.keyboard_code[1] = "m"
         self.keyboard_code[2] = "n"
+        self.keyboard_code[3] = "b"
 
         self.categories_color = dict()
         self.categories_color[0] = "blue"
         self.categories_color[1] = "yellow"
         self.categories_color[2] = "grey"
+        self.categories_color[3] = "green"
 
         self.categories_name = dict()
         for name, category in self.categories_code.items():
@@ -51,6 +55,11 @@ class MvtSelectionGui:
             self.original_mvt_categories_onsets[short_lasting_mvt[0]] = t
             self.original_mvt_categories[t] = self.categories_code["short lasting mvt"]
 
+        for intermediate_behavourial_events in self.ms.intermediate_behavourial_events:
+            t = (intermediate_behavourial_events[0], intermediate_behavourial_events[1])
+            self.original_mvt_categories_onsets[intermediate_behavourial_events[0]] = t
+            self.original_mvt_categories[t] = self.categories_code["behavourial events"]
+
         self.onset_mvts = list(self.original_mvt_categories_onsets.keys())
         self.n_mvt_periods = len(self.original_mvt_categories_onsets)
         self.mvt_index_to_display = 0
@@ -60,19 +69,20 @@ class MvtSelectionGui:
         # self.ms.intermediate_behavourial_events
         self.complex_mvt_numbers = np.ones(self.n_times, dtype="int16")
         self.complex_mvt_numbers *= -1
-        self.intermediate_behavourial_events_numbers = np.ones(self.n_times, dtype="int16")
-        self.intermediate_behavourial_events_numbers *= -1
+        # self.intermediate_behavourial_events_numbers = np.ones(self.n_times, dtype="int16")
+        # self.intermediate_behavourial_events_numbers *= -1
 
         for complex_mvt_index, complex_mvt in enumerate(self.ms.complex_mvt):
             self.complex_mvt_numbers[complex_mvt[0]:complex_mvt[1]+1] = complex_mvt_index
 
-        for index, intermediate_behavourial_event in enumerate(self.ms.intermediate_behavourial_events):
-            self.intermediate_behavourial_events_numbers[intermediate_behavourial_event[0]:intermediate_behavourial_event[1]+1] = index
+        # for index, intermediate_behavourial_event in enumerate(self.ms.intermediate_behavourial_events):
+        #     self.intermediate_behavourial_events_numbers[intermediate_behavourial_event[0]:intermediate_behavourial_event[1]+1] = index
 
         self.mvts_count = dict()
         self.mvts_count[self.categories_code["twitches"]] = len(self.ms.twitches_frames_periods)
         self.mvts_count[self.categories_code["short lasting mvt"]] = len(self.ms.short_lasting_mvt)
         self.mvts_count[self.categories_code["noise"]] = len(self.ms.noise_mvt)
+        self.mvts_count[self.categories_code["behavourial events"]] = len(self.ms.intermediate_behavourial_events)
 
         self.ax = None
         self.fig = None
@@ -162,27 +172,27 @@ class MvtSelectionGui:
         # plt.scatter(x=self.abf_times_in_sec[peaks], y=piezo[peaks], marker="*",
         #             color=["black"], s=5, zorder=15)
 
-        beh_mvt_index = np.where(self.intermediate_behavourial_events_numbers[times_to_display] >= 0)[0]
-        if len(beh_mvt_index) > 0:
-            beh_mvt_index += times_to_display[0]
-            beh_mvt_indices = np.unique(self.intermediate_behavourial_events_numbers[beh_mvt_index])
-            for index in beh_mvt_indices:
-                period = self.ms.intermediate_behavourial_events[index]
-                beg_pos = np.max((times_to_display[0], period[0]))
-                end_pos = np.min((times_to_display[-1], period[1]))
-                if end_pos < period_times[0]:
-                    if closet_mvt_before_pos is None:
-                        closet_mvt_before_pos = end_pos
-                    else:
-                        closet_mvt_before_pos = np.max((end_pos, closet_mvt_before_pos))
-                if beg_pos > period_times[1]:
-                    if closet_mvt_after_pos is None:
-                        closet_mvt_after_pos = beg_pos
-                    else:
-                        closet_mvt_after_pos = np.min((beg_pos, closet_mvt_after_pos))
-                ax.axvspan(beg_pos / self.ms.abf_sampling_rate,
-                           end_pos / self.ms.abf_sampling_rate,
-                           alpha=0.5, facecolor="green", zorder=1)
+        # beh_mvt_index = np.where(self.intermediate_behavourial_events_numbers[times_to_display] >= 0)[0]
+        # if len(beh_mvt_index) > 0:
+        #     beh_mvt_index += times_to_display[0]
+        #     beh_mvt_indices = np.unique(self.intermediate_behavourial_events_numbers[beh_mvt_index])
+        #     for index in beh_mvt_indices:
+        #         period = self.ms.intermediate_behavourial_events[index]
+        #         beg_pos = np.max((times_to_display[0], period[0]))
+        #         end_pos = np.min((times_to_display[-1], period[1]))
+        #         if end_pos < period_times[0]:
+        #             if closet_mvt_before_pos is None:
+        #                 closet_mvt_before_pos = end_pos
+        #             else:
+        #                 closet_mvt_before_pos = np.max((end_pos, closet_mvt_before_pos))
+        #         if beg_pos > period_times[1]:
+        #             if closet_mvt_after_pos is None:
+        #                 closet_mvt_after_pos = beg_pos
+        #             else:
+        #                 closet_mvt_after_pos = np.min((beg_pos, closet_mvt_after_pos))
+        #         ax.axvspan(beg_pos / self.ms.abf_sampling_rate,
+        #                    end_pos / self.ms.abf_sampling_rate,
+        #                    alpha=0.5, facecolor="green", zorder=1)
 
         complex_mvt_index = np.where(self.complex_mvt_numbers[times_to_display] >= 0)[0]
         if len(complex_mvt_index) > 0:
@@ -237,6 +247,12 @@ class MvtSelectionGui:
         pos = period_times[0] + np.argmax(self.piezo[period_times[0]:period_times[1] + 1])
         ax.scatter(x=self.ms.abf_times_in_sec[pos], y=self.piezo[pos], marker="*",
                    color=self.categories_color[category], s=30, zorder=20)
+
+        n_ms = int(((period_times[1] - period_times[0]) / self.ms.abf_sampling_rate) * 1000)
+        if n_ms >= 300:
+            ax.text(x=((period_times[1]+period_times[0])/2) / self.ms.abf_sampling_rate, y=0,
+                    s=f"{n_ms} ms", color="dimgrey", zorder=22,
+                    ha='center', va="center", fontsize=6, fontweight='bold')
 
         ax.vlines(((period_times[1]+period_times[0])/2) / self.ms.abf_sampling_rate,
                   min_piezo_value,
@@ -342,6 +358,8 @@ class MvtSelectionGui:
             self.change_actual_mvt(code_name="short lasting mvt")
         elif event.key in ["n", "N"]:
             self.change_actual_mvt(code_name="noise")
+        elif event.key in ["b", "B"]:
+            self.change_actual_mvt(code_name="behavourial events")
         if event.key == 'right':
             self.go_to_next_mvt()
         elif event.key == 'left':
