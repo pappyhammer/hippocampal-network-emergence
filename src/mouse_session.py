@@ -1762,6 +1762,7 @@ class MouseSession:
         path_abf_data = abf_file_name[:len(abf_file_name) - index_reverse]
         file_names = []
 
+        npz_loaded = False
         # look for filenames in the fisrst directory, if we don't break, it will go through all directories
         for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_abf_data):
             file_names.extend(local_filenames)
@@ -1772,6 +1773,7 @@ class MouseSession:
                     if file_name.find("abf") > -1:
                         do_detect_twitches = True
                         # loading data
+                        npz_loaded = True
                         npzfile = np.load(self.param.path_data + path_abf_data + file_name)
                         if "mvt_frames" in npzfile:
                             self.mvt_frames = npzfile['mvt_frames']
@@ -1923,7 +1925,7 @@ class MouseSession:
         print(f"nb_frames {nb_frames}")
 
         # manual selection deactivated
-        do_manual_selection=True
+        do_manual_selection = not npz_loaded
         if not do_manual_selection:
             return
 
