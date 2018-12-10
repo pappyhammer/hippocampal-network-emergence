@@ -1,7 +1,7 @@
 from mouse_session import MouseSession
 
 
-def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
+def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_movie=True):
     ms_str_to_ms_dict = dict()
 
     if "p6_18_02_07_a001_ms" in ms_str_to_load:
@@ -34,6 +34,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         if load_abf:
             p6_18_02_07_a001_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a001/p6_18_02_07_001.abf",
                                               threshold_piezo=25, just_load_npz_file=False)  # 7
+        if load_movie:
+            p6_18_02_07_a001_ms.load_tif_movie(path="p6/p6_18_02_07_a001/")
         ms_str_to_ms_dict["p6_18_02_07_a001_ms"] = p6_18_02_07_a001_ms
         # p6_18_02_07_a001_ms.plot_cell_assemblies_on_map()
 
@@ -69,6 +71,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         if load_abf:
             p6_18_02_07_a002_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a002/p6_18_02_07_002.abf",
                                               threshold_piezo=25)
+        if load_movie:
+            p6_18_02_07_a002_ms.load_tif_movie(path="p6/p6_18_02_07_a002/")
         ms_str_to_ms_dict["p6_18_02_07_a002_ms"] = p6_18_02_07_a002_ms
 
     if "p7_171012_a000_ms" in ms_str_to_load:
@@ -98,6 +102,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         # variables_mapping = {"coord": "ContoursAll"} ContoursSoma ContoursIntNeur
         # p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_CellDetect.mat",
         #                                          variables_mapping=variables_mapping)
+        if load_movie:
+            p7_171012_a000_ms.load_tif_movie(path="p7/p7_17_10_12_a000/")
         ms_str_to_ms_dict["p7_171012_a000_ms"] = p7_171012_a000_ms
 
     if "p7_17_10_18_a002_ms" in ms_str_to_load:
@@ -127,6 +133,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         variables_mapping = {"coord": "ContoursAll"}
         p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a002/p7_17_10_18_a002_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        if load_movie:
+            p7_17_10_18_a002_ms.load_tif_movie(path="p7/p7_17_10_18_a002/")
         ms_str_to_ms_dict["p7_17_10_18_a002_ms"] = p7_17_10_18_a002_ms
 
     if "p7_17_10_18_a004_ms" in ms_str_to_load:
@@ -156,6 +164,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         variables_mapping = {"coord": "ContoursAll"}
         p7_17_10_18_a004_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a004/p7_17_10_18_a004_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        if load_movie:
+            p7_17_10_18_a004_ms.load_tif_movie(path="p7/p7_17_10_18_a004/")
         ms_str_to_ms_dict["p7_17_10_18_a004_ms"] = p7_17_10_18_a004_ms
 
     if "p7_18_02_08_a000_ms" in ms_str_to_load:
@@ -185,6 +195,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         variables_mapping = {"coord": "ContoursAll"}
         p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a000/p7_18_02_08_a000_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        if load_movie:
+            p7_18_02_08_a000_ms.load_tif_movie(path="p7/p7_18_02_08_a000/")
+
         if load_abf:
             p7_18_02_08_a000_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a000/p7_18_02_08_a000.abf",
                                               threshold_ratio=2,just_load_npz_file=False) # threshold_piezo=4,
@@ -220,6 +233,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         if load_abf:
             p7_18_02_08_a001_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a001/p7_18_02_08_a001.abf",
                                               threshold_piezo=4)
+        if load_movie:
+            p7_18_02_08_a001_ms.load_tif_movie(path="p7/p7_18_02_08_a001/")
         ms_str_to_ms_dict["p7_18_02_08_a001_ms"] = p7_18_02_08_a001_ms
 
     if "p7_18_02_08_a002_ms" in ms_str_to_load:
@@ -249,6 +264,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         variables_mapping = {"coord": "ContoursAll"}
         p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a002/p7_18_02_08_a002_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        if load_movie:
+            p7_18_02_08_a002_ms.load_tif_movie(path="p7/p7_18_02_08_a002/")
         if load_abf:
             p7_18_02_08_a002_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a002/p7_18_02_08_a002.abf",
                                               threshold_piezo=2.5)
@@ -281,6 +298,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
         variables_mapping = {"coord": "ContoursAll"}
         p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a003/p7_18_02_08_a003_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        if load_movie:
+            p7_18_02_08_a003_ms.load_tif_movie(path="p7/p7_18_02_08_a003/")
         if load_abf:
             p7_18_02_08_a003_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a003/p7_18_02_08_a003.abf",
                                               threshold_piezo=9)  # used to be 2.5
@@ -682,7 +701,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True):
             file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_CellDetect.mat",
             variables_mapping=variables_mapping)
         p12_171110_a000_ms.set_avg_cell_map_tif(file_name="p12/p12_17_11_10_a000/AVG_p12_17_11_10_a000.tif")
-        p12_171110_a000_ms.load_tif_movie(path="p12/p12_17_11_10_a000/")
+        if load_movie:
+            p12_171110_a000_ms.load_tif_movie(path="p12/p12_17_11_10_a000/")
         ms_str_to_ms_dict["p12_171110_a000_ms"] = p12_171110_a000_ms
 
     if "p12_17_11_10_a002_ms" in ms_str_to_load:

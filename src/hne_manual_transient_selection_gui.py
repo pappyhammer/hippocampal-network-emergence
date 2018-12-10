@@ -1094,6 +1094,7 @@ class ManualOnsetFrame(tk.Frame):
         self.magnifier_button["command"] = event_lambda(self.switch_magnifier)
         self.magnifier_button.pack(side=RIGHT)
 
+        self.movie_mode = False
         if self.mvt_frames_periods is not None:
             empty_label = Label(bottom_frame)
             empty_label["text"] = " " * 1
@@ -1116,7 +1117,6 @@ class ManualOnsetFrame(tk.Frame):
 
             self.movie_button["text"] = ' movie OFF '
             self.movie_button["fg"] = "black"
-            self.movie_mode = False
 
             self.movie_button["command"] = event_lambda(self.switch_movie_mode)
             self.movie_button.pack(side=RIGHT)
@@ -2172,9 +2172,9 @@ class ManualOnsetFrame(tk.Frame):
         else:
             new_x_values = np.arange(self.n_frames_movie) + ((len_x - self.n_frames_movie) / 2)
         # back to zero with +2 then inceasing the amplitude
-        raw_traces = (self.raw_traces + 2) * 5
+        raw_traces = (self.raw_traces + 2) * 8
         # y-axis is reverse, so we need to inverse the trace
-        raw_traces = (frame_tiff.shape[1] * 0.9) - raw_traces
+        raw_traces = (frame_tiff.shape[1] * 0.6) - raw_traces
         # need to match the length of our trace to the len
         if first_frame < frame_index:
             self.trace_movie_p1 = self.axe_plot_map_img.plot(new_x_values[:frame_index - first_frame],
