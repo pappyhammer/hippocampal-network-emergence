@@ -200,7 +200,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         if load_abf:
             p7_18_02_08_a000_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a000/p7_18_02_08_a000.abf",
-                                              threshold_ratio=2,just_load_npz_file=False) # threshold_piezo=4,
+                                              threshold_ratio=2,just_load_npz_file=True) # threshold_piezo=4,
         ms_str_to_ms_dict["p7_18_02_08_a000_ms"] = p7_18_02_08_a000_ms
 
     if "p7_18_02_08_a001_ms" in ms_str_to_load:
