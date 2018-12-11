@@ -825,19 +825,28 @@ class ManualOnsetFrame(tk.Frame):
             self.movie_available = True
             im = PIL.Image.open(self.data_and_param.ms.tif_movie_file_name)
             # im.show()
+            # test = np.array(im)
+            n_frames = len(list(ImageSequence.Iterator(im)))
+            dim_x, dim_y = np.array(im).shape
+            # test_array = np.array(im)
+            # print(f"test_array {test_array.dtype}")
+            # print(f"im size {im.size}")
+            # print(f"im infos {im.info}")
             # nb of frames should be 12500
-            n_frames = 0
-            dim_x = None
-            dim_y = None
-            for i, page in enumerate(ImageSequence.Iterator(im)):
-                n_frames += 1
-                if dim_x is None:
-                    imarray = np.array(page)
-                    dim_x, dim_y = imarray.shape[0], imarray.shape[1]
+            # n_frames = 0
+            # dim_x = None
+            # dim_y = None
+            # for i, page in enumerate(ImageSequence.Iterator(im)):
+            #     n_frames += 1
+            #     if dim_x is None:
+            #         imarray = np.array(page)
+            #         dim_x, dim_y = imarray.shape[0], imarray.shape[1]
+            # n_frames = 12500
             print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
-            self.tiff_movie = np.zeros((n_frames, dim_x, dim_y), dtype="int16")
+            self.tiff_movie = np.zeros((n_frames, dim_x, dim_y), dtype="uint16")
             for frame, page in enumerate(ImageSequence.Iterator(im)):
                 self.tiff_movie[frame] = np.array(page)
+            print(f"max self.tiff_movie {np.max(self.tiff_movie)}")
 
         self.michou_path = "michou/"
         self.michou_img_file_names = []
@@ -866,7 +875,7 @@ class ManualOnsetFrame(tk.Frame):
         # second key is the frame, value is a list of int representing the value of each pixel
         self.pixels_value_by_cell_and_frame = dict()
 
-        if self.data_and_param.ms.avg_cell_map_img is not None:
+        if (self.data_and_param.ms.avg_cell_map_img is not None) or (self.tiff_movie is not None):
             if self.tiff_movie is not None:
                 self.raw_traces_median = np.zeros(self.traces.shape)
             self.map_img_fig = plt.figure(figsize=(4, 4))
@@ -1137,16 +1146,6 @@ class ManualOnsetFrame(tk.Frame):
                 self.zoom_movie_check_box.select()
             self.zoom_movie_check_box["command"] = event_lambda(self.activate_movie_zoom)
             self.zoom_movie_check_box.pack(side=RIGHT)
-
-        # self.avg_cell_map_img = None
-        # if self.data_and_param.ms.avg_cell_map_img_file_name is not None:
-        #     self.avg_cell_map_img = cv2.imread(self.data_and_param.ms.avg_cell_map_img_file_name)
-        #     # OpenCV represents images in BGR order; however PIL represents
-        #     # images in RGB order, so we need to swap the channels
-        #     self.avg_cell_map_img = cv2.cvtColor(self.avg_cell_map_img, cv2.COLOR_BGR2RGB)
-        #     # convert the images to PIL format...
-        #     self.avg_cell_map_img = Image.fromarray(self.avg_cell_map_img)
-        #     self.avg_cell_map_img = ImageTk.PhotoImage(self.avg_cell_map_img)
 
         # used for association of keys
         self.keys_pressed = dict()
@@ -2195,8 +2194,8 @@ class ManualOnsetFrame(tk.Frame):
 
     def animate_movie(self, i):
         zoom_mode = self.movie_zoom_mode
-        if self.current_neuron not in self.center_coord:
-            zoom_mode = False
+        # if self.current_neuron not in self.center_coord:
+        #     zoom_mode = False
         if not self.play_movie:
             return []
         frame_tiff, frame_index = next(self.movie_frames)
@@ -2260,17 +2259,25 @@ class ManualOnsetFrame(tk.Frame):
             #     self.cell_contour_movie.set_visible(True)
 
         # x_beg, x_end, y_beg, y_end
+        # print(f"frame_tiff[10, :] {frame_tiff[10, :]}")
         if zoom_mode:
             tiff_array = frame_tiff[self.y_beg_movie:self.y_end_movie,
                                               self.x_beg_movie:self.x_end_movie]
+
             # if we do imshow, then the size of the image will be the one of the square, with no zoom
-            # if i < 1:
-            #     self.last_img_displayed = self.axe_plot_map_img.imshow(tiff_array,
-            #                                                            cmap=plt.get_cmap('gray'))
-            # else:
-            self.last_img_displayed.set_array(tiff_array)
+            if i == -1:
+                self.last_img_displayed = self.axe_plot_map_img.imshow(frame_tiff,
+                                                                       cmap=plt.get_cmap('gray'))
+                self.last_img_displayed.set_array(tiff_array)
+            else:
+                self.last_img_displayed.set_array(tiff_array)
         else:
-            self.last_img_displayed.set_array(frame_tiff)
+            if i == -1:
+                self.last_img_displayed = self.axe_plot_map_img.imshow(frame_tiff,
+                                                                       cmap=plt.get_cmap('gray'))
+            else:
+                self.last_img_displayed.set_array(frame_tiff)
+
         if self.last_frame_label is not None:
             self.last_frame_label.set_visible(False)
 
@@ -2351,7 +2358,7 @@ class ManualOnsetFrame(tk.Frame):
                 self.last_img_displayed.set_array(self.michou_imgs[self.michou_img_to_display])
         else:
             if self.play_movie:
-                self.animate_movie(i=0)
+                self.animate_movie(i=-1)
                 # # frame_tiff is numpy array of 2D
                 # frame_tiff, frame_index = next(self.movie_frames)
                 # self.last_img_displayed = self.axe_plot_map_img.imshow(frame_tiff, cmap=plt.get_cmap('gray'))

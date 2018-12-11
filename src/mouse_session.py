@@ -43,6 +43,7 @@ from matplotlib.lines import Line2D
 from scipy import stats
 from hne_spike_structure import HNESpikeStructure
 from mvt_selection_gui import MvtSelectionGui
+import PIL
 
 
 class MouseSession:
@@ -2347,6 +2348,8 @@ class MouseSession:
 
     def set_avg_cell_map_tif(self, file_name):
         self.avg_cell_map_img = mpimg.imread(self.param.path_data + file_name)
+        # self.avg_cell_map_img = PIL.Image.open(self.param.path_data + file_name)
+        # self.avg_cell_map_img = np.array(self.avg_cell_map_img).astype("uint8")
         self.avg_cell_map_img_file_name = self.param.path_data + file_name
 
     def load_tif_movie(self, path):
