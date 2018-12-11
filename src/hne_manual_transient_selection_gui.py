@@ -2195,21 +2195,23 @@ class ManualOnsetFrame(tk.Frame):
 
     def animate_movie(self, i):
         zoom_mode = self.movie_zoom_mode
+        if self.current_neuron not in self.center_coord:
+            zoom_mode = False
         if not self.play_movie:
             return []
         frame_tiff, frame_index = next(self.movie_frames)
-        # zoom around the cell
-        # cell center
-        c_x, c_y = self.center_coord[self.current_neuron]
-        # c_y correspond to
-        c_y = int(c_y)
-        c_x = int(c_x)
         # for zoom purpose
         size_square = 80
         len_x = frame_tiff.shape[1]
         len_y = frame_tiff.shape[0]
         if i < 1:
             if zoom_mode:
+                # zoom around the cell
+                # cell center
+                c_x, c_y = self.center_coord[self.current_neuron]
+                # c_y correspond to
+                c_y = int(c_y)
+                c_x = int(c_x)
                 # print(f"len_x {len_x} len_y {len_y}")
                 # print(f"c_x {c_x} c_y {c_y}")
                 # limit of the new frame, should make a square
