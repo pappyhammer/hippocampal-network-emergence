@@ -559,8 +559,7 @@ class ManualOnsetFrame(tk.Frame):
         #                                    / np.std(self.raw_traces_binned[cell])
         #     self.raw_traces_binned[cell] -= 4
         #     # print(f"np.min(self.raw_traces_binned[cell, :]) {np.min(self.raw_traces_binned[cell, :])}")
-        # Y alignment
-        self.normalize_traces()
+
         # array of 1 D, representing the number of spikes at each time
         self.activity_count = np.sum(self.spike_nums, axis=0)
 
@@ -767,6 +766,8 @@ class ManualOnsetFrame(tk.Frame):
         self.fig.canvas.mpl_connect('motion_notify_event', self.motion)
         # self.plot_canvas.
         #     bind("<Button-1>", self.callback_click_fig())
+
+        self.raw_traces_median = None
         if self.raw_traces_seperate_plot:
             if self.raw_traces is None:
                 self.gs = gridspec.GridSpec(2, 1, width_ratios=[1], height_ratios=[5, 1])
@@ -861,7 +862,13 @@ class ManualOnsetFrame(tk.Frame):
         self.n_michou_img = len(self.michou_img_file_names)
         self.michou_img_to_display = -1
 
+        # first key is the cell, value a dict
+        # second key is the frame, value is a list of int representing the value of each pixel
+        self.pixels_value_by_cell_and_frame = dict()
+
         if self.data_and_param.ms.avg_cell_map_img is not None:
+            if self.tiff_movie is not None:
+                self.raw_traces_median = np.zeros(self.traces.shape)
             self.map_img_fig = plt.figure(figsize=(4, 4))
             self.background_map_fig = None
             self.axe_plot_map_img = None
@@ -869,7 +876,12 @@ class ManualOnsetFrame(tk.Frame):
             self.cell_contour_movie = None
             # creating all cell_contours
             self.cell_contours = dict()
-            self.cell_in_pixel = np.ones((200, 200), dtype="int16")
+            n_pixels_x = 200
+            n_pixels_y = 200
+            if self.tiff_movie is not None:
+                n_pixels_x = self.tiff_movie.shape[1]
+                n_pixels_y = self.tiff_movie.shape[2]
+            self.cell_in_pixel = np.ones((n_pixels_x, n_pixels_y), dtype="int16")
             self.cell_in_pixel *= -1
             for cell in np.arange(self.nb_neurons):
                 # cell contour
@@ -885,57 +897,40 @@ class ManualOnsetFrame(tk.Frame):
                                                            fill=False, linewidth=0, facecolor="red",
                                                            edgecolor="red",
                                                            zorder=15, lw=0.6)
-                bw = np.zeros((200, 200), dtype="int8")
+
+                if self.tiff_movie is not None:
+                    # the coordinates of the are set to True
+                    mask_img = np.zeros((self.tiff_movie.shape[1], self.tiff_movie.shape[2]), dtype="bool")
+                bw = np.zeros((n_pixels_x, n_pixels_y), dtype="int8")
                 # morphology.binary_fill_holes(input
                 # print(f"coord[1, :] {coord[1, :]}")
                 bw[coord[1, :], coord[0, :]] = 1
 
                 # used to know which cell has been clicked
-                img_filled = np.zeros((200, 200), dtype="int8")
+                img_filled = np.zeros((n_pixels_x, n_pixels_y), dtype="int8")
                 # specifying output, otherwise binary_fill_holes return a boolean array
                 morphology.binary_fill_holes(bw, output=img_filled)
-                for pixel in np.arange(200):
-                    self.cell_in_pixel[pixel, np.where(img_filled[pixel, :])[0]] = cell
+                for pixel in np.arange(n_pixels_x):
+                    y_coords = np.where(img_filled[pixel, :])[0]
+                    if len(y_coords) > 0:
+                        self.cell_in_pixel[pixel, y_coords] = cell
+                        if self.tiff_movie is not None:
+                            mask_img[pixel, y_coords] = True
 
-            #
-            # x, y = np.meshgrid(np.arange(200), np.arange(200))  # make a canvas with coordinates
-            # x, y = x.flatten(), y.flatten()
-            # points = np.vstack((x, y)).T
-            #
-            # for cell, cell_contour in self.cell_contours.items():
-            #     grid = cell_contour.contains_points(points)
-            #     cell_contour.set_fill(False)
-            #     mask = grid.reshape(200, 200)
-            #     print(f"mask0 {len(np.where(mask[0])[0])} mask1 {len(np.where(mask[1])[0])}")
-            #     # x, y = np.meshgrid(np.arange(200), np.arange(200))
-            #     # x = x[mask[0]]
-            #     # y = y[mask[1]]
-            #     # x, y = x.flatten(), y.flatten()
-            #     # new_points = np.vstack((x, y)).T
-            # raise Exception("mask")
-            # print(f"cell {cell}, points: {new_points}")
+                if self.tiff_movie is not None:
+                    self.raw_traces_median[cell, :] = np.median(self.tiff_movie[:, mask_img], axis=1)
 
-            # for x in np.arange(200):
-            #     for y in np.arange(200):
-            #         cell_found = False
-            #         for cell, cell_contour in self.cell_contours.items():
-            #             if cell_contour.contains_point((x, y)):
-            #                 self.cell_in_pixel[x, y] = cell
-            # cell_found = True
-            #                 print(f"cell {cell}, x {x}, y {y}")
-            #                 break
-            #         if cell_found:
-            #             continue
-            # for pixel in np.arange(200):
-            #     print(f"pixel_row {pixel} {len(np.where(self.cell_in_pixel[pixel, :]>=0)[0])}")
-            #
-            # self.plot_canvas = MyCanvas(self.fig, canvas_frame, self)
             self.map_img_canvas = FigureCanvasTkAgg(self.map_img_fig, self.map_frame)
             self.map_img_fig.canvas.mpl_connect('button_release_event', self.onrelease_map)
             self.plot_map_img(first_time=True)
 
             self.map_img_canvas.draw()
             self.map_img_canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=YES)
+
+        # Y alignment
+        # self.raw_traces_median = None
+        self.normalize_traces()
+        self.update_plot(new_neuron=True)
 
         self.magnifier_frame = Frame(side_bar_frame)
         self.magnifier_frame.pack(side=TOP, expand=YES, fill=BOTH)
@@ -1822,15 +1817,22 @@ class ManualOnsetFrame(tk.Frame):
         self.save_button['state'] = 'normal'
 
     def normalize_traces(self):
-        if self.raw_traces is None:
-            return
 
         # z_score traces
         for i in np.arange(self.nb_neurons):
             self.traces[i, :] = (self.traces[i, :] - np.mean(self.traces[i, :])) / np.std(self.traces[i, :])
-            self.raw_traces[i, :] = (self.raw_traces[i, :] - np.mean(self.raw_traces[i, :])) \
+            if self.raw_traces is not None:
+                self.raw_traces[i, :] = (self.raw_traces[i, :] - np.mean(self.raw_traces[i, :])) \
                                     / np.std(self.raw_traces[i, :])
-        self.raw_traces -= 2
+            if self.raw_traces_median is not None:
+                self.raw_traces_median[i, :] = (self.raw_traces_median[i, :] - np.mean(self.raw_traces_median[i, :])) \
+                                    / np.std(self.raw_traces_median[i, :])
+        if self.raw_traces is not None:
+            if self.raw_traces_median is not None:
+                self.raw_traces -= 4
+                self.raw_traces_median -= 2
+            else:
+                self.raw_traces -= 2
         # for neuron, trace in enumerate(self.traces):
         #     mean_trace = np.mean(trace)
         #     mean_raw_trace = np.mean(self.raw_traces[neuron, :])
@@ -2301,7 +2303,7 @@ class ManualOnsetFrame(tk.Frame):
         #     len_y = size_square
         # else:
         if zoom_mode:
-            raw_traces = (len_y * 0.9) - raw_traces
+            raw_traces = (len_y * 0.8) - raw_traces
         else:
             raw_traces = (len_y * 0.6) - raw_traces
         # need to match the length of our trace to the len
@@ -2463,6 +2465,11 @@ class ManualOnsetFrame(tk.Frame):
         color_trace = self.color_trace
         self.line1, = self.axe_plot.plot(np.arange(self.nb_times_traces), self.traces[self.current_neuron, :],
                                          color=color_trace, zorder=10)
+        if self.raw_traces_median is not None:
+            self.axe_plot.plot(np.arange(self.nb_times_traces),
+                               self.raw_traces_median[self.current_neuron, :],
+                               color="red", alpha=0.8, zorder=9)
+        
         if not self.raw_traces_seperate_plot:
             if (self.raw_traces is not None) and self.display_raw_traces:
                 self.axe_plot.plot(np.arange(self.nb_times_traces),
