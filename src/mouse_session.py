@@ -1711,6 +1711,76 @@ class MouseSession:
                                       cells_groups_colors=cells_groups_colors,
                                       with_cell_numbers=True)
 
+    def plot_all_cells_on_map(self):
+        if self.coord_obj is None:
+            return
+        # we want to color cells that overlap with different colors
+        cells_to_color = set(np.arange(self.spike_struct.n_cells))
+        n_cells = self.spike_struct.n_cells
+        # white, http://doc.instantreality.org/tools/color_calculator/
+        isolated_cell_color = (1, 1, 1, 1.0)
+        isolated_group = []
+        cells_groups_colors = []
+        cells_groups_edge_colors = []
+        cells_groups_alpha = []
+        cells_groups = []
+        max_intersect_value = 0
+        for cells in self.coord_obj.intersect_cells.values():
+            max_intersect_value = max(max_intersect_value, len(cells))
+        max_intersect_value += 1
+        cell_color_dict = dict()
+        # key is an int with value from 0 to max_intersect_value
+        cell_by_color_code = dict()
+        for code in np.arange(max_intersect_value):
+            cell_by_color_code[code] = []
+        while len(cells_to_color) > 0:
+            cell = cells_to_color.pop()
+            n_intersect = len(self.coord_obj.intersect_cells[cell])
+            if n_intersect == 0:
+                isolated_group.append(cell)
+                continue
+            code_to_distribute = set(np.arange(max_intersect_value))
+            cells_intersect_without_colors = []
+            if cell not in cell_color_dict:
+                cells_intersect_without_colors.append(cell)
+            else:
+                if cell_color_dict[cell] in code_to_distribute:
+                    code_to_distribute.remove(cell_color_dict[cell])
+            for inter_cell in self.coord_obj.intersect_cells[cell]:
+                if inter_cell not in cell_color_dict:
+                    cells_intersect_without_colors.append(inter_cell)
+                else:
+                    if cell_color_dict[inter_cell] in code_to_distribute:
+                        code_to_distribute.remove(cell_color_dict[inter_cell])
+            for inter_cell in cells_intersect_without_colors:
+                code = code_to_distribute.pop()
+                cell_color_dict[inter_cell] = code
+                cell_by_color_code[code].append(inter_cell)
+
+            # for n in np.arange(n_intersect):
+            #     cells_groups_colors.append(cm.nipy_spectral(float(i + 1) / (max_intersect_value + 1)))
+        for color_code, cells in cell_by_color_code.items():
+            if len(cells) == 0:
+                continue
+            cells_groups.append(cells)
+            cells_groups_colors.append(cm.nipy_spectral(float(color_code + 1) / (max_intersect_value + 1)))
+            cells_groups_edge_colors.append("white")
+            cells_groups_alpha.append(0.8)
+        cells_groups.append(isolated_group)
+        cells_groups_colors.append(isolated_cell_color)
+        cells_groups_alpha.append(1)
+        cells_groups_edge_colors.append("white")
+        self.coord_obj.plot_cells_map(param=self.param,
+                                      data_id=self.description, show_polygons=False,
+                                      fill_polygons=False,
+                                      title_option="all cells", connections_dict=None,
+                                      cells_groups=cells_groups,
+                                      cells_groups_colors=cells_groups_colors,
+                                      cells_groups_edge_colors=cells_groups_edge_colors,
+                                      with_edge=True, cells_groups_alpha=cells_groups_alpha,
+                                      dont_fill_cells_not_in_groups=False,
+                                      with_cell_numbers=False, save_formats=["png"])
+
     def plot_cell_assemblies_on_map(self):
         if (self.cell_assemblies is None) or (self.coord_obj is None):
             return

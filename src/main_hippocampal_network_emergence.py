@@ -1825,6 +1825,7 @@ def main():
     ms_str_to_load = ["p6_18_02_07_a002_ms"]
     ms_str_to_load = ["p6_18_02_07_a001_ms"]
     ms_str_to_load = ["p7_18_02_08_a000_ms"]
+    ms_str_to_load = ["p12_171110_a000_ms"]
 
     # 256
 
@@ -1843,10 +1844,11 @@ def main():
     just_do_stat_on_event_detection_parameters = False
     just_plot_time_correlation_graph_over_twitches = False
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
-    just_plot_traces_raster = True
+    just_plot_traces_raster = False
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = False
+    just_plot_all_cells_on_map = True
     do_plot_psth_twitches = False
     just_plot_raster = False
 
@@ -2028,6 +2030,12 @@ def main():
         #
         # test_seq_detect(ms)
         # raise Exception("toto")
+        if just_plot_all_cells_on_map:
+            ms.plot_all_cells_on_map()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_plot_all_cells_on_map exception")
+            continue
+
         if just_plot_cell_assemblies_on_map:
             ms.plot_cell_assemblies_on_map()
             if ms_index == len(ms_to_analyse) - 1:

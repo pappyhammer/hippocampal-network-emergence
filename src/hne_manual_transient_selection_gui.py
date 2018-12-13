@@ -906,6 +906,8 @@ class ManualOnsetFrame(tk.Frame):
                                                            fill=False, linewidth=0, facecolor="red",
                                                            edgecolor="red",
                                                            zorder=15, lw=0.6)
+                # list(polygon.exterior.coords)
+                # [(0.0, 0.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]
 
                 if self.tiff_movie is not None:
                     # the coordinates of the are set to True

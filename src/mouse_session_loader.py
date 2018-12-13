@@ -676,7 +676,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p12_171110_a000_ms = MouseSession(age=12, session_id="17_11_10_a000", nb_ms_by_frame=100, param=param,
                                           weight=7)
         # calculated with 99th percentile on raster dur
-        # p12_171110_a000_ms.activity_threshold = 9
+        p12_171110_a000_ms.activity_threshold = 10
         # p12_171110_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
         p12_171110_a000_ms.set_inter_neurons([106, 144])
         # duration of those interneurons: 18.29  14.4
