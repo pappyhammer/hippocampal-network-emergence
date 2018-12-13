@@ -18,6 +18,9 @@ from datetime import datetime
 import os
 import pyabf
 import matplotlib.image as mpimg
+import random
+import networkx as nx
+from pattern_discovery.graph.misc import welsh_powell
 # to add homemade package, go to preferences, then project interpreter, then click on the wheel symbol
 # then show all, then select the interpreter and lick on the more right icon to display a list of folder and
 # add the one containing the folder pattern_discovery
@@ -1715,7 +1718,6 @@ class MouseSession:
         if self.coord_obj is None:
             return
         # we want to color cells that overlap with different colors
-        cells_to_color = set(np.arange(self.spike_struct.n_cells))
         n_cells = self.spike_struct.n_cells
         # white, http://doc.instantreality.org/tools/color_calculator/
         isolated_cell_color = (1, 1, 1, 1.0)
@@ -1724,46 +1726,51 @@ class MouseSession:
         cells_groups_edge_colors = []
         cells_groups_alpha = []
         cells_groups = []
-        max_intersect_value = 0
-        for cells in self.coord_obj.intersect_cells.values():
-            max_intersect_value = max(max_intersect_value, len(cells))
-        max_intersect_value += 1
-        cell_color_dict = dict()
-        # key is an int with value from 0 to max_intersect_value
-        cell_by_color_code = dict()
-        for code in np.arange(max_intersect_value):
-            cell_by_color_code[code] = []
-        while len(cells_to_color) > 0:
-            cell = cells_to_color.pop()
+
+        # building networkx graph
+        graphs = []
+        cells_added = []
+        for cell in np.arange(n_cells):
+            if cell in cells_added:
+                continue
+            # welsh_powell
             n_intersect = len(self.coord_obj.intersect_cells[cell])
             if n_intersect == 0:
                 isolated_group.append(cell)
-                continue
-            code_to_distribute = set(np.arange(max_intersect_value))
-            cells_intersect_without_colors = []
-            if cell not in cell_color_dict:
-                cells_intersect_without_colors.append(cell)
+                cells_added.append(cell)
             else:
-                if cell_color_dict[cell] in code_to_distribute:
-                    code_to_distribute.remove(cell_color_dict[cell])
-            for inter_cell in self.coord_obj.intersect_cells[cell]:
-                if inter_cell not in cell_color_dict:
-                    cells_intersect_without_colors.append(inter_cell)
-                else:
-                    if cell_color_dict[inter_cell] in code_to_distribute:
-                        code_to_distribute.remove(cell_color_dict[inter_cell])
-            for inter_cell in cells_intersect_without_colors:
-                code = code_to_distribute.pop()
-                cell_color_dict[inter_cell] = code
-                cell_by_color_code[code].append(inter_cell)
+                graph = nx.Graph()
+                cells_to_expend = [cell]
+                edges = set()
+                while len(cells_to_expend) > 0:
+                    if cells_to_expend[0] not in cells_added:
+                        cells_added.append(cells_to_expend[0])
+                        n_intersect = len(self.coord_obj.intersect_cells[cells_to_expend[0]])
+                        if n_intersect > 0:
+                            for inter_cell in self.coord_obj.intersect_cells[cells_to_expend[0]]:
+                                min_c = min(inter_cell, cells_to_expend[0])
+                                max_c = max(inter_cell, cells_to_expend[0])
+                                edges.add((min_c, max_c))
+                                cells_to_expend.append(inter_cell)
+                    cells_to_expend = cells_to_expend[1:]
+                graph.add_edges_from(list(edges))
+                graphs.append(graph)
+        cells_by_color_code = dict()
+        max_color_code = 0
+        for graph in graphs:
+            # dict that give for each cell a color code
+            col_val = welsh_powell(graph)
+            for cell, color_code in col_val.items():
+                if color_code not in cells_by_color_code:
+                    cells_by_color_code[color_code] = []
+                cells_by_color_code[color_code].append(cell)
+                max_color_code = max(max_color_code, color_code)
 
-            # for n in np.arange(n_intersect):
-            #     cells_groups_colors.append(cm.nipy_spectral(float(i + 1) / (max_intersect_value + 1)))
-        for color_code, cells in cell_by_color_code.items():
+        for color_code, cells in cells_by_color_code.items():
             if len(cells) == 0:
                 continue
             cells_groups.append(cells)
-            cells_groups_colors.append(cm.nipy_spectral(float(color_code + 1) / (max_intersect_value + 1)))
+            cells_groups_colors.append(cm.nipy_spectral(float(color_code + 1) / (max_color_code + 1)))
             cells_groups_edge_colors.append("white")
             cells_groups_alpha.append(0.8)
         cells_groups.append(isolated_group)
