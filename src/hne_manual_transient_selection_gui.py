@@ -4,10 +4,13 @@ from datetime import datetime
 import hdf5storage
 import matplotlib
 from sys import platform
+# import cv2
+from shapely import geometry
 
 matplotlib.use("TkAgg")
 import scipy.io as sio
 from matplotlib import pyplot as plt
+import matplotlib.cm as cm
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 # from PIL import ImageTk, Image
 import math
@@ -21,12 +24,12 @@ import matplotlib.image as mpimg
 from random import randint
 import scipy.ndimage.morphology as morphology
 import os
-import cv2
-from PIL import Image, ImageSequence
+from PIL import ImageSequence, ImageDraw
 import PIL
 # from PIL import ImageTk
 from itertools import cycle
 from matplotlib import animation
+import matplotlib.gridspec as gridspec
 
 if sys.version_info[0] < 3:
     import Tkinter as tk
@@ -846,7 +849,7 @@ class ManualOnsetFrame(tk.Frame):
             self.tiff_movie = np.zeros((n_frames, dim_x, dim_y), dtype="uint16")
             for frame, page in enumerate(ImageSequence.Iterator(im)):
                 self.tiff_movie[frame] = np.array(page)
-            print(f"max self.tiff_movie {np.max(self.tiff_movie)}")
+            # print(f"max self.tiff_movie {np.max(self.tiff_movie)}")
 
         self.michou_path = "michou/"
         self.michou_img_file_names = []
@@ -1032,8 +1035,10 @@ class ManualOnsetFrame(tk.Frame):
         empty_label["text"] = " " * 2
         empty_label.pack(side=RIGHT)
         # from_=1, to=3
-        self.spin_box_threshold = Spinbox(bottom_frame, values=list(np.arange(0.1, 10, 0.2)), fg="blue", justify=CENTER,
-                                          width=3, state="readonly")
+        # self.var_spin_box_threshold = StringVar(bottom_frame)
+        self.spin_box_threshold = Spinbox(bottom_frame, values=list(np.arange(0.3, 10, 0.2)), fg="blue", justify=CENTER,
+                                          width=3, state="readonly")  # , textvariable=self.var_spin_box_threshold)
+        # self.var_spin_box_threshold.set(0.9)
         self.spin_box_threshold["command"] = event_lambda(self.spin_box_threshold_update)
         # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
         self.spin_box_threshold.pack(side=RIGHT)
@@ -1109,6 +1114,7 @@ class ManualOnsetFrame(tk.Frame):
 
         self.movie_mode = False
         self.movie_zoom_mode = True
+        self.source_mode = False
         if self.mvt_frames_periods is not None:
             empty_label = Label(bottom_frame)
             empty_label["text"] = " " * 1
@@ -1138,16 +1144,31 @@ class ManualOnsetFrame(tk.Frame):
             empty_label = Label(bottom_frame)
             empty_label["text"] = " " * 1
             empty_label.pack(side=RIGHT)
-            
+
             self.zoom_movie_var = IntVar()
             self.zoom_movie_check_box = Checkbutton(bottom_frame, text="zoom", variable=self.zoom_movie_var,
-                                                   onvalue=1,
-                                                   offvalue=0)
+                                                    onvalue=1,
+                                                    offvalue=0)
             # zoom on by default
             if self.movie_zoom_mode:
                 self.zoom_movie_check_box.select()
             self.zoom_movie_check_box["command"] = event_lambda(self.activate_movie_zoom)
             self.zoom_movie_check_box.pack(side=RIGHT)
+
+            empty_label = Label(bottom_frame)
+            empty_label["text"] = " " * 1
+            empty_label.pack(side=RIGHT)
+
+            # to display the source profile of a transient
+            self.source_var = IntVar()
+            self.source_check_box = Checkbutton(bottom_frame, text="source", variable=self.source_var,
+                                                onvalue=1,
+                                                offvalue=0)
+            # zoom on by default
+            if self.source_mode:
+                self.source_check_box.select()
+            self.source_check_box["command"] = event_lambda(self.switch_source_profile_mode)
+            self.source_check_box.pack(side=RIGHT)
 
         # used for association of keys
         self.keys_pressed = dict()
@@ -1173,16 +1194,7 @@ class ManualOnsetFrame(tk.Frame):
 
     def switch_movie_mode(self, from_movie_button=True):
         if from_movie_button and (not self.movie_mode):
-            if self.remove_peak_mode:
-                self.remove_peak_switch_mode(from_remove_peak_button=False)
-            if self.remove_onset_mode:
-                self.remove_onset_switch_mode(from_remove_onset_button=False)
-            if self.add_peak_mode:
-                self.add_peak_switch_mode(from_add_peak_button=False)
-            if self.add_onset_mode:
-                self.add_onset_switch_mode(from_add_onset_button=False)
-            if self.remove_all_mode:
-                self.remove_all_switch_mode(from_remove_all_button=False)
+            self.swith_all_click_actions(initiator="switch_movie_mode")
 
         if self.movie_mode:
             self.movie_button["text"] = ' movie OFF '
@@ -1297,6 +1309,8 @@ class ManualOnsetFrame(tk.Frame):
                 self.switch_michou()
         elif event.char in ["z", "Z"]:
             self.activate_movie_zoom(from_check_box=False)
+        elif event.char in ["s", "S"] and (self.tiff_movie is not None):
+            self.switch_source_profile_mode(from_key_shortcut=True)
         elif (event.keysym == "space") and (self.tiff_movie is not None):
             self.switch_movie_mode()
         if event.keysym == 'Right':
@@ -1368,19 +1382,26 @@ class ManualOnsetFrame(tk.Frame):
     def numbers_of_peak(self):
         return len(np.where(self.peak_nums[self.current_neuron, :] > 0)[0])
 
+    def swith_all_click_actions(self, initiator):
+        if (initiator != "remove_onset_switch_mode") and self.remove_onset_mode:
+            self.remove_onset_switch_mode(from_remove_onset_button=False)
+        if (initiator != "remove_peak_switch_mode") and self.remove_peak_mode:
+            self.remove_peak_switch_mode(from_remove_peak_button=False)
+        if (initiator != "add_peak_switch_mode") and self.add_peak_mode:
+            self.add_peak_switch_mode(from_add_peak_button=False)
+        if (initiator != "remove_all_switch_mode") and self.remove_all_mode:
+            self.remove_all_switch_mode(from_remove_all_button=False)
+        if (initiator != "switch_movie_mode") and self.movie_mode:
+            self.switch_movie_mode(from_movie_button=False)
+        if (initiator != "add_onset_switch_mode") and self.add_onset_mode:
+            self.add_onset_switch_mode(from_add_onset_button=False)
+        if (initiator != "switch_source_profile_mode") and self.source_mode:
+            self.switch_source_profile_mode(from_check_box=False, from_key_shortcut=True)
+
     def add_onset_switch_mode(self, from_add_onset_button=True):
         # if it was called due to the action of pressing the remove button, we're not calling the remove switch mode
         if from_add_onset_button and (not self.add_onset_mode):
-            if self.remove_onset_mode:
-                self.remove_onset_switch_mode(from_remove_onset_button=False)
-            if self.remove_peak_mode:
-                self.remove_peak_switch_mode(from_remove_peak_button=False)
-            if self.add_peak_mode:
-                self.add_peak_switch_mode(from_add_peak_button=False)
-            if self.remove_all_mode:
-                self.remove_all_switch_mode(from_remove_all_button=False)
-            if self.movie_mode:
-                self.switch_movie_mode(from_movie_button=False)
+            self.swith_all_click_actions(initiator="add_onset_switch_mode")
         self.add_onset_mode = not self.add_onset_mode
         if self.add_onset_mode:
             self.add_onset_button["fg"] = 'green'
@@ -1392,16 +1413,7 @@ class ManualOnsetFrame(tk.Frame):
     def remove_onset_switch_mode(self, from_remove_onset_button=True):
         # deactivating other button
         if from_remove_onset_button and (not self.remove_onset_mode):
-            if self.add_onset_mode:
-                self.add_onset_switch_mode(from_add_onset_button=False)
-            if self.add_peak_mode:
-                self.add_peak_switch_mode(from_add_peak_button=False)
-            if self.remove_peak_mode:
-                self.remove_peak_switch_mode(from_remove_peak_button=False)
-            if self.remove_all_mode:
-                self.remove_all_switch_mode(from_remove_all_button=False)
-            if self.movie_mode:
-                self.switch_movie_mode(from_movie_button=False)
+            self.swith_all_click_actions(initiator="remove_onset_switch_mode")
         self.remove_onset_mode = not self.remove_onset_mode
 
         if self.remove_onset_mode:
@@ -1434,16 +1446,7 @@ class ManualOnsetFrame(tk.Frame):
 
     def remove_peak_switch_mode(self, from_remove_peak_button=True):
         if from_remove_peak_button and (not self.remove_peak_mode):
-            if self.add_peak_mode:
-                self.add_peak_switch_mode(from_add_peak_button=False)
-            if self.remove_onset_mode:
-                self.remove_onset_switch_mode(from_remove_onset_button=False)
-            if self.add_onset_mode:
-                self.add_onset_switch_mode(from_add_onset_button=False)
-            if self.remove_all_mode:
-                self.remove_all_switch_mode(from_remove_all_button=False)
-            if self.movie_mode:
-                self.switch_movie_mode(from_movie_button=False)
+            self.swith_all_click_actions(initiator="remove_peak_switch_mode")
         self.remove_peak_mode = not self.remove_peak_mode
 
         if self.remove_peak_mode:
@@ -1518,7 +1521,7 @@ class ManualOnsetFrame(tk.Frame):
         """
         if (not self.remove_onset_mode) and (not self.add_onset_mode) and (not self.remove_peak_mode) \
                 and (not self.add_peak_mode) \
-                and (not self.remove_all_mode) and (not self.movie_mode):
+                and (not self.remove_all_mode) and (not self.movie_mode) and (not self.source_mode):
             return
 
         if event.dblclick:
@@ -1531,13 +1534,58 @@ class ManualOnsetFrame(tk.Frame):
             # the mouse has been moved between the pressing and the release
             return
 
-        if self.add_onset_mode or self.add_peak_mode:
+        if self.add_onset_mode or self.add_peak_mode or self.source_mode:
             if (event.xdata < 0) or (event.xdata > (self.nb_times_traces - 1)):
                 return
             if self.add_onset_mode:
                 self.add_onset(int(round(event.xdata)))
-            else:
+            elif self.add_peak_mode:
                 self.add_peak(at_time=int(round(event.xdata)), amplitude=event.ydata)
+            elif self.source_mode:
+                # print(f"self.source_mode click release")
+                transient = None
+                # we check if we are between an onset and a peak
+                onsets_frames = np.where(self.onset_times[self.current_neuron, :] > 0)[0]
+                peaks_frames = np.where(self.peak_nums[self.current_neuron, :] > 0)[0]
+                # closest onset before the click
+                onsets_before_index = np.where(onsets_frames <= event.xdata)[0]
+                if len(onsets_before_index) == 0:
+                    # print("len(onsets_before_index) == 0")
+                    return
+                first_onset_before_frame = onsets_frames[onsets_before_index[-1]]
+                # print(f"first_onset_before_frame {first_onset_before_frame}")
+                # closest peak before onset
+                peaks_before_index = np.where(peaks_frames <= event.xdata)[0]
+                # onset should be after peak, otherwise it means the click was not between an onset and a peak and
+                # so we choose the previous transient
+                if len(peaks_before_index) != 0:
+                    first_peak_before_frame = peaks_frames[peaks_before_index[-1]]
+                    # print(f"first_peak_before_frame {first_peak_before_frame}")
+                    if first_peak_before_frame > first_onset_before_frame:
+                        transient = (first_onset_before_frame, first_peak_before_frame)
+
+                if transient is None:
+                    # closet peak after the click
+                    peaks_after_index = np.where(peaks_frames >= event.xdata)[0]
+                    # means we are at the end
+                    if len(peaks_after_index) == 0:
+                        return
+                    first_peak_after_frame = peaks_frames[peaks_after_index[0]]
+                    # print(f"first_peak_after_frame {first_peak_after_frame}")
+                    # closest onset after the click
+                    onsets_after_index = np.where(onsets_frames >= event.xdata)[0]
+                    # the peak should be before the onset
+                    if len(onsets_after_index) != 0:
+                        first_onset_after_frame = onsets_frames[onsets_after_index[0]]
+                        # print(f"first_onset_after_frame {first_onset_after_frame}")
+                        if first_onset_after_frame < first_peak_after_frame:
+                            # print(f"first_onset_after_frame < first_peak_after_frame")
+                            return
+                    transient = (first_onset_before_frame, first_peak_after_frame)
+                # print(f"transient {transient}")
+                self.first_click_to_remove = {"x": int(round(event.xdata)), "y": event.ydata}
+                self.update_plot()
+                self.plot_source_transient(transient=transient)
             return
 
         if self.remove_onset_mode or self.remove_peak_mode or \
@@ -1778,6 +1826,22 @@ class ManualOnsetFrame(tk.Frame):
         # update to remove the cross of the first click at least
         self.update_after_onset_change()
 
+    def switch_source_profile_mode(self, from_check_box=True, from_key_shortcut=False):
+        # if from_key_shortcut is True, means we need to uncheck the check_box
+        if from_check_box and (not self.source_mode):
+            self.swith_all_click_actions(initiator="switch_source_profile_mode")
+        if not from_key_shortcut:
+            self.source_mode = not self.source_mode
+        else:
+            if not self.source_mode:
+                self.source_check_box.select()
+            else:
+                self.source_check_box.deselect()
+            self.source_mode = not self.source_mode
+        if not self.source_mode:
+            self.first_click_to_remove = None
+            self.update_plot()
+
     def activate_movie_zoom(self, from_check_box=True):
         if from_check_box:
             self.movie_zoom_mode = not self.movie_zoom_mode
@@ -1824,10 +1888,10 @@ class ManualOnsetFrame(tk.Frame):
             self.traces[i, :] = (self.traces[i, :] - np.mean(self.traces[i, :])) / np.std(self.traces[i, :])
             if self.raw_traces is not None:
                 self.raw_traces[i, :] = (self.raw_traces[i, :] - np.mean(self.raw_traces[i, :])) \
-                                    / np.std(self.raw_traces[i, :])
+                                        / np.std(self.raw_traces[i, :])
             if self.raw_traces_median is not None:
                 self.raw_traces_median[i, :] = (self.raw_traces_median[i, :] - np.mean(self.raw_traces_median[i, :])) \
-                                    / np.std(self.raw_traces_median[i, :])
+                                               / np.std(self.raw_traces_median[i, :])
         if self.raw_traces is not None:
             if self.raw_traces_median is not None:
                 self.raw_traces -= 4
@@ -1925,16 +1989,7 @@ class ManualOnsetFrame(tk.Frame):
         :return:
         """
         if from_add_peak_button and (not self.add_peak_mode):
-            if self.remove_peak_mode:
-                self.remove_peak_switch_mode(from_remove_peak_button=False)
-            if self.remove_onset_mode:
-                self.remove_onset_switch_mode(from_remove_onset_button=False)
-            if self.add_onset_mode:
-                self.add_onset_switch_mode(from_add_onset_button=False)
-            if self.remove_all_mode:
-                self.remove_all_switch_mode(from_remove_all_button=False)
-            if self.movie_mode:
-                self.switch_movie_mode(from_movie_button=False)
+            self.swith_all_click_actions(initiator="add_peak_switch_mode")
         self.add_peak_mode = not self.add_peak_mode
         if self.add_peak_mode:
             self.add_peak_button["fg"] = 'green'
@@ -2081,6 +2136,8 @@ class ManualOnsetFrame(tk.Frame):
     def plot_magnifier(self, first_time=False, mouse_x_position=None, mouse_y_position=None):
         if first_time:
             self.axe_plot_magnifier = self.magnifier_fig.add_subplot(111)
+            self.axe_plot_magnifier.get_xaxis().set_visible(False)
+            self.axe_plot_magnifier.get_yaxis().set_visible(False)
 
         if self.x_center_magnified is not None:
             pos_beg_x = int(np.max((0, self.x_center_magnified - self.magnifier_range)))
@@ -2127,7 +2184,8 @@ class ManualOnsetFrame(tk.Frame):
         self.axe_plot_magnifier.spines['right'].set_visible(False)
         self.axe_plot_magnifier.spines['top'].set_visible(False)
         if first_time:
-            self.magnifier_fig.tight_layout()
+            self.magnifier_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
+            # self.magnifier_fig.tight_layout()
 
     def draw_magnifier_marker(self, mouse_x_position=None, mouse_y_position=None):
         if (mouse_x_position is None) or (mouse_y_position is None):
@@ -2163,6 +2221,256 @@ class ManualOnsetFrame(tk.Frame):
                                                              linewidth=1,
                                                              linestyles=":")
 
+    def plot_source_transient(self, transient):
+        # transient is a tuple of int, reprensenting the frame of the onset and the frame of the peak
+        # using the magnifier figure
+        self.magnifier_fig.clear()
+        plt.close(self.magnifier_fig)
+        self.magnifier_canvas.get_tk_widget().destroy()
+        self.magnifier_fig = plt.figure(figsize=(4, 4))
+        self.magnifier_canvas = FigureCanvasTkAgg(self.magnifier_fig, self.magnifier_frame)
+        # fig = plt.figure(figsize=size_fig)
+        self.magnifier_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
+        # looking at how many overlapping cell current_neuron has
+        intersect_cells = self.data_and_param.ms.coord_obj.intersect_cells[self.current_neuron]
+        # print(f"len(intersect_cells) {len(intersect_cells)}")
+        cells_color = dict()
+        cells_color[self.current_neuron] = "red"
+        cells_to_display = [self.current_neuron]
+        for index, cell_inter in enumerate(intersect_cells):
+            cells_color[cell_inter] = cm.nipy_spectral(float(index + 1) / (len(intersect_cells) + 1))
+
+        cells_to_display.extend(intersect_cells)
+        n_cells_to_display = len(cells_to_display)
+        # now adding as many suplots as need, depending on how many overlap has the cell
+        n_columns = 3
+        width_ratios = [100 // n_columns] * n_columns
+        n_lines = (((n_cells_to_display - 1) // n_columns) + 1) * 2
+        height_ratios = [100 // n_lines] * n_lines
+        grid_spec = gridspec.GridSpec(n_lines, n_columns, width_ratios=width_ratios,
+                                      height_ratios=height_ratios,
+                                      figure=self.magnifier_fig)
+        # print(f"n_columns {n_columns}, n_lines {n_lines}")
+        # axes of the curren_neuron
+        # 6 & 3
+        ax_source_profile_by_cell = dict()
+        ax_source_transient_by_cell = dict()
+        for cell_index, cell_to_display in enumerate(cells_to_display):
+            line_gs = (cell_index // n_columns) * 2
+            col_gs = cell_index % n_columns
+            # print(f"cell_index {cell_index}, line_gs {line_gs}, col_gs {col_gs}")
+            ax_source_profile_by_cell[cell_to_display] = self.magnifier_fig.add_subplot(grid_spec[line_gs, col_gs])
+            # frame = plt.gca() frame.axes.
+            ax_source_profile_by_cell[cell_to_display].get_xaxis().set_visible(False)
+            ax_source_profile_by_cell[cell_to_display].get_yaxis().set_visible(False)
+            for spine in ax_source_profile_by_cell[cell_to_display].spines.values():
+                spine.set_edgecolor(cells_color[cell_to_display])
+                spine.set_linewidth(3)
+            ax_source_transient_by_cell[cell_to_display] = \
+                self.magnifier_fig.add_subplot(grid_spec[line_gs + 1, col_gs])
+            # frame = plt.gca()
+            ax_source_transient_by_cell[cell_to_display].get_xaxis().set_visible(False)
+            ax_source_transient_by_cell[cell_to_display].get_yaxis().set_visible(False)
+            for spine in ax_source_transient_by_cell[cell_to_display].spines.values():
+                spine.set_edgecolor(cells_color[cell_to_display])
+                spine.set_linewidth(3)
+
+        # should be a np.array with x, y len equal
+        source_profile_by_cell = dict()
+        transient_profile_by_cell = dict()
+
+        size_square = 40
+        frame_tiff = self.tiff_movie[transient[-1]]
+        len_x = frame_tiff.shape[1]
+        len_y = frame_tiff.shape[0]
+        # calculating the bound that will surround all the cells
+        minx = None
+        maxx = None
+        miny = None
+        maxy = None
+        for cell_to_display in cells_to_display:
+            poly_gon = self.data_and_param.ms.coord_obj.cells_polygon[cell_to_display]
+            if minx is None:
+                minx, miny, maxx, maxy = np.array(list(poly_gon.bounds)).astype(int)
+            else:
+                tmp_minx, tmp_miny, tmp_maxx, tmp_maxy = np.array(list(poly_gon.bounds)).astype(int)
+                minx = min(minx, tmp_minx)
+                miny = min(miny, tmp_miny)
+                maxx = max(maxx, tmp_maxx)
+                maxy = max(maxy, tmp_maxy)
+        bounds = (minx, miny, maxx, maxy)
+
+        for cell_index, cell_to_display in enumerate(cells_to_display):
+            # self.x_beg_movie, self.x_end_movie, self.y_beg_movie, self.y_end_movie = \
+            #     self.square_coord_around_cell(cell=cell_to_display, size_square=size_square,
+            #                                   x_len_max=len_x, y_len_max=len_y)
+            # tiff_array = frame_tiff[self.y_beg_movie:self.y_end_movie,
+            #              self.x_beg_movie:self.x_end_movie]
+            # ax_source_profile_by_cell[cell_to_display].imshow(tiff_array, cmap=plt.get_cmap('gray'))
+            source_profile, minx, miny, mask_source_profile = self.get_source_profile(cell=cell_to_display,
+                                                                                      pixels_around=3, bounds=bounds)
+            img_src_profile = ax_source_profile_by_cell[cell_to_display].imshow(source_profile,
+                                                                                cmap=plt.get_cmap('gray'))
+            with_mask = False
+            if with_mask:
+                source_profile[mask_source_profile] = 0
+                img_src_profile.set_array(source_profile)
+            # source_profile[mask] = 0
+            xy = self.get_cell_new_coord_in_source(cell=cell_to_display, minx=minx, miny=miny)
+            lw = 1
+            contour_cell = patches.Polygon(xy=xy,
+                                           fill=False,
+                                           edgecolor=cells_color[cell_to_display],
+                                           zorder=15, lw=lw)
+
+            ax_source_profile_by_cell[cell_to_display].add_patch(contour_cell)
+
+            transient_profile, minx, miny = self.get_transient_profile(cell=cell_to_display, transient=transient,
+                                                                       pixels_around=3, bounds=bounds)
+            ax_source_transient_by_cell[cell_to_display].imshow(transient_profile, cmap=plt.get_cmap('gray'))
+            for cell_to_contour in cells_to_display:
+                # the new coordinates of the cell
+                xy = self.get_cell_new_coord_in_source(cell=cell_to_contour, minx=minx, miny=miny)
+                lw = 0.5
+                if cell_to_display == cell_to_contour:
+                    lw = 1
+                contour_cell = patches.Polygon(xy=xy,
+                                               fill=False,
+                                               edgecolor=cells_color[cell_to_contour],
+                                               zorder=15, lw=lw)
+                ax_source_transient_by_cell[cell_to_display].add_patch(contour_cell)
+
+        self.magnifier_canvas.draw()
+        self.magnifier_canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=YES)
+
+    def get_source_profile(self, cell, pixels_around=0, bounds=None):
+        len_frame_x = self.tiff_movie[0].shape[1]
+        len_frame_y = self.tiff_movie[0].shape[0]
+
+        # determining the size of the square surrounding the cell
+        poly_gon = self.data_and_param.ms.coord_obj.cells_polygon[cell]
+        if bounds is None:
+            minx, miny, maxx, maxy = np.array(list(poly_gon.bounds)).astype(int)
+        else:
+            minx, miny, maxx, maxy = bounds
+
+        minx = max(0, minx - pixels_around)
+        miny = max(0, miny - pixels_around)
+        maxx = min(len_frame_x - 1, maxx + pixels_around)
+        maxy = min(len_frame_y - 1, maxy + pixels_around)
+
+        len_x = maxx - minx + 1
+        len_y = maxy - miny + 1
+
+        # mask used in order to keep only the cells pixels
+
+        scaled_poly_gon = self.scale_polygon_to_source(poly_gon=poly_gon, minx=minx, miny=miny)
+        img = PIL.Image.new('1', (len_x, len_y), 1)
+        scaled_poly_gon = scaled_poly_gon.buffer(2)
+        ImageDraw.Draw(img).polygon(list(scaled_poly_gon.exterior.coords), outline=0, fill=0)
+        mask = np.array(img)
+        # mask = np.ones((len_x, len_y))
+        # cv2.fillPoly(mask, scaled_poly_gon, 0)
+        # mask = mask.astype(bool)
+
+        source_profile = np.zeros((len_y, len_x))
+
+        # selectionning the best peak to produce the source_profile
+        peaks = np.where(self.peak_nums[cell, :] > 0)[0]
+        threshold = np.percentile(self.traces[cell, peaks], 95)
+        selected_peaks = peaks[np.where(self.traces[cell, peaks] > threshold)[0]]
+        if len(selected_peaks) > 5:
+            p = 5 / len(peaks)
+            threshold = np.percentile(self.traces[cell, peaks], (1 - p) * 100)
+            selected_peaks = peaks[np.where(self.traces[cell, peaks] > threshold)[0]]
+
+        # print(f"threshold {threshold}")
+        # print(f"n peaks: {len(selected_peaks)}")
+
+        onsets_frames = np.where(self.onset_times[cell, :] > 0)[0]
+        raw_traces = np.copy(self.raw_traces)
+        if self.raw_traces_median is not None:
+            raw_traces += 4
+        else:
+            raw_traces += 2
+        for peak in selected_peaks:
+            tmp_source_profile = np.zeros((len_y, len_x))
+            onsets_before_peak = np.where(onsets_frames <= peak)[0]
+            if len(onsets_before_peak) == 0:
+                # shouldn't arrive
+                continue
+            onset = onsets_frames[onsets_before_peak[-1]]
+            # print(f"onset {onset}, peak {peak}")
+            frames_tiff = self.tiff_movie[onset:peak + 1]
+            for frame_index, frame_tiff in enumerate(frames_tiff):
+                tmp_source_profile += (frame_tiff[miny:maxy + 1, minx:maxx + 1] * raw_traces[cell, onset + frame_index])
+            # averaging
+            tmp_source_profile = tmp_source_profile / (np.sum(raw_traces[cell, onset:peak + 1]))
+            source_profile += tmp_source_profile
+
+        source_profile = source_profile / len(selected_peaks)
+        # print(f"mask {mask}")
+
+        # source_profile[mask] = 0
+        # applying the mast
+
+        return source_profile, minx, miny, mask
+
+    def get_transient_profile(self, cell, transient, pixels_around=0, bounds=None):
+        len_frame_x = self.tiff_movie[0].shape[1]
+        len_frame_y = self.tiff_movie[0].shape[0]
+
+        # determining the size of the square surrounding the cell
+        if bounds is None:
+            poly_gon = self.data_and_param.ms.coord_obj.cells_polygon[cell]
+            minx, miny, maxx, maxy = np.array(list(poly_gon.bounds)).astype(int)
+        else:
+            minx, miny, maxx, maxy = bounds
+
+        minx = max(0, minx - pixels_around)
+        miny = max(0, miny - pixels_around)
+        maxx = min(len_frame_x - 1, maxx + pixels_around)
+        maxy = min(len_frame_y - 1, maxy + pixels_around)
+
+        len_x = maxx - minx + 1
+        len_y = maxy - miny + 1
+
+        transient_profile = np.zeros((len_y, len_x))
+        frames_tiff = self.tiff_movie[transient[0]:transient[-1] + 1]
+        # now we do the weighted average
+        raw_traces = np.copy(self.raw_traces)
+        if self.raw_traces_median is not None:
+            raw_traces += 4
+        else:
+            raw_traces += 2
+        for frame_index, frame_tiff in enumerate(frames_tiff):
+            transient_profile += (
+                    frame_tiff[miny:maxy + 1, minx:maxx + 1] * raw_traces[cell, transient[0] + frame_index])
+        # averaging
+        transient_profile = transient_profile / (np.sum(raw_traces[cell, transient[0]:transient[-1] + 1]))
+
+        return transient_profile, minx, miny
+
+    def scale_polygon_to_source(self, poly_gon, minx, miny):
+        coords = list(poly_gon.exterior.coords)
+        scaled_coords = []
+        for coord in coords:
+            scaled_coords.append((coord[0] - minx, coord[1] - miny))
+        # print(f"scaled_coords {scaled_coords}")
+        return geometry.Polygon(scaled_coords)
+
+    def get_cell_new_coord_in_source(self, cell, minx, miny):
+        coord = self.data_and_param.ms.coord_obj.coord[cell]
+        coord = coord - 1
+        coord = coord.astype(int)
+        n_coord = len(coord[0, :])
+        xy = np.zeros((n_coord, 2))
+        for n in np.arange(n_coord):
+            # shifting the coordinates in the square size_square+1
+            xy[n, 0] = coord[0, n] - minx
+            xy[n, 1] = coord[1, n] - miny
+        return xy
+
     def update_plot_magnifier(self, mouse_x_position, mouse_y_position, change_frame_ref):
         if change_frame_ref:
             self.magnifier_fig.clear()
@@ -2182,8 +2490,8 @@ class ManualOnsetFrame(tk.Frame):
         else:
             self.draw_magnifier_marker(mouse_x_position=mouse_x_position, mouse_y_position=mouse_y_position)
 
-        self.magnifier_fig.canvas.draw()
-        self.magnifier_fig.canvas.flush_events()
+            self.magnifier_fig.canvas.draw()
+            self.magnifier_fig.canvas.flush_events()
 
     def start_playing_movie(self, x_from, x_to):
         self.play_movie = True
@@ -2193,6 +2501,42 @@ class ManualOnsetFrame(tk.Frame):
         self.movie_frames = cycle((frame_tiff, frame_index + x_from)
                                   for frame_index, frame_tiff in enumerate(self.tiff_movie[x_from:x_to]))
         self.update_plot_map_img()
+
+    def square_coord_around_cell(self, cell, size_square, x_len_max, y_len_max):
+        """
+        For a given cell, give the coordinates of the square surrounding the cell.
+
+        :param cell:
+        :param size_square:
+        :param x_len_max:
+        :param y_len_max:
+        :return: (x_beg, x_end, y_beg, y_end)
+        """
+        c_x, c_y = self.center_coord[cell]
+        # c_y correspond to
+        c_y = int(c_y)
+        c_x = int(c_x)
+        # print(f"len_x {len_x} len_y {len_y}")
+        # print(f"c_x {c_x} c_y {c_y}")
+        # limit of the new frame, should make a square
+        x_beg_movie = max(0, c_x - (size_square // 2))
+        x_end_movie = min(x_len_max, c_x + (size_square // 2) + 1)
+        # means the cell is near a border
+        if (x_end_movie - x_beg_movie) < (size_square + 1):
+            if (c_x - x_beg_movie) < (x_end_movie - c_x - 1):
+                x_end_movie += ((size_square + 1) - (x_end_movie - x_beg_movie))
+            else:
+                x_beg_movie -= ((size_square + 1) - (x_end_movie - x_beg_movie))
+
+        y_beg_movie = max(0, c_y - (size_square // 2))
+        y_end_movie = min(y_len_max, c_y + (size_square // 2) + 1)
+        if (y_end_movie - y_beg_movie) < (size_square + 1):
+            if (c_y - y_beg_movie) < (y_end_movie - c_y - 1):
+                y_end_movie += ((size_square + 1) - (y_end_movie - y_beg_movie))
+            else:
+                y_beg_movie -= ((size_square + 1) - (y_end_movie - y_beg_movie))
+
+        return x_beg_movie, x_end_movie, y_beg_movie, y_end_movie
 
     def animate_movie(self, i):
         zoom_mode = self.movie_zoom_mode
@@ -2208,33 +2552,12 @@ class ManualOnsetFrame(tk.Frame):
         if i < 1:
             if zoom_mode:
                 # zoom around the cell
-                # cell center
-                c_x, c_y = self.center_coord[self.current_neuron]
-                # c_y correspond to
-                c_y = int(c_y)
-                c_x = int(c_x)
-                # print(f"len_x {len_x} len_y {len_y}")
-                # print(f"c_x {c_x} c_y {c_y}")
-                # limit of the new frame, should make a square
-                self.x_beg_movie = max(0, c_x - (size_square // 2))
-                self.x_end_movie = min(len_x, c_x + (size_square // 2) + 1)
-                # means the cell is near a border
-                if (self.x_end_movie - self.x_beg_movie) < (size_square + 1):
-                    if (c_x - self.x_beg_movie) < (self.x_end_movie - c_x - 1):
-                        self.x_end_movie += ((size_square + 1) - (self.x_end_movie - self.x_beg_movie))
-                    else:
-                        self.x_beg_movie -= ((size_square + 1) - (self.x_end_movie - self.x_beg_movie))
+                self.x_beg_movie, self.x_end_movie, self.y_beg_movie, self.y_end_movie = \
+                    self.square_coord_around_cell(cell=self.current_neuron, size_square=size_square,
+                                                  x_len_max=len_x, y_len_max=len_y)
                 # used to change the coord of the polygon
-                x_shift = self.x_beg_movie - c_x
-                self.y_beg_movie = max(0, c_y - (size_square // 2))
-                self.y_end_movie = min(len_y, c_y + (size_square // 2) + 1)
-                if (self.y_end_movie - self.y_beg_movie) < (size_square + 1):
-                    if (c_y - self.y_beg_movie) < (self.y_end_movie - c_y - 1):
-                        self.y_end_movie += ((size_square + 1) - (self.y_end_movie - self.y_beg_movie))
-                    else:
-                        self.y_beg_movie -= ((size_square + 1) - (self.y_end_movie - self.y_beg_movie))
-                # used to change the coord of the polygon
-                y_shift = self.y_beg_movie - c_y
+                # x_shift = self.x_beg_movie - c_x
+                # y_shift = self.y_beg_movie - c_y
 
                 # cell contour
                 coord = self.data_and_param.ms.coord_obj.coord[self.current_neuron]
@@ -2264,7 +2587,7 @@ class ManualOnsetFrame(tk.Frame):
         # print(f"frame_tiff[10, :] {frame_tiff[10, :]}")
         if zoom_mode:
             tiff_array = frame_tiff[self.y_beg_movie:self.y_end_movie,
-                                              self.x_beg_movie:self.x_end_movie]
+                         self.x_beg_movie:self.x_end_movie]
 
             # if we do imshow, then the size of the image will be the one of the square, with no zoom
             if i == -1:
@@ -2389,7 +2712,8 @@ class ManualOnsetFrame(tk.Frame):
             frame.axes.get_xaxis().set_visible(False)
             frame.axes.get_yaxis().set_visible(False)
 
-            self.map_img_fig.tight_layout()
+            # self.map_img_fig.tight_layout()
+            self.map_img_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
 
     def draw_cell_contour(self):
         if self.cell_contour is not None:
@@ -2480,7 +2804,7 @@ class ManualOnsetFrame(tk.Frame):
             self.axe_plot.plot(np.arange(self.nb_times_traces),
                                self.raw_traces_median[self.current_neuron, :],
                                color="red", alpha=0.8, zorder=9)
-        
+
         if not self.raw_traces_seperate_plot:
             if (self.raw_traces is not None) and self.display_raw_traces:
                 self.axe_plot.plot(np.arange(self.nb_times_traces),
@@ -2608,7 +2932,10 @@ class ManualOnsetFrame(tk.Frame):
             ax.spines['top'].set_visible(False)
         self.axe2_plot.spines['right'].set_visible(False)
         self.axe2_plot.spines['top'].set_visible(False)
-        self.fig.tight_layout()
+        self.axe2_plot.margins(0)
+        self.axe_plot.margins(0)
+        # self.fig.tight_layout()
+        self.fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
 
     # not used
     # def update_plot_wrong(self):
@@ -2804,6 +3131,7 @@ class ManualOnsetFrame(tk.Frame):
             self.remove_cell_button["text"] = ' removed '
             self.remove_cell_button["fg"] = "red"
 
+        self.first_click_to_remove = None
         self.update_plot(new_neuron=True,
                          new_x_limit=new_x_limit, new_y_limit=new_y_limit)
         self.update_plot_map_img()

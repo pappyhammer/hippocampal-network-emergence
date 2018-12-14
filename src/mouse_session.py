@@ -1718,9 +1718,11 @@ class MouseSession:
         if self.coord_obj is None:
             return
         # we want to color cells that overlap with different colors
-        n_cells = self.spike_struct.n_cells
+        n_cells = len(self.coord_obj.coord)
         # white, http://doc.instantreality.org/tools/color_calculator/
-        isolated_cell_color = (1, 1, 1, 1.0)
+        # white: 1, 1, 1
+        # red: 1, 0, 0
+        isolated_cell_color = (1, 0, 0, 1.0)
         isolated_group = []
         cells_groups_colors = []
         cells_groups_edge_colors = []
