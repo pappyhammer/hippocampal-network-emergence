@@ -8,7 +8,6 @@ from sys import platform
 from shapely import geometry
 from matplotlib.colors import LinearSegmentedColormap
 
-
 matplotlib.use("TkAgg")
 import scipy.io as sio
 from matplotlib import pyplot as plt
@@ -540,6 +539,8 @@ class ManualOnsetFrame(tk.Frame):
 
         self.parula_map = LinearSegmentedColormap.from_list('parula', cm_data)
 
+        self.robin_mac = False
+
         self.root = Tk()
         self.root.protocol("WM_DELETE_WINDOW", self.validation_before_closing)
         # self.root.title(f"Session {session_number}")
@@ -607,6 +608,8 @@ class ManualOnsetFrame(tk.Frame):
         self.tiff_movie = None
         self.raw_traces_binned = None
         self.source_profile_dict = dict()
+        # key is the cell and then value is a dict with key the tuple transient (onset, peak)
+        self.corr_source_transient = dict()
         # self.raw_traces_binned = np.zeros((self.nb_neurons, self.nb_times // 10), dtype="float")
         # # mean by 10 frames +
         # for cell, trace in enumerate(self.raw_traces):
@@ -816,7 +819,10 @@ class ManualOnsetFrame(tk.Frame):
         self.display_michou = False
 
         # plt.ion()
-        self.fig = plt.figure(figsize=(10, 6))
+        if self.robin_mac:
+            self.fig = plt.figure(figsize=(8, 4))
+        else:
+            self.fig = plt.figure(figsize=(10, 6))
         # self.plot_canvas = MyCanvas(self.fig, canvas_frame, self)
         self.plot_canvas = FigureCanvasTkAgg(self.fig, main_plot_frame)
         self.fig.canvas.mpl_connect('button_press_event', self.onclick)
@@ -936,7 +942,10 @@ class ManualOnsetFrame(tk.Frame):
         if (self.data_and_param.ms.avg_cell_map_img is not None) or (self.tiff_movie is not None):
             if self.tiff_movie is not None:
                 self.raw_traces_median = np.zeros(self.traces.shape)
-            self.map_img_fig = plt.figure(figsize=(4, 4))
+            if self.robin_mac:
+                self.map_img_fig = plt.figure(figsize=(3, 3))
+            else:
+                self.map_img_fig = plt.figure(figsize=(4, 4))
             self.background_map_fig = None
             self.axe_plot_map_img = None
             self.cell_contour = None
@@ -1003,7 +1012,10 @@ class ManualOnsetFrame(tk.Frame):
 
         self.magnifier_frame = Frame(side_bar_frame)
         self.magnifier_frame.pack(side=TOP, expand=YES, fill=BOTH)
-        self.magnifier_fig = plt.figure(figsize=(4, 4))
+        if self.robin_mac:
+            self.magnifier_fig = plt.figure(figsize=(3, 3))
+        else:
+            self.magnifier_fig = plt.figure(figsize=(4, 4))
         self.axe_plot_magnifier = None
         # represent the x_value on which the magnifier is centered
         self.x_center_magnified = None
@@ -2276,16 +2288,47 @@ class ManualOnsetFrame(tk.Frame):
                                                              linewidth=1,
                                                              linestyles=":")
 
+    def corr_between_source_and_transient(self, cell, transient, pixels_around=1):
+        if cell not in self.corr_source_transient:
+            self.corr_source_transient[cell] = dict()
+
+        elif transient in self.corr_source_transient[cell]:
+            return self.corr_source_transient[cell][transient]
+
+        poly_gon = self.data_and_param.ms.coord_obj.cells_polygon[cell]
+
+        # Correlation test
+        bounds_corr = np.array(list(poly_gon.bounds)).astype(int)
+        source_profile_corr, minx_corr, \
+        miny_corr, mask_source_profile = self.get_source_profile(cell=cell,
+                                                                 pixels_around=pixels_around,
+                                                                 bounds=bounds_corr)
+        # normalizing
+        source_profile_corr = source_profile_corr - np.mean(source_profile_corr)
+        transient_profile_corr, minx_corr, miny_corr = self.get_transient_profile(cell=cell,
+                                                                                  transient=transient,
+                                                                                  pixels_around=pixels_around,
+                                                                                  bounds=bounds_corr)
+        transient_profile_corr = transient_profile_corr - np.mean(transient_profile_corr)
+
+        pearson_corr = np.mean(np.corrcoef(source_profile_corr, transient_profile_corr))
+        self.corr_source_transient[cell][transient] = pearson_corr
+
+        return pearson_corr
+
     def plot_source_transient(self, transient):
         # transient is a tuple of int, reprensenting the frame of the onset and the frame of the peak
         # using the magnifier figure
         self.magnifier_fig.clear()
         plt.close(self.magnifier_fig)
         self.magnifier_canvas.get_tk_widget().destroy()
-        self.magnifier_fig = plt.figure(figsize=(4, 4))
+        if self.robin_mac:
+            self.magnifier_fig = plt.figure(figsize=(3, 3))
+        else:
+            self.magnifier_fig = plt.figure(figsize=(4, 4))
         self.magnifier_canvas = FigureCanvasTkAgg(self.magnifier_fig, self.magnifier_frame)
         # fig = plt.figure(figsize=size_fig)
-        self.magnifier_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
+        self.magnifier_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.1, 'h_pad': 0.1})
         # looking at how many overlapping cell current_neuron has
         intersect_cells = self.data_and_param.ms.coord_obj.intersect_cells[self.current_neuron]
         # print(f"len(intersect_cells) {len(intersect_cells)}")
@@ -2316,7 +2359,7 @@ class ManualOnsetFrame(tk.Frame):
             # print(f"cell_index {cell_index}, line_gs {line_gs}, col_gs {col_gs}")
             ax_source_profile_by_cell[cell_to_display] = self.magnifier_fig.add_subplot(grid_spec[line_gs, col_gs])
             # frame = plt.gca() frame.axes.
-            ax_source_profile_by_cell[cell_to_display].get_xaxis().set_visible(False)
+            # ax_source_profile_by_cell[cell_to_display].get_xaxis().set_visible(False)
             ax_source_profile_by_cell[cell_to_display].get_yaxis().set_visible(False)
             for spine in ax_source_profile_by_cell[cell_to_display].spines.values():
                 spine.set_edgecolor(cells_color[cell_to_display])
@@ -2343,8 +2386,10 @@ class ManualOnsetFrame(tk.Frame):
         maxx = None
         miny = None
         maxy = None
+        corr_by_cell = dict()
         for cell_to_display in cells_to_display:
             poly_gon = self.data_and_param.ms.coord_obj.cells_polygon[cell_to_display]
+
             if minx is None:
                 minx, miny, maxx, maxy = np.array(list(poly_gon.bounds)).astype(int)
             else:
@@ -2365,7 +2410,8 @@ class ManualOnsetFrame(tk.Frame):
             first_time = False
             if cell_to_display not in self.source_profile_dict:
                 source_profile, minx, miny, mask_source_profile = self.get_source_profile(cell=cell_to_display,
-                                                                                      pixels_around=3, bounds=bounds)
+                                                                                          pixels_around=3,
+                                                                                          bounds=bounds)
                 xy_source = self.get_cell_new_coord_in_source(cell=cell_to_display, minx=minx, miny=miny)
                 self.source_profile_dict[cell_to_display] = [source_profile, minx, miny, mask_source_profile,
                                                              xy_source]
@@ -2387,6 +2433,19 @@ class ManualOnsetFrame(tk.Frame):
                                            zorder=15, lw=lw)
             ax_source_profile_by_cell[cell_to_display].add_patch(contour_cell)
 
+            pearson_corr = self.corr_between_source_and_transient(cell=cell_to_display, transient=transient,
+                                                                  pixels_around=1)
+
+            pearson_corr = np.round(pearson_corr, 2)
+            # ax_source_profile_by_cell[cell_to_display].text(x=4, y=3,
+            #                                                 s=f"{pearson_corr}", color="cornflowerblue", zorder=20,
+            #                                                 ha='center', va="center", fontsize=7, fontweight='bold')
+            min_x_axis, max_x_axis = ax_source_profile_by_cell[cell_to_display].get_xlim()
+            ax_source_profile_by_cell[cell_to_display].set_xticks([max_x_axis/2])
+            ax_source_profile_by_cell[cell_to_display].set_xticklabels([pearson_corr])
+            ax_source_profile_by_cell[cell_to_display].xaxis.set_tick_params(labelsize=8, pad=0.1,
+                                                                             labelcolor=cells_color[cell_to_display])
+            ax_source_profile_by_cell[cell_to_display].xaxis.set_ticks_position('none')
 
             transient_profile, minx, miny = self.get_transient_profile(cell=cell_to_display, transient=transient,
                                                                        pixels_around=3, bounds=bounds)
@@ -2540,7 +2599,10 @@ class ManualOnsetFrame(tk.Frame):
             self.magnifier_fig.clear()
             plt.close(self.magnifier_fig)
             self.magnifier_canvas.get_tk_widget().destroy()
-            self.magnifier_fig = plt.figure(figsize=(4, 4))
+            if self.robin_mac:
+                self.magnifier_fig = plt.figure(figsize=(3, 3))
+            else:
+                self.magnifier_fig = plt.figure(figsize=(4, 4))
             self.magnifier_canvas = FigureCanvasTkAgg(self.magnifier_fig, self.magnifier_frame)
 
             self.plot_magnifier(first_time=True, mouse_x_position=mouse_x_position,
