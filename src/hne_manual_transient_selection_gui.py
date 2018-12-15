@@ -2445,12 +2445,12 @@ class ManualOnsetFrame(tk.Frame):
             ax_source_profile_by_cell[cell_to_display].set_xticks([max_x_axis / 2])
             # ax_source_profile_by_cell[cell_to_display].set_xticklabels([f"{pearson_corr} / {percentage_high_corr}%"])
             ax_source_profile_by_cell[cell_to_display].set_xticklabels([f"{pearson_corr}"])
-            if pearson_p_value < 0.05:
-                label_color = "red"
-            else:
-                label_color = "black"
+            # if pearson_p_value < 0.05:
+            #     label_color = "red"
+            # else:
+            #     label_color = "black"
             ax_source_profile_by_cell[cell_to_display].xaxis.set_tick_params(labelsize=8, pad=0.1,
-                                                                             labelcolor=label_color)
+                                                                             labelcolor="black")
             ax_source_profile_by_cell[cell_to_display].xaxis.set_ticks_position('none')
             # displaying cell number
             # min_x_axis, max_x_axis = ax_top_source_profile_by_cell[cell_to_display].get_xlim()
@@ -2527,10 +2527,8 @@ class ManualOnsetFrame(tk.Frame):
 
         onsets_frames = np.where(self.onset_times[cell, :] > 0)[0]
         raw_traces = np.copy(self.raw_traces)
-        if self.raw_traces_median is not None:
-            raw_traces += 4
-        else:
-            raw_traces += 2
+        # so the lowest value is zero
+        raw_traces += np.min(raw_traces)
         for peak in selected_peaks:
             tmp_source_profile = np.zeros((len_y, len_x))
             onsets_before_peak = np.where(onsets_frames <= peak)[0]
@@ -2547,10 +2545,6 @@ class ManualOnsetFrame(tk.Frame):
             source_profile += tmp_source_profile
 
         source_profile = source_profile / len(selected_peaks)
-        # print(f"mask {mask}")
-
-        # source_profile[mask] = 0
-        # applying the mast
 
         return source_profile, minx, miny, mask
 
@@ -2577,10 +2571,8 @@ class ManualOnsetFrame(tk.Frame):
         frames_tiff = self.tiff_movie[transient[0]:transient[-1] + 1]
         # now we do the weighted average
         raw_traces = np.copy(self.raw_traces)
-        if self.raw_traces_median is not None:
-            raw_traces += 4
-        else:
-            raw_traces += 2
+        # so the lowest value is zero
+        raw_traces += np.min(raw_traces)
         for frame_index, frame_tiff in enumerate(frames_tiff):
             transient_profile += (
                     frame_tiff[miny:maxy + 1, minx:maxx + 1] * raw_traces[cell, transient[0] + frame_index])
