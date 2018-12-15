@@ -49,7 +49,8 @@ def event_lambda(f, *args, **kwds):
 
 # ---------- code for function: event_lambda (end) -----------
 
-
+# see to replace it by messagebox.showerror("Error", "Error message")
+# from tkinter import messagebox
 class ErrorMessageFrame(tk.Frame):
 
     def __init__(self, error_message):
@@ -816,6 +817,7 @@ class ManualOnsetFrame(tk.Frame):
 
         main_plot_frame = Frame(canvas_frame)
         main_plot_frame.pack(side=LEFT, expand=YES, fill=BOTH)
+        self.main_plot_frame = main_plot_frame
 
         self.display_michou = False
 
@@ -1116,7 +1118,7 @@ class ManualOnsetFrame(tk.Frame):
         empty_label.pack(side=RIGHT)
 
         self.treshold_var = IntVar()
-        threshold_check_box = Checkbutton(bottom_frame, text="Threshold", variable=self.treshold_var, onvalue=1,
+        threshold_check_box = Checkbutton(bottom_frame, text="std", variable=self.treshold_var, onvalue=1,
                                           offvalue=0, fg=self.color_threshold_line)
         threshold_check_box["command"] = event_lambda(self.threshold_check_box_action)
         threshold_check_box.pack(side=RIGHT)
@@ -1323,6 +1325,7 @@ class ManualOnsetFrame(tk.Frame):
             self.remove_cell_button["text"] = " not removed "
             self.remove_cell_button["fg"] = "black"
             self.cells_to_remove[self.current_neuron] = 0
+        self.update_plot()
 
     def clear_and_update_entry_neuron_widget(self):
         self.neuron_entry_widget.delete(first=0, last=END)
@@ -2437,14 +2440,14 @@ class ManualOnsetFrame(tk.Frame):
                                                                   pixels_around=1)
 
             pearson_corr = np.round(pearson_corr, 2)
-            ax_source_profile_by_cell[cell_to_display].text(x=3, y=3,
-                                                            s=f"{cell_to_display}", color="cornflowerblue", zorder=20,
-                                                            ha='center', va="center", fontsize=7, fontweight='bold')
+            # ax_source_profile_by_cell[cell_to_display].text(x=3, y=3,
+            #                                                 s=f"{cell_to_display}", color="blue", zorder=20,
+            #                                                 ha='center', va="center", fontsize=7, fontweight='bold')
             # displaying correlation between source and transient profile
             min_x_axis, max_x_axis = ax_source_profile_by_cell[cell_to_display].get_xlim()
             ax_source_profile_by_cell[cell_to_display].set_xticks([max_x_axis / 2])
             # ax_source_profile_by_cell[cell_to_display].set_xticklabels([f"{pearson_corr} / {percentage_high_corr}%"])
-            ax_source_profile_by_cell[cell_to_display].set_xticklabels([f"{pearson_corr}"])
+            ax_source_profile_by_cell[cell_to_display].set_xticklabels([f"{cell_to_display} -> {pearson_corr}"])
             # if pearson_p_value < 0.05:
             #     label_color = "red"
             # else:
@@ -2930,6 +2933,12 @@ class ManualOnsetFrame(tk.Frame):
             self.axe_plot = self.fig.add_subplot(self.gs[gs_index])
             gs_index += 1
             y_max_lim = math.ceil(np.max(self.traces))
+
+        if self.cells_to_remove[self.current_neuron] == 1:
+            self.axe_plot.set_facecolor("lightgray")
+        else:
+            self.axe_plot.set_facecolor("white")
+
         color_trace = self.color_trace
         self.line1, = self.axe_plot.plot(np.arange(self.nb_times_traces), self.traces[self.current_neuron, :],
                                          color=color_trace, zorder=10)
@@ -3120,9 +3129,8 @@ class ManualOnsetFrame(tk.Frame):
         self.update_plot(new_x_limit=new_x_limit)
 
     def update_plot(self, new_neuron=False, amplitude_zoom_fit=True,
-                    new_x_limit=None, new_y_limit=None,
+                    new_x_limit=None, new_y_limit=None, changing_face_color=False,
                     raw_trace_display_action=False):
-
         # used to keep the same zoom after updating the plot
         # if we change neuron, then back to no zoom mode
         left_x_limit_1, right_x_limit_1 = self.axe_plot.get_xlim()
@@ -3143,6 +3151,24 @@ class ManualOnsetFrame(tk.Frame):
         else:
             y_max_lim = top_limit_1
 
+        # if new_neuron or changing_face_color:
+        #     self.fig.clear()
+        #     plt.close(self.fig)
+        #     self.plot_canvas.get_tk_widget().destroy()
+        #
+        #     if self.robin_mac:
+        #         self.fig = plt.figure(figsize=(8, 4))
+        #     else:
+        #         self.fig = plt.figure(figsize=(10, 6))
+        #
+        #     self.plot_canvas = FigureCanvasTkAgg(self.fig, self.main_plot_frame)
+        #     self.fig.canvas.mpl_connect('button_press_event', self.onclick)
+        #     self.fig.canvas.mpl_connect('button_release_event', self.onrelease)
+        #     self.fig.canvas.mpl_connect('motion_notify_event', self.motion)
+        #
+        #     self.plot_graph(y_max_lim=y_max_lim, first_time=True)
+        #
+        # else:
         self.plot_graph(y_max_lim)
 
         # to keep the same zoom
@@ -3170,8 +3196,12 @@ class ManualOnsetFrame(tk.Frame):
         if (new_y_limit is not None) and (not amplitude_zoom_fit):
             self.axe_plot.set_ylim(new_y_limit[0], new_y_limit[1])
         # self.line1.set_ydata(self.traces[self.current_neuron, :])
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
+        if new_neuron or changing_face_color:
+            self.plot_canvas.draw()
+            self.plot_canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=YES)
+        else:
+            self.fig.canvas.draw()
+            self.fig.canvas.flush_events()
 
     # def spin_box_update(self):
     #     content = int(self.spin_box_button.get())
