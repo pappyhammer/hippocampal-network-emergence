@@ -7,6 +7,7 @@ from sys import platform
 # import cv2
 from shapely import geometry
 from matplotlib.colors import LinearSegmentedColormap
+import scipy.stats as stats
 
 matplotlib.use("TkAgg")
 import scipy.io as sio
@@ -2279,7 +2280,7 @@ class ManualOnsetFrame(tk.Frame):
                                                              linewidth=1,
                                                              linestyles=":")
 
-    def corr_between_source_and_transient(self, cell, transient, pixels_around=1):
+    def corr_between_source_and_transient(self, cell, transient, pixels_around=1, threshold_corr=0.4):
         if cell not in self.corr_source_transient:
             self.corr_source_transient[cell] = dict()
 
@@ -2293,7 +2294,7 @@ class ManualOnsetFrame(tk.Frame):
         source_profile_corr, minx_corr, \
         miny_corr, mask_source_profile = self.get_source_profile(cell=cell,
                                                                  pixels_around=pixels_around,
-                                                                 bounds=bounds_corr)
+                                                                 bounds=bounds_corr, buffer=1)
         # normalizing
         source_profile_corr = source_profile_corr - np.mean(source_profile_corr)
         transient_profile_corr, minx_corr, miny_corr = self.get_transient_profile(cell=cell,
@@ -2302,10 +2303,20 @@ class ManualOnsetFrame(tk.Frame):
                                                                                   bounds=bounds_corr)
         transient_profile_corr = transient_profile_corr - np.mean(transient_profile_corr)
 
-        pearson_corr = np.mean(np.corrcoef(source_profile_corr, transient_profile_corr))
-        self.corr_source_transient[cell][transient] = pearson_corr
+        # we want the mask to be at ones over the cell
+        mask_source_profile = (1 - mask_source_profile).astype(bool)
+        # coor_values = np.corrcoef(source_profile_corr[mask_source_profile], transient_profile_corr[mask_source_profile])
+        pearson_corr, pearson_p_value = stats.pearsonr(source_profile_corr[mask_source_profile],
+                                               transient_profile_corr[mask_source_profile])
+        # print(f"coor_values {pearson_corr}, p_value {pearson_p_value}")
+        # coor_values = coor_values[mask_source_profile]
+        # n_coor_values = len(coor_values)
+        # percentage_high_corr = np.round((len(np.where(coor_values >= threshold_corr)[0]) / n_coor_values) * 100, 1)
+        # pearson_corr = np.mean(coor_values)
 
-        return pearson_corr
+        self.corr_source_transient[cell][transient] = (pearson_corr, pearson_p_value)
+
+        return pearson_corr, pearson_p_value
 
     def plot_source_transient(self, transient):
         # transient is a tuple of int, reprensenting the frame of the onset and the frame of the peak
@@ -2342,7 +2353,7 @@ class ManualOnsetFrame(tk.Frame):
 
         # building the subplots to displays the sources and transients
         ax_source_profile_by_cell = dict()
-        ax_top_source_profile_by_cell = dict()
+        # ax_top_source_profile_by_cell = dict()
         ax_source_transient_by_cell = dict()
         for cell_index, cell_to_display in enumerate(cells_to_display):
             line_gs = (cell_index // n_columns) * 2
@@ -2421,7 +2432,8 @@ class ManualOnsetFrame(tk.Frame):
                                            zorder=15, lw=lw)
             ax_source_profile_by_cell[cell_to_display].add_patch(contour_cell)
 
-            pearson_corr = self.corr_between_source_and_transient(cell=cell_to_display, transient=transient,
+            pearson_corr, pearson_p_value = self.corr_between_source_and_transient(cell=cell_to_display,
+                                                                  transient=transient,
                                                                   pixels_around=1)
 
             pearson_corr = np.round(pearson_corr, 2)
@@ -2430,10 +2442,15 @@ class ManualOnsetFrame(tk.Frame):
                                                             ha='center', va="center", fontsize=7, fontweight='bold')
             # displaying correlation between source and transient profile
             min_x_axis, max_x_axis = ax_source_profile_by_cell[cell_to_display].get_xlim()
-            ax_source_profile_by_cell[cell_to_display].set_xticks([max_x_axis/2])
-            ax_source_profile_by_cell[cell_to_display].set_xticklabels([pearson_corr])
+            ax_source_profile_by_cell[cell_to_display].set_xticks([max_x_axis / 2])
+            # ax_source_profile_by_cell[cell_to_display].set_xticklabels([f"{pearson_corr} / {percentage_high_corr}%"])
+            ax_source_profile_by_cell[cell_to_display].set_xticklabels([f"{pearson_corr}"])
+            if pearson_p_value < 0.05:
+                label_color = "red"
+            else:
+                label_color = "black"
             ax_source_profile_by_cell[cell_to_display].xaxis.set_tick_params(labelsize=8, pad=0.1,
-                                                                             labelcolor=cells_color[cell_to_display])
+                                                                             labelcolor=label_color)
             ax_source_profile_by_cell[cell_to_display].xaxis.set_ticks_position('none')
             # displaying cell number
             # min_x_axis, max_x_axis = ax_top_source_profile_by_cell[cell_to_display].get_xlim()
@@ -2462,7 +2479,7 @@ class ManualOnsetFrame(tk.Frame):
         self.magnifier_canvas.draw()
         self.magnifier_canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=YES)
 
-    def get_source_profile(self, cell, pixels_around=0, bounds=None):
+    def get_source_profile(self, cell, pixels_around=0, bounds=None, buffer=None):
         # print("get_source_profile")
         len_frame_x = self.tiff_movie[0].shape[1]
         len_frame_y = self.tiff_movie[0].shape[0]
@@ -2482,11 +2499,12 @@ class ManualOnsetFrame(tk.Frame):
         len_x = maxx - minx + 1
         len_y = maxy - miny + 1
 
-        # mask used in order to keep only the cells pixels
-
+        # mask used in order to keep only the cells pixel
+        # the mask put all pixels in the polygon, including the pixels on the exterior line to zero
         scaled_poly_gon = self.scale_polygon_to_source(poly_gon=poly_gon, minx=minx, miny=miny)
         img = PIL.Image.new('1', (len_x, len_y), 1)
-        scaled_poly_gon = scaled_poly_gon.buffer(2)
+        if buffer is not None:
+            scaled_poly_gon = scaled_poly_gon.buffer(buffer)
         ImageDraw.Draw(img).polygon(list(scaled_poly_gon.exterior.coords), outline=0, fill=0)
         mask = np.array(img)
         # mask = np.ones((len_x, len_y))
