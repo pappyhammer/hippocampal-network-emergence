@@ -1532,16 +1532,7 @@ class ManualOnsetFrame(tk.Frame):
 
     def remove_all_switch_mode(self, from_remove_all_button=True):
         if from_remove_all_button and (not self.remove_all_mode):
-            if self.add_peak_mode:
-                self.add_peak_switch_mode(from_add_peak_button=False)
-            if self.remove_peak_mode:
-                self.remove_peak_switch_mode(from_remove_peak_button=False)
-            if self.remove_onset_mode:
-                self.remove_onset_switch_mode(from_remove_onset_button=False)
-            if self.add_onset_mode:
-                self.add_onset_switch_mode(from_add_onset_button=False)
-            if self.movie_mode:
-                self.switch_movie_mode(from_movie_button=False)
+            self.swith_all_click_actions(initiator="remove_all_switch_mode")
         self.remove_all_mode = not self.remove_all_mode
 
         if self.remove_all_mode:
@@ -2348,30 +2339,27 @@ class ManualOnsetFrame(tk.Frame):
         grid_spec = gridspec.GridSpec(n_lines, n_columns, width_ratios=width_ratios,
                                       height_ratios=height_ratios,
                                       figure=self.magnifier_fig)
-        # print(f"n_columns {n_columns}, n_lines {n_lines}")
-        # axes of the curren_neuron
-        # 6 & 3
+
+        # building the subplots to displays the sources and transients
         ax_source_profile_by_cell = dict()
+        ax_top_source_profile_by_cell = dict()
         ax_source_transient_by_cell = dict()
         for cell_index, cell_to_display in enumerate(cells_to_display):
             line_gs = (cell_index // n_columns) * 2
             col_gs = cell_index % n_columns
-            # print(f"cell_index {cell_index}, line_gs {line_gs}, col_gs {col_gs}")
             ax_source_profile_by_cell[cell_to_display] = self.magnifier_fig.add_subplot(grid_spec[line_gs, col_gs])
-            # frame = plt.gca() frame.axes.
-            # ax_source_profile_by_cell[cell_to_display].get_xaxis().set_visible(False)
             ax_source_profile_by_cell[cell_to_display].get_yaxis().set_visible(False)
+            # ax_top_source_profile_by_cell[cell_to_display] = ax_source_profile_by_cell[cell_to_display].twiny()
             for spine in ax_source_profile_by_cell[cell_to_display].spines.values():
                 spine.set_edgecolor(cells_color[cell_to_display])
-                spine.set_linewidth(3)
+                spine.set_linewidth(2)
             ax_source_transient_by_cell[cell_to_display] = \
                 self.magnifier_fig.add_subplot(grid_spec[line_gs + 1, col_gs])
-            # frame = plt.gca()
             ax_source_transient_by_cell[cell_to_display].get_xaxis().set_visible(False)
             ax_source_transient_by_cell[cell_to_display].get_yaxis().set_visible(False)
             for spine in ax_source_transient_by_cell[cell_to_display].spines.values():
                 spine.set_edgecolor(cells_color[cell_to_display])
-                spine.set_linewidth(3)
+                spine.set_linewidth(2)
 
         # should be a np.array with x, y len equal
         source_profile_by_cell = dict()
@@ -2437,15 +2425,24 @@ class ManualOnsetFrame(tk.Frame):
                                                                   pixels_around=1)
 
             pearson_corr = np.round(pearson_corr, 2)
-            # ax_source_profile_by_cell[cell_to_display].text(x=4, y=3,
-            #                                                 s=f"{pearson_corr}", color="cornflowerblue", zorder=20,
-            #                                                 ha='center', va="center", fontsize=7, fontweight='bold')
+            ax_source_profile_by_cell[cell_to_display].text(x=3, y=3,
+                                                            s=f"{cell_to_display}", color="cornflowerblue", zorder=20,
+                                                            ha='center', va="center", fontsize=7, fontweight='bold')
+            # displaying correlation between source and transient profile
             min_x_axis, max_x_axis = ax_source_profile_by_cell[cell_to_display].get_xlim()
             ax_source_profile_by_cell[cell_to_display].set_xticks([max_x_axis/2])
             ax_source_profile_by_cell[cell_to_display].set_xticklabels([pearson_corr])
             ax_source_profile_by_cell[cell_to_display].xaxis.set_tick_params(labelsize=8, pad=0.1,
                                                                              labelcolor=cells_color[cell_to_display])
             ax_source_profile_by_cell[cell_to_display].xaxis.set_ticks_position('none')
+            # displaying cell number
+            # min_x_axis, max_x_axis = ax_top_source_profile_by_cell[cell_to_display].get_xlim()
+            # # ax_top_source_profile_by_cell[cell_to_display].set_xlim(left=min_x_axis, right=max_x_axis, auto=None)
+            # ax_top_source_profile_by_cell[cell_to_display].set_xticks([max_x_axis / 2])
+            # ax_top_source_profile_by_cell[cell_to_display].set_xticklabels([cell_to_display])
+            # ax_top_source_profile_by_cell[cell_to_display].xaxis.set_tick_params(labelsize=8, pad=0.1,
+            #                                                                  labelcolor=cells_color[cell_to_display])
+            # ax_top_source_profile_by_cell[cell_to_display].xaxis.set_ticks_position('none')
 
             transient_profile, minx, miny = self.get_transient_profile(cell=cell_to_display, transient=transient,
                                                                        pixels_around=3, bounds=bounds)
