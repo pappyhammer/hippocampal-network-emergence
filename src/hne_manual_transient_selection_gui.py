@@ -1135,13 +1135,6 @@ class ManualOnsetFrame(tk.Frame):
             self.peaks_correlation = np.ones(self.traces.shape)
             self.peaks_correlation *= -2
 
-            start_time = time.time()
-            # computing correlations between source and transients profile for this cell and the overlaping ones
-            self.compute_source_and_transients_correlation(main_cell=self.current_neuron)
-            stop_time = time.time()
-            print(f"Time for computing source and transients correlation for cell {self.current_neuron}: "
-                  f"{np.round(stop_time-start_time, 3)} s")
-
             empty_label = Label(bottom_frame)
             empty_label["text"] = " " * 2
             empty_label.pack(side=RIGHT)
@@ -1874,7 +1867,7 @@ class ManualOnsetFrame(tk.Frame):
             return
 
         removed_times = self.peaks_under_threshold_index[peaks_to_remove]
-        
+
         # should be useless, as we don't keep amplitudes anymore, but too lazy to change the code that follows
         amplitudes = self.peak_nums[self.current_neuron, removed_times]
 
@@ -1988,6 +1981,14 @@ class ManualOnsetFrame(tk.Frame):
 
         self.display_correlations = not self.display_correlations
         if not from_std_treshold:
+            if self.display_correlations:
+                start_time = time.time()
+                # computing correlations between source and transients profile for this cell and the overlaping ones
+                self.compute_source_and_transients_correlation(main_cell=self.current_neuron)
+                stop_time = time.time()
+                print(f"Time for computing source and transients correlation for cell {self.current_neuron}: "
+                      f"{np.round(stop_time-start_time, 3)} s")
+
             if self.display_correlations:
                 self.remove_peaks_under_threshold_button['state'] = 'normal'
             else:
@@ -3485,11 +3486,13 @@ class ManualOnsetFrame(tk.Frame):
         """
         self.current_neuron = new_neuron
         if self.correlation_for_each_peak_option:
-            start_time = time.time()
-            self.compute_source_and_transients_correlation(main_cell=self.current_neuron)
-            stop_time = time.time()
-            print(f"Time for computing source and transients correlation for cell {self.current_neuron}: "
-                  f"{np.round(stop_time-start_time, 3)} s")
+            if self.display_correlations:
+                self.correlation_check_box_action(from_std_treshold=True)
+                # start_time = time.time()
+                # self.compute_source_and_transients_correlation(main_cell=self.current_neuron)
+                # stop_time = time.time()
+                # print(f"Time for computing source and transients correlation for cell {self.current_neuron}: "
+                #       f"{np.round(stop_time-start_time, 3)} s")
 
         self.neuron_label["text"] = f"{self.current_neuron}"
         # self.spin_box_button.icursor(new_neuron)
