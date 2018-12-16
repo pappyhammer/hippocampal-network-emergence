@@ -2439,12 +2439,17 @@ class ManualOnsetFrame(tk.Frame):
             cells += list(overlapping_cells)
 
         for cell in cells:
-            if (redo_computation is False) and np.max(self.peaks_correlation[cell, :]) > -2:
-                # means correlation has been computed before
+            peaks_frames = np.where(self.peak_nums[self.current_neuron, :] > 0)[0]
+            if len(peaks_frames) == 0:
                 return
+            if redo_computation is False:
+                # it means all peaks correlation are knoww
+                if np.min(self.peaks_correlation[cell, peaks_frames]) > -2:
+                    # means correlation has been computed before
+                    continue
 
             # first computing the list of transients based on peaks and onsets preceeding the
-            peaks_frames = np.where(self.peak_nums[self.current_neuron, :] > 0)[0]
+
             onsets_frames = np.where(self.onset_times[self.current_neuron, :] > 0)[0]
             for peak_frame in peaks_frames:
                 onsets_before_peak = np.where(onsets_frames < peak_frame)[0]
@@ -2707,11 +2712,13 @@ class ManualOnsetFrame(tk.Frame):
 
         transient_profile = np.zeros((len_y, len_x))
         frames_tiff = self.tiff_movie[transient[0]:transient[-1] + 1]
+        print(f"transient[0] {transient[0]}, transient[1] {transient[1]}")
         # now we do the weighted average
         raw_traces = np.copy(self.raw_traces)
         # so the lowest value is zero
         raw_traces += np.min(raw_traces)
         for frame_index, frame_tiff in enumerate(frames_tiff):
+            print(f"frame_index {frame_index}")
             transient_profile += (
                     frame_tiff[miny:maxy + 1, minx:maxx + 1] * raw_traces[cell, transient[0] + frame_index])
         # averaging
@@ -3199,25 +3206,25 @@ class ManualOnsetFrame(tk.Frame):
                 # use to remove them
                 self.peaks_under_threshold_index = peaks_under_threshold_index
 
-                if len(peaks_over_threshold_index):
+                if len(peaks_over_threshold_index) > 0:
                     self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_over_threshold_index,
                                                                     peaks_over_threshold_value,
                                                                     marker='o', c=color_over_threshold,
                                                                     edgecolors=self.color_edge_peak,
                                                                     s=size_peak_scatter, zorder=10)
 
-                if len(peaks_under_threshold_index):
+                if len(peaks_under_threshold_index) > 0:
                     self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_under_threshold_index,
                                                                     peaks_under_threshold_value,
                                                                     marker='o', c=color_under_threshold,
                                                                     edgecolors=self.color_edge_peak,
                                                                     s=size_peak_scatter, zorder=10)
-                if len(peaks_undetermined_index):
+                if len(peaks_undetermined_index) > 0:
                     self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_undetermined_index,
-                                                                        peaks_undetermined_value,
-                                                                        marker='o', c=color_undetermined,
-                                                                        edgecolors=self.color_edge_peak,
-                                                                        s=size_peak_scatter, zorder=10)
+                                                                    peaks_undetermined_value,
+                                                                    marker='o', c=color_undetermined,
+                                                                    edgecolors=self.color_edge_peak,
+                                                                    s=size_peak_scatter, zorder=10)
 
         else:
             # plotting peaks
