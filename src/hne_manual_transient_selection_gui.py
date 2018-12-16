@@ -8,6 +8,7 @@ from sys import platform
 from shapely import geometry
 from matplotlib.colors import LinearSegmentedColormap
 import scipy.stats as stats
+import time
 
 matplotlib.use("TkAgg")
 import scipy.io as sio
@@ -575,13 +576,27 @@ class ManualOnsetFrame(tk.Frame):
         # path where to save the file_name
         self.save_path = default_path
         self.display_threshold = False
+        # to display a color code for the peaks depending on the correlation between the source and transient profile
+        # changed when clicking on the checkbox
+        self.display_correlations = False
+        # if False, remove this option, compute faster when loading a cell
+        self.correlation_for_each_peak_option = True
         # in number of frames, one frame = 100 ms
         self.decay = 10
         # factor to multiply to decay to define delay between onset and peak
         self.decay_factor = 1
         # number of std of trace to add to the threshold
         self.nb_std_thresold = 0.1
+        self.correlation_thresold = 0.5
         self.data_and_param = data_and_param
+
+        # will be a 2D array of len n_cells * n_frames and the value
+        # will correspond to the correlation of the peak transient
+        # at that frame (if identified, value will be -2 for non identified peak)
+        self.peaks_correlation = None
+        # dict with key an int representing the cell, and as value a set of int (cells)
+        self.overlapping_cells = self.data_and_param.ms.coord_obj.intersect_cells
+
         self.center_coord = self.data_and_param.ms.coord_obj.center_coord
         self.path_result = self.data_and_param.result_path
         self.spike_nums = data_and_param.spike_nums
@@ -610,8 +625,10 @@ class ManualOnsetFrame(tk.Frame):
         self.tiff_movie = None
         self.raw_traces_binned = None
         self.source_profile_dict = dict()
+        # key is int (cell), value is a list with the source profile used for correlation, and the mask
+        self.source_profile_correlation_dict = dict()
         # key is the cell and then value is a dict with key the tuple transient (onset, peak)
-        self.corr_source_transient = dict()
+        # self.corr_source_transient = dict()
         # self.raw_traces_binned = np.zeros((self.nb_neurons, self.nb_times // 10), dtype="float")
         # # mean by 10 frames +
         # for cell, trace in enumerate(self.raw_traces):
@@ -645,6 +662,8 @@ class ManualOnsetFrame(tk.Frame):
         self.add_peak_mode = False
         self.remove_peak_mode = False
         self.remove_all_mode = False
+        # used to remove under the threshold (std or correlation value)
+        self.peaks_under_threshold_index = None
         # to know if the actual displayed is saved
         self.is_saved = True
         # used to known if the mouse has been moved between the click and the release
@@ -889,31 +908,20 @@ class ManualOnsetFrame(tk.Frame):
         # frames to be played by the movie
         self.movie_frames = None
         if self.data_and_param.ms.tif_movie_file_name is not None:
+            start_time = time.time()
             self.movie_available = True
             im = PIL.Image.open(self.data_and_param.ms.tif_movie_file_name)
             # im.show()
             # test = np.array(im)
             n_frames = len(list(ImageSequence.Iterator(im)))
             dim_x, dim_y = np.array(im).shape
-            # test_array = np.array(im)
-            # print(f"test_array {test_array.dtype}")
-            # print(f"im size {im.size}")
-            # print(f"im infos {im.info}")
-            # nb of frames should be 12500
-            # n_frames = 0
-            # dim_x = None
-            # dim_y = None
-            # for i, page in enumerate(ImageSequence.Iterator(im)):
-            #     n_frames += 1
-            #     if dim_x is None:
-            #         imarray = np.array(page)
-            #         dim_x, dim_y = imarray.shape[0], imarray.shape[1]
-            # n_frames = 12500
             print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
             self.tiff_movie = np.zeros((n_frames, dim_x, dim_y), dtype="uint16")
             for frame, page in enumerate(ImageSequence.Iterator(im)):
                 self.tiff_movie[frame] = np.array(page)
-            # print(f"max self.tiff_movie {np.max(self.tiff_movie)}")
+            stop_time = time.time()
+            print(f"Time for loading movie: "
+                  f"{np.round(stop_time-start_time, 3)} s")
 
         self.michou_path = "michou/"
         self.michou_img_file_names = []
@@ -1102,7 +1110,7 @@ class ManualOnsetFrame(tk.Frame):
         self.remove_peaks_under_threshold_button.pack(side=RIGHT)
 
         empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 2
+        empty_label["text"] = " " * 1
         empty_label.pack(side=RIGHT)
         # from_=1, to=3
         # self.var_spin_box_threshold = StringVar(bottom_frame)
@@ -1114,14 +1122,51 @@ class ManualOnsetFrame(tk.Frame):
         self.spin_box_threshold.pack(side=RIGHT)
 
         empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 2
+        empty_label["text"] = " " * 1
         empty_label.pack(side=RIGHT)
 
         self.treshold_var = IntVar()
-        threshold_check_box = Checkbutton(bottom_frame, text="std", variable=self.treshold_var, onvalue=1,
-                                          offvalue=0, fg=self.color_threshold_line)
-        threshold_check_box["command"] = event_lambda(self.threshold_check_box_action)
-        threshold_check_box.pack(side=RIGHT)
+        self.threshold_check_box = Checkbutton(bottom_frame, text="std", variable=self.treshold_var, onvalue=1,
+                                               offvalue=0, fg=self.color_threshold_line)
+        self.threshold_check_box["command"] = event_lambda(self.threshold_check_box_action)
+        self.threshold_check_box.pack(side=RIGHT)
+
+        if self.tiff_movie is not None and self.correlation_for_each_peak_option:
+            self.peaks_correlation = np.ones(self.traces.shape)
+            self.peaks_correlation *= -2
+
+            start_time = time.time()
+            # computing correlations between source and transients profile for this cell and the overlaping ones
+            self.compute_source_and_transients_correlation(main_cell=self.current_neuron)
+            stop_time = time.time()
+            print(f"Time for computing source and transients correlation for cell {self.current_neuron}: "
+                  f"{np.round(stop_time-start_time, 3)} s")
+
+            empty_label = Label(bottom_frame)
+            empty_label["text"] = " " * 2
+            empty_label.pack(side=RIGHT)
+
+            self.spin_box_correlation = Spinbox(bottom_frame, values=list(np.arange(0.5, 1, 0.05)), fg="blue",
+                                                justify=CENTER,
+                                                width=3,
+                                                state="readonly")  # , textvariable=self.var_spin_box_threshold)
+            # self.var_spin_box_threshold.set(0.9)
+            self.spin_box_correlation["command"] = event_lambda(self.spin_box_correlation_update)
+            # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
+            self.spin_box_correlation.pack(side=RIGHT)
+
+            empty_label = Label(bottom_frame)
+            empty_label["text"] = " " * 1
+            empty_label.pack(side=RIGHT)
+
+            self.correlation_var = IntVar()
+            self.correlation_check_box = Checkbutton(bottom_frame, text="corr", variable=self.correlation_var,
+                                                     onvalue=1,
+                                                     offvalue=0, fg=self.color_threshold_line)
+            self.correlation_check_box["command"] = event_lambda(self.correlation_check_box_action)
+            # self.correlation_check_box.select()
+
+            self.correlation_check_box.pack(side=RIGHT)
 
         # if self.raw_traces is not None:
         #     empty_label = Label(bottom_frame)
@@ -1397,29 +1442,30 @@ class ManualOnsetFrame(tk.Frame):
             else:
                 self.move_zoom(to_the_left=True)
 
-    def detect_peaks(self):
-        """
-        Compute peak_nums, with nb of times equal to traces's one
-        :return:
-        """
-        peak_nums = np.zeros((self.nb_neurons, self.nb_times_traces), dtype="float")
-
-        for neuron, o_t in enumerate(self.onset_times):
-            # neuron by neuron
-            onset_index = np.where(o_t > 0)[0]
-            for index in onset_index:
-                # looking for the peak following the onset
-                limit_index_search = min((index + (self.decay * self.decay_factor)), self.nb_times_traces - 1)
-                if index == limit_index_search:
-                    continue
-                max_index = np.argmax(self.traces[neuron, index:limit_index_search])
-                max_index += index
-                if np.size(max_index) == 1:  # or isinstance(max_index, int)
-                    peak_nums[neuron, max_index] = self.traces[neuron, max_index]
-                else:
-                    peak_nums[neuron, max_index] = self.traces[neuron, max_index[0]]
-
-        return peak_nums
+    #
+    # def detect_peaks(self):
+    #     """
+    #     Compute peak_nums, with nb of times equal to traces's one
+    #     :return:
+    #     """
+    #     peak_nums = np.zeros((self.nb_neurons, self.nb_times_traces), dtype="float")
+    #
+    #     for neuron, o_t in enumerate(self.onset_times):
+    #         # neuron by neuron
+    #         onset_index = np.where(o_t > 0)[0]
+    #         for index in onset_index:
+    #             # looking for the peak following the onset
+    #             limit_index_search = min((index + (self.decay * self.decay_factor)), self.nb_times_traces - 1)
+    #             if index == limit_index_search:
+    #                 continue
+    #             max_index = np.argmax(self.traces[neuron, index:limit_index_search])
+    #             max_index += index
+    #             if np.size(max_index) == 1:  # or isinstance(max_index, int)
+    #                 peak_nums[neuron, max_index] = self.traces[neuron, max_index]
+    #             else:
+    #                 peak_nums[neuron, max_index] = self.traces[neuron, max_index[0]]
+    #
+    #     return peak_nums
 
     def detect_onset_associated_to_peak(self, peak_times):
         """
@@ -1809,14 +1855,29 @@ class ManualOnsetFrame(tk.Frame):
         left_x_limit, right_x_limit = self.axe_plot.get_xlim()
         left_x_limit = int(max(left_x_limit, 0))
         right_x_limit = int(min(right_x_limit, self.nb_times_traces - 1))
-        peaks = np.where(self.peak_nums[self.current_neuron, left_x_limit:right_x_limit] > 0)[0]
-        peaks += left_x_limit
-        threshold = self.get_threshold()
-        peaks_under_threshold = np.where(self.traces[self.current_neuron, peaks] < threshold)[0]
-        if len(peaks_under_threshold) == 0:
+
+        # peaks = np.where(self.peak_nums[self.current_neuron, left_x_limit:right_x_limit] > 0)[0]
+        # peaks += left_x_limit
+        # threshold = self.get_threshold()
+        # peaks_under_threshold = np.where(self.traces[self.current_neuron, peaks] < threshold)[0]
+        # if len(peaks_under_threshold) == 0:
+        #     return
+        # removed_times = peaks[peaks_under_threshold]
+        # amplitudes = self.peak_nums[self.current_neuron, peaks][peaks_under_threshold]
+
+        if len(self.peaks_under_threshold_index) == 0:
             return
-        removed_times = peaks[peaks_under_threshold]
-        amplitudes = self.peak_nums[self.current_neuron, peaks][peaks_under_threshold]
+
+        peaks_to_remove = np.where(np.logical_and(self.peaks_under_threshold_index >= left_x_limit,
+                                                  self.peaks_under_threshold_index <= right_x_limit))[0]
+        if len(peaks_to_remove) == 0:
+            return
+
+        removed_times = self.peaks_under_threshold_index[peaks_to_remove]
+        
+        # should be useless, as we don't keep amplitudes anymore, but too lazy to change the code that follows
+        amplitudes = self.peak_nums[self.current_neuron, removed_times]
+
         self.peak_nums[self.current_neuron, removed_times] = 0
         left_x_limit, right_x_limit = self.axe_plot.get_xlim()
         bottom_limit, top_limit = self.axe_plot.get_ylim()
@@ -1830,7 +1891,6 @@ class ManualOnsetFrame(tk.Frame):
                                                      neuron=self.current_neuron, is_saved=self.is_saved,
                                                      x_limits=(left_x_limit, right_x_limit),
                                                      y_limits=(bottom_limit, top_limit))
-        # TODO: remove onset also when removing peak manually
         self.last_actions.append(RemovePeakAction(removed_times=removed_times, amplitudes=amplitudes,
                                                   session_frame=self,
                                                   removed_onset_action=removed_onset_action,
@@ -1922,18 +1982,44 @@ class ManualOnsetFrame(tk.Frame):
 
         self.update_plot(raw_trace_display_action=True)
 
-    def threshold_check_box_action(self):
-        self.display_threshold = not self.display_threshold
-        if self.display_threshold:
-            self.remove_peaks_under_threshold_button['state'] = 'normal'
-        else:
-            self.remove_peaks_under_threshold_button['state'] = DISABLED
+    def correlation_check_box_action(self, from_std_treshold=False):
+        if self.display_threshold and not from_std_treshold:
+            self.threshold_check_box_action(from_correlation=True)
 
-        self.update_plot()
+        self.display_correlations = not self.display_correlations
+        if not from_std_treshold:
+            if self.display_correlations:
+                self.remove_peaks_under_threshold_button['state'] = 'normal'
+            else:
+                self.remove_peaks_under_threshold_button['state'] = DISABLED
+
+            self.update_plot()
+        else:
+            self.correlation_check_box.deselect()
+
+    def threshold_check_box_action(self, from_correlation=False):
+        if self.display_correlations and not from_correlation:
+            self.correlation_check_box_action(from_std_treshold=True)
+
+        self.display_threshold = not self.display_threshold
+        if not from_correlation:
+            if self.display_threshold:
+                self.remove_peaks_under_threshold_button['state'] = 'normal'
+            else:
+                self.remove_peaks_under_threshold_button['state'] = DISABLED
+
+            self.update_plot()
+        else:
+            self.threshold_check_box.deselect()
 
     def spin_box_threshold_update(self):
         self.nb_std_thresold = float(self.spin_box_threshold.get())
         if self.display_threshold:
+            self.update_plot()
+
+    def spin_box_correlation_update(self):
+        self.correlation_thresold = float(self.spin_box_correlation.get())
+        if self.display_correlations:
             self.update_plot()
 
     def unsaved(self):
@@ -2283,43 +2369,90 @@ class ManualOnsetFrame(tk.Frame):
                                                              linewidth=1,
                                                              linestyles=":")
 
-    def corr_between_source_and_transient(self, cell, transient, pixels_around=1, threshold_corr=0.4):
-        if cell not in self.corr_source_transient:
-            self.corr_source_transient[cell] = dict()
+    def corr_between_source_and_transient(self, cell, transient, pixels_around=1, redo_computation=False):
+        """
 
-        elif transient in self.corr_source_transient[cell]:
-            return self.corr_source_transient[cell][transient]
+        :param cell:
+        :param transient:
+        :param pixels_around:
+        :param redo_computation: if True, means that even if the correlation has been done before for the peak,
+        it will be redo (useful if the onset has changed for exemple
+        :return:
+        """
+        # if cell not in self.corr_source_transient:
+        #     self.corr_source_transient[cell] = dict()
+        #
+        # elif transient in self.corr_source_transient[cell]:
+        #     return self.corr_source_transient[cell][transient]
+
+        if (redo_computation is False) and (self.peaks_correlation[cell, transient[1]] >= -1):
+            return self.peaks_correlation[cell, transient[1]]
 
         poly_gon = self.data_and_param.ms.coord_obj.cells_polygon[cell]
 
         # Correlation test
         bounds_corr = np.array(list(poly_gon.bounds)).astype(int)
-        source_profile_corr, minx_corr, \
-        miny_corr, mask_source_profile = self.get_source_profile(cell=cell,
-                                                                 pixels_around=pixels_around,
-                                                                 bounds=bounds_corr, buffer=1)
-        # normalizing
-        source_profile_corr = source_profile_corr - np.mean(source_profile_corr)
+
+        # looking if this source has been computed before
+        if cell in self.source_profile_correlation_dict:
+            source_profile_corr, mask_source_profile = self.source_profile_correlation_dict[cell]
+        else:
+            source_profile_corr, minx_corr, \
+            miny_corr, mask_source_profile = self.get_source_profile(cell=cell,
+                                                                     pixels_around=pixels_around,
+                                                                     bounds=bounds_corr, buffer=1)
+            # normalizing
+            source_profile_corr = source_profile_corr - np.mean(source_profile_corr)
+            # we want the mask to be at ones over the cell
+            mask_source_profile = (1 - mask_source_profile).astype(bool)
+            self.source_profile_correlation_dict[cell] = (source_profile_corr, mask_source_profile)
+
         transient_profile_corr, minx_corr, miny_corr = self.get_transient_profile(cell=cell,
                                                                                   transient=transient,
                                                                                   pixels_around=pixels_around,
                                                                                   bounds=bounds_corr)
         transient_profile_corr = transient_profile_corr - np.mean(transient_profile_corr)
 
-        # we want the mask to be at ones over the cell
-        mask_source_profile = (1 - mask_source_profile).astype(bool)
-        # coor_values = np.corrcoef(source_profile_corr[mask_source_profile], transient_profile_corr[mask_source_profile])
         pearson_corr, pearson_p_value = stats.pearsonr(source_profile_corr[mask_source_profile],
-                                               transient_profile_corr[mask_source_profile])
-        # print(f"coor_values {pearson_corr}, p_value {pearson_p_value}")
-        # coor_values = coor_values[mask_source_profile]
-        # n_coor_values = len(coor_values)
-        # percentage_high_corr = np.round((len(np.where(coor_values >= threshold_corr)[0]) / n_coor_values) * 100, 1)
-        # pearson_corr = np.mean(coor_values)
+                                                       transient_profile_corr[mask_source_profile])
 
-        self.corr_source_transient[cell][transient] = (pearson_corr, pearson_p_value)
+        self.peaks_correlation[cell, transient[1]] = pearson_corr
 
-        return pearson_corr, pearson_p_value
+        return pearson_corr
+
+    def compute_source_and_transients_correlation(self, main_cell, redo_computation=False, with_overlapping_cells=True):
+        """
+        Compute the source and transient profiles of a given cell. Should be call for each new neuron displayed
+        :param cell:
+        :param redo_computation: if True, means that even if the correlation has been done before for this cell,
+        it will be redo (useful if the onsets or peaks has changed for exemple)
+        :return:
+        """
+        # the tiff_movie is necessary to compute the source and transient profile
+        if self.tiff_movie is None:
+            return
+
+        cells = [main_cell]
+        if with_overlapping_cells:
+            overlapping_cells = self.overlapping_cells[self.current_neuron]
+            cells += list(overlapping_cells)
+
+        for cell in cells:
+            if (redo_computation is False) and np.max(self.peaks_correlation[cell, :]) > -2:
+                # means correlation has been computed before
+                return
+
+            # first computing the list of transients based on peaks and onsets preceeding the
+            peaks_frames = np.where(self.peak_nums[self.current_neuron, :] > 0)[0]
+            onsets_frames = np.where(self.onset_times[self.current_neuron, :] > 0)[0]
+            for peak_frame in peaks_frames:
+                onsets_before_peak = np.where(onsets_frames < peak_frame)[0]
+                if len(onsets_before_peak) == 0:
+                    continue
+                first_onset_before_peak = onsets_frames[onsets_before_peak[-1]]
+                transient = (first_onset_before_peak, peak_frame)
+                # the correlation will be saved in the array  elf.peaks_correlation
+                self.corr_between_source_and_transient(cell=cell, transient=transient)
 
     def plot_source_transient(self, transient):
         # transient is a tuple of int, reprensenting the frame of the onset and the frame of the peak
@@ -2334,8 +2467,9 @@ class ManualOnsetFrame(tk.Frame):
         self.magnifier_canvas = FigureCanvasTkAgg(self.magnifier_fig, self.magnifier_frame)
         # fig = plt.figure(figsize=size_fig)
         self.magnifier_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.1, 'h_pad': 0.1})
+
         # looking at how many overlapping cell current_neuron has
-        intersect_cells = self.data_and_param.ms.coord_obj.intersect_cells[self.current_neuron]
+        intersect_cells = self.overlapping_cells[self.current_neuron]
         # print(f"len(intersect_cells) {len(intersect_cells)}")
         cells_color = dict()
         cells_color[self.current_neuron] = "red"
@@ -2435,7 +2569,7 @@ class ManualOnsetFrame(tk.Frame):
                                            zorder=15, lw=lw)
             ax_source_profile_by_cell[cell_to_display].add_patch(contour_cell)
 
-            pearson_corr, pearson_p_value = self.corr_between_source_and_transient(cell=cell_to_display,
+            pearson_corr = self.corr_between_source_and_transient(cell=cell_to_display,
                                                                   transient=transient,
                                                                   pixels_around=1)
 
@@ -2968,25 +3102,41 @@ class ManualOnsetFrame(tk.Frame):
         self.axe_plot.vlines(onsets, min_value, max_value, color=self.color_onset, linewidth=1,
                              linestyles="dashed")
 
+        size_peak_scatter = 50
         peaks = np.where(self.peak_nums[self.current_neuron, :] > 0)[0]
         if self.display_threshold:
             threshold = self.get_threshold()
             peaks_under_threshold = np.where(self.traces[self.current_neuron, peaks] < threshold)[0]
-            peaks_under_threshold_index = peaks[peaks_under_threshold]
-            peaks_under_threshold_value = self.traces[self.current_neuron, peaks][peaks_under_threshold]
+            if len(peaks_under_threshold) == 0:
+                peaks_under_threshold_index = []
+                peaks_under_threshold_value = []
+                self.peaks_under_threshold_index = []
+            else:
+                peaks_under_threshold_index = peaks[peaks_under_threshold]
+                self.peaks_under_threshold_index = peaks_under_threshold_index
+                peaks_under_threshold_value = self.traces[self.current_neuron, peaks][peaks_under_threshold]
+            # to display the peaks on the raw trace as well
             # peaks_under_threshold_value_raw = self.raw_traces[self.current_neuron, peaks][peaks_under_threshold]
             peaks_over_threshold = np.where(self.traces[self.current_neuron, peaks] >= threshold)[0]
-            peaks_over_threshold_index = peaks[peaks_over_threshold]
-            peaks_over_threshold_value = self.traces[self.current_neuron, peaks][peaks_over_threshold]
-            # peaks_over_threshold_value_raw = self.raw_traces[self.current_neuron, peaks][peaks_over_threshold]
+            if len(peaks_over_threshold) == 0:
+                peaks_over_threshold_index = []
+                peaks_over_threshold_value = []
+            else:
+                peaks_over_threshold_index = peaks[peaks_over_threshold]
+                peaks_over_threshold_value = self.traces[self.current_neuron, peaks][peaks_over_threshold]
+
             # plotting peaks
             # z_order=10 indicate that the scatter will be on top
-            self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_over_threshold_index, peaks_over_threshold_value,
+            if len(peaks_over_threshold_index) > 0:
+                self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_over_threshold_index, peaks_over_threshold_value,
                                                             marker='o', c=self.color_peak,
-                                                            edgecolors=self.color_edge_peak, s=30, zorder=10)
-            self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_under_threshold_index, peaks_under_threshold_value,
+                                                            edgecolors=self.color_edge_peak, s=size_peak_scatter,
+                                                            zorder=10)
+            if len(peaks_over_threshold_index) > 0:
+                self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_under_threshold_index, peaks_under_threshold_value,
                                                             marker='o', c=self.color_peak_under_threshold,
-                                                            edgecolors=self.color_edge_peak, s=30, zorder=10)
+                                                            edgecolors=self.color_edge_peak, s=size_peak_scatter,
+                                                            zorder=10)
             # self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_over_threshold_index, peaks_over_threshold_value_raw,
             #                                                 marker='o', c=self.color_peak,
             #                                                 edgecolors=self.color_edge_peak, s=30, zorder=10)
@@ -2997,12 +3147,84 @@ class ManualOnsetFrame(tk.Frame):
 
             self.axe_plot.hlines(threshold, 0, self.nb_times_traces - 1, color=self.color_threshold_line, linewidth=1,
                                  linestyles="dashed")
+        elif self.display_correlations:
+            if self.correlation_for_each_peak_option and (self.peaks_correlation is not None):
+                color_over_threshold = self.color_peak
+                color_under_threshold = self.color_peak_under_threshold
+                color_undetermined = "cornflowerblue"
+                threshold = self.correlation_thresold
+
+                peaks_over_threshold = np.where(self.peaks_correlation[self.current_neuron, peaks] >= threshold)[0]
+                peaks_over_threshold_index = peaks[peaks_over_threshold]
+                if len(peaks_over_threshold_index) == 0:
+                    peaks_over_threshold_value = []
+                else:
+                    peaks_over_threshold_value = self.traces[self.current_neuron, peaks_over_threshold_index]
+
+                # among peaks under treshold we need to find the ones with not overlaping cell over the tresholds
+                # using self.peaks_correlation and the self.overlaping_cells dict
+                peaks_left = np.where(self.peaks_correlation[self.current_neuron, peaks] < threshold)[0]
+                peaks_left_index = peaks[peaks_left]
+
+                overlapping_cells = self.overlapping_cells[self.current_neuron]
+                if len(overlapping_cells) == 0:
+                    peaks_under_threshold_index = peaks_left_index
+                    peaks_under_threshold_value = self.traces[self.current_neuron, peaks_under_threshold_index]
+                    peaks_undetermined_index = []
+                    peaks_undetermined_value = []
+                else:
+                    overlapping_cells = np.array(list(overlapping_cells))
+                    peaks_under_threshold_index = []
+                    peaks_undetermined_index = []
+                    # print(f"overlapping_cells {overlapping_cells}, peaks_left_index {peaks_left_index}")
+                    for peak in peaks_left_index:
+                        cells_over_threshold = np.where(self.peaks_correlation[overlapping_cells, peak] >= threshold)[0]
+                        if len(cells_over_threshold) > 0:
+                            # means at least an overlapping cell is correlated to its source for this peak transient
+                            peaks_under_threshold_index.append(peak)
+                        else:
+                            # means the peak is not due to an overlapping cell, movement might have happened
+                            peaks_undetermined_index.append(peak)
+                    peaks_under_threshold_index = np.array(peaks_under_threshold_index)
+                    if len(peaks_under_threshold_index) == 0:
+                        peaks_under_threshold_value = []
+                    else:
+                        peaks_under_threshold_value = self.traces[self.current_neuron, peaks_under_threshold_index]
+                    peaks_undetermined_index = np.array(peaks_undetermined_index)
+                    if len(peaks_undetermined_index) == 0:
+                        peaks_undetermined_value = []
+                    else:
+                        peaks_undetermined_value = self.traces[self.current_neuron, peaks_undetermined_index]
+                # use to remove them
+                self.peaks_under_threshold_index = peaks_under_threshold_index
+
+                if len(peaks_over_threshold_index):
+                    self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_over_threshold_index,
+                                                                    peaks_over_threshold_value,
+                                                                    marker='o', c=color_over_threshold,
+                                                                    edgecolors=self.color_edge_peak,
+                                                                    s=size_peak_scatter, zorder=10)
+
+                if len(peaks_under_threshold_index):
+                    self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_under_threshold_index,
+                                                                    peaks_under_threshold_value,
+                                                                    marker='o', c=color_under_threshold,
+                                                                    edgecolors=self.color_edge_peak,
+                                                                    s=size_peak_scatter, zorder=10)
+                if len(peaks_undetermined_index):
+                    self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_undetermined_index,
+                                                                        peaks_undetermined_value,
+                                                                        marker='o', c=color_undetermined,
+                                                                        edgecolors=self.color_edge_peak,
+                                                                        s=size_peak_scatter, zorder=10)
+
         else:
             # plotting peaks
             # z_order=10 indicate that the scatter will be on top
             self.ax1_bottom_scatter = self.axe_plot.scatter(peaks, self.traces[self.current_neuron, peaks],
                                                             marker='o', c=self.color_peak,
-                                                            edgecolors=self.color_edge_peak, s=30, zorder=10)
+                                                            edgecolors=self.color_edge_peak, s=size_peak_scatter,
+                                                            zorder=10)
             # self.ax1_bottom_scatter = self.axe_plot.scatter(peaks, self.raw_traces[self.current_neuron, peaks],
             #                                                 marker='o', c=self.color_peak,
             #                                                 edgecolors=self.color_edge_peak, s=30, zorder=10)
@@ -3255,7 +3477,6 @@ class ManualOnsetFrame(tk.Frame):
 
         # self.spin_box_button.invoke("buttonup")
 
-    # TODO: add the neuron number, and do all the changes here, including spinbox, disable next and previous button
     def update_neuron(self, new_neuron,
                       new_x_limit=None, new_y_limit=None):
         """
@@ -3263,6 +3484,13 @@ class ManualOnsetFrame(tk.Frame):
         :return:
         """
         self.current_neuron = new_neuron
+        if self.correlation_for_each_peak_option:
+            start_time = time.time()
+            self.compute_source_and_transients_correlation(main_cell=self.current_neuron)
+            stop_time = time.time()
+            print(f"Time for computing source and transients correlation for cell {self.current_neuron}: "
+                  f"{np.round(stop_time-start_time, 3)} s")
+
         self.neuron_label["text"] = f"{self.current_neuron}"
         # self.spin_box_button.icursor(new_neuron)
         self.clear_and_update_entry_neuron_widget()
