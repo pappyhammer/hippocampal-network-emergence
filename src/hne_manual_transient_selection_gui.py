@@ -2712,13 +2712,13 @@ class ManualOnsetFrame(tk.Frame):
 
         transient_profile = np.zeros((len_y, len_x))
         frames_tiff = self.tiff_movie[transient[0]:transient[-1] + 1]
-        print(f"transient[0] {transient[0]}, transient[1] {transient[1]}")
+        # print(f"transient[0] {transient[0]}, transient[1] {transient[1]}")
         # now we do the weighted average
         raw_traces = np.copy(self.raw_traces)
         # so the lowest value is zero
         raw_traces += np.min(raw_traces)
         for frame_index, frame_tiff in enumerate(frames_tiff):
-            print(f"frame_index {frame_index}")
+            # print(f"frame_index {frame_index}")
             transient_profile += (
                     frame_tiff[miny:maxy + 1, minx:maxx + 1] * raw_traces[cell, transient[0] + frame_index])
         # averaging
