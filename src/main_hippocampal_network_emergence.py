@@ -1511,7 +1511,7 @@ def find_hubs(graph, ms):
         return cells_selected_s2
     
     cells_selected_s3 = []
-    bc_dict = nx.betweenness_centrality(graph) # , np.arange(n_cells)
+    bc_dict = nx.betweenness_centrality(graph)  # , np.arange(n_cells)
     bc_values = list(bc_dict.values())
     bc_perc_threshold = np.percentile(bc_values, 80)
     for cell in cells_selected_s2:

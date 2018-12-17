@@ -2279,7 +2279,7 @@ class ManualOnsetFrame(tk.Frame):
 
     def get_threshold(self):
         trace = self.traces[self.current_neuron, :]
-        threshold = (self.nb_std_thresold * np.std(trace)) + np.min(self.traces[self.current_neuron, :])
+        threshold = (self.nb_std_thresold * np.std(trace)) + abs(np.min(self.traces[self.current_neuron, :]))
         return threshold
 
     def plot_magnifier(self, first_time=False, mouse_x_position=None, mouse_y_position=None):
@@ -2671,7 +2671,7 @@ class ManualOnsetFrame(tk.Frame):
         onsets_frames = np.where(self.onset_times[cell, :] > 0)[0]
         raw_traces = np.copy(self.raw_traces)
         # so the lowest value is zero
-        raw_traces += np.min(raw_traces)
+        raw_traces += abs(np.min(raw_traces))
         for peak in selected_peaks:
             tmp_source_profile = np.zeros((len_y, len_x))
             onsets_before_peak = np.where(onsets_frames <= peak)[0]
@@ -2716,7 +2716,7 @@ class ManualOnsetFrame(tk.Frame):
         # now we do the weighted average
         raw_traces = np.copy(self.raw_traces)
         # so the lowest value is zero
-        raw_traces += np.min(raw_traces)
+        raw_traces += abs(np.min(raw_traces))
         for frame_index, frame_tiff in enumerate(frames_tiff):
             # print(f"frame_index {frame_index}")
             transient_profile += (
