@@ -669,6 +669,7 @@ class ManualOnsetFrame(tk.Frame):
         # used to known if the mouse has been moved between the click and the release
         self.last_click_position = (-1, -1)
         self.first_click_to_remove = None
+        self.click_corr_coord = None
         # not used anymore for the UNDO action
         # self.last_action = None
         # list of the last action, used for the undo method, the last one being the last
@@ -1684,7 +1685,7 @@ class ManualOnsetFrame(tk.Frame):
                             return
                     transient = (first_onset_before_frame, first_peak_after_frame)
                 # print(f"transient {transient}")
-                self.first_click_to_remove = {"x": int(round(event.xdata)), "y": event.ydata}
+                self.click_corr_coord = {"x": int(round(event.xdata)), "y": event.ydata}
                 self.update_plot()
                 self.plot_source_transient(transient=transient)
             return
@@ -3242,6 +3243,9 @@ class ManualOnsetFrame(tk.Frame):
         if self.first_click_to_remove is not None:
             self.axe_plot.scatter(self.first_click_to_remove["x"], self.first_click_to_remove["y"], marker='x',
                                   c=self.color_mark_to_remove, s=20)
+        if self.click_corr_coord:
+            self.axe_plot.scatter(self.click_corr_coord["x"], self.click_corr_coord["y"], marker='x',
+                                  c="red", s=20)
 
         if (self.mvt_frames_periods is not None) and self.display_mvt:
             for mvt_frames_period in self.mvt_frames_periods:
@@ -3533,6 +3537,7 @@ class ManualOnsetFrame(tk.Frame):
             self.remove_cell_button["fg"] = "red"
 
         self.first_click_to_remove = None
+        self.click_corr_coord = None
         self.update_plot(new_neuron=True,
                          new_x_limit=new_x_limit, new_y_limit=new_y_limit)
         self.update_plot_map_img()
