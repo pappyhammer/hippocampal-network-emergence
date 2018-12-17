@@ -1115,7 +1115,7 @@ class ManualOnsetFrame(tk.Frame):
         empty_label.pack(side=RIGHT)
         # from_=1, to=3
         # self.var_spin_box_threshold = StringVar(bottom_frame)
-        self.spin_box_threshold = Spinbox(bottom_frame, values=list(np.arange(0.3, 10, 0.2)), fg="blue", justify=CENTER,
+        self.spin_box_threshold = Spinbox(bottom_frame, values=list(np.arange(0.1, 5, 0.1)), fg="blue", justify=CENTER,
                                           width=3, state="readonly")  # , textvariable=self.var_spin_box_threshold)
         # self.var_spin_box_threshold.set(0.9)
         self.spin_box_threshold["command"] = event_lambda(self.spin_box_threshold_update)
@@ -2283,7 +2283,8 @@ class ManualOnsetFrame(tk.Frame):
 
     def get_threshold(self):
         trace = self.traces[self.current_neuron, :]
-        threshold = (self.nb_std_thresold * np.std(trace)) + abs(np.min(self.traces[self.current_neuron, :]))
+        threshold = (self.nb_std_thresold * np.std(trace)) + np.min(self.traces[self.current_neuron, :])
+                    #+ abs(np.min(self.traces[self.current_neuron, :]))
         return threshold
 
     def plot_magnifier(self, first_time=False, mouse_x_position=None, mouse_y_position=None):
