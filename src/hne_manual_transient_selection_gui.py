@@ -1430,11 +1430,14 @@ class ManualOnsetFrame(tk.Frame):
                 self.select_next_neuron()
             else:
                 self.move_zoom(to_the_left=False)
+                # so the back button will come back to the curren view
+                self.toolbar.push_current()
         elif event.keysym == 'Left':
             if ("Meta_L" in self.keys_pressed) or ("Control_L" in self.keys_pressed):
                 self.select_previous_neuron()
             else:
                 self.move_zoom(to_the_left=True)
+                self.toolbar.push_current()
 
     #
     # def detect_peaks(self):
