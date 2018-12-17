@@ -1986,12 +1986,18 @@ class ManualOnsetFrame(tk.Frame):
         self.display_correlations = not self.display_correlations
         if not from_std_treshold:
             if self.display_correlations:
+                if self.display_michou is False:
+                    self.display_michou = True
+                    self.update_plot_map_img()
                 start_time = time.time()
                 # computing correlations between source and transients profile for this cell and the overlaping ones
                 self.compute_source_and_transients_correlation(main_cell=self.current_neuron)
                 stop_time = time.time()
                 print(f"Time for computing source and transients correlation for cell {self.current_neuron}: "
                       f"{np.round(stop_time-start_time, 3)} s")
+                if self.display_michou is True:
+                    self.display_michou = False
+                    self.update_plot_map_img(after_michou=True)
 
             if self.display_correlations:
                 self.remove_peaks_under_threshold_button['state'] = 'normal'
@@ -3246,10 +3252,10 @@ class ManualOnsetFrame(tk.Frame):
         # marker='*', c=self.color_onset, s=40)
         if self.first_click_to_remove is not None:
             self.axe_plot.scatter(self.first_click_to_remove["x"], self.first_click_to_remove["y"], marker='x',
-                                  c=self.color_mark_to_remove, s=20)
+                                  c=self.color_mark_to_remove, s=30)
         if self.click_corr_coord:
             self.axe_plot.scatter(self.click_corr_coord["x"], self.click_corr_coord["y"], marker='x',
-                                  c="red", s=20)
+                                  c="red", s=30)
 
         if (self.mvt_frames_periods is not None) and self.display_mvt:
             for mvt_frames_period in self.mvt_frames_periods:
