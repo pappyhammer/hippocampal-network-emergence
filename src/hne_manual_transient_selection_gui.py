@@ -855,6 +855,7 @@ class ManualOnsetFrame(tk.Frame):
         #     bind("<Button-1>", self.callback_click_fig())
 
         self.raw_traces_median = None
+        self.display_raw_traces_median = False
         if self.raw_traces_seperate_plot:
             if self.raw_traces is None:
                 self.gs = gridspec.GridSpec(2, 1, width_ratios=[1], height_ratios=[5, 1])
@@ -952,7 +953,7 @@ class ManualOnsetFrame(tk.Frame):
         self.pixels_value_by_cell_and_frame = dict()
 
         if (self.data_and_param.ms.avg_cell_map_img is not None) or (self.tiff_movie is not None):
-            if self.tiff_movie is not None:
+            if self.tiff_movie is not None and self.display_raw_traces_median:
                 self.raw_traces_median = np.zeros(self.traces.shape)
             if self.robin_mac:
                 self.map_img_fig = plt.figure(figsize=(3, 3))
@@ -1007,7 +1008,7 @@ class ManualOnsetFrame(tk.Frame):
                         if self.tiff_movie is not None:
                             mask_img[pixel, y_coords] = True
 
-                if self.tiff_movie is not None:
+                if self.tiff_movie is not None and self.display_raw_traces_median:
                     self.raw_traces_median[cell, :] = np.median(self.tiff_movie[:, mask_img], axis=1)
 
             self.map_img_canvas = FigureCanvasTkAgg(self.map_img_fig, self.map_frame)
@@ -1647,7 +1648,7 @@ class ManualOnsetFrame(tk.Frame):
             elif self.add_peak_mode:
                 self.add_peak(at_time=int(round(event.xdata)), amplitude=event.ydata)
             elif self.source_mode:
-                # print(f"self.source_mode click release")
+                print(f"self.source_mode click release {event.xdata}")
                 transient = None
                 # we check if we are between an onset and a peak
                 onsets_frames = np.where(self.onset_times[self.current_neuron, :] > 0)[0]
@@ -2833,7 +2834,10 @@ class ManualOnsetFrame(tk.Frame):
         #     zoom_mode = False
         if not self.play_movie:
             return []
-        frame_tiff, frame_index = next(self.movie_frames)
+        result = next(self.movie_frames, None)
+        if result is None:
+            return
+        frame_tiff, frame_index = result
         # for zoom purpose
         size_square = 80
         len_x = frame_tiff.shape[1]
