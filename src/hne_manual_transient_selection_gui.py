@@ -2788,8 +2788,10 @@ class ManualOnsetFrame(tk.Frame):
         self.first_frame_movie = x_from
         self.last_frame_movie = x_to
         self.n_frames_movie = x_to - x_from
+        self.cell_contour_movie=None
         self.movie_frames = cycle((frame_tiff, frame_index + x_from)
                                   for frame_index, frame_tiff in enumerate(self.tiff_movie[x_from:x_to]))
+
         self.update_plot_map_img()
 
     def square_coord_around_cell(self, cell, size_square, x_len_max, y_len_max):
@@ -2839,43 +2841,35 @@ class ManualOnsetFrame(tk.Frame):
             return
         frame_tiff, frame_index = result
         # for zoom purpose
-        size_square = 80
         len_x = frame_tiff.shape[1]
         len_y = frame_tiff.shape[0]
-        if i < 1:
-            if zoom_mode:
-                # zoom around the cell
-                self.x_beg_movie, self.x_end_movie, self.y_beg_movie, self.y_end_movie = \
-                    self.square_coord_around_cell(cell=self.current_neuron, size_square=size_square,
-                                                  x_len_max=len_x, y_len_max=len_y)
-                # used to change the coord of the polygon
-                # x_shift = self.x_beg_movie - c_x
-                # y_shift = self.y_beg_movie - c_y
+        if zoom_mode and ((i == -1) or (self.cell_contour_movie is None)):
+            size_square = 80
+            # zoom around the cell
+            self.x_beg_movie, self.x_end_movie, self.y_beg_movie, self.y_end_movie = \
+                self.square_coord_around_cell(cell=self.current_neuron, size_square=size_square,
+                                              x_len_max=len_x, y_len_max=len_y)
+            # used to change the coord of the polygon
+            # x_shift = self.x_beg_movie - c_x
+            # y_shift = self.y_beg_movie - c_y
 
-                # cell contour
-                coord = self.data_and_param.ms.coord_obj.coord[self.current_neuron]
-                coord = coord - 1
-                coord = coord.astype(int)
-                n_coord = len(coord[0, :])
-                xy = np.zeros((n_coord, 2))
-                for n in np.arange(n_coord):
-                    # shifting the coordinates in the square size_square+1
-                    xy[n, 0] = coord[0, n] - self.x_beg_movie
-                    xy[n, 1] = coord[1, n] - self.y_beg_movie
-                    # then multiplying to fit it to the len of the original image
-                    xy[n, 0] = (xy[n, 0] * len_x) / (size_square + 1)
-                    xy[n, 1] = (xy[n, 1] * len_y) / (size_square + 1)
-                self.cell_contour_movie = patches.Polygon(xy=xy,
-                                                          fill=False, linewidth=0, facecolor="red",
-                                                          edgecolor="red",
-                                                          zorder=15, lw=0.6)
-                # print(f"new len x{self.y_end_movie - self.y_beg_movie}, y {self.x_end_movie - self.x_beg_movie}")
-            # else:
-            #     if self.cell_contour is not None:
-            #         self.cell_contour.set_visible(False)
-            #     self.cell_contour_movie = self.cell_contours[self.current_neuron]
-            #     self.cell_contour_movie.set_visible(True)
-
+            # cell contour
+            coord = self.data_and_param.ms.coord_obj.coord[self.current_neuron]
+            coord = coord - 1
+            coord = coord.astype(int)
+            n_coord = len(coord[0, :])
+            xy = np.zeros((n_coord, 2))
+            for n in np.arange(n_coord):
+                # shifting the coordinates in the square size_square+1
+                xy[n, 0] = coord[0, n] - self.x_beg_movie
+                xy[n, 1] = coord[1, n] - self.y_beg_movie
+                # then multiplying to fit it to the len of the original image
+                xy[n, 0] = (xy[n, 0] * len_x) / (size_square + 1)
+                xy[n, 1] = (xy[n, 1] * len_y) / (size_square + 1)
+            self.cell_contour_movie = patches.Polygon(xy=xy,
+                                                      fill=False, linewidth=0, facecolor="red",
+                                                      edgecolor="red",
+                                                      zorder=15, lw=0.6)
         # x_beg, x_end, y_beg, y_end
         # print(f"frame_tiff[10, :] {frame_tiff[10, :]}")
         if zoom_mode:
@@ -3062,7 +3056,7 @@ class ManualOnsetFrame(tk.Frame):
             self.map_img_fig.canvas.flush_events()
             self.anim_movie = animation.FuncAnimation(self.map_img_fig, func=self.animate_movie,
                                                       frames=self.n_frames_movie,
-                                                      blit=True, interval=50, repeat=True)  # repeat=True,
+                                                      blit=True, interval=30, repeat=True)  # repeat=True,
             return
             # self.after(self.movie_delay, self.update_plot_map_img)
         else:
