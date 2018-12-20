@@ -1404,13 +1404,23 @@ class ManualOnsetFrame(tk.Frame):
         # "Control_L" keysym for control key
         if event.keysym in self.keys_pressed:
             del self.keys_pressed[event.keysym]
+        # print(f"event.keysym_num {event.keysym_num}")
         # if 0, means the key was not recognized, we empty the dict
         if event.keysym_num == 0:
             self.keys_pressed = dict()
         # print(f"released keysym {event.keysym}, keycode {event.keycode}, keysym_num {event.keysym_num}, "
         #       f"state {event.state}")
-        if event.char in ["a", "A", "+"]:
+        # print(f"event.keysym {event.keysym}")
+        if event.char in ["+"]:
             self.add_onset_switch_mode()
+        elif event.char in ["a", "A"]:
+            self.move_zoom(to_the_left=False)
+            # so the back button will come back to the curren view
+            self.toolbar.push_current()
+        elif event.char in ["q", "Q"]:
+            self.move_zoom(to_the_left=True)
+            # so the back button will come back to the curren view
+            self.toolbar.push_current()
         elif event.char in ["r", "R", "-"]:
             self.remove_all_switch_mode()
         elif event.char in ["m", "M"]:
@@ -1420,8 +1430,13 @@ class ManualOnsetFrame(tk.Frame):
                 self.switch_michou()
         elif event.char in ["z", "Z"]:
             self.activate_movie_zoom(from_check_box=False)
-        elif event.char in ["s", "S"] and (self.tiff_movie is not None):
+        elif event.char in ["S"]:
+            self.save_spike_nums()
+        elif event.char in ["s"] and (self.tiff_movie is not None):
             self.switch_source_profile_mode(from_key_shortcut=True)
+            # print(f"s self.keys_pressed {self.keys_pressed}")
+            # if "Control_L" in self.keys_pressed:
+            #     print("s with control")
         elif (event.keysym == "space") and (self.tiff_movie is not None):
             self.switch_movie_mode()
         if event.keysym == 'Right':
