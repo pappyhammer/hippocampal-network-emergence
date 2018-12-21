@@ -9,6 +9,7 @@ from shapely import geometry
 from matplotlib.colors import LinearSegmentedColormap
 import scipy.stats as stats
 import time
+from matplotlib.figure import SubplotParams
 
 matplotlib.use("TkAgg")
 import scipy.io as sio
@@ -90,7 +91,7 @@ class ErrorMessageFrame(tk.Frame):
 
 
 class DataAndParam(p_disc_tools_param.Parameters):
-    def __init__(self, result_path):
+    def __init__(self, path_data, result_path):
         self.time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
         super().__init__(path_results=result_path, time_str=self.time_str, bin_size=1)
         self.cell_assemblies_data_path = None
@@ -101,7 +102,7 @@ class DataAndParam(p_disc_tools_param.Parameters):
         self.raw_traces = None
         self.ms = None
         self.result_path = result_path
-        self.path_data = result_path
+        self.path_data = path_data
         self.inter_neurons = None
         self.cells_to_remove = None
         self.cells_map_img = None
@@ -217,7 +218,7 @@ class ChooseSessionFrame(tk.Frame):
     # open file selection, with memory of the last folder + use last folder as path to save new data with timestr
     def open_new_onset_selection_frame(self, data_to_load_str, data_and_param, open_with_file_selector):
         if open_with_file_selector:
-            initial_dir = self.data_and_param.result_path
+            initial_dir = self.data_and_param.path_data
             if self.last_path_open is not None:
                 initial_dir = self.last_path_open
 
@@ -599,6 +600,7 @@ class ManualOnsetFrame(tk.Frame):
 
         self.center_coord = self.data_and_param.ms.coord_obj.center_coord
         self.path_result = self.data_and_param.result_path
+        self.path_data = self.data_and_param.path_data
         self.spike_nums = data_and_param.spike_nums
         self.nb_neurons = len(self.spike_nums)
         self.nb_times = len(self.spike_nums[0, :])
@@ -625,6 +627,7 @@ class ManualOnsetFrame(tk.Frame):
         self.tiff_movie = None
         self.raw_traces_binned = None
         self.source_profile_dict = dict()
+        self.source_profile_dict_for_map_of_all_cells = dict()
         # key is int (cell), value is a list with the source profile used for correlation, and the mask
         self.source_profile_correlation_dict = dict()
         # key is the cell and then value is a dict with key the tuple transient (onset, peak)
@@ -1423,6 +1426,18 @@ class ManualOnsetFrame(tk.Frame):
             self.toolbar.push_current()
         elif event.char in ["r", "R", "-"]:
             self.remove_all_switch_mode()
+        elif event.char in ["B", "P", "G"]:
+            if self.display_michou is False:
+                self.display_michou = True
+                self.update_plot_map_img()
+            start_time = time.time()
+            self.save_sources_profile_map(key_cmap=event.char)
+            stop_time = time.time()
+            print(f"Time for producing source profiles map: "
+                  f"{np.round(stop_time-start_time, 3)} s")
+            if self.display_michou is True:
+                self.display_michou = False
+                self.update_plot_map_img(after_michou=True)
         elif event.char in ["m", "M"]:
             self.switch_magnifier()
         elif event.char in ["p", "P"]:
@@ -2251,6 +2266,128 @@ class ManualOnsetFrame(tk.Frame):
 
         # self.last_action = None
 
+    def save_sources_profile_map(self, key_cmap=None):
+        c_map = plt.get_cmap('gray')
+        if key_cmap is not None:
+            if key_cmap is "P":
+                c_map = self.parula_map
+            if key_cmap is "B":
+                c_map = plt.get_cmap('Blues')
+
+        n_cells = len(self.traces)
+        n_cells_by_row = 20
+        n_pixels_by_cell_x = 20
+        n_pixels_by_cell_y = 20
+        len_x = n_cells_by_row*n_pixels_by_cell_x
+        len_y = math.ceil(n_cells/n_cells_by_row)*n_pixels_by_cell_y
+        # sources_profile_map = np.zeros((len_y, len_x), dtype="int16")
+
+        sources_profile_fig = plt.figure(figsize=(20, 20),
+                                         subplotpars=SubplotParams(hspace=0, wspace=0))
+        fig_patch = sources_profile_fig.patch
+        rgba = c_map(0)
+        fig_patch.set_facecolor(rgba)
+
+        sources_profile_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.1, 'h_pad': 0.1})
+
+        # looking at how many overlapping cell current_neuron has
+        intersect_cells = self.overlapping_cells[self.current_neuron]
+        # print(f"len(intersect_cells) {len(intersect_cells)}")
+        cells_color = dict()
+        for index, cell_inter in enumerate(np.arange(n_cells)):
+            cells_color[cell_inter] = cm.nipy_spectral(float(index + 1) / (len(intersect_cells) + 1))
+
+        # now adding as many suplots as need, depending on how many overlap has the cell
+        n_columns = n_cells_by_row
+        width_ratios = [100 // n_columns] * n_columns
+        n_lines = (((n_cells - 1) // n_columns) + 1) * 2
+        height_ratios = [100 // n_lines] * n_lines
+        grid_spec = gridspec.GridSpec(n_lines, n_columns, width_ratios=width_ratios,
+                                      height_ratios=height_ratios,
+                                      figure=sources_profile_fig, wspace=0, hspace=0)
+
+        # building the subplots to displays the sources and transients
+        ax_source_profile_by_cell = dict()
+
+        max_len_x = None
+        max_len_y = None
+        for cell_to_display in np.arange(n_cells):
+            poly_gon = self.data_and_param.ms.coord_obj.cells_polygon[cell_to_display]
+
+            if max_len_x is None:
+                tmp_minx, tmp_miny, tmp_maxx, tmp_maxy = np.array(list(poly_gon.bounds)).astype(int)
+                max_len_x = tmp_maxx - tmp_minx
+                max_len_y = tmp_maxy - tmp_miny
+            else:
+                tmp_minx, tmp_miny, tmp_maxx, tmp_maxy = np.array(list(poly_gon.bounds)).astype(int)
+                max_len_x = max(max_len_x, tmp_maxx - tmp_minx)
+                max_len_y = max(max_len_y, tmp_maxy - tmp_miny)
+        bounds = (0, 0, max_len_x, max_len_y)
+
+        for cell_index, cell_to_display in enumerate(np.arange(n_cells)):
+            line_gs = (cell_index // n_columns) * 2
+            col_gs = cell_index % n_columns
+            ax_source_profile_by_cell[cell_to_display] = sources_profile_fig.add_subplot(grid_spec[line_gs, col_gs])
+
+            # ax_source_profile_by_cell[cell_to_display].set_facecolor("black")
+            ax_source_profile_by_cell[cell_to_display].set_xticklabels([])
+            ax_source_profile_by_cell[cell_to_display].set_yticklabels([])
+            ax_source_profile_by_cell[cell_to_display].get_yaxis().set_visible(False)
+            ax_source_profile_by_cell[cell_to_display].get_xaxis().set_visible(False)
+            ax_source_profile_by_cell[cell_to_display].set_frame_on(False)
+        bounds = None
+        for cell_index, cell_to_display in enumerate(np.arange(n_cells)):
+            if cell_to_display not in self.source_profile_dict_for_map_of_all_cells:
+                source_profile, minx, miny, mask_source_profile = self.get_source_profile(cell=cell_to_display,
+                                                                                          pixels_around=3,
+                                                                                          bounds=bounds)
+                xy_source = self.get_cell_new_coord_in_source(cell=cell_to_display, minx=minx, miny=miny)
+                self.source_profile_dict_for_map_of_all_cells[cell_to_display] = [source_profile, minx, miny,
+                                                                                  mask_source_profile,
+                                                             xy_source]
+            else:
+                source_profile, minx, miny, mask_source_profile, xy_source = \
+                    self.source_profile_dict_for_map_of_all_cells[cell_to_display]
+
+            img_src_profile = ax_source_profile_by_cell[cell_to_display].imshow(source_profile,
+                                                                                cmap=c_map)
+            with_mask = False
+            if with_mask:
+                source_profile[mask_source_profile] = 0
+                img_src_profile.set_array(source_profile)
+
+            lw = 0.2
+            contour_cell = patches.Polygon(xy=xy_source,
+                                           fill=False,
+                                           edgecolor="red",
+                                           zorder=15, lw=lw)
+            ax_source_profile_by_cell[cell_to_display].add_patch(contour_cell)
+
+            if key_cmap in ["B", "P"]:
+                color_text = "red"
+            else:
+                color_text = "blue"
+            ax_source_profile_by_cell[cell_to_display].text(x=1.5, y=1,
+                                                            s=f"{cell_to_display}", color=color_text, zorder=20,
+                                                            ha='center', va="center", fontsize=3, fontweight='bold')
+
+        # plt.show()
+
+        save_formats = ["pdf"]
+        path_results = self.path_result + "/" + self.data_and_param.time_str
+        if not os.path.isdir(path_results):
+            os.mkdir(path_results)
+
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+        for save_format in save_formats:
+            sources_profile_fig.savefig(f'{path_results}/'
+                                        f'source_profiles_map_{self.data_and_param.ms.description}_cmap_{key_cmap}'
+                                        f'_{self.data_and_param.time_str}.{save_format}',
+                                        format=f"{save_format}",
+                                        facecolor=sources_profile_fig.get_facecolor(), edgecolor='none')
+            #
+
     def save_as_spike_nums(self):
         initialdir = "/"
         if self.save_path is not None:
@@ -2687,7 +2824,12 @@ class ManualOnsetFrame(tk.Frame):
         peaks = np.where(self.peak_nums[cell, :] > 0)[0]
         threshold = np.percentile(self.traces[cell, peaks], 95)
         selected_peaks = peaks[np.where(self.traces[cell, peaks] > threshold)[0]]
-        if len(selected_peaks) > 5:
+        # max 10 peaks, min 5 peaks
+        if len(selected_peaks) > 10:
+            p = 10 / len(peaks)
+            threshold = np.percentile(self.traces[cell, peaks], (1 - p) * 100)
+            selected_peaks = peaks[np.where(self.traces[cell, peaks] > threshold)[0]]
+        elif (len(selected_peaks) < 5) and (len(peaks) > 5):
             p = 5 / len(peaks)
             threshold = np.percentile(self.traces[cell, peaks], (1 - p) * 100)
             selected_peaks = peaks[np.where(self.traces[cell, peaks] > threshold)[0]]
@@ -3587,8 +3729,9 @@ def main_manual():
         raise Exception("Root path is None")
 
     path_data = root_path + "data/"
+    result_path = root_path + "results_hne"
 
-    data_and_param = DataAndParam(result_path=path_data)
+    data_and_param = DataAndParam(path_data=path_data, result_path=result_path)
 
     app = ChooseSessionFrame(data_and_param=data_and_param,
                              master=root)
