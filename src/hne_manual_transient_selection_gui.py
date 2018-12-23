@@ -1813,7 +1813,7 @@ class ManualOnsetFrame(tk.Frame):
             self.spike_nums[self.current_neuron, x_from:x_to] = 0
             left_x_limit, right_x_limit = self.axe_plot.get_xlim()
             bottom_limit, top_limit = self.axe_plot.get_ylim()
-            self.last_actions.append(RemoveOnsetAction(removed_times=removed_times, session_frame=self,
+            self.update_last_action(RemoveOnsetAction(removed_times=removed_times, session_frame=self,
                                                        neuron=self.current_neuron, is_saved=self.is_saved,
                                                        x_limits=(left_x_limit, right_x_limit),
                                                        y_limits=(bottom_limit, top_limit)))
@@ -1866,7 +1866,7 @@ class ManualOnsetFrame(tk.Frame):
             self.peak_nums[self.current_neuron, x_from:x_to] = 0
             left_x_limit, right_x_limit = self.axe_plot.get_xlim()
             bottom_limit, top_limit = self.axe_plot.get_ylim()
-            self.last_actions.append(RemovePeakAction(removed_times=removed_times, amplitudes=amplitudes,
+            self.update_last_action(RemovePeakAction(removed_times=removed_times, amplitudes=amplitudes,
                                                       session_frame=self, removed_onset_action=removed_onset_action,
                                                       neuron=self.current_neuron, is_saved=self.is_saved,
                                                       x_limits=(left_x_limit, right_x_limit),
@@ -1919,7 +1919,7 @@ class ManualOnsetFrame(tk.Frame):
                                                      neuron=self.current_neuron, is_saved=self.is_saved,
                                                      x_limits=(left_x_limit, right_x_limit),
                                                      y_limits=(bottom_limit, top_limit))
-        self.last_actions.append(RemovePeakAction(removed_times=removed_times, amplitudes=amplitudes,
+        self.update_last_action(RemovePeakAction(removed_times=removed_times, amplitudes=amplitudes,
                                                   session_frame=self,
                                                   removed_onset_action=removed_onset_action,
                                                   neuron=self.current_neuron, is_saved=self.is_saved,
@@ -1963,7 +1963,7 @@ class ManualOnsetFrame(tk.Frame):
             self.peak_nums[self.current_neuron, x_from:x_to] = 0
             left_x_limit, right_x_limit = self.axe_plot.get_xlim()
             bottom_limit, top_limit = self.axe_plot.get_ylim()
-            self.last_actions.append(RemovePeakAction(removed_times=removed_times, amplitudes=amplitudes,
+            self.update_last_action(RemovePeakAction(removed_times=removed_times, amplitudes=amplitudes,
                                                       session_frame=self,
                                                       neuron=self.current_neuron, is_saved=self.is_saved,
                                                       x_limits=(left_x_limit, right_x_limit),
@@ -2131,7 +2131,7 @@ class ManualOnsetFrame(tk.Frame):
                                             x_limits=(left_x_limit, right_x_limit),
                                             y_limits=(bottom_limit, top_limit))
 
-        self.last_actions.append(AddOnsetAction(added_time=at_time, session_frame=self,
+        self.update_last_action(AddOnsetAction(added_time=at_time, session_frame=self,
                                                 add_peak_action=add_peak_action,
                                                 neuron=self.current_neuron, is_saved=self.is_saved,
                                                 x_limits=(left_x_limit, right_x_limit),
@@ -2156,7 +2156,7 @@ class ManualOnsetFrame(tk.Frame):
 
         left_x_limit, right_x_limit = self.axe_plot.get_xlim()
         bottom_limit, top_limit = self.axe_plot.get_ylim()
-        self.last_actions.append(AddPeakAction(added_time=at_time,
+        self.update_last_action(AddPeakAction(added_time=at_time,
                                                amplitude=self.traces[self.current_neuron, at_time],
                                                session_frame=self,
                                                neuron=self.current_neuron, is_saved=self.is_saved,
@@ -2170,6 +2170,16 @@ class ManualOnsetFrame(tk.Frame):
         self.undo_button['state'] = 'normal'
 
         self.update_after_onset_change()
+
+    def update_last_action(self, new_action):
+        """
+        Keep the size of the last_actions up to five actions
+        :param new_action:
+        :return:
+        """
+        self.last_actions.append(new_action)
+        if len(self.last_actions) > 5:
+            self.last_actions = self.last_actions[1:]
 
     def add_peak_switch_mode(self, from_add_peak_button=True):
         """
@@ -2197,7 +2207,7 @@ class ManualOnsetFrame(tk.Frame):
         last_undone_action = self.undone_actions[-1]
         self.undone_actions = self.undone_actions[:-1]
         last_undone_action.redo()
-        self.last_actions.append(last_undone_action)
+        self.update_last_action(last_undone_action)
 
         if last_undone_action.is_saved and (not self.is_saved):
             self.save_button['state'] = DISABLED
