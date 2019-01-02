@@ -1,3 +1,7 @@
+# Ignore warnings
+import warnings
+warnings.filterwarnings('ignore')
+
 import numpy as np
 import sys
 from datetime import datetime
@@ -1369,6 +1373,7 @@ class ManualOnsetFrame(tk.Frame):
             self.remove_cell_button["fg"] = "black"
             self.cells_to_remove[self.current_neuron] = 0
         self.update_plot()
+        self.unsaved()
 
     def clear_and_update_entry_neuron_widget(self):
         self.neuron_entry_widget.delete(first=0, last=END)

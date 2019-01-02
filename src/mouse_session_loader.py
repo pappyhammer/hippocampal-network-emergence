@@ -1,7 +1,9 @@
 from mouse_session import MouseSession
 
 
-def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_movie=True):
+def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_movie=True,
+                        for_cell_classifier=False):
+    # for_cell_classifier is True means we don't remove the cell that has been marked as fake cells
     ms_str_to_ms_dict = dict()
 
     if "p6_18_02_07_a001_ms" in ms_str_to_load:
@@ -690,10 +692,20 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
         #                      "spike_nums": "filt_Bin100ms_spikedigital",
         #                      "spike_durations": "LOC3"}
-        variables_mapping = {"spike_nums_dur": "rasterdur"}
-        p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                                               "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur_2nd_dec.mat",
-                                               variables_mapping=variables_mapping)
+        if for_cell_classifier:
+            variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                 "peak_nums": "LocPeakMatrix_Python",
+                                 "cells_to_remove": "cells_to_remove",
+                                 "inter_neurons_from_gui": "inter_neurons"}
+            p12_171110_a000_ms.load_data_from_file(file_name_to_load=
+                                                   "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_JD.mat",
+                                                   variables_mapping=variables_mapping,
+                                                   from_gui=True)
+        else:
+            variables_mapping = {"spike_nums_dur": "rasterdur"}
+            p12_171110_a000_ms.load_data_from_file(file_name_to_load=
+                                                   "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur_2nd_dec.mat",
+                                                   variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p12_171110_a000_ms.load_data_from_file(

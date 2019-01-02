@@ -1,0 +1,16 @@
+matplotlib
+Pandas
+Pillow
+Numpy
+networkx
+sortedcontainers
+scipy
+scikit-learn
+cython
+pyabf
+hdf5storage
+seaborn
+hdbscan
+shapely
+keras
+tensorflow

@@ -18,6 +18,7 @@ from datetime import datetime
 # import keras
 import os
 import pyabf
+import seqnmf
 # to add homemade package, go to preferences, then project interpreter, then click on the wheel symbol
 # then show all, then select the interpreter and lick on the more right icon to display a list of folder and
 # add the one containing the folder pattern_discovery
@@ -1829,6 +1830,7 @@ def main():
     ms_str_to_load = ["p7_171012_a000_ms"]
     ms_str_to_load = ["p9_18_09_27_a003_ms"]
     ms_str_to_load = ["p12_171110_a000_ms"]
+    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
 
     # 256
 
@@ -1851,9 +1853,10 @@ def main():
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = True
+    just_plot_all_cells_on_map = False
     do_plot_psth_twitches = False
     just_plot_raster = False
+    just_do_seqnmf = True
 
     # for events (sce) detection
     perc_threshold = 99
@@ -1917,6 +1920,7 @@ def main():
 
     ms_by_age = dict()
     for ms_index, ms in enumerate(ms_to_analyse):
+        print(f"ms {ms.description}")
         # np.savez(ms.param.path_data + ms.description + "_rasters_reduced.npz",
         #          spike_nums=ms.spike_struct.spike_nums[:50, :5000],
         #          spike_nums_dur=ms.spike_struct.spike_nums_dur[:50, :5000])
@@ -1969,6 +1973,8 @@ def main():
         ms.sce_times_numbers = sce_times_numbers
         ms.SCE_times = SCE_times
 
+        print(f"n_cells {ms.spike_struct.n_cells}, n_sces {len(ms.SCE_times)}")
+
         if just_plot_traces_raster:
             print("just_plot_traces_raster")
             raw_traces = ms.raw_traces
@@ -2014,6 +2020,28 @@ def main():
                                save_formats="png")
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_plot_traces_raster exception")
+            continue
+
+        if just_do_seqnmf:
+            k = 2
+            l = 30
+            lambda_value = 0.001
+            W, H, cost, loadings, power = seqnmf.seqnmf(ms.spike_struct.spike_nums, K=k, L=l,
+                                                        Lambda=lambda_value)
+            fig_seqnmf = seqnmf.plot(W, H)
+            save_formats = "pdf"
+            if isinstance(save_formats, str):
+                save_formats = [save_formats]
+            for save_format in save_formats:
+                fig_seqnmf.savefig(f'{ms.param.path_results}/{ms.description}_seqnmf_k_{k}_l_{l}_lambda_{lambda_value}'
+                            f'_{ms.param.time_str}.{save_format}',
+                            format=f"{save_format}")
+
+            plt.show()
+            plt.close()
+            # (160, 20, 100) and (20, 14000)
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_plot_piezo_with_extra_info exception")
             continue
 
         if just_plot_piezo_with_extra_info:

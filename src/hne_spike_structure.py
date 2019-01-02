@@ -51,6 +51,7 @@ class HNESpikeStructure:
         self.mouse_session = mouse_session
         self.spike_nums = spike_nums
         self.spike_nums_dur = spike_nums_dur
+        self.peak_nums = None
         if (self.spike_nums is not None) or (self.spike_nums_dur is not None):
             if self.spike_nums is not None:
                 self.n_cells = len(self.spike_nums)

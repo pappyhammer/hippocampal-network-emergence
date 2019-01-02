@@ -62,6 +62,8 @@ class MouseSession:
         self.traces = None
         self.raw_traces = None
         self.coord = None
+        # comes from the gui
+        self.cells_to_remove = None
         self.activity_threshold = None
         self.low_activity_threshold_by_percentile = dict()
         self.percentile_for_low_activity_threshold = percentile_for_low_activity_threshold
@@ -69,6 +71,8 @@ class MouseSession:
         self.avg_cell_map_img = None
         self.avg_cell_map_img_file_name = None
         self.tif_movie_file_name = None
+        # will be use by the cell classifier
+        self.tiff_movie = None
         self.param = param
         # list of list of int representing cell indices
         # initiated when loading_cell_assemblies
@@ -82,11 +86,11 @@ class MouseSession:
         # sce_times_in_multiple_cell_assemblies)
         self.sce_times_in_cell_assemblies = None
 
-        if self.param.cell_assemblies_data_path is not None:
+        if (self.param is not None) and (self.param.cell_assemblies_data_path is not None):
             self.load_cell_assemblies_data()
         # for seq
         self.best_order_loaded = None
-        if self.param.best_order_data_path is not None:
+        if (self.param is not None) and (self.param.best_order_data_path is not None):
             self.load_best_order_data()
         self.weight = weight
         self.coord_obj = None
@@ -2450,7 +2454,8 @@ class MouseSession:
             self.tif_movie_file_name = self.param.path_data + path + file_name_original
             # print(f"self.tif_movie_file_name {self.tif_movie_file_name}")
 
-    def load_data_from_file(self, file_name_to_load, variables_mapping, frames_filter=None):
+    def load_data_from_file(self, file_name_to_load, variables_mapping, frames_filter=None,
+                            from_gui=False):
         """
 
         :param file_name_to_load:
@@ -2500,6 +2505,8 @@ class MouseSession:
         if "spike_amplitudes" in variables_mapping:
             self.spike_struct.set_spike_amplitudes(data[variables_mapping["spike_amplitudes"]])
 
+        if "cells_to_remove" in variables_mapping:
+            self.cells_to_remove = data[variables_mapping["cells_to_remove"]].astype(int)
         self.spike_struct.set_spike_trains_from_spike_nums()
 
         # if (self.spike_struct.spike_nums_dur is not None) or (self.spike_struct.spike_nums is not None):
