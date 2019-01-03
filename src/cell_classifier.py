@@ -15,6 +15,11 @@ from PIL import ImageSequence, ImageDraw
 import PIL
 from shapely import geometry
 from matplotlib import pyplot as plt
+import scipy.io as sio
+
+from hyperopt import Trials, STATUS_OK, tpe
+from hyperas import optim
+from hyperas.distributions import choice, uniform
 
 
 class DataForMs(p_disc_tools_param.Parameters):
@@ -25,12 +30,11 @@ class DataForMs(p_disc_tools_param.Parameters):
         self.cell_assemblies_data_path = None
         self.best_order_data_path = None
 
+
 def load_movie(ms):
     if ms.tif_movie_file_name is not None:
         start_time = time.time()
         im = PIL.Image.open(ms.tif_movie_file_name)
-        # im.show()
-        # test = np.array(im)
         n_frames = len(list(ImageSequence.Iterator(im)))
         dim_x, dim_y = np.array(im).shape
         print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
@@ -43,6 +47,7 @@ def load_movie(ms):
         return True
     return False
 
+
 def scale_polygon_to_source(poly_gon, minx, miny):
     coords = list(poly_gon.exterior.coords)
     scaled_coords = []
@@ -50,8 +55,8 @@ def scale_polygon_to_source(poly_gon, minx, miny):
         scaled_coords.append((coord[0] - minx, coord[1] - miny))
     return geometry.Polygon(scaled_coords)
 
+
 def get_source_profile(cell, ms, binary_version=True, pixels_around=0, bounds=None, buffer=None):
-    # print("get_source_profile")
     len_frame_x = ms.tiff_movie[0].shape[1]
     len_frame_y = ms.tiff_movie[0].shape[0]
 
@@ -78,9 +83,6 @@ def get_source_profile(cell, ms, binary_version=True, pixels_around=0, bounds=No
         scaled_poly_gon = scaled_poly_gon.buffer(buffer)
     ImageDraw.Draw(img).polygon(list(scaled_poly_gon.exterior.coords), outline=0, fill=0)
     mask = np.array(img)
-    # mask = np.ones((len_x, len_y))
-    # cv2.fillPoly(mask, scaled_poly_gon, 0)
-    # mask = mask.astype(bool)
 
     if binary_version:
         source_profile = np.ones((len_y, len_x))
@@ -101,9 +103,6 @@ def get_source_profile(cell, ms, binary_version=True, pixels_around=0, bounds=No
             p = 5 / len(peaks)
             threshold = np.percentile(ms.traces[cell, peaks], (1 - p) * 100)
             selected_peaks = peaks[np.where(ms.traces[cell, peaks] > threshold)[0]]
-
-        # print(f"threshold {threshold}")
-        # print(f"n peaks: {len(selected_peaks)}")
 
         onsets_frames = np.where(ms.spike_struct.spike_nums[cell, :] > 0)[0]
         raw_traces = np.copy(ms.raw_traces)
@@ -128,7 +127,8 @@ def get_source_profile(cell, ms, binary_version=True, pixels_around=0, bounds=No
 
     return source_profile, minx, miny, mask
 
-def load_data(ms_to_use, param, use_binary_mask=True, split_values=(0.5, 0.3)):
+
+def load_data(ms_to_use, param, use_binary_mask=True, split_values=(0.5, 0.3), with_shuffling=True):
     # ms_to_use: list of string representing the mouse_session
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
                                             param=param,
@@ -149,8 +149,8 @@ def load_data(ms_to_use, param, use_binary_mask=True, split_values=(0.5, 0.3)):
         for cell in np.arange(n_cells):
             poly_gon = ms.coord_obj.cells_polygon[cell]
             minx, miny, maxx, maxy = np.array(list(poly_gon.bounds)).astype(int)
-            max_width = max(max_width, maxx-minx)
-            max_height = max(max_height, maxy-miny)
+            max_width = max(max_width, maxx - minx)
+            max_height = max(max_height, maxy - miny)
     # then we add a few pixels
     max_width += padding_value
     max_height += padding_value
@@ -168,7 +168,7 @@ def load_data(ms_to_use, param, use_binary_mask=True, split_values=(0.5, 0.3)):
 
         labels = np.ones(n_cells, dtype="uint8")
         labels[ms.cells_to_remove] = 0
-        full_labels[cells_count:cells_count+n_cells] = labels
+        full_labels[cells_count:cells_count + n_cells] = labels
 
         # for each cell, we will extract a 2D array representing the cell shape
         # all 2D array should have the same shape
@@ -182,7 +182,7 @@ def load_data(ms_to_use, param, use_binary_mask=True, split_values=(0.5, 0.3)):
             # we center the source profile
             y_coord = (profile_fit.shape[0] - source_profile.shape[0]) // 2
             x_coord = (profile_fit.shape[1] - source_profile.shape[1]) // 2
-            profile_fit[y_coord:source_profile.shape[0]+y_coord, x_coord:source_profile.shape[1]+x_coord] = \
+            profile_fit[y_coord:source_profile.shape[0] + y_coord, x_coord:source_profile.shape[1] + x_coord] = \
                 source_profile
 
             visualize_cells = False
@@ -195,8 +195,7 @@ def load_data(ms_to_use, param, use_binary_mask=True, split_values=(0.5, 0.3)):
                 img_src_profile = ax1.imshow(profile_fit, cmap=c_map)
                 plt.show()
 
-            full_data[cells_count+cell] = profile_fit
-
+            full_data[cells_count + cell] = profile_fit
 
         cells_count += n_cells
 
@@ -208,18 +207,24 @@ def load_data(ms_to_use, param, use_binary_mask=True, split_values=(0.5, 0.3)):
 
     # cells shuffling
     cells_shuffling = np.arange(total_n_cells)
-    np.random.shuffle(cells_shuffling)
+    if with_shuffling:
+        np.random.shuffle(cells_shuffling)
     n_cells_for_training = int(total_n_cells * split_values[0])
     n_cells_for_validation = int(total_n_cells * split_values[1])
 
     train_data = full_data[cells_shuffling[:n_cells_for_training]]
     train_labels = full_labels[cells_shuffling[:n_cells_for_training]]
-    valid_data = full_data[cells_shuffling[n_cells_for_training:n_cells_for_training+n_cells_for_validation]]
-    valid_labels = full_labels[cells_shuffling[n_cells_for_training:n_cells_for_training+n_cells_for_validation]]
-    test_data = full_data[cells_shuffling[n_cells_for_training+n_cells_for_validation:]]
-    test_labels = full_labels[cells_shuffling[n_cells_for_training+n_cells_for_validation:]]
+    valid_data = full_data[cells_shuffling[n_cells_for_training:n_cells_for_training + n_cells_for_validation]]
+    valid_labels = full_labels[cells_shuffling[n_cells_for_training:n_cells_for_training + n_cells_for_validation]]
+    test_data = full_data[cells_shuffling[n_cells_for_training + n_cells_for_validation:]]
+    test_labels = full_labels[cells_shuffling[n_cells_for_training + n_cells_for_validation:]]
+    print(f"test cells: {cells_shuffling[n_cells_for_training + n_cells_for_validation:]}")
 
     return (train_data, train_labels), (valid_data, valid_labels), (test_data, test_labels)
+
+
+def hyperas_data(train_data, train_labels, valid_data, valid_labels, input_shape):
+    return train_data, train_labels, valid_data, valid_labels, input_shape
 
 
 def smooth_curve(points, factor=0.8):
@@ -233,7 +238,56 @@ def smooth_curve(points, factor=0.8):
     return smoothed_points
 
 
-def build_model(input_shape):
+def build_hyperas_model(train_data, train_labels, valid_data, valid_labels, input_shape):
+    # input_tensor = Input(shape=input_shape)
+    #
+    # x = layers.Conv2D(32, (3, 3), activation='relu')(input_tensor)
+    # x = layers.MaxPooling2D((2, 2))(x)
+    # # If we choose 'three', add an additional third layer
+    # if {{choice(['two', 'three'])}} == 'three':
+    #     x = layers.Conv2D(64, (3, 3), activation='relu')(x)
+    #     x = layers.MaxPooling2D((2, 2))(x)
+    #
+    # x = layers.Conv2D(64, (3, 3), activation='relu')(x)
+    # x = layers.Flatten()(x)
+    # x = layers.Dropout({{uniform(0, 1)}})(x)
+    #
+    # x = layers.Dense({{choice([32, 64, 128])}})(x)  # used to be 64
+    #
+    # x = layers.Activation({{choice(['relu', 'tanh'])}})(x)
+    #
+    # output_tensor = layers.Dense(1, activation='sigmoid')(x)
+    # model = Model(input_tensor, output_tensor)
+    model = Sequential()
+    model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=input_shape))
+    model.add(layers.MaxPooling2D((2, 2)))
+    if ({{choice(['two', 'three'])}} == 'three'):
+        model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+        model.add(layers.MaxPooling2D((2, 2)))
+
+    model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    model.add(layers.Flatten())
+    model.add(layers.Dropout({{uniform(0, 1)}}))
+    model.add(layers.Dense({{choice([32, 64, 128])}}))
+    model.add(layers.Activation({{choice(['relu', 'tanh'])}}))
+    model.add(layers.Dense(1))
+    model.add(layers.Activation('sigmoid'))
+
+    model.compile(optimizer={{choice(['rmsprop', 'adam', 'sgd'])}},
+                  loss='binary_crossentropy',
+                  metrics=['accuracy'])
+
+    result = model.fit(train_data, train_labels,
+                       batch_size={{choice([32, 64])}},
+                       epochs=5,
+                       validation_data=(valid_data, valid_labels))
+
+    # get the highest validation accuracy of the training epochs
+    validation_acc = np.amax(result.history['val_acc'])
+    print('Best validation acc of epoch:', validation_acc)
+    return {'loss': -validation_acc, 'status': STATUS_OK, 'model': model}
+
+def build_model(input_shape, with_dropout=0.5):
     use_sequential_mode = False
     if use_sequential_mode:
         model = Sequential()
@@ -244,19 +298,39 @@ def build_model(input_shape):
         # print(model.summary())
         model.add(layers.Conv2D(64, (3, 3), activation='relu'))
         model.add(layers.Flatten())
-        model.add(layers.Dropout(0.5))
+        if with_dropout > 0:
+            model.add(layers.Dropout(with_dropout))
         model.add(layers.Dense(64, activation='relu'))
         model.add(layers.Dense(1, activation='sigmoid'))
     else:
         input_tensor = Input(shape=input_shape)
-        x = layers.Conv2D(32, (3, 3), activation='relu')(input_tensor)
-        x = layers.MaxPooling2D((2, 2))(x)
-        x = layers.Conv2D(64, (3, 3), activation='relu')(x)
-        x = layers.MaxPooling2D((2, 2))(x)
-        x = layers.Conv2D(64, (3, 3), activation='relu')(x)
-        x = layers.Flatten()(x)
-        x = layers.Dropout(0.5)(x)
-        x = layers.Dense(64, activation='relu')(x)
+
+        use_depthwise_separable = False
+        if use_depthwise_separable:
+            x = layers.SeparableConv2D(32, 3, activation='relu')(input_tensor)
+            x = layers.SeparableConv2D(64, 3, activation='relu')(x)
+            # x = layers.MaxPooling2D(2)(x)
+            # x = layers.SeparableConv2D(64, 3, activation='relu')(x)
+            # x = layers.SeparableConv2D(128, 3, activation='relu')(x)
+            # x = layers.MaxPooling2D(2)(x)
+            # x = layers.SeparableConv2D(64, 3, activation='relu')(x)
+            # x = layers.SeparableConv2D(128, 3, activation='relu')(x)
+            x = layers.GlobalAveragePooling2D()(x)
+            if with_dropout > 0:
+                x = layers.Dropout(with_dropout)(x)
+            x = layers.Dense(32, activation='relu')(x)
+        else:
+            x = layers.Conv2D(32, (3, 3), activation='relu')(input_tensor)
+            x = layers.MaxPooling2D((2, 2))(x)
+            # x = layers.Conv2D(64, (3, 3), activation='relu')(x)
+            # x = layers.MaxPooling2D((2, 2))(x)
+            x = layers.Conv2D(64, (3, 3), activation='relu')(x)
+            x = layers.Flatten()(x)
+            if with_dropout > 0:
+                x = layers.Dropout(with_dropout)(x)
+
+            x = layers.Dense(64, activation='relu')(x) # used to be 64
+
         output_tensor = layers.Dense(1, activation='sigmoid')(x)
 
         model = Model(input_tensor, output_tensor)
@@ -297,16 +371,35 @@ def plot_training_and_validation_accuracy(history, n_epochs):
     plt.show()
     plt.close()
 
+def event_lambda(f, *args, **kwds):
+    return lambda f=f, args=args, kwds=kwds: f(*args, **kwds)
+
+def load_data_from_file():
+    root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
+    result_path = root_path + "results_classifier/"
+    dict_res = np.load(result_path + "data_hyperas.npz")
+
+    train_data = dict_res["train_images"]
+    train_labels = dict_res["train_labels"]
+    valid_data = dict_res["valid_images"]
+    valid_labels = dict_res["valid_labels"]
+    test_images = dict_res["valid_images"]
+    test_labels = dict_res["valid_labels"]
+    input_shape = dict_res["input_shape"]
+
+    return train_data, train_labels, valid_data, valid_labels, test_images, test_labels, input_shape
+
 def train_model():
+    np.set_printoptions(threshold=np.inf)
     root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
     path_data = root_path + "data/"
     result_path = root_path + "results_classifier/"
     binary_version = True
 
     param = DataForMs(path_data=path_data, result_path=result_path)
-    (train_images, train_labels), (valid_images, valid_labels), (test_images, test_labels)\
+    (train_images, train_labels), (valid_images, valid_labels), (test_images, test_labels) \
         = load_data(["p12_171110_a000_ms"], param=param, use_binary_mask=binary_version,
-                    split_values=(0.5, 0.3))
+                    split_values=(0.6, 0.2), with_shuffling=True)
 
     print(f"train_images {train_images.shape}, train_labels {train_labels.shape}, "
           f"valid_images {valid_images.shape}, valid_labels {valid_labels.shape}, "
@@ -324,55 +417,113 @@ def train_model():
     if not binary_version:
         test_images = test_images.astype('float32') / 255
 
+    input_shape = train_images.shape[1:]
+
+    save_in_npz_file = False
+    if save_in_npz_file:
+        np.savez(result_path + "data_hyperas.npz",
+                 train_images=train_images,
+                 train_labels=train_labels,
+                 valid_images=valid_images,
+                 valid_labels=valid_labels,
+                 test_images=valid_images,
+                 test_labels=valid_labels,
+                 input_shape=train_images.shape[1:])
+        return
+    load_data_npz_file = True
+    if load_data_npz_file:
+        train_images, train_labels, valid_images, valid_labels, test_images, test_labels, input_shape = \
+            load_data_from_file()
+
+
     print(f"train_images {train_images.shape}, train_labels {train_labels.shape}, "
           f"valid_images {valid_images.shape}, valid_labels {valid_labels.shape}, "
           f"test_images {test_images.shape}, test_labels {test_labels.shape}")
 
-    train_datagen = ImageDataGenerator(
-        fill_mode='constant',
-        cval=0,
-        # rescale=1,
-        rotation_range=120,
-        width_shift_range=0.3,
-        height_shift_range=0.3,
-        zoom_range=0.3,
-        horizontal_flip=True
-    )
+    hyperas_version = True
 
-    model = build_model(input_shape=train_images.shape[1:])
-    print(model.summary())
-    model.compile(optimizer='rmsprop',
-                  loss='binary_crossentropy',
-                  metrics=['accuracy'])
-    n_epochs = 30
-    batch_size = 64
+    if hyperas_version:
+        best_run, best_model = optim.minimize(model=build_hyperas_model,
+                                              data=event_lambda(hyperas_data, train_data=train_images,
+                                                                train_labels=train_labels,
+                                                                valid_data=valid_images,
+                                                                valid_labels=valid_labels,
+                                                                input_shape=input_shape),
+                                              algo=tpe.suggest,
+                                              max_evals=2,
+                                              trials=Trials())
+        print("Evalutation of best performing model:")
+        print(best_model.evaluate(test_images, test_labels))
+        prediction = np.ndarray.flatten(best_model.predict(test_images))
+        for i, predict_value in enumerate(prediction):
+            predict_value = str(round(predict_value, 2))
+            print(f"test predict / real: {predict_value} / {test_labels[i]}")
+        print("Best performing model chosen hyper-parameters:")
+        print(best_run)
+    else:
+        model = build_model(input_shape=train_images.shape[1:], with_dropout=0.3)
+        print(model.summary())
+        model.compile(optimizer='rmsprop',
+                      loss='binary_crossentropy',
+                      metrics=['accuracy'])
+        n_epochs = 20
+        batch_size = 64
 
-    # compute quantities required for featurewise normalization
-    # (std, mean, and principal components if ZCA whitening is applied)
-    train_datagen.fit(train_images)
+        with_datagen = False
 
-    # fits the model on batches with real-time data augmentation:
-    history = model.fit_generator(train_datagen.flow(train_images, train_labels, batch_size=batch_size),
-                        steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs,
-                        validation_data=(valid_images, valid_labels))
-    # model.fit(train_images, train_labels, epochs=n_epochs, batch_size=64)
-    # history = model.fit(train_images,
-    #                     train_labels,
-    #                     epochs=n_epochs,
-    #                     batch_size=batch_size,
-    #                     validation_data=(valid_images, valid_labels))
+        if with_datagen:
+            train_datagen = ImageDataGenerator(
+                fill_mode='constant',
+                cval=0,
+                # rescale=1,
+                rotation_range=90,
+                width_shift_range=0.3,
+                height_shift_range=0.3,
+                zoom_range=0.3,
+                horizontal_flip=True
+            )
+            # compute quantities required for featurewise normalization
+            # (std, mean, and principal components if ZCA whitening is applied)
+            train_datagen.fit(train_images)
 
-    model.save(f'{param.path_results}cell_classifier_{param.time_str}.h5')
+            test_datagen = ImageDataGenerator(rescale=1)
 
-    show_plots = True
+            # fits the model on batches with real-time data augmentation:
+            history = model.fit_generator(train_datagen.flow(train_images, train_labels, batch_size=batch_size,
+                                                             shuffle=False),
+                                          steps_per_epoch=len(train_images) / batch_size,
+                                          epochs=n_epochs,
+                                          shuffle=False,
+                                          validation_steps=len(test_images) / batch_size,
+                                          validation_data=test_datagen.flow(test_images, test_labels,
+                                                                            batch_size=batch_size,
+                                                                            shuffle=False))
+            # validation_data=(valid_images, valid_labels))
+        else:
+            model.fit(train_images, train_labels, epochs=n_epochs, batch_size=batch_size)
+            history = model.fit(train_images,
+                                train_labels,
+                                epochs=n_epochs,
+                                batch_size=batch_size,
+                                validation_data=(valid_images, valid_labels))
 
-    if show_plots:
-        plot_training_and_validation_loss(history, n_epochs)
-        plot_training_and_validation_accuracy(history, n_epochs)
+        model.save(f'{param.path_results}cell_classifier_{param.time_str}.h5')
 
-    test_loss, test_acc = model.evaluate(test_images, test_labels)
-    print(f"test_acc {test_acc}")
+        show_plots = True
 
-    # then to predict: model.predict(x_test)
+        if show_plots:
+            plot_training_and_validation_loss(history, n_epochs)
+            plot_training_and_validation_accuracy(history, n_epochs)
+
+        prediction = np.ndarray.flatten(model.predict(valid_images))
+        for i, predict_value in enumerate(prediction):
+            print(f"valid predict / real: {str(round(predict_value, 2))} / {valid_labels[i]}")
+
+        test_loss, test_acc = model.evaluate(test_images, test_labels)
+        print(f"test_acc {test_acc}")
+        prediction = np.ndarray.flatten(model.predict(test_images))
+        for i, predict_value in enumerate(prediction):
+            predict_value = str(round(predict_value, 2))
+            print(f"test predict / real: {predict_value} / {test_labels[i]}")
 
 train_model()

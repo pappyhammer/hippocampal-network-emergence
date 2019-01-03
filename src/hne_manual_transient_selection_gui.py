@@ -1362,6 +1362,7 @@ class ManualOnsetFrame(tk.Frame):
             self.inter_neuron_button["text"] = " not IN "
             self.inter_neuron_button["fg"] = "black"
             self.inter_neurons[self.current_neuron] = 0
+        self.unsaved()
 
     def remove_cell(self):
         if self.cells_to_remove[self.current_neuron] == 0:
@@ -1683,7 +1684,7 @@ class ManualOnsetFrame(tk.Frame):
             elif self.add_peak_mode:
                 self.add_peak(at_time=int(round(event.xdata)), amplitude=event.ydata)
             elif self.source_mode:
-                print(f"self.source_mode click release {event.xdata}")
+                # print(f"self.source_mode click release {event.xdata}")
                 transient = None
                 # we check if we are between an onset and a peak
                 onsets_frames = np.where(self.onset_times[self.current_neuron, :] > 0)[0]
