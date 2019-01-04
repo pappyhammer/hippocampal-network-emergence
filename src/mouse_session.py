@@ -73,6 +73,8 @@ class MouseSession:
         self.tif_movie_file_name = None
         # will be use by the cell classifier
         self.tiff_movie = None
+        # Pillow image
+        self.tiff_movie_image = None
         self.param = param
         # list of list of int representing cell indices
         # initiated when loading_cell_assemblies
@@ -2507,6 +2509,8 @@ class MouseSession:
 
         if "cells_to_remove" in variables_mapping:
             self.cells_to_remove = data[variables_mapping["cells_to_remove"]].astype(int)
+        if "peak_nums" in variables_mapping:
+            self.spike_struct.peak_nums = data[variables_mapping["peak_nums"]].astype(int)
         self.spike_struct.set_spike_trains_from_spike_nums()
 
         # if (self.spike_struct.spike_nums_dur is not None) or (self.spike_struct.spike_nums is not None):
