@@ -1794,7 +1794,7 @@ class MouseSession:
                                       cells_groups_edge_colors=cells_groups_edge_colors,
                                       with_edge=True, cells_groups_alpha=cells_groups_alpha,
                                       dont_fill_cells_not_in_groups=False,
-                                      with_cell_numbers=False, save_formats=["png"])
+                                      with_cell_numbers=True, save_formats=["png"])
 
     def plot_cell_assemblies_on_map(self):
         if (self.cell_assemblies is None) or (self.coord_obj is None):
@@ -1818,7 +1818,7 @@ class MouseSession:
                                       cells_groups=self.cell_assemblies,
                                       cells_groups_colors=cells_groups_colors,
                                       dont_fill_cells_not_in_groups=True,
-                                      with_cell_numbers=False, save_formats=["eps", "png"])
+                                      with_cell_numbers=True, save_formats=["png"])
 
     def set_low_activity_threshold(self, threshold, percentile_value):
         self.low_activity_threshold_by_percentile[percentile_value] = threshold

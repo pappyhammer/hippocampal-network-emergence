@@ -659,7 +659,7 @@ class ManualOnsetFrame(tk.Frame):
         if self.data_and_param.cells_to_remove is not None:
             for cell_to_remove in self.data_and_param.cells_to_remove:
                 self.cells_to_remove[cell_to_remove] = 1
-        self.display_raw_traces = True
+        self.display_raw_traces = self.raw_traces is not None
         self.raw_traces_seperate_plot = False
         # neuron's trace displayed
         self.current_neuron = 0
@@ -960,7 +960,7 @@ class ManualOnsetFrame(tk.Frame):
         self.pixels_value_by_cell_and_frame = dict()
 
         if (self.data_and_param.ms.avg_cell_map_img is not None) or (self.tiff_movie is not None):
-            if self.tiff_movie is not None and self.display_raw_traces_median:
+            if self.tiff_movie is not None and self.display_raw_traces_median and (self.raw_traces is not None):
                 self.raw_traces_median = np.zeros(self.traces.shape)
             if self.robin_mac:
                 self.map_img_fig = plt.figure(figsize=(3, 3))
@@ -1015,7 +1015,7 @@ class ManualOnsetFrame(tk.Frame):
                         if self.tiff_movie is not None:
                             mask_img[pixel, y_coords] = True
 
-                if self.tiff_movie is not None and self.display_raw_traces_median:
+                if self.tiff_movie is not None and self.display_raw_traces_median and (self.raw_traces is not None):
                     self.raw_traces_median[cell, :] = np.median(self.tiff_movie[:, mask_img], axis=1)
 
             self.map_img_canvas = FigureCanvasTkAgg(self.map_img_fig, self.map_frame)
@@ -2449,7 +2449,7 @@ class ManualOnsetFrame(tk.Frame):
         inter_neurons = np.where(self.inter_neurons)[0]
         sio.savemat(self.save_path + self.save_file_name, {'Bin100ms_spikedigital_Python': self.spike_nums,
                                                            'LocPeakMatrix_Python': self.peak_nums,
-                                                           'C_df': self.traces, 'raw_traces': self.raw_traces,
+                                                           # 'C_df': self.traces, 'raw_traces': self.raw_traces,
                                                            'cells_to_remove': cells_to_remove,
                                                            'inter_neurons': inter_neurons})
 
@@ -2472,10 +2472,14 @@ class ManualOnsetFrame(tk.Frame):
             pos_beg_x = int(np.max((0, self.x_center_magnified - self.magnifier_range)))
             pos_end_x = int(np.min((self.nb_times, self.x_center_magnified + self.magnifier_range + 1)))
 
-            max_value = max(np.max(self.traces[self.current_neuron, pos_beg_x:pos_end_x]),
-                            np.max(self.raw_traces[self.current_neuron, pos_beg_x:pos_end_x]))
-            min_value = min(np.min(self.traces[self.current_neuron, pos_beg_x:pos_end_x]),
-                            np.min(self.raw_traces[self.current_neuron, pos_beg_x:pos_end_x]))
+            if  self.raw_traces is not None:
+                max_value = max(np.max(self.traces[self.current_neuron, pos_beg_x:pos_end_x]),
+                                np.max(self.raw_traces[self.current_neuron, pos_beg_x:pos_end_x]))
+                min_value = min(np.min(self.traces[self.current_neuron, pos_beg_x:pos_end_x]),
+                                np.min(self.raw_traces[self.current_neuron, pos_beg_x:pos_end_x]))
+            else:
+                max_value = np.max(self.traces[self.current_neuron, pos_beg_x:pos_end_x])
+                min_value = np.min(self.traces[self.current_neuron, pos_beg_x:pos_end_x])
 
             nb_times_to_display = pos_end_x - pos_beg_x
 
@@ -2523,10 +2527,14 @@ class ManualOnsetFrame(tk.Frame):
         pos_beg_x = int(np.max((0, self.x_center_magnified - self.magnifier_range)))
         pos_end_x = int(np.min((self.nb_times, self.x_center_magnified + self.magnifier_range + 1)))
 
-        max_value = max(np.max(self.traces[self.current_neuron, pos_beg_x:pos_end_x]),
-                        np.max(self.raw_traces[self.current_neuron, pos_beg_x:pos_end_x]))
-        min_value = min(np.min(self.traces[self.current_neuron, pos_beg_x:pos_end_x]),
-                        np.min(self.raw_traces[self.current_neuron, pos_beg_x:pos_end_x]))
+        if self.raw_traces is not None:
+            max_value = max(np.max(self.traces[self.current_neuron, pos_beg_x:pos_end_x]),
+                            np.max(self.raw_traces[self.current_neuron, pos_beg_x:pos_end_x]))
+            min_value = min(np.min(self.traces[self.current_neuron, pos_beg_x:pos_end_x]),
+                            np.min(self.raw_traces[self.current_neuron, pos_beg_x:pos_end_x]))
+        else:
+            max_value = np.max(self.traces[self.current_neuron, pos_beg_x:pos_end_x])
+            min_value = np.min(self.traces[self.current_neuron, pos_beg_x:pos_end_x])
 
         corrected_mouse_y_position = np.min((mouse_y_position, max_value))
 
@@ -2854,9 +2862,14 @@ class ManualOnsetFrame(tk.Frame):
         # print(f"n peaks: {len(selected_peaks)}")
 
         onsets_frames = np.where(self.onset_times[cell, :] > 0)[0]
-        raw_traces = np.copy(self.raw_traces)
-        # so the lowest value is zero
-        raw_traces += abs(np.min(raw_traces))
+        if self.raw_traces is not None:
+            raw_traces = np.copy(self.raw_traces)
+            # so the lowest value is zero
+            raw_traces += abs(np.min(raw_traces))
+        else:
+            raw_traces = np.copy(self.traces)
+            # so the lowest value is zero
+            raw_traces += abs(np.min(raw_traces))
         for peak in selected_peaks:
             tmp_source_profile = np.zeros((len_y, len_x))
             onsets_before_peak = np.where(onsets_frames <= peak)[0]
@@ -2899,9 +2912,14 @@ class ManualOnsetFrame(tk.Frame):
         frames_tiff = self.tiff_movie[transient[0]:transient[-1] + 1]
         # print(f"transient[0] {transient[0]}, transient[1] {transient[1]}")
         # now we do the weighted average
-        raw_traces = np.copy(self.raw_traces)
-        # so the lowest value is zero
-        raw_traces += abs(np.min(raw_traces))
+        if self.raw_traces is not None:
+            raw_traces = np.copy(self.raw_traces)
+            # so the lowest value is zero
+            raw_traces += abs(np.min(raw_traces))
+        else:
+            raw_traces = np.copy(self.traces)
+            # so the lowest value is zero
+            raw_traces += abs(np.min(raw_traces))
         for frame_index, frame_tiff in enumerate(frames_tiff):
             # print(f"frame_index {frame_index}")
             transient_profile += (
@@ -3091,7 +3109,10 @@ class ManualOnsetFrame(tk.Frame):
         # else:
         increase_factor = 6
         # back to zero with +2 then inceasing the amplitude
-        raw_traces = (self.raw_traces + 2) * increase_factor
+        if self.raw_traces is not None:
+            raw_traces = (self.raw_traces + 2) * increase_factor
+        else:
+            raw_traces = (self.traces + 2) * increase_factor
         # y-axis is reverse, so we need to inverse the trace
         # if zoom_mode:
         #     len_y = size_square
@@ -3283,8 +3304,15 @@ class ManualOnsetFrame(tk.Frame):
                 # O y-axis line
                 # self.axe_plot.hlines(0, 0, self.nb_times_traces - 1, color="black", linewidth=1)
         onsets = np.where(self.onset_times[self.current_neuron, :] > 0)[0]
-        max_value = max(np.max(self.traces[self.current_neuron, :]), np.max(self.raw_traces[self.current_neuron, :]))
-        min_value = min(np.min(self.traces[self.current_neuron, :]), np.min(self.raw_traces[self.current_neuron, :]))
+        if self.raw_traces is not None:
+            max_value = max(np.max(self.traces[self.current_neuron, :]),
+                            np.max(self.raw_traces[self.current_neuron, :]))
+            min_value = min(np.min(self.traces[self.current_neuron, :]),
+                            np.min(self.raw_traces[self.current_neuron, :]))
+        else:
+            max_value = np.max(self.traces[self.current_neuron, :])
+            min_value = np.min(self.traces[self.current_neuron, :])
+
         if self.raw_traces_binned is not None:
             min_value = min(min_value, np.min(self.raw_traces_binned[self.current_neuron, :]))
         # plotting onsets
@@ -3437,16 +3465,20 @@ class ManualOnsetFrame(tk.Frame):
         # by default the y axis zoom is set to fit the wider amplitude of the current neuron
         fit_plot_to_all_max = False
         if fit_plot_to_all_max:
-            if self.display_raw_traces and (not self.raw_traces_seperate_plot):
+            if self.display_raw_traces and (not self.raw_traces_seperate_plot) and (self.raw_traces is not None):
                 min_value = min(0, np.min(self.raw_traces[self.current_neuron, :]))
                 self.axe_plot.set_ylim(min_value, math.ceil(np.max(self.traces)))
             else:
                 self.axe_plot.set_ylim(0, math.ceil(np.max(self.traces)))
         else:
-            max_value = max(np.max(self.raw_traces[self.current_neuron, :]),
-                            np.max(self.traces[self.current_neuron, :]))
-            min_value = min(np.min(self.raw_traces[self.current_neuron, :]),
-                            np.min(self.traces[self.current_neuron, :]))
+            if self.raw_traces is not None:
+                max_value = max(np.max(self.raw_traces[self.current_neuron, :]),
+                                np.max(self.traces[self.current_neuron, :]))
+                min_value = min(np.min(self.raw_traces[self.current_neuron, :]),
+                                np.min(self.traces[self.current_neuron, :]))
+            else:
+                max_value = np.max(self.traces[self.current_neuron, :])
+                min_value = np.min(self.traces[self.current_neuron, :])
             if self.raw_traces_binned is not None:
                 min_value = min(min_value, np.min(self.raw_traces_binned[self.current_neuron, :]))
 

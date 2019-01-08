@@ -948,10 +948,17 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p60_a529_2015_02_25_ms.load_data_from_file(file_name_to_load=
                                                    "p60/a529_2015_02_25/a529_2015_02_25_RasterDur.mat",
                                                    variables_mapping=variables_mapping)
+        variables_mapping = {"raw_traces": "raw_traces"}
+        p60_a529_2015_02_25_ms.load_data_from_file(file_name_to_load=
+                                                   "p60/a529_2015_02_25/MotCorre_529_15_02_25_raw_Traces.mat",
+                                                   variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p60_a529_2015_02_25_ms.load_data_from_file(
             file_name_to_load="p60/a529_2015_02_25/MotCorre_529_15_02_25_CellDetect.mat",
             variables_mapping=variables_mapping)
+        p60_a529_2015_02_25_ms.set_avg_cell_map_tif(file_name="p60/a529_2015_02_25/AVG_a529_2015_02_25.tif")
+        if load_movie:
+            p60_a529_2015_02_25_ms.load_tif_movie(path="p60/a529_2015_02_25/")
         ms_str_to_ms_dict["p60_a529_2015_02_25_ms"] = p60_a529_2015_02_25_ms
 
     if "p60_a529_2015_02_25_v_arnaud_ms" in ms_str_to_load:

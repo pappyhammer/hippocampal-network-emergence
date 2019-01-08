@@ -1699,7 +1699,7 @@ def main():
     path_results_raw = root_path + "results_hne/"
     cell_assemblies_data_path = path_data + "cell_assemblies/v3/"
     best_order_data_path = path_data + "best_order_data/v2/"
-
+    
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     path_results = path_results_raw + f"{time_str}"
     os.mkdir(path_results)
@@ -1707,7 +1707,7 @@ def main():
     # --------------------------------------------------------------------------------
     # ------------------------------ param section ------------------------------
     # --------------------------------------------------------------------------------
-
+    
     # param will be set later when the spike_nums will have been constructed
     param = HNEParameters(time_str=time_str, path_results=path_results, error_rate=2,
                           cell_assemblies_data_path=cell_assemblies_data_path,
@@ -1853,10 +1853,10 @@ def main():
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = False
+    just_plot_all_cells_on_map = True
     do_plot_psth_twitches = False
     just_plot_raster = False
-    just_do_seqnmf = True
+    just_do_seqnmf = False
 
     # for events (sce) detection
     perc_threshold = 99

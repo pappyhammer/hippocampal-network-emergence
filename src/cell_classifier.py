@@ -610,7 +610,8 @@ def train_model():
         #     print(f"valid: {str(round(predict_value, 2))} / {valid_labels[i]}")
 
         if use_mulimodal_inputs:
-            test_loss, test_acc = model.evaluate({'first_input': test_images, 'second_input': test_images_masked},
+            test_loss, test_acc = model.evaluate({'first_input': test_images,
+                                                  'second_input': test_images_masked},
                                                  test_labels)
         else:
             test_loss, test_acc = model.evaluate(test_images, test_labels)
