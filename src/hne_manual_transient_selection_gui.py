@@ -39,6 +39,8 @@ from itertools import cycle
 from matplotlib import animation
 import matplotlib.gridspec as gridspec
 
+from cell_classifier import predict_cell_from_saved_model
+
 if sys.version_info[0] < 3:
     import Tkinter as tk
     from Tkinter import *
@@ -2283,13 +2285,45 @@ class ManualOnsetFrame(tk.Frame):
         # self.last_action = None
 
     def save_sources_profile_map(self, key_cmap=None):
-        c_map = plt.get_cmap('gray')
-        if key_cmap is not None:
-            if key_cmap is "P":
-                c_map = self.parula_map
-            if key_cmap is "B":
-                c_map = plt.get_cmap('Blues')
+        # c_map = plt.get_cmap('gray')
+        # if key_cmap is not None:
+        #     if key_cmap is "P":
+        #         c_map = self.parula_map
+        #     if key_cmap is "B":
+        #         c_map = plt.get_cmap('Blues')
+        c_map = self.parula_map
 
+        # TODO: show cells that are removed, and those that the CNN would think as False with the associated score
+        # predicting if a cell is a True on or not
+        path_to_model = self.path_data + "cell_classifier_model/"
+        # predictions will be an array of length n_cells
+        predictions = None
+        # checking if the path exists
+        if os.path.isdir(path_to_model):
+            json_file = None
+            weights_file = None
+            # then we look for the json file (representing the model architecture) and the weights file
+            # we will assume there is only one file of each in this directory
+            # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+            for (dirpath, dirnames, local_filenames) in os.walk(path_to_model):
+                for file_name in local_filenames:
+                    if file_name.endswith(".json"):
+                        json_file = path_to_model + file_name
+                    if "weights" in file_name:
+                        weights_file = path_to_model + file_name
+                # looking only in the top directory
+                break
+            if (json_file is not None) and (weights_file is not None):
+                # first we "load" the movie in ms as well as peaks and onsets such as defined so far
+                self.data_and_param.ms.tiff_movie = self.tiff_movie
+                self.data_and_param.ms.spike_struct.peak_nums = self.peak_nums
+                self.data_and_param.ms.spike_struct.spike_nums = self.spike_nums
+                predictions = predict_cell_from_saved_model(ms=self.data_and_param.ms,
+                                                                        weights_file=weights_file, json_file=json_file)
+
+        # removed cells in cmap Gray, other cells in Parula
+        # decide threshold  and if CNN model available, red border is real cell, green border if false
+        # displaying value in the righ bottom border
         n_cells = len(self.traces)
         n_cells_by_row = 20
         n_pixels_by_cell_x = 20
@@ -2343,14 +2377,31 @@ class ManualOnsetFrame(tk.Frame):
         for cell_index, cell_to_display in enumerate(np.arange(n_cells)):
             line_gs = (cell_index // n_columns) * 2
             col_gs = cell_index % n_columns
-            ax_source_profile_by_cell[cell_to_display] = sources_profile_fig.add_subplot(grid_spec[line_gs, col_gs])
 
+            ax_source_profile_by_cell[cell_to_display] = sources_profile_fig.add_subplot(grid_spec[line_gs, col_gs])
+            ax = ax_source_profile_by_cell[cell_to_display]
             # ax_source_profile_by_cell[cell_to_display].set_facecolor("black")
-            ax_source_profile_by_cell[cell_to_display].set_xticklabels([])
-            ax_source_profile_by_cell[cell_to_display].set_yticklabels([])
-            ax_source_profile_by_cell[cell_to_display].get_yaxis().set_visible(False)
-            ax_source_profile_by_cell[cell_to_display].get_xaxis().set_visible(False)
-            ax_source_profile_by_cell[cell_to_display].set_frame_on(False)
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            ax.get_yaxis().set_visible(False)
+            ax.get_xaxis().set_visible(False)
+            if predictions is None:
+                ax.set_frame_on(False)
+            else:
+                # 3 range of color
+                if predictions[cell_index] > 0.6:
+                    frame_color = "green"
+                elif predictions[cell_index] < 0.3:
+                    frame_color = "red"
+                else:
+                    frame_color = "black"
+                for spine in ax.spines.values():
+                    spine.set_edgecolor(frame_color)
+                    spine.set_linewidth(1.5)
+                # ax.spines['bottom'].set_color(frame_color)
+                # ax.spines['top'].set_color(frame_color)
+                # ax.spines['right'].set_color(frame_color)
+                # ax.spines['left'].set_color(frame_color)
         bounds = None
         for cell_index, cell_to_display in enumerate(np.arange(n_cells)):
             if cell_to_display not in self.source_profile_dict_for_map_of_all_cells:
@@ -2364,7 +2415,10 @@ class ManualOnsetFrame(tk.Frame):
             else:
                 source_profile, minx, miny, mask_source_profile, xy_source = \
                     self.source_profile_dict_for_map_of_all_cells[cell_to_display]
-
+            if self.cells_to_remove[cell_to_display] == 1:
+                c_map = plt.get_cmap('gray')
+            else:
+                c_map = self.parula_map
             img_src_profile = ax_source_profile_by_cell[cell_to_display].imshow(source_profile,
                                                                                 cmap=c_map)
             with_mask = False
@@ -2379,13 +2433,26 @@ class ManualOnsetFrame(tk.Frame):
                                            zorder=15, lw=lw)
             ax_source_profile_by_cell[cell_to_display].add_patch(contour_cell)
 
-            if key_cmap in ["B", "P"]:
-                color_text = "red"
-            else:
+            # if key_cmap in ["B", "P"]:
+            #     color_text = "red"
+            # else:
+            #     color_text = "blue"
+            if cell_to_display in self.cells_to_remove:
                 color_text = "blue"
+            else:
+                color_text = "red"
             ax_source_profile_by_cell[cell_to_display].text(x=1.5, y=1,
                                                             s=f"{cell_to_display}", color=color_text, zorder=20,
                                                             ha='center', va="center", fontsize=3, fontweight='bold')
+
+            if predictions is not None:
+                predict_value = str(round(predictions[cell_to_display], 2))
+                ax_source_profile_by_cell[cell_to_display].text(x=source_profile.shape[1] - 2.7,
+                                                                y=source_profile.shape[0] - 2,
+                                                                s=f"{predict_value}", color=color_text, zorder=20,
+                                                                ha='center', va="center", fontsize=3, fontweight='bold')
+
+
 
         # plt.show()
 

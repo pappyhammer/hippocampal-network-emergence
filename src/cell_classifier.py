@@ -21,6 +21,8 @@ from hyperopt import Trials, STATUS_OK, tpe
 from hyperas import optim
 from hyperas.distributions import choice, uniform
 
+from keras.models import model_from_json
+
 
 class DataForMs(p_disc_tools_param.Parameters):
     def __init__(self, path_data, result_path):
@@ -33,17 +35,18 @@ class DataForMs(p_disc_tools_param.Parameters):
 
 def load_movie(ms):
     if ms.tif_movie_file_name is not None:
-        start_time = time.time()
-        im = PIL.Image.open(ms.tif_movie_file_name)
-        n_frames = len(list(ImageSequence.Iterator(im)))
-        dim_x, dim_y = np.array(im).shape
-        print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
-        ms.tiff_movie = np.zeros((n_frames, dim_x, dim_y))
-        for frame, page in enumerate(ImageSequence.Iterator(im)):
-            ms.tiff_movie[frame] = np.array(page)
-        stop_time = time.time()
-        print(f"Time for loading movie: "
-              f"{np.round(stop_time-start_time, 3)} s")
+        if ms.tiff_movie is None:
+            start_time = time.time()
+            im = PIL.Image.open(ms.tif_movie_file_name)
+            n_frames = len(list(ImageSequence.Iterator(im)))
+            dim_x, dim_y = np.array(im).shape
+            print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
+            ms.tiff_movie = np.zeros((n_frames, dim_x, dim_y))
+            for frame, page in enumerate(ImageSequence.Iterator(im)):
+                ms.tiff_movie[frame] = np.array(page)
+            stop_time = time.time()
+            print(f"Time for loading movie: "
+                  f"{np.round(stop_time-start_time, 3)} s")
         return True
     return False
 
@@ -130,6 +133,74 @@ def get_source_profile(cell, ms, binary_version=True, pixels_around=0, bounds=No
     return source_profile, minx, miny, mask
 
 
+def get_source_profile_to_classify(ms, binary_version, use_mask, max_width=20, max_height=20):
+    n_cells = ms.spike_struct.n_cells
+    if n_cells is None:
+        n_cells = len(ms.traces)
+
+    if binary_version:
+        full_data = np.zeros((n_cells, max_height, max_width), dtype="uint8")
+    else:
+        full_data = np.zeros((n_cells, max_height, max_width))
+
+    # for each cell, we will extract a 2D array representing the cell shape
+    # all 2D array should have the same shape
+    for cell in np.arange(n_cells):
+        pixels_around = 0
+        if use_mask:
+            buffer = 2
+        else:
+            buffer = None
+
+        if binary_version:
+            buffer = None
+        source_profile, minx, miny, mask_source_profile = get_source_profile(ms=ms, binary_version=binary_version,
+                                                                             cell=cell,
+                                                                             pixels_around=pixels_around,
+                                                                             buffer=buffer,
+                                                                             bounds=None)
+        if use_mask:
+            source_profile[mask_source_profile] = 0
+        if binary_version:
+            profile_fit = np.zeros((max_height, max_width), dtype="uint8")
+        else:
+            profile_fit = np.zeros((max_height, max_width))
+        # we center the source profile
+        y_coord = (profile_fit.shape[0] - source_profile.shape[0]) // 2
+        x_coord = (profile_fit.shape[1] - source_profile.shape[1]) // 2
+        profile_fit[y_coord:source_profile.shape[0] + y_coord, x_coord:source_profile.shape[1] + x_coord] = \
+            source_profile
+
+        visualize_cells = False
+        if visualize_cells:
+            # print(f"max value {np.max(source_profile)}")
+            fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                    gridspec_kw={'height_ratios': [1],
+                                                 'width_ratios': [1]},
+                                    figsize=(5, 5))
+            c_map = plt.get_cmap('gray')
+            img_src_profile = ax1.imshow(profile_fit, cmap=c_map)
+            plt.show()
+        full_data[cell] = profile_fit
+    return full_data
+
+
+def predict_cell_from_saved_model(ms, weights_file, json_file):
+    cells_profiles_to_predict = get_source_profile_to_classify(ms=ms, binary_version=False,
+                                                               use_mask=True, max_width=20, max_height=20)
+    cells_profiles_to_predict = cells_profiles_to_predict.reshape(
+        (cells_profiles_to_predict.shape[0], cells_profiles_to_predict.shape[1], cells_profiles_to_predict.shape[2], 1))
+
+    # Model reconstruction from JSON file
+    with open(json_file, 'r') as f:
+        model = model_from_json(f.read())
+
+    # Load weights into the new model
+    model.load_weights(weights_file)
+
+    return np.ndarray.flatten(model.predict(cells_profiles_to_predict))
+
+
 def load_data(ms_to_use, param, split_values=(0.5, 0.3), with_shuffling=True,
               binary_version=True, use_mask=True, cells_shuffling=None):
     # ms_to_use: list of string representing the mouse_session
@@ -145,11 +216,15 @@ def load_data(ms_to_use, param, split_values=(0.5, 0.3), with_shuffling=True,
     padding_value = 10
     total_n_cells = 0
     img_descr = []
-    for ms in ms_str_to_ms_dict.values():
+    for ms_str in ms_to_use:
+        ms = ms_str_to_ms_dict[ms_str]
         movie_loaded = load_movie(ms)
         if not movie_loaded:
             raise Exception(f"could not load movie of ms {ms.description}")
         n_cells = ms.spike_struct.n_cells
+        if n_cells is None:
+            n_cells = len(ms.traces)
+        print(f"{ms.description} n_cells {n_cells}")
         total_n_cells += n_cells
         for cell in np.arange(n_cells):
             poly_gon = ms.coord_obj.cells_polygon[cell]
@@ -159,6 +234,13 @@ def load_data(ms_to_use, param, split_values=(0.5, 0.3), with_shuffling=True,
     # then we add a few pixels
     max_width += padding_value
     max_height += padding_value
+
+    if (max_width > 25) or (max_height > 25):
+        print(f"cell_classifier: max_width {max_width}, max_height {max_height}")
+
+    # we fix the max_width and max_height so it won't change for predicting other ms cells
+    max_width = 20
+    max_height = 20
 
     # data will be 0 or 1
     if binary_version:
@@ -170,51 +252,22 @@ def load_data(ms_to_use, param, split_values=(0.5, 0.3), with_shuffling=True,
     cells_count = 0
     for ms in ms_str_to_ms_dict.values():
         n_cells = ms.spike_struct.n_cells
+        if n_cells is None:
+            n_cells = len(ms.traces)
 
         labels = np.ones(n_cells, dtype="uint8")
         labels[ms.cells_to_remove] = 0
         full_labels[cells_count:cells_count + n_cells] = labels
 
+        for cell in np.arange(n_cells):
+            img_descr.append(f"{ms.description}_cell_{cell}")
+
         # for each cell, we will extract a 2D array representing the cell shape
         # all 2D array should have the same shape
-        for cell in np.arange(n_cells):
-            pixels_around = 0
-            if use_mask:
-                buffer = 3
-            else:
-                buffer = None
-            img_descr.append(f"{ms.description}_cell_{cell}")
-            if binary_version:
-                buffer = None
-            source_profile, minx, miny, mask_source_profile = get_source_profile(ms=ms, binary_version=binary_version,
-                                                                                 cell=cell,
-                                                                                 pixels_around=pixels_around,
-                                                                                 buffer=buffer,
-                                                                                 bounds=None)
-            if use_mask:
-                source_profile[mask_source_profile] = 0
-            if binary_version:
-                profile_fit = np.zeros((max_height, max_width), dtype="uint8")
-            else:
-                profile_fit = np.zeros((max_height, max_width))
-            # we center the source profile
-            y_coord = (profile_fit.shape[0] - source_profile.shape[0]) // 2
-            x_coord = (profile_fit.shape[1] - source_profile.shape[1]) // 2
-            profile_fit[y_coord:source_profile.shape[0] + y_coord, x_coord:source_profile.shape[1] + x_coord] = \
-                source_profile
+        profiles_fit = get_source_profile_to_classify(ms=ms, binary_version=binary_version,
+                                                      use_mask=use_mask, max_width=20, max_height=20)
 
-            visualize_cells = False
-            if visualize_cells:
-                # print(f"max value {np.max(source_profile)}")
-                fig, ax1 = plt.subplots(nrows=1, ncols=1,
-                                        gridspec_kw={'height_ratios': [1],
-                                                     'width_ratios': [1]},
-                                        figsize=(5, 5))
-                c_map = plt.get_cmap('gray')
-                img_src_profile = ax1.imshow(profile_fit, cmap=c_map)
-                plt.show()
-
-            full_data[cells_count + cell] = profile_fit
+        full_data[cells_count: cells_count + n_cells] = profiles_fit
 
         cells_count += n_cells
 
@@ -386,7 +439,7 @@ def build_model(input_shape, use_mulimodal_inputs, with_dropout=0.5):
             output_tensor = layers.Dense(1, activation='sigmoid')(first_x)
 
         if use_mulimodal_inputs:
-            model = Model([input_tensor, input_tensor_bis],  output_tensor)
+            model = Model([input_tensor, input_tensor_bis], output_tensor)
         else:
             model = Model(input_tensor, output_tensor)
 
@@ -451,20 +504,23 @@ def load_data_from_file():
            train_data_masked, valid_data_masked, test_images_masked
 
 
+# so far the best looks, like 0.5 dropout x 2, datagen with just flip and rotation, one single input
+# mask, non binary, with buffer at 2 (1 has not been tested)
 def train_model():
+    print("train_model()")
     np.set_printoptions(threshold=np.inf)
     root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
     path_data = root_path + "data/"
     result_path = root_path + "results_classifier/"
     binary_version = False
-    use_mulimodal_inputs = True
+    use_mulimodal_inputs = False
 
     param = DataForMs(path_data=path_data, result_path=result_path)
 
     (train_images, train_labels), (valid_images, valid_labels), (test_images, test_labels), \
     test_img_descr, cells_shuffling \
-        = load_data(["p12_171110_a000_ms"], param=param,
-                    split_values=(0.6, 0.2), with_shuffling=True, binary_version=False, use_mask=False)
+        = load_data(["p12_171110_a000_ms", "p7_171012_a000_ms"], param=param,
+                    split_values=(0.6, 0.2), with_shuffling=True, binary_version=False, use_mask=True)
     print(f"train_images {train_images.shape}, train_labels {train_labels.shape}, "
           f"valid_images {valid_images.shape}, valid_labels {valid_labels.shape}, "
           f"test_images {test_images.shape}, test_labels {test_labels.shape}")
@@ -476,7 +532,7 @@ def train_model():
     if use_mulimodal_inputs:
         (train_images_masked, train_labels_masked), (valid_images_masked, valid_labels_masked), \
         (test_images_masked, test_labels_masked), test_img_descr_masked, cells_shuffling_masked \
-            = load_data(["p12_171110_a000_ms"], param=param,
+            = load_data(["p12_171110_a000_ms", "p7_171012_a000_ms"], param=param,
                         split_values=(0.6, 0.2), with_shuffling=True,
                         binary_version=binary_version, use_mask=True, cells_shuffling=cells_shuffling)
         train_images_masked = train_images_masked.reshape((train_images_masked.shape[0], train_images_masked.shape[1],
@@ -491,21 +547,31 @@ def train_model():
         print("save_in_npz_file data_hyperas.npz")
         for i in np.arange(len(test_img_descr)):
             print(f"{i}: {test_img_descr[i]}")
-        np.savez(result_path + "data_hyperas.npz",
-                 train_images=train_images,
-                 train_labels=train_labels,
-                 valid_images=valid_images,
-                 valid_labels=valid_labels,
-                 test_images=test_images,
-                 test_labels=test_labels,
-                 train_images_masked=train_images_masked,
-                 valid_images_masked=valid_images_masked,
-                 test_images_masked=test_images_masked,
-                 input_shape=train_images.shape[1:])
+        if use_mulimodal_inputs:
+            np.savez(result_path + "data_hyperas.npz",
+                     train_images=train_images,
+                     train_labels=train_labels,
+                     valid_images=valid_images,
+                     valid_labels=valid_labels,
+                     test_images=test_images,
+                     test_labels=test_labels,
+                     train_images_masked=train_images_masked,
+                     valid_images_masked=valid_images_masked,
+                     test_images_masked=test_images_masked,
+                     input_shape=train_images.shape[1:])
+        else:
+            np.savez(result_path + "data_hyperas.npz",
+                     train_images=train_images,
+                     train_labels=train_labels,
+                     valid_images=valid_images,
+                     valid_labels=valid_labels,
+                     test_images=test_images,
+                     test_labels=test_labels,
+                     input_shape=train_images.shape[1:])
         return
     load_data_npz_file = False
     if load_data_npz_file:
-        train_images, train_labels, valid_images, valid_labels, test_images, test_labels, input_shape,\
+        train_images, train_labels, valid_images, valid_labels, test_images, test_labels, input_shape, \
         train_data_masked, valid_data_masked, test_images_masked = \
             load_data_from_file()
 
@@ -540,10 +606,10 @@ def train_model():
         model.compile(optimizer='rmsprop',
                       loss='binary_crossentropy',
                       metrics=['accuracy'])
-        n_epochs = 30
+        n_epochs = 50
         batch_size = 64
 
-        with_datagen = False
+        with_datagen = True
 
         if with_datagen:
             train_datagen = ImageDataGenerator(
@@ -551,9 +617,9 @@ def train_model():
                 cval=0,
                 # rescale=1,
                 rotation_range=60,
-                width_shift_range=0.2,
-                height_shift_range=0.2,
-                # zoom_range=0.3,
+                # width_shift_range=0.2,
+                # height_shift_range=0.2,
+                # zoom_range=0.2,
                 horizontal_flip=True
             )
             # compute quantities required for featurewise normalization
@@ -593,8 +659,6 @@ def train_model():
                                     batch_size=batch_size,
                                     validation_data=(valid_images, valid_labels))
 
-        model.save(f'{param.path_results}cell_classifier_{param.time_str}.h5')
-
         show_plots = True
 
         if show_plots:
@@ -617,6 +681,14 @@ def train_model():
             test_loss, test_acc = model.evaluate(test_images, test_labels)
         print(f"test_acc {test_acc}")
 
+        model.save(f'{param.path_results}cell_classifier_model_acc_test_acc_{test_acc}_{param.time_str}.h5')
+        model.save_weights(f'{param.path_results}cell_classifier_weights_acc_test_acc_{test_acc}_{param.time_str}.h5')
+        # Save the model architecture
+        with open(
+                f'{param.path_results}cell_classifier_model_architecture_acc_test_acc_{test_acc}_{param.time_str}.json',
+                'w') as f:
+            f.write(model.to_json())
+
         if use_mulimodal_inputs:
             prediction = np.ndarray.flatten(model.predict({'first_input': test_images,
                                                            'second_input': test_images_masked}))
@@ -625,6 +697,7 @@ def train_model():
         for i, predict_value in enumerate(prediction):
             predict_value = str(round(predict_value, 2))
             print(f"{i}: {test_img_descr[i]}: {predict_value} / {test_labels[i]}")
+        print(f"test_acc {test_acc}")
 
 
-train_model()
+# train_model()

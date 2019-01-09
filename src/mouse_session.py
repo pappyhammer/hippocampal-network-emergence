@@ -2515,6 +2515,15 @@ class MouseSession:
 
         # if (self.spike_struct.spike_nums_dur is not None) or (self.spike_struct.spike_nums is not None):
         #     self.detect_n_in_n_out()
+    def load_cells_to_remove_from_txt(self, file_name):
+        cells_to_remove = []
+        with open(self.param.path_data + file_name, "r", encoding='UTF-8') as file:
+            for nb_line, line in enumerate(file):
+                line_list = line.split()
+                cells_list = [int(i) for i in line_list]
+                cells_to_remove.extend(cells_list)
+        # print(f"cells_to_remove {cells_to_remove}")
+        self.cells_to_remove = cells_to_remove
 
     def detect_n_in_n_out(self):
         self.spike_struct.detect_n_in_n_out()

@@ -74,9 +74,9 @@ def build_hyperas_model(train_images, train_labels, valid_images, valid_labels, 
         fill_mode='constant',
         cval=0,
         # rescale=1,
-        rotation_range=60,
-        width_shift_range=0.2,
-        height_shift_range=0.2,
+        rotation_range=50,
+        # width_shift_range=0.2,
+        # height_shift_range=0.2,
         horizontal_flip=True
     )
     # compute quantities required for featurewise normalization
@@ -90,7 +90,7 @@ def build_hyperas_model(train_images, train_labels, valid_images, valid_labels, 
     result = model.fit_generator(train_datagen.flow(train_images, train_labels, batch_size=batch_size,
                                                     shuffle=False),
                                  steps_per_epoch=len(train_images) / batch_size,
-                                 epochs=5,
+                                 epochs=30,
                                  shuffle=False,
                                  validation_steps=len(valid_images) / batch_size,
                                  validation_data=valid_datagen.flow(valid_images, valid_labels,
@@ -117,7 +117,8 @@ def main():
     print(f"train_images {train_images.shape}, train_labels {train_labels.shape}, "
           f"valid_images {valid_images.shape}, valid_labels {valid_labels.shape}, "
           f"test_images {test_images.shape}, test_labels {test_labels.shape}")
-    print(best_model.evaluate(test_images, test_labels))
+    test_loss, test_acc = best_model.evaluate(test_images, test_labels)
+    print(f"test_acc {test_acc}")
     root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
     result_path = root_path + "results_classifier/"
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
@@ -128,6 +129,13 @@ def main():
         print(f"{i}: {predict_value} / {test_labels[i]}")
     print("Best performing model chosen hyper-parameters:")
     print(best_run)
+    print(f"test_acc {test_acc}")
+
+    best_model.save(f'{result_path}cell_classifier_model_acc_test_acc_{test_acc}_{time_str}.h5')
+    best_model.save_weights(f'{result_path}cell_classifier_weights_acc_test_acc_{test_acc}_{time_str}.h5')
+    # Save the model architecture
+    with open(f'{result_path}cell_classifier_model_architecture_acc_test_acc_{test_acc}_{time_str}.json', 'w') as f:
+        f.write(best_model.to_json())
 
 
 main()
