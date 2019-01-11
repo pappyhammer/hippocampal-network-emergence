@@ -26,6 +26,8 @@ import matplotlib.gridspec as gridspec
 # import matplotlib.image as mpimg
 from mouse_session_loader import load_mouse_sessions
 import pattern_discovery.tools.param as p_disc_tools_param
+
+from pattern_discovery.display.misc import plot_hist_with_first_perc_and_eb
 from matplotlib import patches
 import scipy.signal as signal
 import matplotlib.image as mpimg
@@ -2321,6 +2323,62 @@ class ManualOnsetFrame(tk.Frame):
                 predictions = predict_cell_from_saved_model(ms=self.data_and_param.ms,
                                                                         weights_file=weights_file, json_file=json_file)
 
+        show_distribution_prediction = True
+        if (predictions is not None) and show_distribution_prediction:
+            distribution = predictions
+            hist_color = "blue"
+            edge_color = "white"
+            tight_x_range = False
+            if tight_x_range:
+                max_range = np.max(distribution)
+                min_range = np.min(distribution)
+            else:
+                max_range = 1
+                min_range = 0
+            weights = (np.ones_like(distribution) / (len(distribution))) * 100
+
+            fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                    gridspec_kw={'height_ratios': [1]},
+                                    figsize=(12, 12))
+            ax1.set_facecolor("black")
+            bins = int(np.sqrt(len(distribution)))
+            twice_more_bins = True
+            if twice_more_bins:
+                bins *= 2
+            hist_plt, edges_plt, patches_plt = plt.hist(distribution, bins=bins, range=(min_range, max_range),
+                                                        facecolor=hist_color,
+                                                        edgecolor=edge_color,
+                                                        weights=weights, log=False)
+
+            if tight_x_range:
+                plt.xlim(min_range, max_range)
+            else:
+                plt.xlim(0, 1)
+                xticks = np.arange(0, 1.1, 0.1)
+
+                ax1.set_xticks(xticks)
+                # sce clusters labels
+                ax1.set_xticklabels(xticks)
+            ylabel = None
+            if ylabel is None:
+                ax1.set_ylabel("Distribution (%)")
+            else:
+                ax1.set_ylabel(ylabel)
+            ax1.set_xlabel("predictions value")
+
+            save_formats = "pdf"
+            path_results = self.path_result + "/" + self.data_and_param.time_str
+            if not os.path.isdir(path_results):
+                os.mkdir(path_results)
+
+            if isinstance(save_formats, str):
+                save_formats = [save_formats]
+            for save_format in save_formats:
+                fig.savefig(f'{path_results}/{self.data_and_param.ms.description}_cells_prediction_'
+                            f'distribution_{self.data_and_param.time_str}.{save_format}',
+                            format=f"{save_format}")
+
+            plt.close()
         # removed cells in cmap Gray, other cells in Parula
         # decide threshold  and if CNN model available, red border is real cell, green border if false
         # displaying value in the righ bottom border
@@ -2437,7 +2495,7 @@ class ManualOnsetFrame(tk.Frame):
             #     color_text = "red"
             # else:
             #     color_text = "blue"
-            if cell_to_display in self.cells_to_remove:
+            if self.cells_to_remove[cell_to_display] == 1:
                 color_text = "blue"
             else:
                 color_text = "red"
@@ -2796,6 +2854,8 @@ class ManualOnsetFrame(tk.Frame):
                 maxx = max(maxx, tmp_maxx)
                 maxy = max(maxy, tmp_maxy)
         bounds = (minx, miny, maxx, maxy)
+        # show the extents of all the cells that overlap with the main cell
+        # print(f"maxx-minx {maxx-minx}, maxy-miny {maxy-miny}")
 
         for cell_index, cell_to_display in enumerate(cells_to_display):
             # self.x_beg_movie, self.x_end_movie, self.y_beg_movie, self.y_end_movie = \

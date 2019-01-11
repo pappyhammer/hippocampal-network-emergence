@@ -105,6 +105,29 @@ class HNESpikeStructure:
         self.graph_in = None
         self.graph_out = None
 
+    def build_spike_nums_dur(self):
+        if (self.spike_nums is None) or (self.peak_nums is None):
+            return
+        n_cells = len(self.spike_nums)
+        n_frames = self.spike_nums.shape[1]
+        ms = self.mouse_session
+        self.spike_nums_dur = np.zeros((n_cells, n_frames), dtype="uint8")
+        for cell in np.arange(n_cells):
+            peaks_index = np.where(self.peak_nums[cell, :])[0]
+            onsets_index = np.where(self.spike_nums[cell, :])[0]
+
+            for onset_index in onsets_index:
+                peaks_after = np.where(peaks_index > onset_index)[0]
+                if len(peaks_after) == 0:
+                    continue
+                peaks_after = peaks_index[peaks_after]
+                peak_after = peaks_after[0]
+                if (peak_after - onset_index) > 200:
+                    print(f"{ms.description} long transient in cell {cell} of "
+                          f"duration {peak_after - onset_index} frames at frame {onset_index}")
+
+                self.spike_nums_dur[cell, onset_index:peak_after+1] = 1
+
     def detect_n_in_n_out(self):
         # look neuron by neuron, at each spike and make a pair wise for each other neurons according to the spike
         # distribution around 500ms before and after. If the distribution is not uniform then we look where is the max

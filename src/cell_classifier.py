@@ -7,9 +7,9 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.utils import to_categorical
 from mouse_session_loader import load_mouse_sessions
 from sklearn.model_selection import train_test_split
-from datetime import datetime
 import numpy as np
 import pattern_discovery.tools.param as p_disc_tools_param
+from datetime import datetime
 import time
 from PIL import ImageSequence, ImageDraw
 import PIL
