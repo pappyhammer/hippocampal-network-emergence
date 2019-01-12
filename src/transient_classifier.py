@@ -158,7 +158,7 @@ def load_data(param, split_values=(0.6, 0.2), with_border=False, sliding_window_
         cells_to_load = np.array(cells_to_load)
         cell_to_load_by_ms[ms_str] = cells_to_load
         n_frames = ms.spike_struct.spike_nums_dur.shape[1]
-        n_movies += int(np.ceil(n_frames / (sliding_window_len*overlap_value))) - 1
+        n_movies += int(np.ceil(n_frames / (sliding_window_len * overlap_value))) - 1
 
         movie_loaded = load_movie(ms)
         if not movie_loaded:
@@ -277,9 +277,9 @@ def build_model(input_shape, use_mulimodal_inputs=False, dropout_value=0):
     vision_model.add(Conv2D(64, (3, 3), activation='relu', padding='same', input_shape=input_shape[1:]))
     vision_model.add(Conv2D(64, (3, 3), activation='relu'))
     vision_model.add(MaxPooling2D((2, 2)))
-    vision_model.add(Conv2D(128, (3, 3), activation='relu', padding='same'))
-    vision_model.add(Conv2D(128, (3, 3), activation='relu'))
-    vision_model.add(MaxPooling2D((2, 2)))
+    # vision_model.add(Conv2D(128, (3, 3), activation='relu', padding='same'))
+    # vision_model.add(Conv2D(128, (3, 3), activation='relu'))
+    # vision_model.add(MaxPooling2D((2, 2)))
     if dropout_value > 0:
         vision_model.add(layers.Dropout(dropout_value))
     # vision_model.add(Conv2D(256, (3, 3), activation='relu', padding='same'))
@@ -292,29 +292,31 @@ def build_model(input_shape, use_mulimodal_inputs=False, dropout_value=0):
     # This is our video encoded via the previously trained vision_model (weights are reused)
     encoded_frame_sequence = TimeDistributed(vision_model)(video_input)  # the output will be a sequence of vectors
     # encoded_video = LSTM(256)(encoded_frame_sequence)  # the output will be a vector
-
-    encoded_video = Bidirectional(LSTM(128, return_sequences=True),
-                                  input_shape=(n_frames, 128))(encoded_frame_sequence)
-    # encoded_video = Bidirectional(LSTM(256))(encoded_video)
+    encoded_video = Bidirectional(LSTM(128, return_sequences=True))(encoded_frame_sequence)
+    # if we put input_shape in Bidirectional, it crashes
+    # encoded_video = Bidirectional(LSTM(128, return_sequences=True),
+    #                               input_shape=(n_frames, 128))(encoded_frame_sequence)
+    encoded_video = Bidirectional(LSTM(256))(encoded_video)
 
     video_input_masked = Input(shape=input_shape, name="video_input_masked")
     # This is our video encoded via the previously trained vision_model (weights are reused)
-    encoded_frame_sequence_masked = TimeDistributed(vision_model)(video_input_masked)  # the output will be a sequence of vectors
+    encoded_frame_sequence_masked = TimeDistributed(vision_model)(
+        video_input_masked)  # the output will be a sequence of vectors
     # encoded_video_masked = LSTM(256)(encoded_frame_sequence_masked)  # the output will be a vector
 
-    encoded_video_masked = Bidirectional(LSTM(128, return_sequences=True),
-                                  input_shape=(n_frames, 128))(encoded_frame_sequence_masked)
-    # encoded_video_masked = Bidirectional(LSTM(256))(encoded_video_masked)
-
+    encoded_video_masked = Bidirectional(LSTM(128, return_sequences=True))(encoded_frame_sequence_masked)
+    encoded_video_masked = Bidirectional(LSTM(256))(encoded_video_masked)
 
     # in case we want 2 videos, one with masked, and one with the cell centered
     # And this is our video question answering model:
     if use_mulimodal_inputs:
         merged = layers.concatenate([encoded_video, encoded_video_masked])
-        output = Dense(n_frames, activation='sigmoid')(merged)
+        # output = TimeDistributed(Dense(1, activation='sigmoid')))
+        output = Dense(100, activation='sigmoid')(merged)
         video_model = Model(inputs=[video_input, video_input_masked], outputs=output)
     else:
-        output = Dense(n_frames, activation='sigmoid')(encoded_video)
+        # output = TimeDistributed(Dense(1, activation='sigmoid'))(encoded_video)
+        output = Dense(100, activation='sigmoid')(encoded_video)
         video_model = Model(inputs=video_input, outputs=output)
 
     return video_model
@@ -396,21 +398,24 @@ def main():
     valid_data_masked = valid_data_masked.reshape((valid_data_masked.shape[0], valid_data_masked.shape[1],
                                                    valid_data_masked.shape[2], valid_data_masked.shape[3], 1))
     test_data_masked = test_data_masked.reshape((test_data_masked.shape[0], test_data_masked.shape[1],
-                                                 test_data_masked.shape[2], test_data_masked.shape[3],  1))
+                                                 test_data_masked.shape[2], test_data_masked.shape[3], 1))
 
     # (sliding_window_size, max_width, max_height, 1)
     # sliding_window in frames, max_width, max_height: in pixel (100, 25, 25, 1) * n_movie
     input_shape = train_data.shape[1:]
 
+    print(f"train_data.shape {train_data.shape}")
+    print(f"input_shape {input_shape}")
     print("Data loaded")
     # building the model
     model = build_model(input_shape, dropout_value=0, use_mulimodal_inputs=use_mulimodal_inputs)
+    print(model.summary())
 
     model.compile(optimizer='rmsprop',
                   loss='binary_crossentropy',
                   metrics=['accuracy'])
-    n_epochs = 5
-    batch_size = 64
+    n_epochs = 1
+    batch_size = 32
     print("Model built and compiled")
     if use_mulimodal_inputs:
         history = model.fit({'video_input': train_data, 'video_input_masked': train_data_masked}, train_labels,
@@ -425,24 +430,34 @@ def main():
                             batch_size=batch_size,
                             validation_data=(valid_data_masked, valid_labels))
 
-    show_plots = True
+    show_plots = False
 
     if show_plots:
         plot_training_and_validation_loss(history, n_epochs)
         plot_training_and_validation_accuracy(history, n_epochs)
 
     # used to visualize the results
-    # if use_mulimodal_inputs:
-    #     prediction = np.ndarray.flatten(model.predict({'first_input': valid_data,
-    #                                                    'second_input': valid_data_masked}))
-    # else:
-    #     prediction = np.ndarray.flatten(model.predict(valid_data))
-    # for i, predict_value in enumerate(prediction):
-    #     print(f"valid: {str(round(predict_value, 2))} / {valid_labels[i]}")
+    if use_mulimodal_inputs:
+        prediction = model.predict({'video_input': valid_data,
+                                    'video_input_masked': valid_data_masked})
+    else:
+        prediction = model.predict(valid_data_masked)
+    print(f"Validation data: prediction.shape {prediction.shape}")
+
+    for i, valid_label in enumerate(valid_labels):
+        print(f"####### video {i}   ##########")
+        for j, label in enumerate(valid_label):
+            predict_value = str(round(prediction[i, j], 2))
+            bonus = ""
+            if label == 1:
+                bonus = "# "
+            print(f"{bonus} f {j}: {predict_value} / {label} ")
+        print("")
+        print("")
 
     if use_mulimodal_inputs:
-        test_loss, test_acc = model.evaluate({'first_input': test_data,
-                                              'second_input': test_data_masked},
+        test_loss, test_acc = model.evaluate({'video_input': test_data,
+                                              'video_input_masked': test_data_masked},
                                              test_labels)
     else:
         test_loss, test_acc = model.evaluate(test_data_masked, test_labels)
@@ -457,14 +472,25 @@ def main():
             'w') as f:
         f.write(model.to_json())
 
-    # if use_mulimodal_inputs:
-    #     prediction = np.ndarray.flatten(model.predict({'first_input': test_data,
-    #                                                    'second_input': test_data_masked}))
-    # else:
-    #     prediction = np.ndarray.flatten(model.predict(test_data))
-    # for i, predict_value in enumerate(prediction):
-    #     predict_value = str(round(predict_value, 2))
-    #     print(f"{i}: : {predict_value} / {test_labels[i]}")
+    if use_mulimodal_inputs:
+        prediction = model.predict({'video_input': test_data,
+                                    'video_input_masked': test_data_masked})
+    else:
+        prediction = model.predict(test_data_masked)
+    print(f"prediction.shape {prediction.shape}")
+
+    for i, test_label in enumerate(test_labels):
+        print(f"####### video {i}  ##########")
+        for j, label in enumerate(test_label):
+            predict_value = str(round(prediction[i, j], 2))
+            bonus = ""
+            if label == 1:
+                bonus = "# "
+            print(f"{bonus} f {j}: {predict_value} / {label} ")
+        print("")
+        print("")
+        # predict_value = str(round(predict_value, 2))
+        # print(f"{i}: : {predict_value} / {test_labels[i]}")
     print(f"test_acc {test_acc}")
 
 
