@@ -14,6 +14,7 @@ from PIL import ImageSequence, ImageDraw
 import PIL
 from mouse_session_loader import load_mouse_sessions
 from shapely import geometry
+from scipy import ndimage
 
 
 # make a function to build the training and validation set (test)
@@ -250,6 +251,59 @@ def load_data(param, split_values=(0.6, 0.2), with_border=False, sliding_window_
 
     train_data = full_data[movies_shuffling[:n_movies_for_training]]
     train_data_masked = full_data_masked[movies_shuffling[:n_movies_for_training]]
+
+    # data augmentation, we rotate each movie 3 times
+    # we could also translate the movie a few pixels left or right
+    do_data_augmentation = True
+    if do_data_augmentation:
+        train_data_augmented = np.zeros((train_data.shape[0] * 4, sliding_window_len, max_height, max_width))
+        train_data_masked_augmented = np.zeros((train_data.shape[0] * 4, sliding_window_len, max_height, max_width))
+        for index_movie in np.arange(train_data.shape[0]):
+            train_data_augmented[index_movie * 4] = train_data[index_movie]
+            train_data_masked_augmented[index_movie * 4] = train_data_masked[index_movie]
+            for i_angle, angle in enumerate([90, 180, 270]):
+                for sl_win_i in np.arange(train_data.shape[1]):
+                    first_index = (index_movie * 4) + i_angle + 1
+                    to_rotate = train_data[index_movie, sl_win_i]
+                    train_data_augmented[first_index, sl_win_i] = ndimage.rotate(input=to_rotate, angle=angle,
+                                                                                 reshape=False)
+                    to_rotate = train_data_masked[index_movie, sl_win_i]
+                    train_data_masked_augmented[first_index, sl_win_i] = ndimage.rotate(input=to_rotate, angle=angle,
+                                                                                        reshape=False)
+            visualize_cells = False
+            if visualize_cells and (index_movie == 0):
+                root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
+                path_data = root_path + "data/"
+                result_path = root_path + "results_classifier/"
+
+                images = [train_data_augmented[0, 0], train_data_augmented[1, 0], train_data_augmented[2, 0],
+                          train_data_augmented[3, 0]]
+                images_masked = [train_data_masked_augmented[0, 0], train_data_masked_augmented[1, 0],
+                                 train_data_masked_augmented[2, 0], train_data_masked_augmented[3, 0]]
+                for i_img in np.arange(len(images)):
+                    # print(f"max value {np.max(source_profile)}")
+                    fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                            gridspec_kw={'height_ratios': [1],
+                                                         'width_ratios': [1]},
+                                            figsize=(5, 5))
+                    c_map = plt.get_cmap('gray')
+                    img_profile = ax1.imshow(images[i_img], cmap=c_map)
+                    fig.savefig(f'{result_path}/cell_{i_img}.pdf',
+                                format=f"pdf")
+                    # plt.show()
+                    plt.close()
+                    fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                            gridspec_kw={'height_ratios': [1],
+                                                         'width_ratios': [1]},
+                                            figsize=(5, 5))
+                    c_map = plt.get_cmap('gray')
+                    img_profile = ax1.imshow(images_masked[i_img], cmap=c_map)
+                    fig.savefig(f'{result_path}/cell_masked_{i_img}.pdf',
+                                format=f"pdf")
+                    # plt.show()
+                    plt.close()
+        train_data = train_data_augmented
+        train_data_masked = train_data_masked_augmented
     train_labels = full_labels[movies_shuffling[:n_movies_for_training]]
     valid_data = full_data[movies_shuffling[n_movies_for_training:n_movies_for_training + n_movies_for_validation]]
     valid_data_masked = full_data_masked[movies_shuffling[n_movies_for_training:
@@ -342,7 +396,7 @@ def get_source_profile_for_prediction(ms, cell, max_width=30, max_height=30, sli
             # there will be some overlap with the last one
             frames = np.arange(n_frames - sliding_window_len, n_frames)
         else:
-            frames = np.arange(index_movie*sliding_window_len, (index_movie+1)*sliding_window_len)
+            frames = np.arange(index_movie * sliding_window_len, (index_movie + 1) * sliding_window_len)
         source_profile_frames, mask_source_profile = get_source_profile_frames(cell=cell, ms=ms,
                                                                                frames=frames, pixels_around=3,
                                                                                buffer=None)
@@ -389,8 +443,8 @@ def predict_transient_from_saved_model(ms, cell, weights_file, json_file):
     max_height = model.layers[0].output_shape[2]
     max_width = model.layers[0].output_shape[3]
     data, data_masked = get_source_profile_for_prediction(ms=ms, cell=cell,
-                                                                  sliding_window_len=sliding_window_len,
-                                                                  max_width=max_width, max_height=max_height)
+                                                          sliding_window_len=sliding_window_len,
+                                                          max_width=max_width, max_height=max_height)
     data = data.reshape((data.shape[0], data.shape[1], data.shape[2],
                          data.shape[3], 1))
     data_masked = data_masked.reshape((data_masked.shape[0], data_masked.shape[1], data_masked.shape[2],
@@ -402,7 +456,7 @@ def predict_transient_from_saved_model(ms, cell, weights_file, json_file):
     start_time = time.time()
     if multi_inputs:
         predictions = model.predict({'video_input': data,
-                                    'video_input_masked': data_masked})
+                                     'video_input_masked': data_masked})
     else:
         predictions = model.predict(data_masked)
     predictions = np.ndarray.flatten(predictions)
@@ -417,11 +471,12 @@ def predict_transient_from_saved_model(ms, cell, weights_file, json_file):
     if (n_frames % sliding_window_len) != 0:
         real_predictions = np.zeros(n_frames)
         modulo = n_frames % sliding_window_len
-        real_predictions[:len(predictions)-sliding_window_len] = predictions[:len(predictions)-sliding_window_len]
-        real_predictions[len(predictions)-sliding_window_len:] = predictions[-modulo:]
+        real_predictions[:len(predictions) - sliding_window_len] = predictions[:len(predictions) - sliding_window_len]
+        real_predictions[len(predictions) - sliding_window_len:] = predictions[-modulo:]
         predictions = real_predictions
 
     return predictions
+
 
 def smooth_curve(points, factor=0.8):
     smoothed_points = []
@@ -506,8 +561,10 @@ def main():
     input_shape = train_data.shape[1:]
 
     print(f"train_data.shape {train_data.shape}")
-    print(f"input_shape {input_shape}")
+    print(f"valid_data.shape {valid_data.shape}")
+    # print(f"input_shape {input_shape}")
     print("Data loaded")
+    # return
     # building the model
     model = build_model(input_shape, dropout_value=0, use_mulimodal_inputs=use_mulimodal_inputs)
     print(model.summary())
@@ -601,5 +658,4 @@ def main():
         # print(f"{i}: : {predict_value} / {test_labels[i]}")
     print(f"test_acc {test_acc}")
 
-
-# main()
+main()
