@@ -42,6 +42,8 @@ from matplotlib import animation
 import matplotlib.gridspec as gridspec
 
 from cell_classifier import predict_cell_from_saved_model
+from transient_classifier import predict_transient_from_saved_model
+from pattern_discovery.tools.misc import get_continous_time_periods
 
 if sys.version_info[0] < 3:
     import Tkinter as tk
@@ -688,6 +690,31 @@ class ManualOnsetFrame(tk.Frame):
         # list of action that has been undone
         self.undone_actions = []
 
+        # check if a transient classifier model is available
+        path_to_tc_model = self.path_data + "transient_classifier_model/"
+        self.transient_classifier_json_file = None
+        self.transient_classifier_weights_file = None
+        # checking if the path exists
+        if os.path.isdir(path_to_tc_model):
+            # then we look for the json file (representing the model architecture) and the weights file
+            # we will assume there is only one file of each in this directory
+            # look for filenames in the first directory, if we don't break, it will go through all directories
+            for (dirpath, dirnames, local_filenames) in os.walk(path_to_tc_model):
+                for file_name in local_filenames:
+                    if file_name.endswith(".json"):
+                        self.transient_classifier_json_file = path_to_tc_model + file_name
+                    if "weights" in file_name:
+                        self.transient_classifier_weights_file = path_to_tc_model + file_name
+                # looking only in the top directory
+                break
+        self.show_transient_classifier = False
+        self.transient_classifier_threshold = 0.05
+        # key is int representing the cell number, and value will be an array of float reprenseing for each frame
+        # the probability for the cell to be active
+        self.transient_prediction = dict()
+        # first key is an int (cell), value is a dict
+        # the second key is a float representing a threshold, and the value is a list of tuple
+        self.transient_prediction_periods = dict()
         # Three horizontal frames to start
         # -------------- top frame (start) ----------------
         top_frame = Frame(self)
@@ -935,7 +962,8 @@ class ManualOnsetFrame(tk.Frame):
             stop_time = time.time()
             print(f"Time for loading movie: "
                   f"{np.round(stop_time-start_time, 3)} s")
-
+            # will be useful for transient classifier prediction
+            self.data_and_param.ms.tiff_movie = self.tiff_movie
         self.michou_path = "michou/"
         self.michou_img_file_names = []
         # look for filenames in the fisrst directory, if we don't break, it will go through all directories
@@ -1116,7 +1144,7 @@ class ManualOnsetFrame(tk.Frame):
         empty_label.pack(side=RIGHT)
 
         self.remove_peaks_under_threshold_button = Button(bottom_frame)
-        self.remove_peaks_under_threshold_button["text"] = ' REMOVE PEAKS '
+        self.remove_peaks_under_threshold_button["text"] = ' DEL PEAKS '
         self.remove_peaks_under_threshold_button["fg"] = "red"
         self.remove_peaks_under_threshold_button['state'] = DISABLED  # ''normal
         self.remove_peaks_under_threshold_button["command"] = event_lambda(self.remove_peaks_under_threshold)
@@ -1219,6 +1247,31 @@ class ManualOnsetFrame(tk.Frame):
 
         self.remove_cell_button["command"] = event_lambda(self.remove_cell)
         self.remove_cell_button.pack(side=RIGHT)
+
+        if (self.transient_classifier_weights_file is not None) and (self.transient_classifier_json_file is not None):
+            empty_label = Label(bottom_frame)
+            empty_label["text"] = " " * 1
+            empty_label.pack(side=RIGHT)
+            # from_=1, to=3
+            # self.var_spin_box_threshold = StringVar(bottom_frame)
+            self.spin_box_transient_classifier = Spinbox(bottom_frame, values=list(np.arange(0.05, 1, 0.05)),
+                                                         fg="blue", justify=CENTER,
+                                                         width=3, state="readonly")  # , textvariable=self.var_spin_box_threshold)
+            # self.var_spin_box_threshold.set(0.9)
+            self.spin_box_transient_classifier["command"] = event_lambda(self.spin_box_transient_classifier_update)
+            # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
+            self.spin_box_transient_classifier.pack(side=RIGHT)
+
+            empty_label = Label(bottom_frame)
+            empty_label["text"] = " " * 1
+            empty_label.pack(side=RIGHT)
+
+            self.transient_classifier_var = IntVar()
+            self.transient_classifier_check_box = Checkbutton(bottom_frame, text="tc",
+                                                              variable=self.transient_classifier_var, onvalue=1,
+                                                              offvalue=0, fg=self.color_threshold_line)
+            self.transient_classifier_check_box["command"] = event_lambda(self.transient_classifier_check_box_action)
+            self.transient_classifier_check_box.pack(side=RIGHT)
 
         empty_label = Label(bottom_frame)
         empty_label["text"] = " " * 1
@@ -2020,6 +2073,21 @@ class ManualOnsetFrame(tk.Frame):
 
         self.update_plot(raw_trace_display_action=True)
 
+    def set_transient_classifier_prediction_for_cell(self, cell):
+        if cell in self.transient_prediction:
+            return
+        predictions = predict_transient_from_saved_model(ms=self.data_and_param.ms, cell=cell,
+                                                         weights_file=self.transient_classifier_weights_file,
+                                                         json_file=self.transient_classifier_json_file)
+        self.transient_prediction[cell] = predictions
+        self.transient_prediction_periods[cell] = dict()
+
+    def transient_classifier_check_box_action(self):
+        self.show_transient_classifier = not self.show_transient_classifier
+        if self.show_transient_classifier:
+            self.set_transient_classifier_prediction_for_cell(self.current_neuron)
+        self.update_plot()
+
     def correlation_check_box_action(self, from_std_treshold=False):
         if self.display_threshold and not from_std_treshold:
             self.threshold_check_box_action(from_correlation=True)
@@ -2063,6 +2131,11 @@ class ManualOnsetFrame(tk.Frame):
             self.update_plot()
         else:
             self.threshold_check_box.deselect()
+
+    def spin_box_transient_classifier_update(self):
+        self.transient_classifier_threshold = float(self.spin_box_transient_classifier.get())
+        if self.show_transient_classifier:
+            self.update_plot()
 
     def spin_box_threshold_update(self):
         self.nb_std_thresold = float(self.spin_box_threshold.get())
@@ -2321,7 +2394,7 @@ class ManualOnsetFrame(tk.Frame):
                 self.data_and_param.ms.spike_struct.peak_nums = self.peak_nums
                 self.data_and_param.ms.spike_struct.spike_nums = self.spike_nums
                 predictions = predict_cell_from_saved_model(ms=self.data_and_param.ms,
-                                                                        weights_file=weights_file, json_file=json_file)
+                                                            weights_file=weights_file, json_file=json_file)
 
         show_distribution_prediction = True
         if (predictions is not None) and show_distribution_prediction:
@@ -3414,6 +3487,24 @@ class ManualOnsetFrame(tk.Frame):
         color_trace = self.color_trace
         self.line1, = self.axe_plot.plot(np.arange(self.nb_times_traces), self.traces[self.current_neuron, :],
                                          color=color_trace, zorder=10)
+        if self.show_transient_classifier:
+            if self.current_neuron in self.transient_prediction:
+                threshold_tc = self.transient_classifier_threshold
+                if threshold_tc not in self.transient_prediction_periods[self.current_neuron]:
+                    predictions = self.transient_prediction[self.current_neuron]
+                    print(f"n predictions > threshold: {len(np.where(predictions >= threshold_tc)[0])}")
+                    active_frames_binary = np.zeros(len(predictions), dtype="int8")
+                    active_frames_binary[predictions >= threshold_tc] = 1
+                    active_periods = get_continous_time_periods(active_frames_binary)
+                    self.transient_prediction_periods[self.current_neuron][threshold_tc] = active_periods
+                else:
+                    active_periods = self.transient_prediction_periods[self.current_neuron][threshold_tc]
+                for i_ap, active_period in enumerate(active_periods):
+                    period = np.arange(active_period[0], active_period[1]+1)
+                    min_traces = np.min(self.traces[self.current_neuron]) - 0.1
+                    y2 = np.repeat(min_traces, len(period))
+                    self.axe_plot.fill_between(x=period, y1=self.traces[self.current_neuron, period], y2=y2,
+                                               color="red")
         if self.raw_traces_median is not None:
             self.axe_plot.plot(np.arange(self.nb_times_traces),
                                self.raw_traces_median[self.current_neuron, :],
@@ -3836,6 +3927,8 @@ class ManualOnsetFrame(tk.Frame):
         :return:
         """
         self.current_neuron = new_neuron
+        if self.show_transient_classifier:
+            self.set_transient_classifier_prediction_for_cell(cell=self.current_neuron)
         if self.correlation_for_each_peak_option:
             if self.display_correlations:
                 self.correlation_check_box_action(from_std_treshold=True)

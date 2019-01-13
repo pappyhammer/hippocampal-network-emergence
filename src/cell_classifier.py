@@ -133,6 +133,7 @@ def get_source_profile(cell, ms, binary_version=True, pixels_around=0, bounds=No
     return source_profile, minx, miny, mask
 
 
+# used to get prediction, in the gui for exemple.
 def get_source_profile_to_classify(ms, binary_version, use_mask, max_width=20, max_height=20):
     n_cells = ms.spike_struct.n_cells
     if n_cells is None:
