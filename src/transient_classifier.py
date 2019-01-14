@@ -524,7 +524,13 @@ def plot_training_and_validation_accuracy(history, n_epochs):
 
 
 def main():
-    root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
+    root_path = None
+    with open("param_hne.txt", "r", encoding='UTF-8') as file:
+        for nb_line, line in enumerate(file):
+            line_list = line.split('=')
+            root_path = line_list[1]
+    if root_path is None:
+        raise Exception("Root path is None")
     path_data = root_path + "data/"
     result_path = root_path + "results_classifier/"
     use_mulimodal_inputs = True
