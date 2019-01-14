@@ -982,7 +982,8 @@ class ManualOnsetFrame(tk.Frame):
             # image = Image.fromarray(image)
             # image = ImageTk.PhotoImage(image)
             # self.michou_imgs.append(image)
-            self.michou_imgs.append(mpimg.imread(self.data_and_param.path_data + self.michou_path + file_name))
+            if not file_name.startswith("."):
+                self.michou_imgs.append(mpimg.imread(self.data_and_param.path_data + self.michou_path + file_name, 0))
 
         self.n_michou_img = len(self.michou_img_file_names)
         self.michou_img_to_display = -1
@@ -3489,9 +3490,11 @@ class ManualOnsetFrame(tk.Frame):
                                          color=color_trace, zorder=10)
         if self.show_transient_classifier:
             if self.current_neuron in self.transient_prediction:
+                predictions = self.transient_prediction[self.current_neuron]
+                self.axe_plot.plot(np.arange(self.nb_times_traces), predictions,
+                                   color="red", zorder=20)
                 threshold_tc = self.transient_classifier_threshold
                 if threshold_tc not in self.transient_prediction_periods[self.current_neuron]:
-                    predictions = self.transient_prediction[self.current_neuron]
                     print(f"n predictions > threshold: {len(np.where(predictions >= threshold_tc)[0])}")
                     active_frames_binary = np.zeros(len(predictions), dtype="int8")
                     active_frames_binary[predictions >= threshold_tc] = 1
@@ -3504,7 +3507,7 @@ class ManualOnsetFrame(tk.Frame):
                     min_traces = np.min(self.traces[self.current_neuron]) - 0.1
                     y2 = np.repeat(min_traces, len(period))
                     self.axe_plot.fill_between(x=period, y1=self.traces[self.current_neuron, period], y2=y2,
-                                               color="red")
+                                               color="yellow")
         if self.raw_traces_median is not None:
             self.axe_plot.plot(np.arange(self.nb_times_traces),
                                self.raw_traces_median[self.current_neuron, :],
