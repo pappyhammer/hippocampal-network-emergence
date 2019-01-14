@@ -251,6 +251,7 @@ def load_data(param, split_values=(0.6, 0.2), with_border=False, sliding_window_
 
     train_data = full_data[movies_shuffling[:n_movies_for_training]]
     train_data_masked = full_data_masked[movies_shuffling[:n_movies_for_training]]
+    train_labels = full_labels[movies_shuffling[:n_movies_for_training]]
 
     # data augmentation, we rotate each movie 3 times
     # we could also translate the movie a few pixels left or right
@@ -258,18 +259,23 @@ def load_data(param, split_values=(0.6, 0.2), with_border=False, sliding_window_
     if do_data_augmentation:
         train_data_augmented = np.zeros((train_data.shape[0] * 4, sliding_window_len, max_height, max_width))
         train_data_masked_augmented = np.zeros((train_data.shape[0] * 4, sliding_window_len, max_height, max_width))
+        train_labels_augmented = np.zeros((train_labels.shape[0]*4, sliding_window_len), dtype="uint8")
         for index_movie in np.arange(train_data.shape[0]):
             train_data_augmented[index_movie * 4] = train_data[index_movie]
             train_data_masked_augmented[index_movie * 4] = train_data_masked[index_movie]
+            train_labels_augmented[index_movie * 4] = train_labels[index_movie]
             for i_angle, angle in enumerate([90, 180, 270]):
+                first_index = (index_movie * 4) + i_angle + 1
+                # looping on each frame
                 for sl_win_i in np.arange(train_data.shape[1]):
-                    first_index = (index_movie * 4) + i_angle + 1
                     to_rotate = train_data[index_movie, sl_win_i]
                     train_data_augmented[first_index, sl_win_i] = ndimage.rotate(input=to_rotate, angle=angle,
                                                                                  reshape=False)
                     to_rotate = train_data_masked[index_movie, sl_win_i]
                     train_data_masked_augmented[first_index, sl_win_i] = ndimage.rotate(input=to_rotate, angle=angle,
                                                                                         reshape=False)
+
+                train_labels_augmented[first_index] = train_labels[index_movie]
             visualize_cells = False
             if visualize_cells and (index_movie == 0):
                 root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
@@ -304,7 +310,8 @@ def load_data(param, split_values=(0.6, 0.2), with_border=False, sliding_window_
                     plt.close()
         train_data = train_data_augmented
         train_data_masked = train_data_masked_augmented
-    train_labels = full_labels[movies_shuffling[:n_movies_for_training]]
+        train_labels = train_labels_augmented
+
     valid_data = full_data[movies_shuffling[n_movies_for_training:n_movies_for_training + n_movies_for_validation]]
     valid_data_masked = full_data_masked[movies_shuffling[n_movies_for_training:
                                                           n_movies_for_training + n_movies_for_validation]]
@@ -586,7 +593,7 @@ def main():
     # print(f"{model.layers[0].output_shape == model.layers[1].output_shape}")
     # return
     n_epochs = 1
-    batch_size = 32
+    batch_size = 16
     print("Model built and compiled")
     if use_mulimodal_inputs:
         history = model.fit({'video_input': train_data, 'video_input_masked': train_data_masked}, train_labels,
