@@ -102,9 +102,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                  "cells_to_remove": "cells_to_remove",
                                  "inter_neurons_from_gui": "inter_neurons"}
             p7_171012_a000_ms.load_data_from_file(file_name_to_load=
-                                                   "p7/p7_17_10_12_a000/p7_17_10_12_a000_GUI_JD.mat",
+                                                   "p7/p7_17_10_12_a000/p7_17_10_12_a000_GUI_transients_RD.mat",
                                                    variables_mapping=variables_mapping,
                                                    from_gui=True)
+
+            p7_171012_a000_ms.build_spike_nums_dur()
             if for_cell_classifier:
                 p7_171012_a000_ms.load_cells_to_remove_from_txt(file_name="p7/p7_17_10_12_a000/"
                                                                        "p7_17_10_12_a000_cell_to_suppress_JD.txt")
@@ -217,7 +219,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         if load_abf:
             p7_18_02_08_a000_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a000/p7_18_02_08_a000.abf",
-                                              threshold_ratio=2,just_load_npz_file=True) # threshold_piezo=4,
+                                              threshold_ratio=2, just_load_npz_file=True)  # threshold_piezo=4,
         ms_str_to_ms_dict["p7_18_02_08_a000_ms"] = p7_18_02_08_a000_ms
 
     if "p7_18_02_08_a001_ms" in ms_str_to_load:

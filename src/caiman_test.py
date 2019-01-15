@@ -14,6 +14,9 @@ are tailored for that environment.
 @authors: @agiovann and @epnev
 
 """
+# Ignore warnings
+import warnings
+warnings.filterwarnings('ignore')
 
 import cv2
 import glob
@@ -61,7 +64,14 @@ def main():
                                  single_thread=False)
 
 # %% set up some parameters
-    fnames = [os.path.join("/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/data",
+    root_path = None
+    with open("param_hne.txt", "r", encoding='UTF-8') as file:
+        for nb_line, line in enumerate(file):
+            line_list = line.split('=')
+            root_path = line_list[1]
+    if root_path is None:
+        raise Exception("Root path is None")
+    fnames = [os.path.join(f"{root_path}", "data",
                            'p12', 'p12_17_11_10_a000', 'p12_17_11_10_a000.tif')]
     print(f"fnames {fnames}")
                             # file(s) to be analyzed

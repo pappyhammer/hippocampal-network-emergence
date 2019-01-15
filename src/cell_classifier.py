@@ -708,4 +708,4 @@ def train_model():
         print(f"test_acc {test_acc}")
 
 
-train_model()
+# train_model()

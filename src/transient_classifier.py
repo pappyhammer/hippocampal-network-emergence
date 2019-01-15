@@ -16,6 +16,10 @@ from mouse_session_loader import load_mouse_sessions
 from shapely import geometry
 from scipy import ndimage
 
+import sys
+import platform
+print(f"sys.maxsize {sys.maxsize}, platform.architecture {platform.architecture()}")
+
 
 # make a function to build the training and validation set (test)
 # same for the training labels and test labels
@@ -132,14 +136,13 @@ def get_source_profile_frames(cell, ms, frames, pixels_around=3, buffer=None):
 def load_data(param, split_values=(0.6, 0.2), with_border=False, sliding_window_len=100,
               movies_shuffling=None, with_shuffling=True,
               overlap_value=0.5):
-    path_data = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/data/"
-
-    ms_to_use = ["p12_171110_a000_ms"]
+    # TODO: option to remove overlapp
+    ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms"]
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
                                             param=param,
                                             load_traces=False, load_abf=False,
                                             for_transient_classifier=True)
-    cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(2)}
+    cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(70)}
 
     total_n_cells = 0
     n_movies = 0
@@ -255,7 +258,7 @@ def load_data(param, split_values=(0.6, 0.2), with_border=False, sliding_window_
 
     # data augmentation, we rotate each movie 3 times
     # we could also translate the movie a few pixels left or right
-    do_data_augmentation = True
+    do_data_augmentation = False
     if do_data_augmentation:
         train_data_augmented = np.zeros((train_data.shape[0] * 4, sliding_window_len, max_height, max_width))
         train_data_masked_augmented = np.zeros((train_data.shape[0] * 4, sliding_window_len, max_height, max_width))
@@ -592,7 +595,7 @@ def main():
     # print(f"model.layers[1].output_shape {model.layers[1].output_shape}")
     # print(f"{model.layers[0].output_shape == model.layers[1].output_shape}")
     # return
-    n_epochs = 1
+    n_epochs = 5
     batch_size = 16
     print("Model built and compiled")
     if use_mulimodal_inputs:
@@ -608,7 +611,7 @@ def main():
                             batch_size=batch_size,
                             validation_data=(valid_data_masked, valid_labels))
 
-    show_plots = False
+    show_plots = True
 
     if show_plots:
         plot_training_and_validation_loss(history, n_epochs)
