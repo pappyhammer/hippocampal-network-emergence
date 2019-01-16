@@ -24,6 +24,72 @@ from hyperas.distributions import choice, uniform
 from keras.models import model_from_json
 
 
+class TTA_ModelWrapper():
+    """A simple TTA wrapper for keras computer vision models.
+    From: https://github.com/tsterbak/keras_tta
+    the wrapper flips the images horizontally and vertically and averages the predictions of all flipped images.
+
+    The intuition behind this is that even if the test image is not too easy to make a prediction,
+    the transformations change it such that the model has higher chances of capturing
+    the target shape and predicting accordingly.
+    Args:
+        model (keras model): A fitted keras model with a predict method.
+    """
+
+    def __init__(self, model):
+        self.model = model
+
+    def predict(self, **args):
+        """Wraps the predict method of the provided model.
+        Augments the testdata with horizontal and vertical flips and
+        averages the results.
+        Args:
+            data (numpy array of dim 4): The data to get predictions for.
+        """
+        data = None
+        data_masked = None
+        if 'data' in args:
+            data = args['data']
+        if 'data_masked' in args:
+            data_masked = args['data_masked']
+        if data is None:
+            raise Exception("data is None")
+
+        pred = []
+        for index, img in enumerate(data):
+            if data_masked is None:
+                p0 = self.model.predict(self._expand(img[:, :, 0]))
+                p1 = self.model.predict(self._expand(np.fliplr(img[:, :, 0])))
+                p2 = self.model.predict(self._expand(np.flipud(img[:, :, 0])))
+                p3 = self.model.predict(self._expand(np.fliplr(np.flipud(img[:, :, 0]))))
+            else:
+                img_masked = data_masked[index]
+                p0 = self.model.predict({'first_input': self._expand(img[:, :, 0]),
+                                         'second_input': self._expand(img_masked[:, :, 0])})
+                p1 = self.model.predict({'first_input': self._expand(np.fliplr(img[:, :, 0])),
+                                         'second_input': self._expand(np.fliplr(img_masked[:, :, 0]))})
+                p2 = self.model.predict({'first_input': self._expand(np.flipud(img[:, :, 0])),
+                                         'second_input': self._expand(np.flipud(img_masked[:, :, 0]))})
+                p3 = self.model.predict({'first_input': self._expand(np.fliplr(np.flipud(img[:, :, 0]))),
+                                         'second_input': self._expand(np.fliplr(np.flipud(img_masked[:, :, 0])))})
+
+            p = (p0[0][0] + p1[0][0] + p2[0][0] + p3[0][0]) / 4
+            show_differences = False
+            if show_differences:
+                if abs(p - p0[0][0]) > 0.1:
+                    print(f"p0 {str(np.round(p0, 3))}, p1 {str(np.round(p1, 3))}, "
+                          f"p2 {str(np.round(p2, 3))}, p3 {str(np.round(p3, 3))}")
+                    print(f"Cell {index}: p {str(np.round(p, 3))}")
+                    print("")
+
+            pred.append(p)
+
+        return np.array(pred)
+
+    def _expand(self, x):
+        return np.expand_dims(np.expand_dims(x, axis=0), axis=3)
+
+
 class DataForMs(p_disc_tools_param.Parameters):
     def __init__(self, path_data, result_path):
         self.time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
@@ -134,24 +200,26 @@ def get_source_profile(cell, ms, binary_version=True, pixels_around=0, bounds=No
 
 
 # used to get prediction, in the gui for exemple.
-def get_source_profile_to_classify(ms, binary_version, use_mask, max_width=20, max_height=20):
+def get_source_profile_to_classify(ms, buffer=None, max_width=20, max_height=20, binary_version=False):
     n_cells = ms.spike_struct.n_cells
     if n_cells is None:
         n_cells = len(ms.traces)
 
     if binary_version:
         full_data = np.zeros((n_cells, max_height, max_width), dtype="uint8")
+        full_data_masked = np.zeros((n_cells, max_height, max_width), dtype="uint8")
     else:
         full_data = np.zeros((n_cells, max_height, max_width))
+        full_data_masked = np.zeros((n_cells, max_height, max_width))
 
     # for each cell, we will extract a 2D array representing the cell shape
     # all 2D array should have the same shape
     for cell in np.arange(n_cells):
-        pixels_around = 0
-        if use_mask:
-            buffer = 2
-        else:
-            buffer = None
+        pixels_around = 3
+        # if use_mask:
+        #     buffer = buffer
+        # else:
+        #     buffer = None
 
         if binary_version:
             buffer = None
@@ -160,17 +228,31 @@ def get_source_profile_to_classify(ms, binary_version, use_mask, max_width=20, m
                                                                              pixels_around=pixels_around,
                                                                              buffer=buffer,
                                                                              bounds=None)
-        if use_mask:
-            source_profile[mask_source_profile] = 0
+        visualize_cells = False
+        if visualize_cells:
+            # print(f"max value {np.max(source_profile)}")
+            fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                    gridspec_kw={'height_ratios': [1],
+                                                 'width_ratios': [1]},
+                                    figsize=(5, 5))
+            c_map = plt.get_cmap('gray')
+            img_src_profile = ax1.imshow(source_profile, cmap=c_map)
+            plt.show()
+        source_profile_masked = np.copy(source_profile)
+        source_profile_masked[mask_source_profile] = 0
         if binary_version:
             profile_fit = np.zeros((max_height, max_width), dtype="uint8")
+            profile_fit_masked = np.zeros((max_height, max_width), dtype="uint8")
         else:
             profile_fit = np.zeros((max_height, max_width))
+            profile_fit_masked = np.zeros((max_height, max_width))
         # we center the source profile
         y_coord = (profile_fit.shape[0] - source_profile.shape[0]) // 2
         x_coord = (profile_fit.shape[1] - source_profile.shape[1]) // 2
         profile_fit[y_coord:source_profile.shape[0] + y_coord, x_coord:source_profile.shape[1] + x_coord] = \
             source_profile
+        profile_fit_masked[y_coord:source_profile.shape[0] + y_coord, x_coord:source_profile.shape[1] + x_coord] = \
+            source_profile_masked
 
         visualize_cells = False
         if visualize_cells:
@@ -183,15 +265,11 @@ def get_source_profile_to_classify(ms, binary_version, use_mask, max_width=20, m
             img_src_profile = ax1.imshow(profile_fit, cmap=c_map)
             plt.show()
         full_data[cell] = profile_fit
-    return full_data
+        full_data_masked[cell] = profile_fit_masked
+    return full_data, full_data_masked
 
 
 def predict_cell_from_saved_model(ms, weights_file, json_file):
-    cells_profiles_to_predict = get_source_profile_to_classify(ms=ms, binary_version=False,
-                                                               use_mask=True, max_width=20, max_height=20)
-    cells_profiles_to_predict = cells_profiles_to_predict.reshape(
-        (cells_profiles_to_predict.shape[0], cells_profiles_to_predict.shape[1], cells_profiles_to_predict.shape[2], 1))
-
     # Model reconstruction from JSON file
     with open(json_file, 'r') as f:
         model = model_from_json(f.read())
@@ -199,11 +277,37 @@ def predict_cell_from_saved_model(ms, weights_file, json_file):
     # Load weights into the new model
     model.load_weights(weights_file)
 
-    return np.ndarray.flatten(model.predict(cells_profiles_to_predict))
+    multi_inputs = (model.layers[0].output_shape == model.layers[1].output_shape)
+    max_height = model.layers[0].output_shape[1]
+    max_width = model.layers[0].output_shape[2]
+
+    cells_profiles_to_predict, cells_profiles_to_predict_masked = get_source_profile_to_classify(ms=ms,
+                                                                                                 binary_version=False,
+                                                                                                 buffer=1,
+                                                                                                 max_width=max_width,
+                                                                                                 max_height=max_height)
+    cells_profiles_to_predict = cells_profiles_to_predict.reshape(
+        (cells_profiles_to_predict.shape[0], cells_profiles_to_predict.shape[1], cells_profiles_to_predict.shape[2], 1))
+    cells_profiles_to_predict_masked = cells_profiles_to_predict_masked.reshape(
+        (cells_profiles_to_predict_masked.shape[0], cells_profiles_to_predict_masked.shape[1],
+         cells_profiles_to_predict_masked.shape[2], 1))
+
+    tta_model = TTA_ModelWrapper(model)
+    if multi_inputs:
+        predictions = tta_model.predict(data=cells_profiles_to_predict, data_masked=cells_profiles_to_predict_masked)
+
+        # predictions = np.ndarray.flatten(model.predict({'first_input': cells_profiles_to_predict,
+        #                                                 'second_input': cells_profiles_to_predict_masked}))
+    else:
+
+        predictions = tta_model.predict(data=cells_profiles_to_predict)
+        # predictions = np.ndarray.flatten(model.predict(cells_profiles_to_predict))
+
+    return predictions
 
 
-def load_data(ms_to_use, param, split_values=(0.5, 0.3), with_shuffling=True,
-              binary_version=True, use_mask=True, cells_shuffling=None):
+def load_data(ms_to_use, param, split_values=(0.5, 0.3), buffer=2,
+              with_shuffling=True, with_data_augmentation=True, cells_shuffling=None):
     # ms_to_use: list of string representing the mouse_session
     # return normalized data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
@@ -244,10 +348,8 @@ def load_data(ms_to_use, param, split_values=(0.5, 0.3), with_shuffling=True,
     max_height = 20
 
     # data will be 0 or 1
-    if binary_version:
-        full_data = np.zeros((total_n_cells, max_height, max_width), dtype="uint8")
-    else:
-        full_data = np.zeros((total_n_cells, max_height, max_width))
+    full_data = np.zeros((total_n_cells, max_height, max_width))
+    full_data_masked = np.zeros((total_n_cells, max_height, max_width))
     full_labels = np.zeros(total_n_cells, dtype="uint8")
 
     cells_count = 0
@@ -265,10 +367,11 @@ def load_data(ms_to_use, param, split_values=(0.5, 0.3), with_shuffling=True,
 
         # for each cell, we will extract a 2D array representing the cell shape
         # all 2D array should have the same shape
-        profiles_fit = get_source_profile_to_classify(ms=ms, binary_version=binary_version,
-                                                      use_mask=use_mask, max_width=20, max_height=20)
+        profiles_fit, profiles_fit_masked = get_source_profile_to_classify(ms=ms, buffer=buffer,
+                                                                           max_width=20, max_height=20)
 
         full_data[cells_count: cells_count + n_cells] = profiles_fit
+        full_data_masked[cells_count: cells_count + n_cells] = profiles_fit_masked
 
         cells_count += n_cells
 
@@ -287,18 +390,92 @@ def load_data(ms_to_use, param, split_values=(0.5, 0.3), with_shuffling=True,
     n_cells_for_validation = int(total_n_cells * split_values[1])
 
     train_data = full_data[cells_shuffling[:n_cells_for_training]]
+    train_data_masked = full_data_masked[cells_shuffling[:n_cells_for_training]]
     train_labels = full_labels[cells_shuffling[:n_cells_for_training]]
+    if with_data_augmentation:
+        train_data_augmented = np.zeros((train_data.shape[0] * 4, max_height, max_width))
+        train_data_masked_augmented = np.zeros((train_data.shape[0] * 4, max_height, max_width))
+        train_labels_augmented = np.zeros((train_labels.shape[0] * 4), dtype="uint8")
+        n_transform = 4
+        for index_img in np.arange(train_data.shape[0]):
+            train_data_augmented[index_img * n_transform] = train_data[index_img]
+            train_data_masked_augmented[index_img * n_transform] = train_data_masked[index_img]
+            train_labels_augmented[index_img * n_transform] = train_labels[index_img]
+            # horizontal flip
+            train_data_augmented[(index_img * n_transform) + 1] = np.fliplr(train_data[index_img])
+            train_data_masked_augmented[(index_img * n_transform) + 1] = np.fliplr(train_data_masked[index_img])
+            # vertical flip
+            train_data_augmented[(index_img * n_transform) + 2] = np.flipud(train_data[index_img])
+            train_data_masked_augmented[(index_img * n_transform) + 2] = np.flipud(train_data_masked[index_img])
+            # horizontal and vertical flip
+            train_data_augmented[(index_img * n_transform) + 3] = np.fliplr(np.flipud(train_data[index_img]))
+            train_data_masked_augmented[(index_img * n_transform) + 3] = np.fliplr(
+                np.flipud(train_data_masked[index_img]))
+            train_labels_augmented[(index_img * n_transform) + 1:(index_img * n_transform) + 4] = train_labels[
+                index_img]
+
+            # for i_angle, angle in enumerate([90, 180, 270]):
+            #     first_index = (index_img * 4) + i_angle + 1
+            #     to_rotate = train_data[index_img]
+            #     train_data_augmented[first_index] = ndimage.rotate(input=to_rotate, angle=angle,
+            #                                                        reshape=False)
+            #     to_rotate = train_data_masked[index_img]
+            #     train_data_masked_augmented[first_index] = ndimage.rotate(input=to_rotate, angle=angle,
+            #                                                               reshape=False)
+
+            #   train_labels_augmented[first_index] = train_labels[index_img]
+            visualize_cells = True
+            if visualize_cells and (index_img == 0):
+                root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
+                path_data = root_path + "data/"
+                result_path = root_path + "results_classifier/"
+
+                images = [train_data_augmented[0], train_data_augmented[1], train_data_augmented[2],
+                          train_data_augmented[3]]
+                images_masked = [train_data_masked_augmented[0], train_data_masked_augmented[1],
+                                 train_data_masked_augmented[2], train_data_masked_augmented[3]]
+                for i_img in np.arange(len(images)):
+                    # print(f"max value {np.max(source_profile)}")
+                    fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                            gridspec_kw={'height_ratios': [1],
+                                                         'width_ratios': [1]},
+                                            figsize=(5, 5))
+                    c_map = plt.get_cmap('gray')
+                    img_profile = ax1.imshow(images[i_img], cmap=c_map)
+                    fig.savefig(f'{result_path}/cell_{i_img}.pdf',
+                                format=f"pdf")
+                    # plt.show()
+                    plt.close()
+                    fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                            gridspec_kw={'height_ratios': [1],
+                                                         'width_ratios': [1]},
+                                            figsize=(5, 5))
+                    c_map = plt.get_cmap('gray')
+                    img_profile = ax1.imshow(images_masked[i_img], cmap=c_map)
+                    fig.savefig(f'{result_path}/cell_masked_{i_img}.pdf',
+                                format=f"pdf")
+                    # plt.show()
+                    plt.close()
+        train_data = train_data_augmented
+        train_data_masked = train_data_masked_augmented
+        train_labels = train_labels_augmented
     valid_data = full_data[cells_shuffling[n_cells_for_training:n_cells_for_training + n_cells_for_validation]]
+    valid_data_masked = full_data_masked[
+        cells_shuffling[n_cells_for_training:n_cells_for_training + n_cells_for_validation]]
     valid_labels = full_labels[cells_shuffling[n_cells_for_training:n_cells_for_training + n_cells_for_validation]]
     test_data = full_data[cells_shuffling[n_cells_for_training + n_cells_for_validation:]]
+    test_data_masked = full_data_masked[cells_shuffling[n_cells_for_training + n_cells_for_validation:]]
     test_labels = full_labels[cells_shuffling[n_cells_for_training + n_cells_for_validation:]]
     # print(f"test cells: {cells_shuffling[n_cells_for_training + n_cells_for_validation:]}")
     test_img_descr = []
     for cell in cells_shuffling[n_cells_for_training + n_cells_for_validation:]:
         test_img_descr.append(img_descr[cell])
 
-    return (train_data, train_labels), (valid_data, valid_labels), (test_data, test_labels), \
-           test_img_descr, cells_shuffling
+    data_set = (train_data, valid_data, test_data)
+    data_masked_set = (train_data_masked, valid_data_masked, test_data_masked)
+    labels_set = (train_labels, valid_labels, test_labels)
+
+    return data_set, data_masked_set, labels_set, test_img_descr, cells_shuffling
 
 
 def hyperas_data(train_data, train_labels, valid_data, valid_labels, input_shape):
@@ -394,9 +571,9 @@ def build_model(input_shape, use_mulimodal_inputs, with_dropout=0.5):
             x = layers.SeparableConv2D(64, 3, activation='relu')(x)
             x = layers.SeparableConv2D(128, 3, activation='relu')(x)
             x = layers.BatchNormalization()(x)
-            # x = layers.MaxPooling2D(2)(x)
-            # x = layers.SeparableConv2D(64, 3, activation='relu')(x)
-            # x = layers.SeparableConv2D(128, 3, activation='relu')(x)
+            x = layers.MaxPooling2D(2)(x)
+            x = layers.SeparableConv2D(64, 3, activation='relu')(x)
+            x = layers.SeparableConv2D(128, 3, activation='relu')(x)
             x = layers.GlobalAveragePooling2D()(x)
             if with_dropout > 0:
                 x = layers.Dropout(with_dropout)(x)
@@ -505,8 +682,9 @@ def load_data_from_file():
            train_data_masked, valid_data_masked, test_images_masked
 
 
-# so far the best looks, like 0.5 dropout x 2, datagen with just flip and rotation, one single input
-# mask, non binary, with buffer at 2 (1 has not been tested)
+# so far the best with 0.83 on test data (an 0.86 on another session),
+# Is 0.5 dropout x 2, home datagen with just flip horizontal and vertical,  two  inputs (masked with buffer 1, and
+# image with 3 pixels around)
 def train_model():
     print("train_model()")
     np.set_printoptions(threshold=np.inf)
@@ -520,15 +698,18 @@ def train_model():
 
     path_data = root_path + "data/"
     result_path = root_path + "results_classifier/"
-    binary_version = False
-    use_mulimodal_inputs = False
+    use_mulimodal_inputs = True
 
     param = DataForMs(path_data=path_data, result_path=result_path)
 
-    (train_images, train_labels), (valid_images, valid_labels), (test_images, test_labels), \
-    test_img_descr, cells_shuffling \
-        = load_data(["p12_171110_a000_ms", "p7_171012_a000_ms"], param=param,
-                    split_values=(0.6, 0.2), with_shuffling=True, binary_version=False, use_mask=True)
+    # "p12_171110_a000_ms"
+    data_set, data_masked_set, labels_set, test_img_descr, cells_shuffling \
+        = load_data(["p9_18_09_27_a003_ms", "p7_171012_a000_ms"], param=param, buffer=1,
+                    split_values=(0.7, 0.2), with_shuffling=True, with_data_augmentation=True)
+    (train_images, valid_images, test_images) = data_set
+    (train_images_masked, valid_images_masked, test_images_masked) = data_masked_set
+    (train_labels, valid_labels, test_labels) = labels_set
+
     print(f"train_images {train_images.shape}, train_labels {train_labels.shape}, "
           f"valid_images {valid_images.shape}, valid_labels {valid_labels.shape}, "
           f"test_images {test_images.shape}, test_labels {test_labels.shape}")
@@ -537,18 +718,12 @@ def train_model():
     test_images = test_images.reshape((test_images.shape[0], test_images.shape[1], test_images.shape[2], 1))
     input_shape = train_images.shape[1:]
 
-    if use_mulimodal_inputs:
-        (train_images_masked, train_labels_masked), (valid_images_masked, valid_labels_masked), \
-        (test_images_masked, test_labels_masked), test_img_descr_masked, cells_shuffling_masked \
-            = load_data(["p12_171110_a000_ms", "p7_171012_a000_ms"], param=param,
-                        split_values=(0.6, 0.2), with_shuffling=True,
-                        binary_version=binary_version, use_mask=True, cells_shuffling=cells_shuffling)
-        train_images_masked = train_images_masked.reshape((train_images_masked.shape[0], train_images_masked.shape[1],
-                                                           train_images_masked.shape[2], 1))
-        valid_images_masked = valid_images_masked.reshape((valid_images_masked.shape[0], valid_images_masked.shape[1],
-                                                           valid_images_masked.shape[2], 1))
-        test_images_masked = test_images_masked.reshape((test_images_masked.shape[0], test_images_masked.shape[1],
-                                                         test_images_masked.shape[2], 1))
+    train_images_masked = train_images_masked.reshape((train_images_masked.shape[0], train_images_masked.shape[1],
+                                                       train_images_masked.shape[2], 1))
+    valid_images_masked = valid_images_masked.reshape((valid_images_masked.shape[0], valid_images_masked.shape[1],
+                                                       valid_images_masked.shape[2], 1))
+    test_images_masked = test_images_masked.reshape((test_images_masked.shape[0], test_images_masked.shape[1],
+                                                     test_images_masked.shape[2], 1))
 
     save_in_npz_file = False
     if save_in_npz_file:
@@ -569,11 +744,11 @@ def train_model():
                      input_shape=train_images.shape[1:])
         else:
             np.savez(result_path + "data_hyperas.npz",
-                     train_images=train_images,
+                     train_images=train_images_masked,
                      train_labels=train_labels,
-                     valid_images=valid_images,
+                     valid_images=valid_images_masked,
                      valid_labels=valid_labels,
-                     test_images=test_images,
+                     test_images=test_images_masked,
                      test_labels=test_labels,
                      input_shape=train_images.shape[1:])
         return
@@ -615,20 +790,21 @@ def train_model():
                       loss='binary_crossentropy',
                       metrics=['accuracy'])
         n_epochs = 50
-        batch_size = 64
+        batch_size = 16
 
-        with_datagen = True
+        with_datagen = False
 
         if with_datagen:
             train_datagen = ImageDataGenerator(
                 fill_mode='constant',
                 cval=0,
                 # rescale=1,
-                rotation_range=60,
+                # rotation_range=60,
                 # width_shift_range=0.2,
                 # height_shift_range=0.2,
                 # zoom_range=0.2,
-                horizontal_flip=True
+                horizontal_flip=True,
+                vertical_flip=True
             )
             # compute quantities required for featurewise normalization
             # (std, mean, and principal components if ZCA whitening is applied)
@@ -706,6 +882,3 @@ def train_model():
             predict_value = str(round(predict_value, 2))
             print(f"{i}: {test_img_descr[i]}: {predict_value} / {test_labels[i]}")
         print(f"test_acc {test_acc}")
-
-
-# train_model()

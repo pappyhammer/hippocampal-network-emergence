@@ -188,7 +188,7 @@ class ChooseSessionFrame(tk.Frame):
     def go_go(self):
         self.go_button['state'] = DISABLED
         ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=[self.option_menu_variable.get()],
-                                                param=self.data_and_param,
+                                                param=self.data_and_param, for_cell_classifier=False,
                                                 load_traces=True, load_abf=True)
         self.data_and_param.ms = ms_str_to_ms_dict[self.option_menu_variable.get()]
         self.data_and_param.traces = self.data_and_param.ms.traces
@@ -665,6 +665,9 @@ class ManualOnsetFrame(tk.Frame):
         if self.data_and_param.cells_to_remove is not None:
             for cell_to_remove in self.data_and_param.cells_to_remove:
                 self.cells_to_remove[cell_to_remove] = 1
+        # if self.data_and_param.ms.cells_to_remove is not None:
+        #     for cell_to_remove in self.data_and_param.ms.cells_to_remove:
+        #         self.cells_to_remove[cell_to_remove] = 1
         self.display_raw_traces = self.raw_traces is not None
         self.raw_traces_seperate_plot = False
         # neuron's trace displayed
@@ -2396,6 +2399,19 @@ class ManualOnsetFrame(tk.Frame):
                 self.data_and_param.ms.spike_struct.spike_nums = self.spike_nums
                 predictions = predict_cell_from_saved_model(ms=self.data_and_param.ms,
                                                             weights_file=weights_file, json_file=json_file)
+                print_accuracy = False
+                if print_accuracy:
+                    total_right = 0
+                    for cell_index, cell_value in enumerate(self.cells_to_remove):
+                        # print(f"cell_index {cell_index}: {cell_value}")
+                        if (cell_value == 0) and (predictions[cell_index] >= 0.5):
+                            total_right += 1
+                        elif (cell_value == 1) and (predictions[cell_index] < 0.5):
+                            total_right += 1
+                    # print(f"self.nb_neurons {self.nb_neurons}")
+                    # for cell in np.where(self.cells_to_remove)[0]:
+                    #     print(f"fake {cell}")
+                    print(f"Accuracy: {str(np.round(total_right/self.nb_neurons, 2))}")
 
         show_distribution_prediction = True
         if (predictions is not None) and show_distribution_prediction:
