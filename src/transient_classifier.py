@@ -264,8 +264,6 @@ def generate_movies_from_metadata(data_list, window_len, max_width, max_height, 
         data[index_batch] = profile_fit
         data_masked[index_batch] = profile_fit_masked
 
-
-
     return data, data_masked, labels
 
 
@@ -370,7 +368,7 @@ def load_data_for_generator(param, split_values=(0.6, 0.2), sliding_window_len=1
                                             param=param,
                                             load_traces=False, load_abf=False,
                                             for_transient_classifier=True)
-    cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(1), "p7_171012_a000_ms": np.arange(2)}
+    cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(70)}
     # cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(1)}
 
     total_n_cells = 0
@@ -445,208 +443,6 @@ def load_data_for_generator(param, split_values=(0.6, 0.2), sliding_window_len=1
     return train_data, valid_data, test_data, test_movie_descr
 
 
-def load_data(param, split_values=(0.6, 0.2), with_border=False, sliding_window_len=100,
-              movies_shuffling=None, with_shuffling=True,
-              overlap_value=0.5):
-    # TODO: option to remove overlapp
-    # ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms"]
-    ms_to_use = ["p12_171110_a000_ms"]
-    ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
-                                            param=param,
-                                            load_traces=False, load_abf=False,
-                                            for_transient_classifier=True)
-    # cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(70)}
-    cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(1)}
-
-    total_n_cells = 0
-    n_movies = 0
-
-    # used to check the result on original data, useful after shuffling
-    movies_descr = []
-
-    # loading movies
-    # and counting cells and movies
-    for ms_str in ms_to_use:
-        ms = ms_str_to_ms_dict[ms_str]
-        cells_to_load_tmp = cell_to_load_by_ms[ms_str]
-        cells_to_load = []
-        for cell in cells_to_load_tmp:
-            if ms.cells_to_remove[cell] == 0:
-                cells_to_load.append(cell)
-        total_n_cells += len(cells_to_load)
-        cells_to_load = np.array(cells_to_load)
-        cell_to_load_by_ms[ms_str] = cells_to_load
-        n_frames = ms.spike_struct.spike_nums_dur.shape[1]
-        n_movies += int(np.ceil(n_frames / (sliding_window_len * overlap_value))) - 1
-
-        movie_loaded = load_movie(ms)
-        if not movie_loaded:
-            raise Exception(f"could not load movie of ms {ms.description}")
-
-    max_width = 30
-    max_height = 30
-    n_movies = n_movies * total_n_cells
-    print(f"n_movies {n_movies}")
-
-    full_data = np.zeros((n_movies, sliding_window_len, max_height, max_width))
-    full_data_masked = np.zeros((n_movies, sliding_window_len, max_height, max_width))
-    # for each movie, each frame is 1 if the cell is active, 0 if not active
-    full_labels = np.zeros((n_movies, sliding_window_len), dtype="uint8")
-
-    movie_count = 0
-    for ms_str in ms_to_use:
-        ms = ms_str_to_ms_dict[ms_str]
-        spike_nums_dur = ms.spike_struct.spike_nums_dur
-        n_frames = spike_nums_dur.shape[1]
-        for cell in cell_to_load_by_ms[ms_str]:
-            # then we slide the window
-            # frames index of the beginning of each movie
-            indices_movies = np.arange(0, n_frames, int(sliding_window_len * overlap_value))
-            mask_source_profile, (minx, maxx, miny, maxy) = \
-                get_source_profile_param(cell=cell, ms=ms, pixels_around=3, buffer=None)
-            # print(f"len(indices_movies) {len(indices_movies)}")
-            for i, index_movie in enumerate(indices_movies):
-                if i == (len(indices_movies) - 1):
-                    if (indices_movies[i - 1] + sliding_window_len) == n_frames:
-                        break
-                    else:
-                        frames = np.arange(n_frames - sliding_window_len, n_frames)
-                else:
-                    frames = np.arange(index_movie, index_movie + sliding_window_len)
-                # setting labels: active frame or not
-                full_labels[movie_count] = spike_nums_dur[cell, frames]
-                # now adding the movie of those frames in this slinding_window
-                source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=(minx, maxx, miny, maxy))
-                # if i == 0:
-                #     print(f"source_profile_frames.shape {source_profile_frames.shape}")
-                source_profile_frames_masked = np.copy(source_profile_frames)
-                source_profile_frames_masked[:, mask_source_profile] = 0
-
-                profile_fit = np.zeros((len(frames), max_height, max_width))
-                profile_fit_masked = np.zeros((len(frames), max_height, max_width))
-                # we center the source profile
-                y_coord = (profile_fit.shape[1] - source_profile_frames.shape[1]) // 2
-                x_coord = (profile_fit.shape[2] - source_profile_frames.shape[2]) // 2
-                profile_fit[:, y_coord:source_profile_frames.shape[1] + y_coord,
-                x_coord:source_profile_frames.shape[2] + x_coord] = \
-                    source_profile_frames
-                profile_fit_masked[:, y_coord:source_profile_frames.shape[1] + y_coord,
-                x_coord:source_profile_frames.shape[2] + x_coord] = \
-                    source_profile_frames_masked
-
-                full_data[movie_count] = profile_fit
-                full_data_masked[movie_count] = profile_fit_masked
-
-                visualize_cells = False
-                if visualize_cells:
-                    for i_img, img in enumerate(profile_fit):
-                        # print(f"max value {np.max(source_profile)}")
-                        fig, ax1 = plt.subplots(nrows=1, ncols=1,
-                                                gridspec_kw={'height_ratios': [1],
-                                                             'width_ratios': [1]},
-                                                figsize=(5, 5))
-                        c_map = plt.get_cmap('gray')
-                        img_profile = ax1.imshow(img, cmap=c_map)
-                        plt.show()
-                        fig, ax1 = plt.subplots(nrows=1, ncols=1,
-                                                gridspec_kw={'height_ratios': [1],
-                                                             'width_ratios': [1]},
-                                                figsize=(5, 5))
-                        c_map = plt.get_cmap('gray')
-                        img_profile = ax1.imshow(profile_fit_masked[i_img], cmap=c_map)
-                        plt.show()
-                movies_descr.append(f"{ms.description}_cell_{cell}_first_frame_{index_movie}")
-                movie_count += 1
-    print(f"movie_count {movie_count}")
-    # cells shuffling
-    if movies_shuffling is None:
-        movies_shuffling = np.arange(n_movies)
-        if with_shuffling:
-            np.random.shuffle(movies_shuffling)
-    n_movies_for_training = int(n_movies * split_values[0])
-    n_movies_for_validation = int(n_movies * split_values[1])
-
-    train_data = full_data[movies_shuffling[:n_movies_for_training]]
-    train_data_masked = full_data_masked[movies_shuffling[:n_movies_for_training]]
-    train_labels = full_labels[movies_shuffling[:n_movies_for_training]]
-
-    # data augmentation, we rotate each movie 3 times
-    # we could also translate the movie a few pixels left or right
-    do_data_augmentation = False
-    if do_data_augmentation:
-        train_data_augmented = np.zeros((train_data.shape[0] * 4, sliding_window_len, max_height, max_width))
-        train_data_masked_augmented = np.zeros((train_data.shape[0] * 4, sliding_window_len, max_height, max_width))
-        train_labels_augmented = np.zeros((train_labels.shape[0] * 4, sliding_window_len), dtype="uint8")
-        for index_movie in np.arange(train_data.shape[0]):
-            train_data_augmented[index_movie * 4] = train_data[index_movie]
-            train_data_masked_augmented[index_movie * 4] = train_data_masked[index_movie]
-            train_labels_augmented[index_movie * 4] = train_labels[index_movie]
-            for i_angle, angle in enumerate([90, 180, 270]):
-                first_index = (index_movie * 4) + i_angle + 1
-                # looping on each frame
-                for sl_win_i in np.arange(train_data.shape[1]):
-                    to_rotate = train_data[index_movie, sl_win_i]
-                    train_data_augmented[first_index, sl_win_i] = ndimage.rotate(input=to_rotate, angle=angle,
-                                                                                 reshape=False)
-                    to_rotate = train_data_masked[index_movie, sl_win_i]
-                    train_data_masked_augmented[first_index, sl_win_i] = ndimage.rotate(input=to_rotate, angle=angle,
-                                                                                        reshape=False)
-
-                train_labels_augmented[first_index] = train_labels[index_movie]
-            visualize_cells = False
-            if visualize_cells and (index_movie == 0):
-                root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
-                path_data = root_path + "data/"
-                result_path = root_path + "results_classifier/"
-
-                images = [train_data_augmented[0, 0], train_data_augmented[1, 0], train_data_augmented[2, 0],
-                          train_data_augmented[3, 0]]
-                images_masked = [train_data_masked_augmented[0, 0], train_data_masked_augmented[1, 0],
-                                 train_data_masked_augmented[2, 0], train_data_masked_augmented[3, 0]]
-                for i_img in np.arange(len(images)):
-                    # print(f"max value {np.max(source_profile)}")
-                    fig, ax1 = plt.subplots(nrows=1, ncols=1,
-                                            gridspec_kw={'height_ratios': [1],
-                                                         'width_ratios': [1]},
-                                            figsize=(5, 5))
-                    c_map = plt.get_cmap('gray')
-                    img_profile = ax1.imshow(images[i_img], cmap=c_map)
-                    fig.savefig(f'{result_path}/cell_{i_img}.pdf',
-                                format=f"pdf")
-                    # plt.show()
-                    plt.close()
-                    fig, ax1 = plt.subplots(nrows=1, ncols=1,
-                                            gridspec_kw={'height_ratios': [1],
-                                                         'width_ratios': [1]},
-                                            figsize=(5, 5))
-                    c_map = plt.get_cmap('gray')
-                    img_profile = ax1.imshow(images_masked[i_img], cmap=c_map)
-                    fig.savefig(f'{result_path}/cell_masked_{i_img}.pdf',
-                                format=f"pdf")
-                    # plt.show()
-                    plt.close()
-        train_data = train_data_augmented
-        train_data_masked = train_data_masked_augmented
-        train_labels = train_labels_augmented
-
-    valid_data = full_data[movies_shuffling[n_movies_for_training:n_movies_for_training + n_movies_for_validation]]
-    valid_data_masked = full_data_masked[movies_shuffling[n_movies_for_training:
-                                                          n_movies_for_training + n_movies_for_validation]]
-    valid_labels = full_labels[movies_shuffling[n_movies_for_training:n_movies_for_training + n_movies_for_validation]]
-    test_data = full_data[movies_shuffling[n_movies_for_training + n_movies_for_validation:]]
-    test_data_masked = full_data_masked[movies_shuffling[n_movies_for_training + n_movies_for_validation:]]
-    test_labels = full_labels[movies_shuffling[n_movies_for_training + n_movies_for_validation:]]
-    # print(f"test cells: {cells_shuffling[n_cells_for_training + n_movies_for_validation:]}")
-    test_movie_descr = []
-    for movie in movies_shuffling[n_movies_for_training + n_movies_for_validation:]:
-        test_movie_descr.append(movies_descr[movie])
-
-    data = (train_data, valid_data, test_data)
-    data_masked = (train_data_masked, valid_data_masked, test_data_masked)
-    labels = (train_labels, valid_labels, test_labels)
-
-    return data, data_masked, labels, test_movie_descr
-
 
 def build_model(input_shape, use_mulimodal_inputs=False, dropout_value=0):
     n_frames = input_shape[0]
@@ -713,7 +509,6 @@ def get_source_profile_for_prediction(ms, cell, max_width=30, max_height=30, sli
     full_data = np.zeros((n_movies, sliding_window_len, max_height, max_width))
     full_data_masked = np.zeros((n_movies, sliding_window_len, max_height, max_width))
 
-    movie_count = 0
     mask_source_profile, (minx, maxx, miny, maxy) = \
         get_source_profile_param(cell=cell, ms=ms, pixels_around=3, buffer=None)
     for index_movie in np.arange(n_movies):
@@ -741,9 +536,8 @@ def get_source_profile_for_prediction(ms, cell, max_width=30, max_height=30, sli
         x_coord:source_profile_frames.shape[2] + x_coord] = \
             source_profile_frames_masked
 
-        full_data[movie_count] = profile_fit
-        full_data_masked[movie_count] = profile_fit_masked
-        movie_count += 1
+        full_data[index_movie] = profile_fit
+        full_data_masked[index_movie] = profile_fit_masked
 
     return full_data, full_data_masked
 
@@ -813,7 +607,7 @@ def smooth_curve(points, factor=0.8):
     return smoothed_points
 
 
-def plot_training_and_validation_loss(history, n_epochs):
+def plot_training_and_validation_loss(history, n_epochs, result_path, param):
     history_dict = history.history
     loss_values = history_dict['loss']
     val_loss_values = history_dict['val_loss']
@@ -828,22 +622,39 @@ def plot_training_and_validation_loss(history, n_epochs):
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend()
-    plt.show()
+
+    save_formats = "pdf"
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        fig.savefig(f'{result_path}/training_and_validation_loss_{param.time_str}.{save_format}',
+                    format=f"{save_format}")
+
     plt.close()
 
 
-def plot_training_and_validation_accuracy(history, n_epochs):
+def plot_training_and_validation_accuracy(history, n_epochs, result_path, param):
     history_dict = history.history
     acc_values = history_dict['acc']
     val_acc_values = history_dict['val_acc']
     epochs = range(1, n_epochs + 1)
-    plt.plot(epochs, smooth_curve(acc_values), 'bo', label='Training acc')
-    plt.plot(epochs, smooth_curve(val_acc_values), 'b', label='Validation acc')
+    fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                            gridspec_kw={'height_ratios': [1],
+                                         'width_ratios': [1]},
+                            figsize=(5, 5))
+    ax1.plot(epochs, smooth_curve(acc_values), 'bo', label='Training acc')
+    ax1.plot(epochs, smooth_curve(val_acc_values), 'b', label='Validation acc')
     plt.title('Training and validation accuracy')
     plt.xlabel('Epochs')
     plt.ylabel('Acc')
     plt.legend()
-    plt.show()
+    save_formats = "pdf"
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        fig.savefig(f'{result_path}/training_and_validation_accuracy_{param.time_str}.{save_format}',
+                    format=f"{save_format}")
+
     plt.close()
 
 
@@ -866,27 +677,9 @@ def train_model():
     # 1) put the cell in the middle of the frame
     # 2) put all pixels in the border to 1
     # 3) Give 2 inputs, movie full frame (20x20 pixels) + movie mask non binary or binary
-    # data, data_masked, labels, test_movie_descr = load_data(param=param, sliding_window_len=sliding_window_len,
-    #                                                         with_border=False)
-    # train_data, valid_data, test_data = data
-    # train_labels, valid_labels, test_labels = labels
-    # train_data_masked, valid_data_masked, test_data_masked = data_masked
-    #
-    # train_data = train_data.reshape((train_data.shape[0], train_data.shape[1], train_data.shape[2],
-    #                                  train_data.shape[3], 1))
-    # valid_data = valid_data.reshape((valid_data.shape[0], valid_data.shape[1], valid_data.shape[2],
-    #                                  valid_data.shape[3], 1))
-    # test_data = test_data.reshape((test_data.shape[0], test_data.shape[1], test_data.shape[2],
-    #                                test_data.shape[3], 1))
-    #
-    # train_data_masked = train_data_masked.reshape((train_data_masked.shape[0], train_data_masked.shape[1],
-    #                                                train_data_masked.shape[2], train_data_masked.shape[3], 1))
-    # valid_data_masked = valid_data_masked.reshape((valid_data_masked.shape[0], valid_data_masked.shape[1],
-    #                                                valid_data_masked.shape[2], valid_data_masked.shape[3], 1))
-    # test_data_masked = test_data_masked.reshape((test_data_masked.shape[0], test_data_masked.shape[1],
-    #                                              test_data_masked.shape[2], test_data_masked.shape[3], 1))
 
-    n_epochs = 1
+
+    n_epochs = 5
     window_len = 100
     max_width = 25
     max_height = 25
@@ -946,25 +739,6 @@ def train_model():
     print(f"Time for building and compiling the model: "
           f"{np.round(stop_time - start_time, 3)} s")
 
-    # print(f"model.layers[0].get_input_shape_at(0) {model.layers[0].get_input_shape_at(0)}")
-    # print(f"model.layers[0].get_input_shape_at(1) {model.layers[0].get_input_shape_at(1)}")
-    # print(f"model.layers[0].output_shape {model.layers[0].output_shape}")
-    # print(f"model.layers[1].output_shape {model.layers[1].output_shape}")
-    # print(f"{model.layers[0].output_shape == model.layers[1].output_shape}")
-    # return
-    print("Model built and compiled")
-    # if use_mulimodal_inputs:
-    #     history = model.fit({'video_input': train_data, 'video_input_masked': train_data_masked}, train_labels,
-    #                         epochs=n_epochs,
-    #                         batch_size=batch_size,
-    #                         validation_data=({'video_input': valid_data, 'video_input_masked': valid_data_masked},
-    #                                          valid_labels))
-    # else:
-    #     history = model.fit(train_data_masked,
-    #                         train_labels,
-    #                         epochs=n_epochs,
-    #                         batch_size=batch_size,
-    #                         validation_data=(valid_data_masked, valid_labels))
 
     # Train model on dataset
     start_time = time.time()
@@ -977,30 +751,15 @@ def train_model():
     print(f"Time for fitting the model to the data with {n_epochs} epochs: "
           f"{np.round(stop_time - start_time, 3)} s")
 
-    show_plots = False
+
+
+
+    show_plots = True
 
     if show_plots:
-        plot_training_and_validation_loss(history, n_epochs)
-        plot_training_and_validation_accuracy(history, n_epochs)
+        plot_training_and_validation_loss(history, n_epochs, result_path, param)
+        plot_training_and_validation_accuracy(history, n_epochs, result_path, param)
 
-    # used to visualize the results
-    # if use_mulimodal_inputs:
-    #     prediction = model.predict({'video_input': valid_data,
-    #                                 'video_input_masked': valid_data_masked})
-    # else:
-    #     prediction = model.predict(valid_data_masked)
-    # print(f"Validation data: prediction.shape {prediction.shape}")
-    #
-    # for i, valid_label in enumerate(valid_labels):
-    #     print(f"####### video {i}   ##########")
-    #     for j, label in enumerate(valid_label):
-    #         predict_value = str(round(prediction[i, j], 2))
-    #         bonus = ""
-    #         if label == 1:
-    #             bonus = "# "
-    #         print(f"{bonus} f {j}: {predict_value} / {label} ")
-    #     print("")
-    #     print("")
 
     source_profiles_dict = dict()
     test_data, test_data_masked, test_labels = generate_movies_from_metadata(data_list=test_data_list,
@@ -1017,6 +776,7 @@ def train_model():
     else:
         test_loss, test_acc = model.evaluate(test_data_masked, test_labels)
     print(f"test_acc {test_acc}")
+
 
     model_descr = ""
     model.save(f'{param.path_results}transient_classifier_model_{model_descr}_test_acc_{test_acc}_{param.time_str}.h5')
