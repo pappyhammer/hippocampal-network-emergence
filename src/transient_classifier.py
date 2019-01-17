@@ -77,7 +77,7 @@ def scale_polygon_to_source(poly_gon, minx, miny):
     return geometry.Polygon(scaled_coords)
 
 
-def get_source_profile_frames(cell, ms, frames, pixels_around=3, buffer=None):
+def get_source_profile_param(cell, ms, pixels_around=3, buffer=None):
     len_frame_x = ms.tiff_movie[0].shape[1]
     len_frame_y = ms.tiff_movie[0].shape[0]
 
@@ -124,25 +124,37 @@ def get_source_profile_frames(cell, ms, frames, pixels_around=3, buffer=None):
 
     # source_profile = np.zeros((len(frames), len_y, len_x))
 
+    # frames_tiff = ms.tiff_movie[frames]
+    # source_profile = frames_tiff[:, miny:maxy + 1, minx:maxx + 1]
+    # normalized so that value are between 0 and 1
+    # source_profile = source_profile / np.max(ms.tiff_movie)
+
+    return mask, (minx, maxx, miny, maxy)
+
+
+def get_source_profile_frames(ms, frames, coords):
     frames_tiff = ms.tiff_movie[frames]
-    source_profile = frames_tiff[:, miny:maxy + 1, minx:maxx + 1]
+    (minx, maxx, miny, maxy) = coords
+    source_profile = frames_tiff[:, miny:maxy+1, minx:maxx+1]
 
     # normalized so that value are between 0 and 1
     source_profile = source_profile / np.max(ms.tiff_movie)
 
-    return source_profile, mask
+    return source_profile
 
 
 def load_data(param, split_values=(0.6, 0.2), with_border=False, sliding_window_len=100,
               movies_shuffling=None, with_shuffling=True,
               overlap_value=0.5):
     # TODO: option to remove overlapp
-    ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms"]
+    # ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms"]
+    ms_to_use = ["p12_171110_a000_ms"]
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
                                             param=param,
                                             load_traces=False, load_abf=False,
                                             for_transient_classifier=True)
-    cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(70)}
+    # cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(70)}
+    cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(1)}
 
     total_n_cells = 0
     n_movies = 0
@@ -157,7 +169,7 @@ def load_data(param, split_values=(0.6, 0.2), with_border=False, sliding_window_
         cells_to_load_tmp = cell_to_load_by_ms[ms_str]
         cells_to_load = []
         for cell in cells_to_load_tmp:
-            if cell not in ms.cells_to_remove:
+            if ms.cells_to_remove[cell] == 0:
                 cells_to_load.append(cell)
         total_n_cells += len(cells_to_load)
         cells_to_load = np.array(cells_to_load)
@@ -188,6 +200,8 @@ def load_data(param, split_values=(0.6, 0.2), with_border=False, sliding_window_
             # then we slide the window
             # frames index of the beginning of each movie
             indices_movies = np.arange(0, n_frames, int(sliding_window_len * overlap_value))
+            mask_source_profile, (minx, maxx, miny, maxy) = \
+                get_source_profile_param(cell=cell, ms=ms, pixels_around=3, buffer=None)
             # print(f"len(indices_movies) {len(indices_movies)}")
             for i, index_movie in enumerate(indices_movies):
                 if i == (len(indices_movies) - 1):
@@ -200,9 +214,7 @@ def load_data(param, split_values=(0.6, 0.2), with_border=False, sliding_window_
                 # setting labels: active frame or not
                 full_labels[movie_count] = spike_nums_dur[cell, frames]
                 # now adding the movie of those frames in this slinding_window
-                source_profile_frames, mask_source_profile = get_source_profile_frames(cell=cell, ms=ms,
-                                                                                       frames=frames, pixels_around=3,
-                                                                                       buffer=None)
+                source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=(minx, maxx, miny, maxy))
                 # if i == 0:
                 #     print(f"source_profile_frames.shape {source_profile_frames.shape}")
                 source_profile_frames_masked = np.copy(source_profile_frames)
@@ -400,6 +412,8 @@ def get_source_profile_for_prediction(ms, cell, max_width=30, max_height=30, sli
     full_data_masked = np.zeros((n_movies, sliding_window_len, max_height, max_width))
 
     movie_count = 0
+    mask_source_profile, (minx, maxx, miny, maxy) = \
+        get_source_profile_param(cell=cell, ms=ms, pixels_around=3, buffer=None)
     for index_movie in np.arange(n_movies):
         if (index_movie == (n_movies - 1)) and (not count_is_good):
             # last part is not equal to sliding_window_len
@@ -407,9 +421,7 @@ def get_source_profile_for_prediction(ms, cell, max_width=30, max_height=30, sli
             frames = np.arange(n_frames - sliding_window_len, n_frames)
         else:
             frames = np.arange(index_movie * sliding_window_len, (index_movie + 1) * sliding_window_len)
-        source_profile_frames, mask_source_profile = get_source_profile_frames(cell=cell, ms=ms,
-                                                                               frames=frames, pixels_around=3,
-                                                                               buffer=None)
+        source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=(minx, maxx, miny, maxy))
         # if i == 0:
         #     print(f"source_profile_frames.shape {source_profile_frames.shape}")
         source_profile_frames_masked = np.copy(source_profile_frames)
@@ -533,7 +545,7 @@ def plot_training_and_validation_accuracy(history, n_epochs):
     plt.close()
 
 
-def main():
+def train_model():
     root_path = None
     with open("param_hne.txt", "r", encoding='UTF-8') as file:
         for nb_line, line in enumerate(file):
@@ -674,4 +686,4 @@ def main():
         # print(f"{i}: : {predict_value} / {test_labels[i]}")
     print(f"test_acc {test_acc}")
 
-main()
+
