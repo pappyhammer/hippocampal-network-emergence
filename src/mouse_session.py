@@ -2508,7 +2508,8 @@ class MouseSession:
             self.spike_struct.set_spike_amplitudes(data[variables_mapping["spike_amplitudes"]])
 
         if "cells_to_remove" in variables_mapping:
-            self.cells_to_remove = np.where(data[variables_mapping["cells_to_remove"]].astype(int))[0]
+            self.cells_to_remove = data[variables_mapping["cells_to_remove"]].astype(int)[0]
+
         if "peak_nums" in variables_mapping:
             self.spike_struct.peak_nums = data[variables_mapping["peak_nums"]].astype(int)
         self.spike_struct.set_spike_trains_from_spike_nums()

@@ -378,11 +378,14 @@ def load_data_for_generator(param, split_values=(0.6, 0.2), sliding_window_len=1
 
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
-        cells_to_load_tmp = cell_to_load_by_ms[ms_str]
-        cells_to_load = []
-        for cell in cells_to_load_tmp:
-            if ms.cells_to_remove[cell] == 0:
-                cells_to_load.append(cell)
+        # print(f"{ms.description}, len ms.cells_to_remove {len(ms.cells_to_remove)}, ms.cells_to_remove {ms.cells_to_remove}")
+        # cells_to_load_tmp = cell_to_load_by_ms[ms_str]
+        # print(f"len(cell_to_load_by_ms[ms_str]) {len(cell_to_load_by_ms[ms_str])}")
+        cells_to_load = np.setdiff1d(cell_to_load_by_ms[ms_str], ms.cells_to_remove)
+        # print(f"len(cells_to_load) {len(cells_to_load)}")
+        # for cell in cells_to_load_tmp:
+        #     if cell not in ms.cells_to_remove[cell]:
+        #         cells_to_load.append(cell)
         total_n_cells += len(cells_to_load)
         cells_to_load = np.array(cells_to_load)
         cell_to_load_by_ms[ms_str] = cells_to_load
