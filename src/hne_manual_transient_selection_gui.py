@@ -718,6 +718,8 @@ class ManualOnsetFrame(tk.Frame):
         # first key is an int (cell), value is a dict
         # the second key is a float representing a threshold, and the value is a list of tuple
         self.transient_prediction_periods = dict()
+        # each key is a cell, the value is a binary array with 1 between onsets and peaks
+        self.raster_dur_for_a_cell = dict()
         # Three horizontal frames to start
         # -------------- top frame (start) ----------------
         top_frame = Frame(self)
@@ -2486,7 +2488,7 @@ class ManualOnsetFrame(tk.Frame):
         rgba = c_map(0)
         fig_patch.set_facecolor(rgba)
 
-        sources_profile_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.1, 'h_pad': 0.1})
+        # sources_profile_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.1, 'h_pad': 0.1})
 
         # looking at how many overlapping cell current_neuron has
         intersect_cells = self.overlapping_cells[self.current_neuron]
@@ -2731,8 +2733,8 @@ class ManualOnsetFrame(tk.Frame):
 
         self.axe_plot_magnifier.spines['right'].set_visible(False)
         self.axe_plot_magnifier.spines['top'].set_visible(False)
-        if first_time:
-            self.magnifier_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
+        # if first_time:
+        #     self.magnifier_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
             # self.magnifier_fig.tight_layout()
 
     def draw_magnifier_marker(self, mouse_x_position=None, mouse_y_position=None):
@@ -2875,7 +2877,7 @@ class ManualOnsetFrame(tk.Frame):
             self.magnifier_fig = plt.figure(figsize=(4, 4))
         self.magnifier_canvas = FigureCanvasTkAgg(self.magnifier_fig, self.magnifier_frame)
         # fig = plt.figure(figsize=size_fig)
-        self.magnifier_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.1, 'h_pad': 0.1})
+        # self.magnifier_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.1, 'h_pad': 0.1})
 
         # looking at how many overlapping cell current_neuron has
         intersect_cells = self.overlapping_cells[self.current_neuron]
@@ -3411,7 +3413,7 @@ class ManualOnsetFrame(tk.Frame):
             frame.axes.get_yaxis().set_visible(False)
 
             # self.map_img_fig.tight_layout()
-            self.map_img_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
+            # self.map_img_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
 
     def draw_cell_contour(self):
         if self.cell_contour is not None:
@@ -3511,13 +3513,48 @@ class ManualOnsetFrame(tk.Frame):
                                    color="red", zorder=20)
                 threshold_tc = self.transient_classifier_threshold
                 if threshold_tc not in self.transient_prediction_periods[self.current_neuron]:
-                    print(f"n predictions > threshold: {len(np.where(predictions >= threshold_tc)[0])}")
                     active_frames_binary = np.zeros(len(predictions), dtype="int8")
                     active_frames_binary[predictions >= threshold_tc] = 1
                     active_periods = get_continous_time_periods(active_frames_binary)
                     self.transient_prediction_periods[self.current_neuron][threshold_tc] = active_periods
                 else:
                     active_periods = self.transient_prediction_periods[self.current_neuron][threshold_tc]
+
+                frames_predicted = np.where(predictions >= threshold_tc)[0]
+                frames_non_predicted = np.where(predictions < threshold_tc)[0]
+                print(f"n predictions > threshold: {len(frames_predicted)}")
+                # measuring accuracy
+                # first we build the raster_dur for this cell
+                if self.current_neuron not in self.raster_dur_for_a_cell:
+                    raster_dur = np.zeros(self.nb_times_traces, dtype="uint8")
+                    peaks_index = np.where(self.onset_times[self.current_neuron, :])[0]
+                    onsets_index = np.where(self.spike_nums[self.current_neuron, :])[0]
+
+                    for onset_index in onsets_index:
+                        peaks_after = np.where(peaks_index > onset_index)[0]
+                        if len(peaks_after) == 0:
+                            continue
+                        peaks_after = peaks_index[peaks_after]
+                        peak_after = peaks_after[0]
+
+                        raster_dur[onset_index:peak_after + 1] = 1
+                    self.raster_dur_for_a_cell[self.current_neuron] = raster_dur
+                else:
+                    raster_dur = self.raster_dur_for_a_cell[self.current_neuron]
+                n_frames = len(raster_dur)
+                n_predicted_errors = len(np.where(raster_dur[frames_predicted] == 0)[0])
+                n_non_predicted_errors = len(np.where(raster_dur[frames_non_predicted] == 1)[0])
+                accuracy = (n_frames - n_predicted_errors - n_non_predicted_errors) / n_frames
+                print(f"Predictions accuracy {str(np.round(accuracy, 3))}")
+                # % of frames predicted active that are active
+                n_true_frames_predicted = len(frames_predicted) - n_predicted_errors
+                print(f"Ratio of active predicted frames "
+                      f"{str(np.round(n_true_frames_predicted/len(frames_predicted), 3))}")
+                # % of frames predicted false that are non active
+                n_true_frames_non_predicted = len(frames_non_predicted) - n_non_predicted_errors
+                print(f"Ratio of active predicted frames "
+                      f"{str(np.round(n_true_frames_non_predicted/len(frames_non_predicted), 3))}")
+
                 for i_ap, active_period in enumerate(active_periods):
                     period = np.arange(active_period[0], active_period[1]+1)
                     min_traces = np.min(self.traces[self.current_neuron]) - 0.1
@@ -3760,8 +3797,8 @@ class ManualOnsetFrame(tk.Frame):
         self.axe2_plot.spines['top'].set_visible(False)
         self.axe2_plot.margins(0)
         self.axe_plot.margins(0)
-        # self.fig.tight_layout()
-        self.fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
+        self.fig.tight_layout()
+        # self.fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.1, 'h_pad': 0.1})
 
     # not used
     # def update_plot_wrong(self):
