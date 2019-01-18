@@ -605,7 +605,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                  "cells_to_remove": "cells_to_remove",
                                  "inter_neurons_from_gui": "inter_neurons"}
             p9_18_09_27_a003_ms.load_data_from_file(file_name_to_load=
-                                                  "p9/p9_18_09_27_a003/p9_18_09_27_a003_GUI_selection_JD.mat",
+                                                  "p9/p9_18_09_27_a003/p9_18_09_27_a003_raw_TransientMP.mat",
                                                   variables_mapping=variables_mapping,
                                                   from_gui=True)
 

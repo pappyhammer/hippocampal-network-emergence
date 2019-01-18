@@ -1855,7 +1855,7 @@ class MouseSession:
             break
         if len(file_names) > 0:
             for file_name in file_names:
-                if file_name.endswith(".npz"):
+                if file_name.endswith(".npz") and (not file_name.startswith(".")):
                     if file_name.find("abf") > -1:
                         do_detect_twitches = True
                         # loading data

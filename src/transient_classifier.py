@@ -227,7 +227,8 @@ def generate_movies_from_metadata(data_list, window_len, max_width, max_height, 
             mask_source_profile, coords = source_profiles_dict[src_profile_key]
         else:
             mask_source_profile, coords = \
-                get_source_profile_param(cell=cell, ms=ms, pixels_around=pixels_around, buffer=buffer)
+                get_source_profile_param(cell=cell, ms=ms, pixels_around=pixels_around, buffer=buffer,
+                                         max_width=max_width, max_height=max_width)
             source_profiles_dict[src_profile_key] = [mask_source_profile, coords]
 
         frames = np.arange(frame_index, frame_index + window_len)
@@ -293,7 +294,7 @@ def scale_polygon_to_source(poly_gon, minx, miny):
     return geometry.Polygon(scaled_coords)
 
 
-def get_source_profile_param(cell, ms, pixels_around=3, buffer=None):
+def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0, buffer=None):
     len_frame_x = ms.tiff_movie[0].shape[1]
     len_frame_y = ms.tiff_movie[0].shape[0]
 
@@ -323,8 +324,9 @@ def get_source_profile_param(cell, ms, pixels_around=3, buffer=None):
 
     minx = max(0, minx - pixels_around)
     miny = max(0, miny - pixels_around)
-    maxx = min(len_frame_x - 1, maxx + pixels_around)
-    maxy = min(len_frame_y - 1, maxy + pixels_around)
+    # we use max_width and max_height to make sure it won't be bigger than the frame used by the network
+    maxx = np.min(((len_frame_x - 1), (maxx + pixels_around), (minx + max_height - 1)))
+    maxy = np.min(((len_frame_y - 1), (maxy + pixels_around), (maxx + max_width - 1)))
 
     len_x = maxx - minx + 1
     len_y = maxy - miny + 1
@@ -359,17 +361,18 @@ def get_source_profile_frames(ms, frames, coords):
     return source_profile
 
 
-def load_data_for_generator(param, split_values=(0.6, 0.2), sliding_window_len=100, overlap_value=0.5,
+def load_data_for_generator(param, split_values, sliding_window_len, overlap_value,
                             movies_shuffling=None, with_shuffling=True):
     print("load_data_for_generator")
-    ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms"]
-    # ms_to_use = ["p12_171110_a000_ms"]
+    ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
+    # ms_to_use = ["p7_171012_a000_ms"]
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
                                             param=param,
                                             load_traces=False, load_abf=False,
                                             for_transient_classifier=True)
-    cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(70)}
-    # cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(1)}
+    cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(105),
+                          "p9_18_09_27_a003_ms": np.arange(28)}
+    # cell_to_load_by_ms = {"p7_171012_a000_ms": np.arange(2)}
 
     total_n_cells = 0
     # n_movies = 0
@@ -405,7 +408,7 @@ def load_data_for_generator(param, split_values=(0.6, 0.2), sliding_window_len=1
         for cell in cell_to_load_by_ms[ms_str]:
             # then we slide the window
             # frames index of the beginning of each movie
-            indices_movies = np.arange(0, n_frames, int(sliding_window_len * overlap_value))
+            indices_movies = np.arange(0, n_frames, int(sliding_window_len * (1 - overlap_value)))
 
             for i, index_movie in enumerate(indices_movies):
                 if i == (len(indices_movies) - 1):
@@ -513,7 +516,8 @@ def get_source_profile_for_prediction(ms, cell, max_width=30, max_height=30, sli
     full_data_masked = np.zeros((n_movies, sliding_window_len, max_height, max_width))
 
     mask_source_profile, (minx, maxx, miny, maxy) = \
-        get_source_profile_param(cell=cell, ms=ms, pixels_around=3, buffer=None)
+        get_source_profile_param(cell=cell, ms=ms, pixels_around=0, buffer=None, max_width=max_width,
+                                 max_height=max_width)
     for index_movie in np.arange(n_movies):
         if (index_movie == (n_movies - 1)) and (not count_is_good):
             # last part is not equal to sliding_window_len
@@ -681,12 +685,13 @@ def train_model():
     # 2) put all pixels in the border to 1
     # 3) Give 2 inputs, movie full frame (20x20 pixels) + movie mask non binary or binary
 
-
-    n_epochs = 5
+    n_epochs = 30
     window_len = 100
     max_width = 25
     max_height = 25
-    pixels_around = 3
+    overlap_value = 0.5
+    dropout_value = 0.5
+    pixels_around = 0
     buffer = None
 
     params_generator = {
@@ -703,7 +708,7 @@ def train_model():
     test_movie_descr = load_data_for_generator(param,
                                                split_values=(0.7, 0.2),
                                                sliding_window_len=window_len,
-                                               overlap_value=0.5,
+                                               overlap_value=overlap_value,
                                                movies_shuffling=None,
                                                with_shuffling=True)
     stop_time = time.time()
@@ -731,7 +736,7 @@ def train_model():
     # return
     # building the model
     start_time = time.time()
-    model = build_model(input_shape, dropout_value=0.5, use_mulimodal_inputs=use_mulimodal_inputs)
+    model = build_model(input_shape, dropout_value=dropout_value, use_mulimodal_inputs=use_mulimodal_inputs)
 
     print(model.summary())
 

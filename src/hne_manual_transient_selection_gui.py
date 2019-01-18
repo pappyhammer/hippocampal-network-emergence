@@ -3507,6 +3507,7 @@ class ManualOnsetFrame(tk.Frame):
         self.line1, = self.axe_plot.plot(np.arange(self.nb_times_traces), self.traces[self.current_neuron, :],
                                          color=color_trace, zorder=10)
         if self.show_transient_classifier:
+            classifier_filling_color = "forestgreen"
             if self.current_neuron in self.transient_prediction:
                 predictions = self.transient_prediction[self.current_neuron]
                 self.axe_plot.plot(np.arange(self.nb_times_traces), predictions,
@@ -3560,7 +3561,7 @@ class ManualOnsetFrame(tk.Frame):
                     min_traces = np.min(self.traces[self.current_neuron]) - 0.1
                     y2 = np.repeat(min_traces, len(period))
                     self.axe_plot.fill_between(x=period, y1=self.traces[self.current_neuron, period], y2=y2,
-                                               color="yellow")
+                                               color=classifier_filling_color)
         if self.raw_traces_median is not None:
             self.axe_plot.plot(np.arange(self.nb_times_traces),
                                self.raw_traces_median[self.current_neuron, :],
