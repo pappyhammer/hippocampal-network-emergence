@@ -90,6 +90,7 @@ class MouseSession:
 
         if (self.param is not None) and (self.param.cell_assemblies_data_path is not None):
             self.load_cell_assemblies_data()
+
         # for seq
         self.best_order_loaded = None
         if (self.param is not None) and (self.param.best_order_data_path is not None):

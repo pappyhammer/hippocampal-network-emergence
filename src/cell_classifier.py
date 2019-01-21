@@ -703,8 +703,9 @@ def train_model():
     param = DataForMs(path_data=path_data, result_path=result_path)
 
     # "p12_171110_a000_ms"
+    descr_model = "p7_171012_a000-p9_18_09_27_a003-p12-p12_171110_a000_ms_buffer_1"
     data_set, data_masked_set, labels_set, test_img_descr, cells_shuffling \
-        = load_data(["p9_18_09_27_a003_ms", "p7_171012_a000_ms"], param=param, buffer=1,
+        = load_data(["p9_18_09_27_a003_ms", "p7_171012_a000_ms", "p12_171110_a000_ms"], param=param, buffer=1,
                     split_values=(0.7, 0.2), with_shuffling=True, with_data_augmentation=True)
     (train_images, valid_images, test_images) = data_set
     (train_images_masked, valid_images_masked, test_images_masked) = data_masked_set
@@ -865,11 +866,11 @@ def train_model():
             test_loss, test_acc = model.evaluate(test_images, test_labels)
         print(f"test_acc {test_acc}")
 
-        model.save(f'{param.path_results}cell_classifier_model_acc_test_acc_{test_acc}_{param.time_str}.h5')
-        model.save_weights(f'{param.path_results}cell_classifier_weights_acc_test_acc_{test_acc}_{param.time_str}.h5')
+        model.save(f'{param.path_results}cell_classifier_model_{descr_model}_test_acc_{test_acc}_{param.time_str}.h5')
+        model.save_weights(f'{param.path_results}cell_classifier_weights_{descr_model}_test_acc_{test_acc}_{param.time_str}.h5')
         # Save the model architecture
         with open(
-                f'{param.path_results}cell_classifier_model_architecture_acc_test_acc_{test_acc}_{param.time_str}.json',
+                f'{param.path_results}cell_classifier_model_architecture_{descr_model}_test_acc_{test_acc}_{param.time_str}.json',
                 'w') as f:
             f.write(model.to_json())
 

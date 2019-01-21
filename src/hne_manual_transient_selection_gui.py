@@ -3198,7 +3198,7 @@ class ManualOnsetFrame(tk.Frame):
         self.first_frame_movie = x_from
         self.last_frame_movie = x_to
         self.n_frames_movie = x_to - x_from
-        self.cell_contour_movie=None
+        self.cell_contour_movie = None
         self.movie_frames = cycle((frame_tiff, frame_index + x_from)
                                   for frame_index, frame_tiff in enumerate(self.tiff_movie[x_from:x_to]))
 
@@ -3521,15 +3521,23 @@ class ManualOnsetFrame(tk.Frame):
                 else:
                     active_periods = self.transient_prediction_periods[self.current_neuron][threshold_tc]
 
-                frames_predicted = np.where(predictions >= threshold_tc)[0]
-                frames_non_predicted = np.where(predictions < threshold_tc)[0]
-                print(f"n predictions > threshold: {len(frames_predicted)}")
+                for i_ap, active_period in enumerate(active_periods):
+                    period = np.arange(active_period[0], active_period[1] + 1)
+                    min_traces = np.min(self.traces[self.current_neuron]) - 0.1
+                    y2 = np.repeat(min_traces, len(period))
+                    self.axe_plot.fill_between(x=period, y1=self.traces[self.current_neuron, period], y2=y2,
+                                               color=classifier_filling_color)
+
+                # TODO: display the stat only when the threshold is changed
+                frames_predicted_as_active = np.where(predictions >= threshold_tc)[0]
+                frames_predicted_as_non_active = np.where(predictions < threshold_tc)[0]
+                print(f"n predictions > threshold: {len(frames_predicted_as_active)}")
                 # measuring accuracy
                 # first we build the raster_dur for this cell
                 if self.current_neuron not in self.raster_dur_for_a_cell:
                     raster_dur = np.zeros(self.nb_times_traces, dtype="uint8")
-                    peaks_index = np.where(self.onset_times[self.current_neuron, :])[0]
-                    onsets_index = np.where(self.spike_nums[self.current_neuron, :])[0]
+                    onsets_index = np.where(self.onset_times[self.current_neuron, :])[0]
+                    peaks_index = np.where(self.peak_nums[self.current_neuron, :])[0]
 
                     for onset_index in onsets_index:
                         peaks_after = np.where(peaks_index > onset_index)[0]
@@ -3543,25 +3551,38 @@ class ManualOnsetFrame(tk.Frame):
                 else:
                     raster_dur = self.raster_dur_for_a_cell[self.current_neuron]
                 n_frames = len(raster_dur)
-                n_predicted_errors = len(np.where(raster_dur[frames_predicted] == 0)[0])
-                n_non_predicted_errors = len(np.where(raster_dur[frames_non_predicted] == 1)[0])
-                accuracy = (n_frames - n_predicted_errors - n_non_predicted_errors) / n_frames
+                n_predicted_as_active_errors = len(np.where(raster_dur[frames_predicted_as_active] == 0)[0])
+                n_predicted_as_non_active_errors = len(np.where(raster_dur[frames_predicted_as_non_active] == 1)[0])
+                accuracy = (n_frames - n_predicted_as_active_errors - n_predicted_as_non_active_errors) / n_frames
+                default_accuracy = (n_frames - len(np.where(raster_dur)[0])) / n_frames
+                print(f"Default accuracy {str(np.round(default_accuracy, 3))}")
                 print(f"Predictions accuracy {str(np.round(accuracy, 3))}")
-                # % of frames predicted active that are active
-                n_true_frames_predicted = len(frames_predicted) - n_predicted_errors
-                print(f"Ratio of active predicted frames "
-                      f"{str(np.round(n_true_frames_predicted/len(frames_predicted), 3))}")
-                # % of frames predicted false that are non active
-                n_true_frames_non_predicted = len(frames_non_predicted) - n_non_predicted_errors
-                print(f"Ratio of active predicted frames "
-                      f"{str(np.round(n_true_frames_non_predicted/len(frames_non_predicted), 3))}")
+                # % of frames predicted as active that are active
+                n_true_frames_predicted = len(frames_predicted_as_active) - n_predicted_as_active_errors
+                print(f"Ratio of True positive active predicted frames "
+                      f"{str(np.round(n_true_frames_predicted/len(frames_predicted_as_active), 3))}")
+                # % of frames predicted as non active that are non active
+                n_true_frames_non_predicted = len(frames_predicted_as_non_active) - n_predicted_as_non_active_errors
+                print(f"Ratio of True negative non-active predicted frames "
+                      f"{str(np.round(n_true_frames_non_predicted/len(frames_predicted_as_non_active), 3))}")
+                # % of active frames that were detected as active
+                n_predicted_as_active_true = len(frames_predicted_as_active) - n_predicted_as_active_errors
+                predictive_value = n_predicted_as_active_true / len(np.where(raster_dur)[0])
+                print(f"% of active frames detected "
+                      f"{str(np.round(predictive_value, 3))}")
+                # for each transient, we want to know how many had at least one frame predicted as active
+                transient_periods = get_continous_time_periods(raster_dur)
+                n_transients = len(transient_periods)
+                n_transient_dectected = 0
+                binary_predicted_as_active = np.zeros(len(predictions), dtype="uint8")
+                binary_predicted_as_active[predictions >= threshold_tc] = 1
+                for transient_period in transient_periods:
+                    frames = np.arange(transient_period[0], transient_period[1]+1)
+                    if np.sum(binary_predicted_as_active[frames]) > 0:
+                        n_transient_dectected += 1
+                print(f"% of transient detected "
+                      f"{str(np.round(n_transient_dectected/n_transients, 3))}")
 
-                for i_ap, active_period in enumerate(active_periods):
-                    period = np.arange(active_period[0], active_period[1]+1)
-                    min_traces = np.min(self.traces[self.current_neuron]) - 0.1
-                    y2 = np.repeat(min_traces, len(period))
-                    self.axe_plot.fill_between(x=period, y1=self.traces[self.current_neuron, period], y2=y2,
-                                               color=classifier_filling_color)
         if self.raw_traces_median is not None:
             self.axe_plot.plot(np.arange(self.nb_times_traces),
                                self.raw_traces_median[self.current_neuron, :],
