@@ -17,6 +17,7 @@ from mouse_session_loader import load_mouse_sessions
 from shapely import geometry
 from scipy import ndimage
 from random import shuffle
+import os
 
 import sys
 import platform
@@ -46,8 +47,11 @@ print(f"sys.maxsize {sys.maxsize}, platform.architecture {platform.architecture(
 # exemple: https://keras.io/getting-started/functional-api-guide/
 
 class DataForMs(p_disc_tools_param.Parameters):
-    def __init__(self, path_data, result_path):
-        self.time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
+    def __init__(self, path_data, result_path, time_str=None):
+        if time_str is None:
+            self.time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
+        else:
+            self.time_str = time_str
         super().__init__(path_results=result_path, time_str=self.time_str, bin_size=1)
         self.path_data = path_data
         self.cell_assemblies_data_path = None
@@ -366,15 +370,15 @@ def get_source_profile_frames(ms, frames, coords):
 def load_data_for_generator(param, split_values, sliding_window_len, overlap_value,
                             movies_shuffling=None, with_shuffling=True):
     print("load_data_for_generator")
-    ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
-    # ms_to_use = ["p7_171012_a000_ms"]
+    # ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
+    ms_to_use = ["p7_171012_a000_ms"]
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
                                             param=param,
                                             load_traces=False, load_abf=False,
                                             for_transient_classifier=True)
-    cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(105),
-                          "p9_18_09_27_a003_ms": np.arange(28)}
-    # cell_to_load_by_ms = {"p7_171012_a000_ms": np.arange(2)}
+    # cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(105),
+    #                       "p9_18_09_27_a003_ms": np.arange(28)}
+    cell_to_load_by_ms = {"p7_171012_a000_ms": np.arange(2)}
 
     total_n_cells = 0
     # n_movies = 0
@@ -448,7 +452,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     for movie in movies_shuffling[n_movies_for_training + n_movies_for_validation:]:
         test_movie_descr.append(movies_descr[movie])
 
-    return train_data, valid_data, test_data, test_movie_descr
+    return train_data, valid_data, test_data, test_movie_descr, cell_to_load_by_ms
 
 
 
@@ -688,16 +692,21 @@ def train_model():
         raise Exception("Root path is None")
     path_data = root_path + "data/"
     result_path = root_path + "results_classifier/"
-    use_mulimodal_inputs = True
+    time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
+    result_path = result_path + "/" + time_str
+    if not os.path.isdir(result_path):
+        os.mkdir(result_path)
 
-    param = DataForMs(path_data=path_data, result_path=result_path)
+    param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
     # 3 options to target the cell
     # 1) put the cell in the middle of the frame
     # 2) put all pixels in the border to 1
     # 3) Give 2 inputs, movie full frame (20x20 pixels) + movie mask non binary or binary
 
-    n_epochs = 5
+    use_mulimodal_inputs = True
+    n_epochs = 2
+    batch_size = 16
     window_len = 100
     max_width = 25
     max_height = 25
@@ -705,9 +714,10 @@ def train_model():
     dropout_value = 0.5
     pixels_around = 0
     buffer = None
+    split_values = (0.7, 0.2)
 
     params_generator = {
-        'batch_size': 16,
+        'batch_size': batch_size,
         'window_len': window_len,
         'max_width': max_width,
         'max_height': max_height,
@@ -717,8 +727,8 @@ def train_model():
 
     start_time = time.time()
     train_data_list, valid_data_list, test_data_list,\
-    test_movie_descr = load_data_for_generator(param,
-                                               split_values=(0.7, 0.2),
+    test_movie_descr, cell_to_load_by_ms = load_data_for_generator(param,
+                                               split_values=split_values,
                                                sliding_window_len=window_len,
                                                overlap_value=overlap_value,
                                                movies_shuffling=None,
@@ -800,12 +810,37 @@ def train_model():
 
     start_time = time.time()
     model_descr = ""
-    # model.save(f'{param.path_results}transient_classifier_model_{model_descr}_test_acc_{test_acc}_{param.time_str}.h5')
+    # model.save(f'{param.path_results}/transient_classifier_model_{model_descr}_test_acc_{test_acc}_{param.time_str}.h5')
+
+    # saving params in a txt file
+    file_name_txt = f'{param.path_results}/stat_for_all_mice_{param.time_str}.txt'
+    round_factor = 1
+
+    with open(file_name_txt, "w", encoding='UTF-8') as file:
+        file.write(f"n epochs: {n_epochs}" + '\n')
+        file.write(f"batch_size: {batch_size}" + '\n')
+        file.write(f"use_mulimodal_inputs: {use_mulimodal_inputs}" + '\n')
+        file.write(f"window_len: {window_len}" + '\n')
+        file.write(f"max_width: {max_width}" + '\n')
+        file.write(f"max_height: {max_height}" + '\n')
+        file.write(f"overlap_value: {overlap_value}" + '\n')
+        file.write(f"dropout_value: {dropout_value}" + '\n')
+        file.write(f"pixels_around: {pixels_around}" + '\n')
+        file.write(f"buffer: {'None' if (buffer is None) else buffer}" + '\n')
+        file.write(f"split_values: {split_values}" + '\n')
+        # cells used
+        for ms_str, cells in cell_to_load_by_ms.items():
+            file.write(f"{ms_str}: ")
+            for cell in cells:
+                file.write(f"{cell} ")
+            file.write("\n")
+        file.write("" + '\n')
+
     model.save_weights(
-        f'{param.path_results}transient_classifier_weights_{model_descr}_test_acc_{test_acc}_{param.time_str}.h5')
+        f'{param.path_results}/transient_classifier_weights_{model_descr}_test_acc_{test_acc}_{param.time_str}.h5')
     # Save the model architecture
     with open(
-            f'{param.path_results}transient_classifier_model_architecture_{model_descr}_test_acc_{test_acc}_'
+            f'{param.path_results}/transient_classifier_model_architecture_{model_descr}_test_acc_{test_acc}_'
             f'{param.time_str}.json',
             'w') as f:
         f.write(model.to_json())
