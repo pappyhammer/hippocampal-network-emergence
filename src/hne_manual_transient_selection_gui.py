@@ -198,12 +198,12 @@ class ChooseSessionFrame(tk.Frame):
         n_times = len(self.data_and_param.traces[0, :])
         if (self.data_and_param.peak_nums is None) or (self.data_and_param.spike_nums is None):
             # then we do an automatic detection
-            self.data_and_param.peak_nums = np.zeros((n_cells, n_times), dtype="uint8")
+            self.data_and_param.peak_nums = np.zeros((n_cells, n_times), dtype="int8")
             for cell in np.arange(n_cells):
                 peaks, properties = signal.find_peaks(x=self.data_and_param.traces[cell], distance=2)
                 # print(f"peaks {peaks}")
                 self.data_and_param.peak_nums[cell, peaks] = 1
-            self.data_and_param.spike_nums = np.zeros((n_cells, n_times), dtype="uint8")
+            self.data_and_param.spike_nums = np.zeros((n_cells, n_times), dtype="int8")
             for cell in np.arange(n_cells):
                 # first_derivative = np.diff(self.data_and_param.traces[cell]) / np.diff(np.arange(n_times))
                 # onsets = np.where(np.abs(first_derivative) < 0.1)[0]
@@ -720,6 +720,8 @@ class ManualOnsetFrame(tk.Frame):
         self.transient_prediction_periods = dict()
         # each key is a cell, the value is a binary array with 1 between onsets and peaks
         self.raster_dur_for_a_cell = dict()
+        # to print transient predictions stat only once
+        self.print_transients_predictions_stat = False
         # Three horizontal frames to start
         # -------------- top frame (start) ----------------
         top_frame = Frame(self)
@@ -969,6 +971,7 @@ class ManualOnsetFrame(tk.Frame):
                   f"{np.round(stop_time-start_time, 3)} s")
             # will be useful for transient classifier prediction
             self.data_and_param.ms.tiff_movie = self.tiff_movie
+            self.data_and_param.ms.normalize_movie()
         self.michou_path = "michou/"
         self.michou_img_file_names = []
         # look for filenames in the fisrst directory, if we don't break, it will go through all directories
@@ -2092,6 +2095,7 @@ class ManualOnsetFrame(tk.Frame):
         self.show_transient_classifier = not self.show_transient_classifier
         if self.show_transient_classifier:
             self.set_transient_classifier_prediction_for_cell(self.current_neuron)
+            self.print_transients_predictions_stat = True
         self.update_plot()
 
     def correlation_check_box_action(self, from_std_treshold=False):
@@ -2140,6 +2144,7 @@ class ManualOnsetFrame(tk.Frame):
 
     def spin_box_transient_classifier_update(self):
         self.transient_classifier_threshold = float(self.spin_box_transient_classifier.get())
+        self.print_transients_predictions_stat = True
         if self.show_transient_classifier:
             self.update_plot()
 
@@ -2397,6 +2402,7 @@ class ManualOnsetFrame(tk.Frame):
             if (json_file is not None) and (weights_file is not None):
                 # first we "load" the movie in ms as well as peaks and onsets such as defined so far
                 self.data_and_param.ms.tiff_movie = self.tiff_movie
+                self.data_and_param.ms.normalize_movie()
                 self.data_and_param.ms.spike_struct.peak_nums = self.peak_nums
                 self.data_and_param.ms.spike_struct.spike_nums = self.spike_nums
                 predictions = predict_cell_from_saved_model(ms=self.data_and_param.ms,
@@ -3469,7 +3475,7 @@ class ManualOnsetFrame(tk.Frame):
             self.map_img_fig.canvas.flush_events()
             self.anim_movie = animation.FuncAnimation(self.map_img_fig, func=self.animate_movie,
                                                       frames=self.n_frames_movie,
-                                                      blit=True, interval=30, repeat=True)  # repeat=True,
+                                                      blit=True, interval=60, repeat=True)  # repeat=True,
             return
             # self.after(self.movie_delay, self.update_plot_map_img)
         else:
@@ -3528,60 +3534,67 @@ class ManualOnsetFrame(tk.Frame):
                     self.axe_plot.fill_between(x=period, y1=self.traces[self.current_neuron, period], y2=y2,
                                                color=classifier_filling_color)
 
-                # TODO: display the stat only when the threshold is changed
-                frames_predicted_as_active = np.where(predictions >= threshold_tc)[0]
-                frames_predicted_as_non_active = np.where(predictions < threshold_tc)[0]
-                print(f"n predictions > threshold: {len(frames_predicted_as_active)}")
-                # measuring accuracy
-                # first we build the raster_dur for this cell
-                if self.current_neuron not in self.raster_dur_for_a_cell:
-                    raster_dur = np.zeros(self.nb_times_traces, dtype="uint8")
-                    onsets_index = np.where(self.onset_times[self.current_neuron, :])[0]
-                    peaks_index = np.where(self.peak_nums[self.current_neuron, :])[0]
+                # display the stat only when the threshold is changed
+                if self.print_transients_predictions_stat:
+                    print(f"Cell {self.current_neuron}")
+                    frames_predicted_as_active = np.where(predictions >= threshold_tc)[0]
+                    frames_predicted_as_non_active = np.where(predictions < threshold_tc)[0]
+                    print(f"n predictions > threshold: {len(frames_predicted_as_active)}")
+                    # measuring accuracy
+                    # first we build the raster_dur for this cell
+                    if self.current_neuron not in self.raster_dur_for_a_cell:
+                        raster_dur = np.zeros(self.nb_times_traces, dtype="int8")
+                        onsets_index = np.where(self.onset_times[self.current_neuron, :])[0]
+                        peaks_index = np.where(self.peak_nums[self.current_neuron, :])[0]
 
-                    for onset_index in onsets_index:
-                        peaks_after = np.where(peaks_index > onset_index)[0]
-                        if len(peaks_after) == 0:
-                            continue
-                        peaks_after = peaks_index[peaks_after]
-                        peak_after = peaks_after[0]
+                        for onset_index in onsets_index:
+                            peaks_after = np.where(peaks_index > onset_index)[0]
+                            if len(peaks_after) == 0:
+                                continue
+                            peaks_after = peaks_index[peaks_after]
+                            peak_after = peaks_after[0]
+                            # print(f"onset_index {onset_index}, peak_after {peak_after}")
 
-                        raster_dur[onset_index:peak_after + 1] = 1
-                    self.raster_dur_for_a_cell[self.current_neuron] = raster_dur
-                else:
-                    raster_dur = self.raster_dur_for_a_cell[self.current_neuron]
-                n_frames = len(raster_dur)
-                n_predicted_as_active_errors = len(np.where(raster_dur[frames_predicted_as_active] == 0)[0])
-                n_predicted_as_non_active_errors = len(np.where(raster_dur[frames_predicted_as_non_active] == 1)[0])
-                accuracy = (n_frames - n_predicted_as_active_errors - n_predicted_as_non_active_errors) / n_frames
-                default_accuracy = (n_frames - len(np.where(raster_dur)[0])) / n_frames
-                print(f"Default accuracy {str(np.round(default_accuracy, 3))}")
-                print(f"Predictions accuracy {str(np.round(accuracy, 3))}")
-                # % of frames predicted as active that are active
-                n_true_frames_predicted = len(frames_predicted_as_active) - n_predicted_as_active_errors
-                print(f"Ratio of True positive active predicted frames "
-                      f"{str(np.round(n_true_frames_predicted/len(frames_predicted_as_active), 3))}")
-                # % of frames predicted as non active that are non active
-                n_true_frames_non_predicted = len(frames_predicted_as_non_active) - n_predicted_as_non_active_errors
-                print(f"Ratio of True negative non-active predicted frames "
-                      f"{str(np.round(n_true_frames_non_predicted/len(frames_predicted_as_non_active), 3))}")
-                # % of active frames that were detected as active
-                n_predicted_as_active_true = len(frames_predicted_as_active) - n_predicted_as_active_errors
-                predictive_value = n_predicted_as_active_true / len(np.where(raster_dur)[0])
-                print(f"% of active frames detected "
-                      f"{str(np.round(predictive_value, 3))}")
-                # for each transient, we want to know how many had at least one frame predicted as active
-                transient_periods = get_continous_time_periods(raster_dur)
-                n_transients = len(transient_periods)
-                n_transient_dectected = 0
-                binary_predicted_as_active = np.zeros(len(predictions), dtype="uint8")
-                binary_predicted_as_active[predictions >= threshold_tc] = 1
-                for transient_period in transient_periods:
-                    frames = np.arange(transient_period[0], transient_period[1]+1)
-                    if np.sum(binary_predicted_as_active[frames]) > 0:
-                        n_transient_dectected += 1
-                print(f"% of transient detected "
-                      f"{str(np.round(n_transient_dectected/n_transients, 3))}")
+                            raster_dur[onset_index:peak_after + 1] = 1
+                        self.raster_dur_for_a_cell[self.current_neuron] = raster_dur
+                    else:
+                        raster_dur = self.raster_dur_for_a_cell[self.current_neuron]
+                    n_frames = len(raster_dur)
+                    n_predicted_as_active_errors = len(np.where(raster_dur[frames_predicted_as_active] == 0)[0])
+                    n_predicted_as_non_active_errors = len(np.where(raster_dur[frames_predicted_as_non_active] == 1)[0])
+                    accuracy = (n_frames - n_predicted_as_active_errors - n_predicted_as_non_active_errors) / n_frames
+                    default_accuracy = (n_frames - len(np.where(raster_dur)[0])) / n_frames
+                    print(f"Default accuracy {str(np.round(default_accuracy, 3))}")
+                    print(f"Predictions accuracy {str(np.round(accuracy, 3))}")
+                    # % of frames predicted as active that are active
+                    n_true_frames_predicted = len(frames_predicted_as_active) - n_predicted_as_active_errors
+                    print(f"Ratio of True positive active predicted frames "
+                          f"{str(np.round(n_true_frames_predicted/len(frames_predicted_as_active), 3))}")
+                    # % of frames predicted as non active that are non active
+                    n_true_frames_non_predicted = len(frames_predicted_as_non_active) - n_predicted_as_non_active_errors
+                    print(f"Ratio of True negative non-active predicted frames "
+                          f"{str(np.round(n_true_frames_non_predicted/len(frames_predicted_as_non_active), 3))}")
+                    # % of active frames that were detected as active
+                    n_predicted_as_active_true = len(frames_predicted_as_active) - n_predicted_as_active_errors
+                    predictive_value = n_predicted_as_active_true / len(np.where(raster_dur)[0])
+                    print(f"% of active frames detected "
+                          f"{str(np.round(predictive_value, 3))}")
+                    # for each transient, we want to know how many had at least one frame predicted as active
+                    transient_periods = get_continous_time_periods(raster_dur)
+                    # print(f"transient_periods {transient_periods}")
+                    n_transients = len(transient_periods)
+                    # print(f"n_transients {n_transients}")
+                    n_transient_dectected = 0
+                    binary_predicted_as_active = np.zeros(len(predictions), dtype="int8")
+                    binary_predicted_as_active[predictions >= threshold_tc] = 1
+                    for transient_period in transient_periods:
+                        frames = np.arange(transient_period[0], transient_period[1]+1)
+                        # print(f"np.sum(binary_predicted_as_active[frames] {np.sum(binary_predicted_as_active[frames])}")
+                        if np.sum(binary_predicted_as_active[frames]) > 0:
+                            n_transient_dectected += 1
+                    print(f"% of transient detected "
+                          f"{str(np.round(n_transient_dectected/n_transients, 3))}")
+                    self.print_transients_predictions_stat = False
 
         if self.raw_traces_median is not None:
             self.axe_plot.plot(np.arange(self.nb_times_traces),

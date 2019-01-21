@@ -73,6 +73,8 @@ class MouseSession:
         self.tif_movie_file_name = None
         # will be use by the cell classifier
         self.tiff_movie = None
+        # will be use by the cell and transient classifier, normalize between 0 and 1
+        self.tiff_movie_norm_0_1 = None
         # Pillow image
         self.tiff_movie_image = None
         self.param = param
@@ -171,6 +173,12 @@ class MouseSession:
         # 1, 3 and 4
         # 5: regroup sce before and during events
         self.events_by_twitches_group = SortedDict()
+
+    def normalize_movie(self):
+        if (self.tiff_movie is not None) and (self.tiff_movie_norm_0_1 is None):
+            max_value = np.max(self.tiff_movie)
+            print(f"{self.description} max tiff_movie {str(np.round(max_value, 3))}")
+            self.tiff_movie_norm_0_1 = self.tiff_movie / max_value
 
     def plot_psth_over_twitches_time_correlation_graph_style(self):
         """

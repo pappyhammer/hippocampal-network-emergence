@@ -282,6 +282,7 @@ def load_movie(ms):
             stop_time = time.time()
             print(f"Time for loading movie: "
                   f"{np.round(stop_time - start_time, 3)} s")
+            ms.normalize_movie()
         return True
     return False
 
@@ -326,7 +327,7 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0, b
     miny = max(0, miny - pixels_around)
     # we use max_width and max_height to make sure it won't be bigger than the frame used by the network
     maxx = np.min(((len_frame_x - 1), (maxx + pixels_around), (minx + max_height - 1)))
-    maxy = np.min(((len_frame_y - 1), (maxy + pixels_around), (maxx + max_width - 1)))
+    maxy = np.min(((len_frame_y - 1), (maxy + pixels_around), (miny + max_width - 1)))
 
     len_x = maxx - minx + 1
     len_y = maxy - miny + 1
@@ -351,12 +352,13 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0, b
 
 
 def get_source_profile_frames(ms, frames, coords):
-    frames_tiff = ms.tiff_movie[frames]
     (minx, maxx, miny, maxy) = coords
-    source_profile = frames_tiff[:, miny:maxy + 1, minx:maxx + 1]
+    # frames_tiff = ms.tiff_movie_norm_0_1[frames]
+    # source_profile = frames_tiff[:, miny:maxy + 1, minx:maxx + 1]
+    source_profile = ms.tiff_movie_norm_0_1[frames, miny:maxy + 1, minx:maxx + 1 ]
 
     # normalized so that value are between 0 and 1
-    source_profile = source_profile / np.max(ms.tiff_movie)
+    # source_profile = source_profile / np.max(ms.tiff_movie)
 
     return source_profile
 
@@ -458,9 +460,9 @@ def build_model(input_shape, use_mulimodal_inputs=False, dropout_value=0):
     vision_model.add(Conv2D(64, (3, 3), activation='relu', padding='same', input_shape=input_shape[1:]))
     vision_model.add(Conv2D(64, (3, 3), activation='relu'))
     vision_model.add(MaxPooling2D((2, 2)))
-    # vision_model.add(Conv2D(128, (3, 3), activation='relu', padding='same'))
-    # vision_model.add(Conv2D(128, (3, 3), activation='relu'))
-    # vision_model.add(MaxPooling2D((2, 2)))
+    vision_model.add(Conv2D(128, (3, 3), activation='relu', padding='same'))
+    vision_model.add(Conv2D(128, (3, 3), activation='relu'))
+    vision_model.add(MaxPooling2D((2, 2)))
     if dropout_value > 0:
         vision_model.add(layers.Dropout(dropout_value))
     # vision_model.add(Conv2D(256, (3, 3), activation='relu', padding='same'))
@@ -489,7 +491,6 @@ def build_model(input_shape, use_mulimodal_inputs=False, dropout_value=0):
     encoded_video_masked = Bidirectional(LSTM(256))(encoded_video_masked)
 
     # in case we want 2 videos, one with masked, and one with the cell centered
-    # And this is our video question answering model:
     if use_mulimodal_inputs:
         merged = layers.concatenate([encoded_video, encoded_video_masked])
         # output = TimeDistributed(Dense(1, activation='sigmoid')))
@@ -515,9 +516,15 @@ def get_source_profile_for_prediction(ms, cell, max_width=30, max_height=30, sli
     full_data = np.zeros((n_movies, sliding_window_len, max_height, max_width))
     full_data_masked = np.zeros((n_movies, sliding_window_len, max_height, max_width))
 
+    # start_time = time.time()
     mask_source_profile, (minx, maxx, miny, maxy) = \
         get_source_profile_param(cell=cell, ms=ms, pixels_around=0, buffer=None, max_width=max_width,
                                  max_height=max_width)
+    # stop_time = time.time()
+    # print(f"Time to get_source_profile_param: "
+    #       f"{np.round(stop_time - start_time, 3)} s")
+    # times_for_get_source_profile_frames = []
+
     for index_movie in np.arange(n_movies):
         if (index_movie == (n_movies - 1)) and (not count_is_good):
             # last part is not equal to sliding_window_len
@@ -525,7 +532,11 @@ def get_source_profile_for_prediction(ms, cell, max_width=30, max_height=30, sli
             frames = np.arange(n_frames - sliding_window_len, n_frames)
         else:
             frames = np.arange(index_movie * sliding_window_len, (index_movie + 1) * sliding_window_len)
+        # start_time = time.time()
         source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=(minx, maxx, miny, maxy))
+        # stop_time = time.time()
+        # times_for_get_source_profile_frames.append(stop_time - start_time)
+
         # if i == 0:
         #     print(f"source_profile_frames.shape {source_profile_frames.shape}")
         source_profile_frames_masked = np.copy(source_profile_frames)
@@ -545,6 +556,8 @@ def get_source_profile_for_prediction(ms, cell, max_width=30, max_height=30, sli
 
         full_data[index_movie] = profile_fit
         full_data_masked[index_movie] = profile_fit_masked
+    # print(f"Avg time to get_source_profile_frames (x {n_movies}): "
+    #       f"{np.round(np.mean(times_for_get_source_profile_frames), 10)} s")
 
     return full_data, full_data_masked
 
@@ -676,7 +689,6 @@ def train_model():
     path_data = root_path + "data/"
     result_path = root_path + "results_classifier/"
     use_mulimodal_inputs = True
-    sliding_window_len = 100
 
     param = DataForMs(path_data=path_data, result_path=result_path)
 
@@ -685,7 +697,7 @@ def train_model():
     # 2) put all pixels in the border to 1
     # 3) Give 2 inputs, movie full frame (20x20 pixels) + movie mask non binary or binary
 
-    n_epochs = 30
+    n_epochs = 5
     window_len = 100
     max_width = 25
     max_height = 25
@@ -699,7 +711,7 @@ def train_model():
         'window_len': window_len,
         'max_width': max_width,
         'max_height': max_height,
-        'pixels_around':pixels_around,
+        'pixels_around': pixels_around,
         'buffer': buffer,
         'is_shuffle': True}
 
@@ -786,8 +798,9 @@ def train_model():
     print(f"test_acc {test_acc}")
 
 
+    start_time = time.time()
     model_descr = ""
-    model.save(f'{param.path_results}transient_classifier_model_{model_descr}_test_acc_{test_acc}_{param.time_str}.h5')
+    # model.save(f'{param.path_results}transient_classifier_model_{model_descr}_test_acc_{test_acc}_{param.time_str}.h5')
     model.save_weights(
         f'{param.path_results}transient_classifier_weights_{model_descr}_test_acc_{test_acc}_{param.time_str}.h5')
     # Save the model architecture
@@ -796,6 +809,11 @@ def train_model():
             f'{param.time_str}.json',
             'w') as f:
         f.write(model.to_json())
+
+
+    stop_time = time.time()
+    print(f"Time for saving the model: "
+          f"{np.round(stop_time - start_time, 3)} s")
 
     if use_mulimodal_inputs:
         prediction = model.predict({'video_input': test_data,
