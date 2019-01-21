@@ -359,7 +359,7 @@ def get_source_profile_frames(ms, frames, coords):
     (minx, maxx, miny, maxy) = coords
     # frames_tiff = ms.tiff_movie_norm_0_1[frames]
     # source_profile = frames_tiff[:, miny:maxy + 1, minx:maxx + 1]
-    source_profile = ms.tiff_movie_norm_0_1[frames, miny:maxy + 1, minx:maxx + 1 ]
+    source_profile = ms.tiff_movie_norm_0_1[frames, miny:maxy + 1, minx:maxx + 1]
 
     # normalized so that value are between 0 and 1
     # source_profile = source_profile / np.max(ms.tiff_movie)
@@ -414,20 +414,34 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         for cell in cell_to_load_by_ms[ms_str]:
             # then we slide the window
             # frames index of the beginning of each movie
-            indices_movies = np.arange(0, n_frames, int(sliding_window_len * (1 - overlap_value)))
+            frames_step = int(np.ceil(sliding_window_len * (1 - overlap_value)))
+            indices_movies = np.arange(0, n_frames, frames_step)
 
             for i, index_movie in enumerate(indices_movies):
-                if i == (len(indices_movies) - 1):
-                    if (indices_movies[i - 1] + sliding_window_len) == n_frames:
-                        break
-                    else:
-                        full_data.append([ms, cell, n_frames - sliding_window_len])
-
+                # if i == (len(indices_movies) - 1):
+                #     if (indices_movies[i - 1] + sliding_window_len) == n_frames:
+                #         break
+                #     else:
+                #         full_data.append([ms, cell, n_frames - sliding_window_len])
+                #
+                # else:
+                #     full_data.append([ms, cell, index_movie])
+                break_it = False
+                first_frame = index_movie
+                if (index_movie + sliding_window_len) == n_frames:
+                    full_data.append([ms, cell, index_movie])
+                    break_it = True
+                elif (index_movie + sliding_window_len) > n_frames:
+                    # in case the number of frames is not divisible by sliding_window_len
+                    full_data.append([ms, cell, n_frames - sliding_window_len])
+                    first_frame = n_frames - sliding_window_len
+                    break_it = True
                 else:
                     full_data.append([ms, cell, index_movie])
-
-                movies_descr.append(f"{ms.description}_cell_{cell}_first_frame_{index_movie}")
+                movies_descr.append(f"{ms.description}_cell_{cell}_first_frame_{first_frame}")
                 movie_count += 1
+                if break_it:
+                    break
 
     print(f"movie_count {movie_count}")
     # cells shuffling
@@ -453,7 +467,6 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         test_movie_descr.append(movies_descr[movie])
 
     return train_data, valid_data, test_data, test_movie_descr, cell_to_load_by_ms
-
 
 
 def build_model(input_shape, use_mulimodal_inputs=False, dropout_value=0):
@@ -508,17 +521,38 @@ def build_model(input_shape, use_mulimodal_inputs=False, dropout_value=0):
     return video_model
 
 
-def get_source_profile_for_prediction(ms, cell, max_width=30, max_height=30, sliding_window_len=100):
-    n_frames = len(ms.tiff_movie)
-    count_is_good = True
-    if (n_frames % sliding_window_len) == 0:
-        n_movies = n_frames // sliding_window_len
-    else:
-        n_movies = (n_frames // sliding_window_len) + 1
-        count_is_good = False
+def get_source_profile_for_prediction(ms, cell, augmentation_functions=None,
+                                      overlap_value=0, max_width=30, max_height=30, sliding_window_len=100):
+    n_frames = ms.tiff_movie.shape[0]
+    n_augmentation_fct = 0
+    if augmentation_functions is not None:
+        n_augmentation_fct = len(augmentation_functions)
+    # count_is_good = True
+    # if (n_frames % sliding_window_len) == 0:
+    #     n_movies = n_frames // sliding_window_len
+    # else:
+    #     n_movies = (n_frames // sliding_window_len) + 1
+    #     count_is_good = False
+
+    frames_step = int(np.ceil(sliding_window_len * (1 - overlap_value)))
+    # number of indices to remove so index + sliding_window_len won't be superior to number of frames
+    n_step_to_remove = 0 if (overlap_value == 0) else int(1 / (1 - overlap_value))
+    frame_indices_for_movies = np.arange(0, n_frames, frames_step)
+    if n_step_to_remove > 0:
+        frame_indices_for_movies = frame_indices_for_movies[:-n_step_to_remove + 1]
+    # in case the n_frames wouldn't be divisible by frames_step
+    if frame_indices_for_movies[-1] + frames_step > n_frames:
+        frame_indices_for_movies[-1] = n_frames - sliding_window_len
+
+    # print(f"frames_step {frames_step}, n_step_to_remove {n_step_to_remove}, "
+    #       f"frame_indices_for_movies[-1] {frame_indices_for_movies[-1]}")
+
+    # the number of movies is determined by the overlap and the number of transformation that need to be done
+    n_movies = len(frame_indices_for_movies) + (len(frame_indices_for_movies) * n_augmentation_fct)
 
     full_data = np.zeros((n_movies, sliding_window_len, max_height, max_width))
     full_data_masked = np.zeros((n_movies, sliding_window_len, max_height, max_width))
+    full_data_frame_indices = np.zeros(n_movies, dtype="int16")
 
     # start_time = time.time()
     mask_source_profile, (minx, maxx, miny, maxy) = \
@@ -529,13 +563,9 @@ def get_source_profile_for_prediction(ms, cell, max_width=30, max_height=30, sli
     #       f"{np.round(stop_time - start_time, 3)} s")
     # times_for_get_source_profile_frames = []
 
-    for index_movie in np.arange(n_movies):
-        if (index_movie == (n_movies - 1)) and (not count_is_good):
-            # last part is not equal to sliding_window_len
-            # there will be some overlap with the last one
-            frames = np.arange(n_frames - sliding_window_len, n_frames)
-        else:
-            frames = np.arange(index_movie * sliding_window_len, (index_movie + 1) * sliding_window_len)
+    for index_movie, frame_index in enumerate(frame_indices_for_movies):
+        index_movie = index_movie + (index_movie * n_augmentation_fct)
+        frames = np.arange(frame_index, frame_index + sliding_window_len)
         # start_time = time.time()
         source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=(minx, maxx, miny, maxy))
         # stop_time = time.time()
@@ -546,8 +576,8 @@ def get_source_profile_for_prediction(ms, cell, max_width=30, max_height=30, sli
         source_profile_frames_masked = np.copy(source_profile_frames)
         source_profile_frames_masked[:, mask_source_profile] = 0
 
-        profile_fit = np.zeros((len(frames), max_height, max_width))
-        profile_fit_masked = np.zeros((len(frames), max_height, max_width))
+        profile_fit = np.zeros((sliding_window_len, max_height, max_width))
+        profile_fit_masked = np.zeros((sliding_window_len, max_height, max_width))
         # we center the source profile
         y_coord = (profile_fit.shape[1] - source_profile_frames.shape[1]) // 2
         x_coord = (profile_fit.shape[2] - source_profile_frames.shape[2]) // 2
@@ -560,13 +590,24 @@ def get_source_profile_for_prediction(ms, cell, max_width=30, max_height=30, sli
 
         full_data[index_movie] = profile_fit
         full_data_masked[index_movie] = profile_fit_masked
+        full_data_frame_indices[index_movie] = frame_index
+
+        # doing augmentation if the function exists
+        if augmentation_functions is not None:
+            for i_fct, augmentation_fct in enumerate(augmentation_functions):
+                i_fct += 1
+                full_data[index_movie + i_fct] = augmentation_fct(profile_fit)
+                full_data_masked[index_movie + i_fct] = augmentation_fct(profile_fit_masked)
+                full_data_frame_indices[index_movie + i_fct] = frame_index
+
     # print(f"Avg time to get_source_profile_frames (x {n_movies}): "
     #       f"{np.round(np.mean(times_for_get_source_profile_frames), 10)} s")
 
-    return full_data, full_data_masked
+    return full_data, full_data_masked, full_data_frame_indices
 
 
 def predict_transient_from_saved_model(ms, cell, weights_file, json_file):
+    # TODO: use data transformation and overlap and average over each
     start_time = time.time()
     # Model reconstruction from JSON file
     with open(json_file, 'r') as f:
@@ -584,9 +625,15 @@ def predict_transient_from_saved_model(ms, cell, weights_file, json_file):
     sliding_window_len = model.layers[0].output_shape[1]
     max_height = model.layers[0].output_shape[2]
     max_width = model.layers[0].output_shape[3]
-    data, data_masked = get_source_profile_for_prediction(ms=ms, cell=cell,
-                                                          sliding_window_len=sliding_window_len,
-                                                          max_width=max_width, max_height=max_height)
+    augmentation_functions = [horizontal_flip, vertical_flip, v_h_flip]
+    overlap_value = 0.8
+    data, data_masked, \
+    data_frame_indices = get_source_profile_for_prediction(ms=ms, cell=cell,
+                                                           sliding_window_len=sliding_window_len,
+                                                           max_width=max_width,
+                                                           max_height=max_height,
+                                                           augmentation_functions=augmentation_functions,
+                                                           overlap_value=overlap_value)
     data = data.reshape((data.shape[0], data.shape[1], data.shape[2],
                          data.shape[3], 1))
     data_masked = data_masked.reshape((data_masked.shape[0], data_masked.shape[1], data_masked.shape[2],
@@ -601,21 +648,38 @@ def predict_transient_from_saved_model(ms, cell, weights_file, json_file):
                                      'video_input_masked': data_masked})
     else:
         predictions = model.predict(data_masked)
-    predictions = np.ndarray.flatten(predictions)
     stop_time = time.time()
     print(f"Time to get predictions: "
           f"{np.round(stop_time - start_time, 3)} s")
 
+    # now we want to average each prediction for a given frame
+    if (overlap_value > 0) or (augmentation_functions is not None):
+        frames_predictions = dict()
+        # print(f"predictions.shape {predictions.shape}, data_frame_indices.shape {data_frame_indices.shape}")
+        for i, data_frame_index in enumerate(data_frame_indices):
+            frames_index = np.arange(data_frame_index, data_frame_index + sliding_window_len)
+            predictions_for_frames = predictions[i]
+            for j, frame_index in enumerate(frames_index):
+                if frame_index not in frames_predictions:
+                    frames_predictions[frame_index] = []
+                frames_predictions[frame_index].append(predictions_for_frames[j])
+
+        predictions = np.zeros(n_frames)
+        for frame_index, prediction_values in frames_predictions.items():
+            predictions[frame_index] = np.mean(prediction_values)
+    else:
+        predictions = np.ndarray.flatten(predictions)
+
+        # now we remove the extra prediction in case the number of frames was not divisible by the window length
+        if (n_frames % sliding_window_len) != 0:
+            real_predictions = np.zeros(n_frames)
+            modulo = n_frames % sliding_window_len
+            real_predictions[:len(predictions) - sliding_window_len] = predictions[:len(predictions) - sliding_window_len]
+            real_predictions[len(predictions) - sliding_window_len:] = predictions[-modulo:]
+            predictions = real_predictions
+
     if len(predictions) != n_frames:
         print(f"predictions len {len(predictions)}, n_frames {n_frames}")
-
-    # now we remove the extra prediction in case the number of frames was not divisible by the window length
-    if (n_frames % sliding_window_len) != 0:
-        real_predictions = np.zeros(n_frames)
-        modulo = n_frames % sliding_window_len
-        real_predictions[:len(predictions) - sliding_window_len] = predictions[:len(predictions) - sliding_window_len]
-        real_predictions[len(predictions) - sliding_window_len:] = predictions[-modulo:]
-        predictions = real_predictions
 
     return predictions
 
@@ -726,17 +790,16 @@ def train_model():
         'is_shuffle': True}
 
     start_time = time.time()
-    train_data_list, valid_data_list, test_data_list,\
+    train_data_list, valid_data_list, test_data_list, \
     test_movie_descr, cell_to_load_by_ms = load_data_for_generator(param,
-                                               split_values=split_values,
-                                               sliding_window_len=window_len,
-                                               overlap_value=overlap_value,
-                                               movies_shuffling=None,
-                                               with_shuffling=True)
+                                                                   split_values=split_values,
+                                                                   sliding_window_len=window_len,
+                                                                   overlap_value=overlap_value,
+                                                                   movies_shuffling=None,
+                                                                   with_shuffling=True)
     stop_time = time.time()
     print(f"Time for loading data for generator: "
           f"{np.round(stop_time - start_time, 3)} s")
-
 
     # Generators
     start_time = time.time()
@@ -769,20 +832,16 @@ def train_model():
     print(f"Time for building and compiling the model: "
           f"{np.round(stop_time - start_time, 3)} s")
 
-
     # Train model on dataset
     start_time = time.time()
     history = model.fit_generator(generator=training_generator,
-                        validation_data=validation_generator,
-                        epochs=n_epochs,
-                        use_multiprocessing=True,
-                        workers=10)
+                                  validation_data=validation_generator,
+                                  epochs=n_epochs,
+                                  use_multiprocessing=True,
+                                  workers=10)
     stop_time = time.time()
     print(f"Time for fitting the model to the data with {n_epochs} epochs: "
           f"{np.round(stop_time - start_time, 3)} s")
-
-
-
 
     show_plots = True
 
@@ -790,15 +849,14 @@ def train_model():
         plot_training_and_validation_loss(history, n_epochs, result_path, param)
         plot_training_and_validation_accuracy(history, n_epochs, result_path, param)
 
-
     source_profiles_dict = dict()
     test_data, test_data_masked, test_labels = generate_movies_from_metadata(data_list=test_data_list,
-                                                                        window_len=window_len,
-                                                                        max_width=max_width,
-                                                                        max_height=max_height,
-                                                                        pixels_around=pixels_around,
-                                                                        buffer=buffer,
-                                                                        source_profiles_dict=source_profiles_dict)
+                                                                             window_len=window_len,
+                                                                             max_width=max_width,
+                                                                             max_height=max_height,
+                                                                             pixels_around=pixels_around,
+                                                                             buffer=buffer,
+                                                                             source_profiles_dict=source_profiles_dict)
     if use_mulimodal_inputs:
         test_loss, test_acc = model.evaluate({'video_input': test_data,
                                               'video_input_masked': test_data_masked},
@@ -806,7 +864,6 @@ def train_model():
     else:
         test_loss, test_acc = model.evaluate(test_data_masked, test_labels)
     print(f"test_acc {test_acc}")
-
 
     start_time = time.time()
     model_descr = ""
@@ -844,7 +901,6 @@ def train_model():
             f'{param.time_str}.json',
             'w') as f:
         f.write(model.to_json())
-
 
     stop_time = time.time()
     print(f"Time for saving the model: "

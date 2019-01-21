@@ -4020,6 +4020,7 @@ class ManualOnsetFrame(tk.Frame):
         self.current_neuron = new_neuron
         if self.show_transient_classifier:
             self.set_transient_classifier_prediction_for_cell(cell=self.current_neuron)
+            self.print_transients_predictions_stat = True
         if self.correlation_for_each_peak_option:
             if self.display_correlations:
                 self.correlation_check_box_action(from_std_treshold=True)
