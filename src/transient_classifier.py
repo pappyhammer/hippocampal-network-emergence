@@ -211,7 +211,7 @@ class DataGenerator(keras.utils.Sequence):
         sample_weights = np.ones(labels.shape[0])
         for i in np.arange(labels.shape[0]):
             if np.sum(labels[i]) > 0:
-                sample_weights[i] = 5
+                sample_weights[i] = 3
 
         return {'video_input': data, 'video_input_masked': data_masked}, labels, sample_weights
 
@@ -384,14 +384,15 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     so that training set and validation set have similar ratio of classes
     """
     print("load_data_for_generator")
-    use_small_sample = True
+    use_small_sample = False
     if use_small_sample:
         ms_to_use = ["p12_171110_a000_ms"]
         cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(1)}
     else:
         ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(100),
-                              "p9_18_09_27_a003_ms": np.arange(28)}
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(20),
+                              "p9_18_09_27_a003_ms": np.arange(15)}
+        # max p7: 117, max p9: 30, max p12: 6
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
                                             param=param,
@@ -529,11 +530,11 @@ def build_model(input_shape, use_mulimodal_inputs=False, dropout_value=0):
     if use_mulimodal_inputs:
         merged = layers.concatenate([encoded_video, encoded_video_masked])
         # output = TimeDistributed(Dense(1, activation='sigmoid')))
-        output = Dense(100, activation='sigmoid')(merged)
+        output = Dense(n_frames, activation='sigmoid')(merged)
         video_model = Model(inputs=[video_input, video_input_masked], outputs=output)
     else:
         # output = TimeDistributed(Dense(1, activation='sigmoid'))(encoded_video)
-        output = Dense(100, activation='sigmoid')(encoded_video)
+        output = Dense(n_frames, activation='sigmoid')(encoded_video)
         video_model = Model(inputs=video_input, outputs=output)
 
     return video_model
@@ -825,12 +826,12 @@ def train_model():
     # 3) Give 2 inputs, movie full frame (20x20 pixels) + movie mask non binary or binary
 
     use_mulimodal_inputs = True
-    n_epochs = 2
+    n_epochs = 10
     batch_size = 16
-    window_len = 100
+    window_len = 50
     max_width = 25
     max_height = 25
-    overlap_value = 0.8
+    overlap_value = 0.9
     dropout_value = 0.5
     pixels_around = 0
     buffer = None
