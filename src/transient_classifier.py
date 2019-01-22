@@ -17,6 +17,7 @@ from mouse_session_loader import load_mouse_sessions
 from shapely import geometry
 from scipy import ndimage
 from random import shuffle
+from keras import backend as K
 import os
 
 import sys
@@ -179,9 +180,9 @@ class DataGenerator(keras.utils.Sequence):
         data_list_tmp = [self.data_list[k] for k in indexes]
 
         # Generate data
-        data, labels = self.__data_generation(data_list_tmp)
+        data, labels, sample_weights = self.__data_generation(data_list_tmp)
 
-        return data, labels
+        return data, labels, sample_weights
 
     def on_epoch_end(self):
         # 'Updates indexes after each epoch'
@@ -203,8 +204,16 @@ class DataGenerator(keras.utils.Sequence):
                                                                   buffer=self.buffer,
                                                                   source_profiles_dict=self.source_profiles_dict)
         # print(f"__data_generation data.shape {data.shape}")
+        # put more weight to the active frames
+        # TODO: considering to put more weight to fake transient
+        # sample_weights = np.ones(labels.shape)
+        # sample_weights[labels == 1] = 5
+        sample_weights = np.ones(labels.shape[0])
+        for i in np.arange(labels.shape[0]):
+            if np.sum(labels[i]) > 0:
+                sample_weights[i] = 5
 
-        return {'video_input': data, 'video_input_masked': data_masked}, labels
+        return {'video_input': data, 'video_input_masked': data_masked}, labels, sample_weights
 
 
 def generate_movies_from_metadata(data_list, window_len, max_width, max_height, pixels_around,
@@ -369,16 +378,25 @@ def get_source_profile_frames(ms, frames, coords):
 
 def load_data_for_generator(param, split_values, sliding_window_len, overlap_value,
                             movies_shuffling=None, with_shuffling=True):
+    # TODO: stratification matters !
+    """
+    Stratification is the technique to allocate the samples evenly based on sample classes
+    so that training set and validation set have similar ratio of classes
+    """
     print("load_data_for_generator")
-    # ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
-    ms_to_use = ["p7_171012_a000_ms"]
+    use_small_sample = True
+    if use_small_sample:
+        ms_to_use = ["p12_171110_a000_ms"]
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(1)}
+    else:
+        ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(100),
+                              "p9_18_09_27_a003_ms": np.arange(28)}
+
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
                                             param=param,
                                             load_traces=False, load_abf=False,
                                             for_transient_classifier=True)
-    # cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(105),
-    #                       "p9_18_09_27_a003_ms": np.arange(28)}
-    cell_to_load_by_ms = {"p7_171012_a000_ms": np.arange(2)}
 
     total_n_cells = 0
     # n_movies = 0
@@ -674,7 +692,8 @@ def predict_transient_from_saved_model(ms, cell, weights_file, json_file):
         if (n_frames % sliding_window_len) != 0:
             real_predictions = np.zeros(n_frames)
             modulo = n_frames % sliding_window_len
-            real_predictions[:len(predictions) - sliding_window_len] = predictions[:len(predictions) - sliding_window_len]
+            real_predictions[:len(predictions) - sliding_window_len] = predictions[
+                                                                       :len(predictions) - sliding_window_len]
             real_predictions[len(predictions) - sliding_window_len:] = predictions[-modulo:]
             predictions = real_predictions
 
@@ -695,55 +714,92 @@ def smooth_curve(points, factor=0.8):
     return smoothed_points
 
 
-def plot_training_and_validation_loss(history, n_epochs, result_path, param):
+#
+# def plot_training_and_validation_loss(history, n_epochs, result_path, param):
+#     history_dict = history.history
+#     loss_values = history_dict['loss']
+#     val_loss_values = history_dict['val_loss']
+#     epochs = range(1, n_epochs + 1)
+#     fig, ax1 = plt.subplots(nrows=1, ncols=1,
+#                             gridspec_kw={'height_ratios': [1],
+#                                          'width_ratios': [1]},
+#                             figsize=(5, 5))
+#     ax1.plot(epochs, smooth_curve(loss_values), 'bo', label='Training loss')
+#     ax1.plot(epochs, smooth_curve(val_loss_values), 'b', label='Validation loss')
+#     plt.title('Training and validation loss')
+#     plt.xlabel('Epochs')
+#     plt.ylabel('Loss')
+#     plt.legend()
+#
+#     save_formats = "pdf"
+#     if isinstance(save_formats, str):
+#         save_formats = [save_formats]
+#     for save_format in save_formats:
+#         fig.savefig(f'{result_path}/training_and_validation_loss_{param.time_str}.{save_format}',
+#                     format=f"{save_format}")
+#
+#     plt.close()
+#
+#
+# def plot_training_and_validation_accuracy(history, n_epochs, result_path, param):
+#     history_dict = history.history
+#     acc_values = history_dict['acc']
+#     val_acc_values = history_dict['val_acc']
+#     epochs = range(1, n_epochs + 1)
+#     fig, ax1 = plt.subplots(nrows=1, ncols=1,
+#                             gridspec_kw={'height_ratios': [1],
+#                                          'width_ratios': [1]},
+#                             figsize=(5, 5))
+#     ax1.plot(epochs, smooth_curve(acc_values), 'bo', label='Training acc')
+#     ax1.plot(epochs, smooth_curve(val_acc_values), 'b', label='Validation acc')
+#     plt.title('Training and validation accuracy')
+#     plt.xlabel('Epochs')
+#     plt.ylabel('Acc')
+#     plt.legend()
+#     save_formats = "pdf"
+#     if isinstance(save_formats, str):
+#         save_formats = [save_formats]
+#     for save_format in save_formats:
+#         fig.savefig(f'{result_path}/training_and_validation_accuracy_{param.time_str}.{save_format}',
+#                     format=f"{save_format}")
+#
+#     plt.close()
+
+def plot_training_and_validation_values(history, key_name, n_epochs, result_path, param):
     history_dict = history.history
-    loss_values = history_dict['loss']
-    val_loss_values = history_dict['val_loss']
+    acc_values = history_dict[key_name]
+    val_acc_values = history_dict['val_' + key_name]
     epochs = range(1, n_epochs + 1)
     fig, ax1 = plt.subplots(nrows=1, ncols=1,
                             gridspec_kw={'height_ratios': [1],
                                          'width_ratios': [1]},
                             figsize=(5, 5))
-    ax1.plot(epochs, smooth_curve(loss_values), 'bo', label='Training loss')
-    ax1.plot(epochs, smooth_curve(val_loss_values), 'b', label='Validation loss')
-    plt.title('Training and validation loss')
+    ax1.plot(epochs, smooth_curve(acc_values), 'bo', label=f'Training {key_name}')
+    ax1.plot(epochs, smooth_curve(val_acc_values), 'b', label=f'Validation {key_name}')
+    plt.title(f'Training and validation {key_name}')
     plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-
-    save_formats = "pdf"
-    if isinstance(save_formats, str):
-        save_formats = [save_formats]
-    for save_format in save_formats:
-        fig.savefig(f'{result_path}/training_and_validation_loss_{param.time_str}.{save_format}',
-                    format=f"{save_format}")
-
-    plt.close()
-
-
-def plot_training_and_validation_accuracy(history, n_epochs, result_path, param):
-    history_dict = history.history
-    acc_values = history_dict['acc']
-    val_acc_values = history_dict['val_acc']
-    epochs = range(1, n_epochs + 1)
-    fig, ax1 = plt.subplots(nrows=1, ncols=1,
-                            gridspec_kw={'height_ratios': [1],
-                                         'width_ratios': [1]},
-                            figsize=(5, 5))
-    ax1.plot(epochs, smooth_curve(acc_values), 'bo', label='Training acc')
-    ax1.plot(epochs, smooth_curve(val_acc_values), 'b', label='Validation acc')
-    plt.title('Training and validation accuracy')
-    plt.xlabel('Epochs')
-    plt.ylabel('Acc')
+    plt.ylabel(f'{key_name}')
     plt.legend()
     save_formats = "pdf"
     if isinstance(save_formats, str):
         save_formats = [save_formats]
     for save_format in save_formats:
-        fig.savefig(f'{result_path}/training_and_validation_accuracy_{param.time_str}.{save_format}',
+        fig.savefig(f'{result_path}/training_and_validation_{key_name}_{param.time_str}.{save_format}',
                     format=f"{save_format}")
 
     plt.close()
+
+
+def sensitivity(y_true, y_pred):
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+    return true_positives / (possible_positives + K.epsilon())
+
+
+def specificity(y_true, y_pred):
+    true_negatives = K.sum(K.round(K.clip((1 - y_true) * (1 - y_pred), 0, 1)))
+    possible_negatives = K.sum(K.round(K.clip(1 - y_true, 0, 1)))
+    return true_negatives / (possible_negatives + K.epsilon())
 
 
 def train_model():
@@ -774,7 +830,7 @@ def train_model():
     window_len = 100
     max_width = 25
     max_height = 25
-    overlap_value = 0.5
+    overlap_value = 0.8
     dropout_value = 0.5
     pixels_around = 0
     buffer = None
@@ -796,7 +852,7 @@ def train_model():
                                                                    sliding_window_len=window_len,
                                                                    overlap_value=overlap_value,
                                                                    movies_shuffling=None,
-                                                                   with_shuffling=True)
+                                                                   with_shuffling=False)
     stop_time = time.time()
     print(f"Time for loading data for generator: "
           f"{np.round(stop_time - start_time, 3)} s")
@@ -827,7 +883,10 @@ def train_model():
 
     model.compile(optimizer='rmsprop',
                   loss='binary_crossentropy',
-                  metrics=['accuracy'])
+                  metrics=['accuracy', sensitivity, specificity])
+    # sample_weight_mode="temporal",
+    # metrics=['accuracy']
+
     stop_time = time.time()
     print(f"Time for building and compiling the model: "
           f"{np.round(stop_time - start_time, 3)} s")
@@ -843,11 +902,14 @@ def train_model():
     print(f"Time for fitting the model to the data with {n_epochs} epochs: "
           f"{np.round(stop_time - start_time, 3)} s")
 
+
     show_plots = True
 
     if show_plots:
-        plot_training_and_validation_loss(history, n_epochs, result_path, param)
-        plot_training_and_validation_accuracy(history, n_epochs, result_path, param)
+        key_names = ["loss", "acc", "sensitivity", "specificity"]
+        for key_name in key_names:
+            plot_training_and_validation_values(history=history, key_name=key_name, n_epochs=n_epochs,
+                                                result_path=result_path, param=param)
 
     source_profiles_dict = dict()
     test_data, test_data_masked, test_labels = generate_movies_from_metadata(data_list=test_data_list,
@@ -858,11 +920,11 @@ def train_model():
                                                                              buffer=buffer,
                                                                              source_profiles_dict=source_profiles_dict)
     if use_mulimodal_inputs:
-        test_loss, test_acc = model.evaluate({'video_input': test_data,
+        test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate({'video_input': test_data,
                                               'video_input_masked': test_data_masked},
                                              test_labels)
     else:
-        test_loss, test_acc = model.evaluate(test_data_masked, test_labels)
+        test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate(test_data_masked, test_labels)
     print(f"test_acc {test_acc}")
 
     start_time = time.time()
@@ -870,7 +932,7 @@ def train_model():
     # model.save(f'{param.path_results}/transient_classifier_model_{model_descr}_test_acc_{test_acc}_{param.time_str}.h5')
 
     # saving params in a txt file
-    file_name_txt = f'{param.path_results}/stat_for_all_mice_{param.time_str}.txt'
+    file_name_txt = f'{param.path_results}/stat_model_{param.time_str}.txt'
     round_factor = 1
 
     with open(file_name_txt, "w", encoding='UTF-8') as file:
@@ -885,6 +947,11 @@ def train_model():
         file.write(f"pixels_around: {pixels_around}" + '\n')
         file.write(f"buffer: {'None' if (buffer is None) else buffer}" + '\n')
         file.write(f"split_values: {split_values}" + '\n')
+        file.write(f"test_loss: {test_loss}" + '\n')
+        file.write(f"test_acc: {test_acc}" + '\n')
+        file.write(f"test_sensitivity: {test_sensitivity}" + '\n')
+        file.write(f"test_specificity: {test_specificity}" + '\n')
+
         # cells used
         for ms_str, cells in cell_to_load_by_ms.items():
             file.write(f"{ms_str}: ")
@@ -906,12 +973,12 @@ def train_model():
     print(f"Time for saving the model: "
           f"{np.round(stop_time - start_time, 3)} s")
 
-    if use_mulimodal_inputs:
-        prediction = model.predict({'video_input': test_data,
-                                    'video_input_masked': test_data_masked})
-    else:
-        prediction = model.predict(test_data_masked)
-    print(f"prediction.shape {prediction.shape}")
+    # if use_mulimodal_inputs:
+    #     prediction = model.predict({'video_input': test_data,
+    #                                 'video_input_masked': test_data_masked})
+    # else:
+    #     prediction = model.predict(test_data_masked)
+    # print(f"prediction.shape {prediction.shape}")
 
     # for i, test_label in enumerate(test_labels):
     #     if i > 5:
