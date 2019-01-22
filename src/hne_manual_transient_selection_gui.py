@@ -1,5 +1,6 @@
 # Ignore warnings
 import warnings
+
 warnings.filterwarnings('ignore')
 
 import numpy as np
@@ -615,6 +616,8 @@ class ManualOnsetFrame(tk.Frame):
         self.nb_neurons = len(self.spike_nums)
         self.nb_times = len(self.spike_nums[0, :])
         self.traces = data_and_param.traces
+        # will be initialize in the function normalize_traces
+        self.ratio_traces = None
         self.nb_times_traces = len(self.traces[0, :])
         # dimension reduction in order to fit to traces times, for onset times
         self.onset_times = np.zeros((self.nb_neurons, self.nb_times), dtype="int8")
@@ -1265,7 +1268,8 @@ class ManualOnsetFrame(tk.Frame):
             # self.var_spin_box_threshold = StringVar(bottom_frame)
             self.spin_box_transient_classifier = Spinbox(bottom_frame, values=list(np.arange(0.05, 1, 0.05)),
                                                          fg="blue", justify=CENTER,
-                                                         width=3, state="readonly")  # , textvariable=self.var_spin_box_threshold)
+                                                         width=3,
+                                                         state="readonly")  # , textvariable=self.var_spin_box_threshold)
             # self.var_spin_box_threshold.set(0.9)
             self.spin_box_transient_classifier["command"] = event_lambda(self.spin_box_transient_classifier_update)
             # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
@@ -1886,9 +1890,9 @@ class ManualOnsetFrame(tk.Frame):
             left_x_limit, right_x_limit = self.axe_plot.get_xlim()
             bottom_limit, top_limit = self.axe_plot.get_ylim()
             self.update_last_action(RemoveOnsetAction(removed_times=removed_times, session_frame=self,
-                                                       neuron=self.current_neuron, is_saved=self.is_saved,
-                                                       x_limits=(left_x_limit, right_x_limit),
-                                                       y_limits=(bottom_limit, top_limit)))
+                                                      neuron=self.current_neuron, is_saved=self.is_saved,
+                                                      x_limits=(left_x_limit, right_x_limit),
+                                                      y_limits=(bottom_limit, top_limit)))
             # no more undone_actions
             self.undone_actions = []
             self.redo_button['state'] = DISABLED
@@ -1939,10 +1943,10 @@ class ManualOnsetFrame(tk.Frame):
             left_x_limit, right_x_limit = self.axe_plot.get_xlim()
             bottom_limit, top_limit = self.axe_plot.get_ylim()
             self.update_last_action(RemovePeakAction(removed_times=removed_times, amplitudes=amplitudes,
-                                                      session_frame=self, removed_onset_action=removed_onset_action,
-                                                      neuron=self.current_neuron, is_saved=self.is_saved,
-                                                      x_limits=(left_x_limit, right_x_limit),
-                                                      y_limits=(bottom_limit, top_limit)))
+                                                     session_frame=self, removed_onset_action=removed_onset_action,
+                                                     neuron=self.current_neuron, is_saved=self.is_saved,
+                                                     x_limits=(left_x_limit, right_x_limit),
+                                                     y_limits=(bottom_limit, top_limit)))
             # no more undone_actions
             self.undone_actions = []
             self.redo_button['state'] = DISABLED
@@ -1992,11 +1996,11 @@ class ManualOnsetFrame(tk.Frame):
                                                      x_limits=(left_x_limit, right_x_limit),
                                                      y_limits=(bottom_limit, top_limit))
         self.update_last_action(RemovePeakAction(removed_times=removed_times, amplitudes=amplitudes,
-                                                  session_frame=self,
-                                                  removed_onset_action=removed_onset_action,
-                                                  neuron=self.current_neuron, is_saved=self.is_saved,
-                                                  x_limits=(left_x_limit, right_x_limit),
-                                                  y_limits=(bottom_limit, top_limit)))
+                                                 session_frame=self,
+                                                 removed_onset_action=removed_onset_action,
+                                                 neuron=self.current_neuron, is_saved=self.is_saved,
+                                                 x_limits=(left_x_limit, right_x_limit),
+                                                 y_limits=(bottom_limit, top_limit)))
         # no more undone_actions
         self.undone_actions = []
         self.redo_button['state'] = DISABLED
@@ -2036,10 +2040,10 @@ class ManualOnsetFrame(tk.Frame):
             left_x_limit, right_x_limit = self.axe_plot.get_xlim()
             bottom_limit, top_limit = self.axe_plot.get_ylim()
             self.update_last_action(RemovePeakAction(removed_times=removed_times, amplitudes=amplitudes,
-                                                      session_frame=self,
-                                                      neuron=self.current_neuron, is_saved=self.is_saved,
-                                                      x_limits=(left_x_limit, right_x_limit),
-                                                      y_limits=(bottom_limit, top_limit)))
+                                                     session_frame=self,
+                                                     neuron=self.current_neuron, is_saved=self.is_saved,
+                                                     x_limits=(left_x_limit, right_x_limit),
+                                                     y_limits=(bottom_limit, top_limit)))
             # no more undone_actions
             self.undone_actions = []
             self.redo_button['state'] = DISABLED
@@ -2166,16 +2170,19 @@ class ManualOnsetFrame(tk.Frame):
         self.save_button['state'] = 'normal'
 
     def normalize_traces(self):
-
+        self.ratio_traces = np.zeros((self.nb_neurons, self.traces.shape[1]))
         # z_score traces
         for i in np.arange(self.nb_neurons):
             self.traces[i, :] = (self.traces[i, :] - np.mean(self.traces[i, :])) / np.std(self.traces[i, :])
             if self.raw_traces is not None:
                 self.raw_traces[i, :] = (self.raw_traces[i, :] - np.mean(self.raw_traces[i, :])) \
                                         / np.std(self.raw_traces[i, :])
+                self.ratio_traces[i] = (self.raw_traces[i] - self.traces[i]) - 2
             if self.raw_traces_median is not None:
                 self.raw_traces_median[i, :] = (self.raw_traces_median[i, :] - np.mean(self.raw_traces_median[i, :])) \
                                                / np.std(self.raw_traces_median[i, :])
+
+        ratio_traces = ((self.raw_traces[self.current_neuron]) / self.traces[self.current_neuron]) - 2
         if self.raw_traces is not None:
             if self.raw_traces_median is not None:
                 self.raw_traces -= 4
@@ -2226,10 +2233,10 @@ class ManualOnsetFrame(tk.Frame):
                                             y_limits=(bottom_limit, top_limit))
 
         self.update_last_action(AddOnsetAction(added_time=at_time, session_frame=self,
-                                                add_peak_action=add_peak_action,
-                                                neuron=self.current_neuron, is_saved=self.is_saved,
-                                                x_limits=(left_x_limit, right_x_limit),
-                                                y_limits=(bottom_limit, top_limit)))
+                                               add_peak_action=add_peak_action,
+                                               neuron=self.current_neuron, is_saved=self.is_saved,
+                                               x_limits=(left_x_limit, right_x_limit),
+                                               y_limits=(bottom_limit, top_limit)))
         # no more undone_actions
         self.undone_actions = []
         self.redo_button['state'] = DISABLED
@@ -2251,11 +2258,11 @@ class ManualOnsetFrame(tk.Frame):
         left_x_limit, right_x_limit = self.axe_plot.get_xlim()
         bottom_limit, top_limit = self.axe_plot.get_ylim()
         self.update_last_action(AddPeakAction(added_time=at_time,
-                                               amplitude=self.traces[self.current_neuron, at_time],
-                                               session_frame=self,
-                                               neuron=self.current_neuron, is_saved=self.is_saved,
-                                               x_limits=(left_x_limit, right_x_limit),
-                                               y_limits=(bottom_limit, top_limit)))
+                                              amplitude=self.traces[self.current_neuron, at_time],
+                                              session_frame=self,
+                                              neuron=self.current_neuron, is_saved=self.is_saved,
+                                              x_limits=(left_x_limit, right_x_limit),
+                                              y_limits=(bottom_limit, top_limit)))
         # no more undone_actions
         self.undone_actions = []
         self.redo_button['state'] = DISABLED
@@ -2484,8 +2491,8 @@ class ManualOnsetFrame(tk.Frame):
         n_cells_by_row = 20
         n_pixels_by_cell_x = 20
         n_pixels_by_cell_y = 20
-        len_x = n_cells_by_row*n_pixels_by_cell_x
-        len_y = math.ceil(n_cells/n_cells_by_row)*n_pixels_by_cell_y
+        len_x = n_cells_by_row * n_pixels_by_cell_x
+        len_y = math.ceil(n_cells / n_cells_by_row) * n_pixels_by_cell_y
         # sources_profile_map = np.zeros((len_y, len_x), dtype="int16")
 
         sources_profile_fig = plt.figure(figsize=(20, 20),
@@ -2567,7 +2574,7 @@ class ManualOnsetFrame(tk.Frame):
                 xy_source = self.get_cell_new_coord_in_source(cell=cell_to_display, minx=minx, miny=miny)
                 self.source_profile_dict_for_map_of_all_cells[cell_to_display] = [source_profile, minx, miny,
                                                                                   mask_source_profile,
-                                                             xy_source]
+                                                                                  xy_source]
             else:
                 source_profile, minx, miny, mask_source_profile, xy_source = \
                     self.source_profile_dict_for_map_of_all_cells[cell_to_display]
@@ -2607,8 +2614,6 @@ class ManualOnsetFrame(tk.Frame):
                                                                 y=source_profile.shape[0] - 2,
                                                                 s=f"{predict_value}", color=color_text, zorder=20,
                                                                 ha='center', va="center", fontsize=3, fontweight='bold')
-
-
 
         # plt.show()
 
@@ -2682,7 +2687,7 @@ class ManualOnsetFrame(tk.Frame):
     def get_threshold(self):
         trace = self.traces[self.current_neuron, :]
         threshold = (self.nb_std_thresold * np.std(trace)) + np.min(self.traces[self.current_neuron, :])
-                    #+ abs(np.min(self.traces[self.current_neuron, :]))
+        # + abs(np.min(self.traces[self.current_neuron, :]))
         return threshold
 
     def plot_magnifier(self, first_time=False, mouse_x_position=None, mouse_y_position=None):
@@ -2695,7 +2700,7 @@ class ManualOnsetFrame(tk.Frame):
             pos_beg_x = int(np.max((0, self.x_center_magnified - self.magnifier_range)))
             pos_end_x = int(np.min((self.nb_times, self.x_center_magnified + self.magnifier_range + 1)))
 
-            if  self.raw_traces is not None:
+            if self.raw_traces is not None:
                 max_value = max(np.max(self.traces[self.current_neuron, pos_beg_x:pos_end_x]),
                                 np.max(self.raw_traces[self.current_neuron, pos_beg_x:pos_end_x]))
                 min_value = min(np.min(self.traces[self.current_neuron, pos_beg_x:pos_end_x]),
@@ -2741,7 +2746,7 @@ class ManualOnsetFrame(tk.Frame):
         self.axe_plot_magnifier.spines['top'].set_visible(False)
         # if first_time:
         #     self.magnifier_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
-            # self.magnifier_fig.tight_layout()
+        # self.magnifier_fig.tight_layout()
 
     def draw_magnifier_marker(self, mouse_x_position=None, mouse_y_position=None):
         if (mouse_x_position is None) or (mouse_y_position is None):
@@ -3588,7 +3593,7 @@ class ManualOnsetFrame(tk.Frame):
                     binary_predicted_as_active = np.zeros(len(predictions), dtype="int8")
                     binary_predicted_as_active[predictions >= threshold_tc] = 1
                     for transient_period in transient_periods:
-                        frames = np.arange(transient_period[0], transient_period[1]+1)
+                        frames = np.arange(transient_period[0], transient_period[1] + 1)
                         # print(f"np.sum(binary_predicted_as_active[frames] {np.sum(binary_predicted_as_active[frames])}")
                         if np.sum(binary_predicted_as_active[frames]) > 0:
                             n_transient_dectected += 1
@@ -3606,6 +3611,16 @@ class ManualOnsetFrame(tk.Frame):
                 self.axe_plot.plot(np.arange(self.nb_times_traces),
                                    self.raw_traces[self.current_neuron, :],
                                    color=self.color_raw_trace, alpha=0.8, zorder=9)
+                if self.ratio_traces is not None:
+                    # we plot a trace that show the ratio between traces and raw_traces
+                    self.axe_plot.plot(np.arange(self.nb_times_traces),
+                                       self.ratio_traces[self.current_neuron, :],
+                                       linewidth=0.5,
+                                       color="red", alpha=0.8, zorder=15)
+                    self.axe_plot.hlines(-2, 0, self.nb_times_traces - 1, color="black",
+                                         linewidth=0.5,
+                                         linestyles="dashed")
+
             if self.raw_traces_binned is not None:
                 self.axe_plot.plot(np.arange(0, self.nb_times_traces, 10),
                                    self.raw_traces_binned[self.current_neuron, :],
@@ -3656,14 +3671,15 @@ class ManualOnsetFrame(tk.Frame):
             # z_order=10 indicate that the scatter will be on top
             if len(peaks_over_threshold_index) > 0:
                 self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_over_threshold_index, peaks_over_threshold_value,
-                                                            marker='o', c=self.color_peak,
-                                                            edgecolors=self.color_edge_peak, s=size_peak_scatter,
-                                                            zorder=10)
+                                                                marker='o', c=self.color_peak,
+                                                                edgecolors=self.color_edge_peak, s=size_peak_scatter,
+                                                                zorder=10)
             if len(peaks_over_threshold_index) > 0:
-                self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_under_threshold_index, peaks_under_threshold_value,
-                                                            marker='o', c=self.color_peak_under_threshold,
-                                                            edgecolors=self.color_edge_peak, s=size_peak_scatter,
-                                                            zorder=10)
+                self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_under_threshold_index,
+                                                                peaks_under_threshold_value,
+                                                                marker='o', c=self.color_peak_under_threshold,
+                                                                edgecolors=self.color_edge_peak, s=size_peak_scatter,
+                                                                zorder=10)
             # self.ax1_bottom_scatter = self.axe_plot.scatter(peaks_over_threshold_index, peaks_over_threshold_value_raw,
             #                                                 marker='o', c=self.color_peak,
             #                                                 edgecolors=self.color_edge_peak, s=30, zorder=10)
