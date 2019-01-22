@@ -29,6 +29,7 @@ from mouse_session_loader import load_mouse_sessions
 import pattern_discovery.tools.param as p_disc_tools_param
 
 from pattern_discovery.display.misc import plot_hist_with_first_perc_and_eb
+from pattern_discovery.tools.signal import smooth_convolve
 from matplotlib import patches
 import scipy.signal as signal
 import matplotlib.image as mpimg
@@ -2178,6 +2179,14 @@ class ManualOnsetFrame(tk.Frame):
                 self.raw_traces[i, :] = (self.raw_traces[i, :] - np.mean(self.raw_traces[i, :])) \
                                         / np.std(self.raw_traces[i, :])
                 self.ratio_traces[i] = (self.raw_traces[i] - self.traces[i]) - 2
+                # smoothing the trace
+                windows = ['hanning', 'hamming', 'bartlett', 'blackman']
+                i_w = 1
+                window_length = 11
+                smooth_signal = smooth_convolve(x=self.ratio_traces[i], window_len=window_length,
+                                                window=windows[i_w])
+                beg = (window_length - 1) // 2
+                self.ratio_traces[i] = smooth_signal[beg:-beg]
             if self.raw_traces_median is not None:
                 self.raw_traces_median[i, :] = (self.raw_traces_median[i, :] - np.mean(self.raw_traces_median[i, :])) \
                                                / np.std(self.raw_traces_median[i, :])
@@ -3620,6 +3629,10 @@ class ManualOnsetFrame(tk.Frame):
                     self.axe_plot.hlines(-2, 0, self.nb_times_traces - 1, color="black",
                                          linewidth=0.5,
                                          linestyles="dashed")
+                    y2 = np.repeat(-2, self.nb_times_traces)
+                    self.axe_plot.fill_between(x=np.arange(self.nb_times_traces),
+                                               y1=self.ratio_traces[self.current_neuron, :], y2=y2,
+                                               color="red", alpha=0.6)
 
             if self.raw_traces_binned is not None:
                 self.axe_plot.plot(np.arange(0, self.nb_times_traces, 10),
