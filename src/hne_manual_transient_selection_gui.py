@@ -975,6 +975,7 @@ class ManualOnsetFrame(tk.Frame):
                   f"{np.round(stop_time-start_time, 3)} s")
             # will be useful for transient classifier prediction
             self.data_and_param.ms.tiff_movie = self.tiff_movie
+            self.data_and_param.ms.avg_cell_map_img = np.mean(self.tiff_movie, axis=0)
             self.data_and_param.ms.normalize_movie()
         self.michou_path = "michou/"
         self.michou_img_file_names = []
