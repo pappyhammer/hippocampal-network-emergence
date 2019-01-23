@@ -2,7 +2,7 @@ import numpy as np
 import hdf5storage
 import keras
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Bidirectional
-from keras.layers import Input, LSTM, Embedding, Dense, TimeDistributed, Activation
+from keras.layers import Input, LSTM, Embedding, Dense, TimeDistributed, Activation, Lambda
 from keras.models import Model, Sequential
 from keras.models import model_from_json
 from keras.optimizers import RMSprop, adam
@@ -241,6 +241,7 @@ def swish(x):
     :return:
     """
     return K.sigmoid(x) * x
+    # return Lambda(lambda a: K.sigmoid(a) * a)(x)
 
 
 def generate_movies_from_metadata(data_list, window_len, max_width, max_height, pixels_around,
@@ -404,14 +405,14 @@ def get_source_profile_frames(ms, frames, coords):
 
 
 def load_data_for_generator(param, split_values, sliding_window_len, overlap_value,
-                            movies_shuffling=None, with_shuffling=True):
+                            movies_shuffling=None, with_shuffling=False):
     # TODO: stratification matters !
     """
     Stratification is the technique to allocate the samples evenly based on sample classes
     so that training set and validation set have similar ratio of classes
     """
     print("load_data_for_generator")
-    use_small_sample = False
+    use_small_sample = True
     if use_small_sample:
         ms_to_use = ["p12_171110_a000_ms"]
         cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(1)}
@@ -521,13 +522,29 @@ def build_model(input_shape, use_mulimodal_inputs=False, dropout_value=0):
     # This model will encode an image into a vector.
     vision_model = Sequential()
     get_custom_objects().update({'swish': Swish(swish)})
-    # to choose between siwsh and relu
-    activation_fct = "swish"
-    vision_model.add(Conv2D(64, (3, 3), activation=activation_fct, padding='same', input_shape=input_shape[1:]))
-    vision_model.add(Conv2D(64, (3, 3), activation=activation_fct))
+    # to choose between swish and relu
+    activation_fct = "relu"
+    vision_model.add(Conv2D(64, (3, 3), padding='same', input_shape=input_shape[1:]))
+    if activation_fct != "swish":
+        vision_model.add(Activation(activation_fct))
+    else:
+        vision_model.add(Lambda(swish))
+    vision_model.add(Conv2D(64, (3, 3)))
+    if activation_fct != "swish":
+        vision_model.add(Activation(activation_fct))
+    else:
+        vision_model.add(Lambda(swish))
     vision_model.add(MaxPooling2D((2, 2)))
-    vision_model.add(Conv2D(128, (3, 3), activation=activation_fct, padding='same'))
-    vision_model.add(Conv2D(128, (3, 3), activation=activation_fct))
+    vision_model.add(Conv2D(128, (3, 3), padding='same'))
+    if activation_fct != "swish":
+        vision_model.add(Activation(activation_fct))
+    else:
+        vision_model.add(Lambda(swish))
+    vision_model.add(Conv2D(128, (3, 3)))
+    if activation_fct != "swish":
+        vision_model.add(Activation(activation_fct))
+    else:
+        vision_model.add(Lambda(swish))
     vision_model.add(MaxPooling2D((2, 2)))
     if dropout_value > 0:
         vision_model.add(layers.Dropout(dropout_value))
@@ -804,14 +821,15 @@ def train_model():
     # 3) Give 2 inputs, movie full frame (20x20 pixels) + movie mask non binary or binary
 
     use_mulimodal_inputs = True
-    n_epochs = 10
+    n_epochs = 1
     batch_size = 16
     window_len = 50
     max_width = 25
     max_height = 25
-    overlap_value = 0.9
+    overlap_value = 0
     dropout_value = 0.5
     pixels_around = 0
+    with_augmentation_for_training_data = False
     buffer = None
     split_values = (0.7, 0.2)
 
@@ -838,7 +856,8 @@ def train_model():
 
     # Generators
     start_time = time.time()
-    training_generator = DataGenerator(train_data_list, with_augmentation=True, **params_generator)
+    training_generator = DataGenerator(train_data_list, with_augmentation=with_augmentation_for_training_data,
+                                       **params_generator)
     validation_generator = DataGenerator(valid_data_list, with_augmentation=False, **params_generator)
     stop_time = time.time()
     print(f"Time to create generator: "
@@ -917,7 +936,7 @@ def train_model():
                                              test_labels)
     else:
         test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate(test_data_masked, test_labels)
-    print(f"test_acc {test_acc}")
+    print(f"test_acc {test_acc}, test_sensitivity {test_sensitivity}, test_specificity {test_specificity}")
 
     start_time = time.time()
     model_descr = ""
@@ -929,6 +948,7 @@ def train_model():
 
     with open(file_name_txt, "w", encoding='UTF-8') as file:
         file.write(f"n epochs: {n_epochs}" + '\n')
+        file.write(f"with_augmentation_for_training_data {with_augmentation_for_training_data}")
         file.write(f"batch_size: {batch_size}" + '\n')
         file.write(f"use_mulimodal_inputs: {use_mulimodal_inputs}" + '\n')
         file.write(f"window_len: {window_len}" + '\n')
@@ -965,13 +985,14 @@ def train_model():
     print(f"Time for saving the model: "
           f"{np.round(stop_time - start_time, 3)} s")
 
-    # if use_mulimodal_inputs:
-    #     prediction = model.predict({'video_input': test_data,
-    #                                 'video_input_masked': test_data_masked})
-    # else:
-    #     prediction = model.predict(test_data_masked)
-    # print(f"prediction.shape {prediction.shape}")
-
+    if use_mulimodal_inputs:
+        prediction = model.predict({'video_input': test_data,
+                                    'video_input_masked': test_data_masked})
+    else:
+        prediction = model.predict(test_data_masked)
+    print(f"prediction.shape {prediction.shape}")
+    for i in np.arange(prediction.shape[0]):
+        print(f"Sum {i}: {np.sum(prediction[i])}")
     # for i, test_label in enumerate(test_labels):
     #     if i > 5:
     #         break

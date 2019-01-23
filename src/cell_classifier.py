@@ -920,7 +920,8 @@ def train_model():
                                                  test_labels)
         else:
             test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate(test_images, test_labels)
-        print(f"test_acc {test_acc}")
+
+        print(f"test_acc {test_acc}, test_sensitivity {test_sensitivity}, test_specificity {test_specificity}")
 
         model.save(f'{param.path_results}cell_classifier_model_{descr_model}_test_acc_{test_acc}_{param.time_str}.h5')
         model.save_weights(f'{param.path_results}cell_classifier_weights_{descr_model}_test_acc_{test_acc}_{param.time_str}.h5')
