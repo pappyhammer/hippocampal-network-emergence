@@ -2,12 +2,15 @@ import keras
 from keras import models
 from keras.models import Sequential, Model
 from keras import layers
+from keras.layers import Activation
 from keras import Input
 from keras.preprocessing.image import ImageDataGenerator
+from keras.utils import get_custom_objects
 from keras.utils import to_categorical
 from mouse_session_loader import load_mouse_sessions
 from sklearn.model_selection import train_test_split
 import numpy as np
+from keras import backend as K
 import pattern_discovery.tools.param as p_disc_tools_param
 from datetime import datetime
 import time
@@ -116,6 +119,28 @@ def load_movie(ms):
         return True
     return False
 
+
+# ------------------------------------------------------------
+# needs to be defined as activation class otherwise error
+# AttributeError: 'Activation' object has no attribute '__name__'
+# From: https://github.com/keras-team/keras/issues/8716
+class Swish(Activation):
+
+    def __init__(self, activation, **kwargs):
+        super(Swish, self).__init__(activation, **kwargs)
+        self.__name__ = 'swish'
+
+
+def swish(x):
+    """
+    Implementing a the swish activation function.
+    From: https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
+    Paper describing swish: https://arxiv.org/abs/1710.05941
+
+    :param x:
+    :return:
+    """
+    return K.sigmoid(x) * x
 
 def scale_polygon_to_source(poly_gon, minx, miny):
     coords = list(poly_gon.exterior.coords)
@@ -545,18 +570,21 @@ def build_hyperas_model(train_data, train_labels, valid_data, valid_labels, inpu
 
 def build_model(input_shape, use_mulimodal_inputs, with_dropout=0.5):
     use_sequential_mode = False
+    get_custom_objects().update({'swish': Swish(swish)})
+    # to choose between siwsh and relu
+    activation_fct = "swish"
     if use_sequential_mode and (not use_mulimodal_inputs):
         model = Sequential()
-        model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=input_shape))
+        model.add(layers.Conv2D(32, (3, 3), activation=activation_fct, input_shape=input_shape))
         model.add(layers.MaxPooling2D((2, 2)))
-        model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(64, (3, 3), activation=activation_fct))
         model.add(layers.MaxPooling2D((2, 2)))
         # print(model.summary())
-        model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(64, (3, 3), activation=activation_fct))
         model.add(layers.Flatten())
         if with_dropout > 0:
             model.add(layers.Dropout(with_dropout))
-        model.add(layers.Dense(64, activation='relu'))
+        model.add(layers.Dense(64, activation=activation_fct))
         model.add(layers.Dense(1, activation='sigmoid'))
     else:
         input_tensor = Input(shape=input_shape, name='first_input')
@@ -564,51 +592,51 @@ def build_model(input_shape, use_mulimodal_inputs, with_dropout=0.5):
             input_tensor_bis = Input(shape=input_shape, name='second_input')
         use_depthwise_separable = False
         if use_depthwise_separable:
-            x = layers.SeparableConv2D(32, 3, activation='relu')(input_tensor)
-            x = layers.SeparableConv2D(64, 3, activation='relu')(x)
+            x = layers.SeparableConv2D(32, 3, activation=activation_fct)(input_tensor)
+            x = layers.SeparableConv2D(64, 3, activation=activation_fct)(x)
             x = layers.BatchNormalization()(x)
             x = layers.MaxPooling2D(2)(x)
-            x = layers.SeparableConv2D(64, 3, activation='relu')(x)
-            x = layers.SeparableConv2D(128, 3, activation='relu')(x)
+            x = layers.SeparableConv2D(64, 3, activation=activation_fct)(x)
+            x = layers.SeparableConv2D(128, 3, activation=activation_fct)(x)
             x = layers.BatchNormalization()(x)
             x = layers.MaxPooling2D(2)(x)
-            x = layers.SeparableConv2D(64, 3, activation='relu')(x)
-            x = layers.SeparableConv2D(128, 3, activation='relu')(x)
+            x = layers.SeparableConv2D(64, 3, activation=activation_fct)(x)
+            x = layers.SeparableConv2D(128, 3, activation=activation_fct)(x)
             x = layers.GlobalAveragePooling2D()(x)
             if with_dropout > 0:
                 x = layers.Dropout(with_dropout)(x)
-            first_x = layers.Dense(32, activation='relu')(x)
+            first_x = layers.Dense(32, activation=activation_fct)(x)
         else:
-            x = layers.Conv2D(32, (3, 3), activation='relu')(input_tensor)
+            x = layers.Conv2D(32, (3, 3), activation=activation_fct)(input_tensor)
             x = layers.BatchNormalization()(x)
             x = layers.MaxPooling2D((2, 2))(x)
-            x = layers.Conv2D(64, (3, 3), activation='relu')(x)
+            x = layers.Conv2D(64, (3, 3), activation=activation_fct)(x)
             x = layers.MaxPooling2D((2, 2))(x)
             if with_dropout > 0:
                 x = layers.Dropout(with_dropout)(x)
-            x = layers.Conv2D(64, (3, 3), activation='relu')(x)
+            x = layers.Conv2D(64, (3, 3), activation=activation_fct)(x)
             x = layers.BatchNormalization()(x)
             x = layers.Flatten()(x)
             if with_dropout > 0:
                 x = layers.Dropout(with_dropout)(x)
 
-            first_x = layers.Dense(64, activation='relu')(x)  # used to be 64
+            first_x = layers.Dense(64, activation=activation_fct)(x)  # used to be 64
 
             if use_mulimodal_inputs:
-                x = layers.Conv2D(32, (3, 3), activation='relu')(input_tensor_bis)
+                x = layers.Conv2D(32, (3, 3), activation=activation_fct)(input_tensor_bis)
                 x = layers.BatchNormalization()(x)
                 x = layers.MaxPooling2D((2, 2))(x)
-                x = layers.Conv2D(64, (3, 3), activation='relu')(x)
+                x = layers.Conv2D(64, (3, 3), activation=activation_fct)(x)
                 x = layers.MaxPooling2D((2, 2))(x)
                 if with_dropout > 0:
                     x = layers.Dropout(with_dropout)(x)
-                x = layers.Conv2D(64, (3, 3), activation='relu')(x)
+                x = layers.Conv2D(64, (3, 3), activation=activation_fct)(x)
                 x = layers.BatchNormalization()(x)
                 x = layers.Flatten()(x)
                 if with_dropout > 0:
                     x = layers.Dropout(with_dropout)(x)
 
-                second_x = layers.Dense(64, activation='relu')(x)
+                second_x = layers.Dense(64, activation=activation_fct)(x)
 
         if use_mulimodal_inputs:
             concatenated = layers.concatenate([first_x, second_x], axis=-1)
@@ -624,38 +652,42 @@ def build_model(input_shape, use_mulimodal_inputs, with_dropout=0.5):
     return model
 
 
-def plot_training_and_validation_loss(history, n_epochs):
+def plot_training_and_validation_values(history, key_name, n_epochs, result_path, param):
     history_dict = history.history
-    loss_values = history_dict['loss']
-    val_loss_values = history_dict['val_loss']
+    acc_values = history_dict[key_name]
+    val_acc_values = history_dict['val_' + key_name]
     epochs = range(1, n_epochs + 1)
     fig, ax1 = plt.subplots(nrows=1, ncols=1,
                             gridspec_kw={'height_ratios': [1],
                                          'width_ratios': [1]},
                             figsize=(5, 5))
-    ax1.plot(epochs, smooth_curve(loss_values), 'bo', label='Training loss')
-    ax1.plot(epochs, smooth_curve(val_loss_values), 'b', label='Validation loss')
-    plt.title('Training and validation loss')
+    ax1.plot(epochs, smooth_curve(acc_values), 'bo', label=f'Training {key_name}')
+    ax1.plot(epochs, smooth_curve(val_acc_values), 'b', label=f'Validation {key_name}')
+    plt.title(f'Training and validation {key_name}')
     plt.xlabel('Epochs')
-    plt.ylabel('Loss')
+    plt.ylabel(f'{key_name}')
     plt.legend()
-    plt.show()
+    save_formats = "pdf"
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        fig.savefig(f'{result_path}/training_and_validation_{key_name}_{param.time_str}.{save_format}',
+                    format=f"{save_format}")
+
     plt.close()
 
 
-def plot_training_and_validation_accuracy(history, n_epochs):
-    history_dict = history.history
-    acc_values = history_dict['acc']
-    val_acc_values = history_dict['val_acc']
-    epochs = range(1, n_epochs + 1)
-    plt.plot(epochs, smooth_curve(acc_values), 'bo', label='Training acc')
-    plt.plot(epochs, smooth_curve(val_acc_values), 'b', label='Validation acc')
-    plt.title('Training and validation accuracy')
-    plt.xlabel('Epochs')
-    plt.ylabel('Acc')
-    plt.legend()
-    plt.show()
-    plt.close()
+
+def sensitivity(y_true, y_pred):
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+    return true_positives / (possible_positives + K.epsilon())
+
+
+def specificity(y_true, y_pred):
+    true_negatives = K.sum(K.round(K.clip((1 - y_true) * (1 - y_pred), 0, 1)))
+    possible_negatives = K.sum(K.round(K.clip(1 - y_true, 0, 1)))
+    return true_negatives / (possible_negatives + K.epsilon())
 
 
 def event_lambda(f, *args, **kwds):
@@ -703,10 +735,12 @@ def train_model():
     param = DataForMs(path_data=path_data, result_path=result_path)
 
     # "p12_171110_a000_ms"
-    descr_model = "p7_171012_a000-p9_18_09_27_a003-p12-p12_171110_a000_ms_buffer_1"
+    descr_model = "p7_171012_a000-p12-p12_171110_a000_ms_buffer_1"
+    # "p7_171012_a000-p9_18_09_27_a003-p12-p12_171110_a000_ms_buffer_1"
+    # "p9_18_09_27_a003_ms",
     data_set, data_masked_set, labels_set, test_img_descr, cells_shuffling \
-        = load_data(["p9_18_09_27_a003_ms", "p7_171012_a000_ms", "p12_171110_a000_ms"], param=param, buffer=1,
-                    split_values=(0.7, 0.2), with_shuffling=True, with_data_augmentation=True)
+        = load_data(["p7_171012_a000_ms", "p12_171110_a000_ms"], param=param, buffer=1,
+                    split_values=(0.7, 0.2), with_shuffling=False, with_data_augmentation=True)
     (train_images, valid_images, test_images) = data_set
     (train_images_masked, valid_images_masked, test_images_masked) = data_masked_set
     (train_labels, valid_labels, test_labels) = labels_set
@@ -789,8 +823,8 @@ def train_model():
         print(model.summary())
         model.compile(optimizer='rmsprop',
                       loss='binary_crossentropy',
-                      metrics=['accuracy'])
-        n_epochs = 50
+                      metrics=['accuracy', sensitivity, specificity])
+        n_epochs = 30
         batch_size = 16
 
         with_datagen = False
@@ -836,19 +870,23 @@ def train_model():
                                     epochs=n_epochs,
                                     batch_size=batch_size,
                                     validation_data=({'first_input': valid_images, 'second_input': valid_images_masked},
-                                                     valid_labels))
+                                                     valid_labels),
+                                    shuffle=True)
             else:
                 history = model.fit(train_images,
                                     train_labels,
                                     epochs=n_epochs,
                                     batch_size=batch_size,
-                                    validation_data=(valid_images, valid_labels))
+                                    validation_data=(valid_images, valid_labels),
+                                    shuffle=True)
 
         show_plots = True
 
         if show_plots:
-            plot_training_and_validation_loss(history, n_epochs)
-            plot_training_and_validation_accuracy(history, n_epochs)
+            key_names = ["loss", "acc", "sensitivity", "specificity"]
+            for key_name in key_names:
+                plot_training_and_validation_values(history=history, key_name=key_name, n_epochs=n_epochs,
+                                                    result_path=result_path, param=param)
 
         if use_mulimodal_inputs:
             prediction = np.ndarray.flatten(model.predict({'first_input': valid_images,

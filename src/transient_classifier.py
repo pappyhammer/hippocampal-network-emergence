@@ -2,11 +2,12 @@ import numpy as np
 import hdf5storage
 import keras
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Bidirectional
-from keras.layers import Input, LSTM, Embedding, Dense, TimeDistributed
+from keras.layers import Input, LSTM, Embedding, Dense, TimeDistributed, Activation
 from keras.models import Model, Sequential
 from keras.models import model_from_json
 from keras import layers
 from keras.utils import to_categorical
+from keras.utils import get_custom_objects
 from matplotlib import pyplot as plt
 import pattern_discovery.tools.param as p_disc_tools_param
 from datetime import datetime
@@ -206,6 +207,7 @@ class DataGenerator(keras.utils.Sequence):
         # print(f"__data_generation data.shape {data.shape}")
         # put more weight to the active frames
         # TODO: considering to put more weight to fake transient
+        # TODO: reshape labels such as shape is (batch_size, window_len, 1) and then use "temporal" mode in compile
         # sample_weights = np.ones(labels.shape)
         # sample_weights[labels == 1] = 5
         sample_weights = np.ones(labels.shape[0])
@@ -214,6 +216,29 @@ class DataGenerator(keras.utils.Sequence):
                 sample_weights[i] = 3
 
         return {'video_input': data, 'video_input_masked': data_masked}, labels, sample_weights
+
+
+# ------------------------------------------------------------
+# needs to be defined as activation class otherwise error
+# AttributeError: 'Activation' object has no attribute '__name__'
+# From: https://github.com/keras-team/keras/issues/8716
+class Swish(Activation):
+
+    def __init__(self, activation, **kwargs):
+        super(Swish, self).__init__(activation, **kwargs)
+        self.__name__ = 'swish'
+
+
+def swish(x):
+    """
+    Implementing a the swish activation function.
+    From: https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
+    Paper describing swish: https://arxiv.org/abs/1710.05941
+
+    :param x:
+    :return:
+    """
+    return K.sigmoid(x) * x
 
 
 def generate_movies_from_metadata(data_list, window_len, max_width, max_height, pixels_around,
@@ -493,17 +518,20 @@ def build_model(input_shape, use_mulimodal_inputs=False, dropout_value=0):
     # First, let's define a vision model using a Sequential model.
     # This model will encode an image into a vector.
     vision_model = Sequential()
-    vision_model.add(Conv2D(64, (3, 3), activation='relu', padding='same', input_shape=input_shape[1:]))
-    vision_model.add(Conv2D(64, (3, 3), activation='relu'))
+    get_custom_objects().update({'swish': Swish(swish)})
+    # to choose between siwsh and relu
+    activation_fct = "swish"
+    vision_model.add(Conv2D(64, (3, 3), activation=activation_fct, padding='same', input_shape=input_shape[1:]))
+    vision_model.add(Conv2D(64, (3, 3), activation=activation_fct))
     vision_model.add(MaxPooling2D((2, 2)))
-    vision_model.add(Conv2D(128, (3, 3), activation='relu', padding='same'))
-    vision_model.add(Conv2D(128, (3, 3), activation='relu'))
+    vision_model.add(Conv2D(128, (3, 3), activation=activation_fct, padding='same'))
+    vision_model.add(Conv2D(128, (3, 3), activation=activation_fct))
     vision_model.add(MaxPooling2D((2, 2)))
     if dropout_value > 0:
         vision_model.add(layers.Dropout(dropout_value))
-    # vision_model.add(Conv2D(256, (3, 3), activation='relu', padding='same'))
-    # vision_model.add(Conv2D(256, (3, 3), activation='relu'))
-    # vision_model.add(Conv2D(256, (3, 3), activation='relu'))
+    # vision_model.add(Conv2D(256, (3, 3), activation=activation_fct, padding='same'))
+    # vision_model.add(Conv2D(256, (3, 3), activation=activation_fct))
+    # vision_model.add(Conv2D(256, (3, 3), activation=activation_fct))
     # vision_model.add(MaxPooling2D((2, 2)))
     vision_model.add(Flatten())
 
@@ -715,57 +743,6 @@ def smooth_curve(points, factor=0.8):
     return smoothed_points
 
 
-#
-# def plot_training_and_validation_loss(history, n_epochs, result_path, param):
-#     history_dict = history.history
-#     loss_values = history_dict['loss']
-#     val_loss_values = history_dict['val_loss']
-#     epochs = range(1, n_epochs + 1)
-#     fig, ax1 = plt.subplots(nrows=1, ncols=1,
-#                             gridspec_kw={'height_ratios': [1],
-#                                          'width_ratios': [1]},
-#                             figsize=(5, 5))
-#     ax1.plot(epochs, smooth_curve(loss_values), 'bo', label='Training loss')
-#     ax1.plot(epochs, smooth_curve(val_loss_values), 'b', label='Validation loss')
-#     plt.title('Training and validation loss')
-#     plt.xlabel('Epochs')
-#     plt.ylabel('Loss')
-#     plt.legend()
-#
-#     save_formats = "pdf"
-#     if isinstance(save_formats, str):
-#         save_formats = [save_formats]
-#     for save_format in save_formats:
-#         fig.savefig(f'{result_path}/training_and_validation_loss_{param.time_str}.{save_format}',
-#                     format=f"{save_format}")
-#
-#     plt.close()
-#
-#
-# def plot_training_and_validation_accuracy(history, n_epochs, result_path, param):
-#     history_dict = history.history
-#     acc_values = history_dict['acc']
-#     val_acc_values = history_dict['val_acc']
-#     epochs = range(1, n_epochs + 1)
-#     fig, ax1 = plt.subplots(nrows=1, ncols=1,
-#                             gridspec_kw={'height_ratios': [1],
-#                                          'width_ratios': [1]},
-#                             figsize=(5, 5))
-#     ax1.plot(epochs, smooth_curve(acc_values), 'bo', label='Training acc')
-#     ax1.plot(epochs, smooth_curve(val_acc_values), 'b', label='Validation acc')
-#     plt.title('Training and validation accuracy')
-#     plt.xlabel('Epochs')
-#     plt.ylabel('Acc')
-#     plt.legend()
-#     save_formats = "pdf"
-#     if isinstance(save_formats, str):
-#         save_formats = [save_formats]
-#     for save_format in save_formats:
-#         fig.savefig(f'{result_path}/training_and_validation_accuracy_{param.time_str}.{save_format}',
-#                     format=f"{save_format}")
-#
-#     plt.close()
-
 def plot_training_and_validation_values(history, key_name, n_epochs, result_path, param):
     history_dict = history.history
     acc_values = history_dict[key_name]
@@ -789,7 +766,6 @@ def plot_training_and_validation_values(history, key_name, n_epochs, result_path
                     format=f"{save_format}")
 
     plt.close()
-
 
 def sensitivity(y_true, y_pred):
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
@@ -886,7 +862,6 @@ def train_model():
                   loss='binary_crossentropy',
                   metrics=['accuracy', sensitivity, specificity])
     # sample_weight_mode="temporal",
-    # metrics=['accuracy']
 
     stop_time = time.time()
     print(f"Time for building and compiling the model: "
