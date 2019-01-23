@@ -5,7 +5,9 @@ from keras.layers import Conv2D, MaxPooling2D, Flatten, Bidirectional
 from keras.layers import Input, LSTM, Embedding, Dense, TimeDistributed, Activation
 from keras.models import Model, Sequential
 from keras.models import model_from_json
+from keras.optimizers import RMSprop, adam
 from keras import layers
+from keras.callbacks import ReduceLROnPlateau
 from keras.utils import to_categorical
 from keras.utils import get_custom_objects
 from matplotlib import pyplot as plt
@@ -858,10 +860,23 @@ def train_model():
 
     print(model.summary())
 
-    model.compile(optimizer='rmsprop',
+    # Define the optimizer
+    # from https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
+    optimizer = adam(lr=0.001, epsilon=1e-08, decay=0.0)
+    # optimizer = 'rmsprop'
+
+    model.compile(optimizer=optimizer,
                   loss='binary_crossentropy',
                   metrics=['accuracy', sensitivity, specificity])
     # sample_weight_mode="temporal",
+
+    # Set a learning rate annealer
+    # from: https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
+    learning_rate_reduction = ReduceLROnPlateau(monitor='val_sensitivity',
+                                                patience=3,
+                                                verbose=1,
+                                                factor=0.5,
+                                                min_lr=0.00001)
 
     stop_time = time.time()
     print(f"Time for building and compiling the model: "
@@ -873,7 +888,8 @@ def train_model():
                                   validation_data=validation_generator,
                                   epochs=n_epochs,
                                   use_multiprocessing=True,
-                                  workers=10)
+                                  workers=10,
+                                  callbacks=[learning_rate_reduction])
     stop_time = time.time()
     print(f"Time for fitting the model to the data with {n_epochs} epochs: "
           f"{np.round(stop_time - start_time, 3)} s")

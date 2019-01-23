@@ -6,6 +6,7 @@ from keras.layers import Activation
 from keras import Input
 from keras.preprocessing.image import ImageDataGenerator
 from keras.utils import get_custom_objects
+from keras.optimizers import RMSprop, adam
 from keras.utils import to_categorical
 from mouse_session_loader import load_mouse_sessions
 from sklearn.model_selection import train_test_split
@@ -23,6 +24,7 @@ import scipy.io as sio
 from hyperopt import Trials, STATUS_OK, tpe
 from hyperas import optim
 from hyperas.distributions import choice, uniform
+from keras.callbacks import ReduceLROnPlateau
 
 from keras.models import model_from_json
 
@@ -821,9 +823,22 @@ def train_model():
         model = build_model(input_shape=train_images.shape[1:], with_dropout=0.5,
                             use_mulimodal_inputs=use_mulimodal_inputs)
         print(model.summary())
-        model.compile(optimizer='rmsprop',
+        # Define the optimizer
+        # from https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
+        optimizer = adam(lr=0.001, epsilon=1e-08, decay=0.0)
+        # optimizer = 'rmsprop'
+        model.compile(optimizer=optimizer,
                       loss='binary_crossentropy',
                       metrics=['accuracy', sensitivity, specificity])
+
+        # Set a learning rate annealer
+        # from: https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
+        learning_rate_reduction = ReduceLROnPlateau(monitor='val_sensitivity',
+                                                    patience=3,
+                                                    verbose=1,
+                                                    factor=0.5,
+                                                    min_lr=0.00001)
+
         n_epochs = 30
         batch_size = 16
 
@@ -861,7 +876,8 @@ def train_model():
                                               validation_steps=len(valid_images) / batch_size,
                                               validation_data=test_datagen.flow(valid_images, valid_labels,
                                                                                 batch_size=batch_size,
-                                                                                shuffle=False))
+                                                                                shuffle=False),
+                                              callbacks=[learning_rate_reduction])
             # validation_data=(valid_images, valid_labels))
         else:
             # model.fit(train_images, train_labels, epochs=n_epochs, batch_size=batch_size)
@@ -871,14 +887,16 @@ def train_model():
                                     batch_size=batch_size,
                                     validation_data=({'first_input': valid_images, 'second_input': valid_images_masked},
                                                      valid_labels),
-                                    shuffle=True)
+                                    shuffle=True,
+                                    callbacks=[learning_rate_reduction])
             else:
                 history = model.fit(train_images,
                                     train_labels,
                                     epochs=n_epochs,
                                     batch_size=batch_size,
                                     validation_data=(valid_images, valid_labels),
-                                    shuffle=True)
+                                    shuffle=True,
+                                    callbacks=[learning_rate_reduction])
 
         show_plots = True
 
@@ -888,20 +906,20 @@ def train_model():
                 plot_training_and_validation_values(history=history, key_name=key_name, n_epochs=n_epochs,
                                                     result_path=result_path, param=param)
 
-        if use_mulimodal_inputs:
-            prediction = np.ndarray.flatten(model.predict({'first_input': valid_images,
-                                                           'second_input': valid_images_masked}))
-        else:
-            prediction = np.ndarray.flatten(model.predict(valid_images))
+        # if use_mulimodal_inputs:
+        #     prediction = np.ndarray.flatten(model.predict({'first_input': valid_images,
+        #                                                    'second_input': valid_images_masked}))
+        # else:
+        #     prediction = np.ndarray.flatten(model.predict(valid_images))
         # for i, predict_value in enumerate(prediction):
         #     print(f"valid: {str(round(predict_value, 2))} / {valid_labels[i]}")
 
         if use_mulimodal_inputs:
-            test_loss, test_acc = model.evaluate({'first_input': test_images,
+            test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate({'first_input': test_images,
                                                   'second_input': test_images_masked},
                                                  test_labels)
         else:
-            test_loss, test_acc = model.evaluate(test_images, test_labels)
+            test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate(test_images, test_labels)
         print(f"test_acc {test_acc}")
 
         model.save(f'{param.path_results}cell_classifier_model_{descr_model}_test_acc_{test_acc}_{param.time_str}.h5')
@@ -912,12 +930,12 @@ def train_model():
                 'w') as f:
             f.write(model.to_json())
 
-        if use_mulimodal_inputs:
-            prediction = np.ndarray.flatten(model.predict({'first_input': test_images,
-                                                           'second_input': test_images_masked}))
-        else:
-            prediction = np.ndarray.flatten(model.predict(test_images))
-        for i, predict_value in enumerate(prediction):
-            predict_value = str(round(predict_value, 2))
-            print(f"{i}: {test_img_descr[i]}: {predict_value} / {test_labels[i]}")
-        print(f"test_acc {test_acc}")
+        # if use_mulimodal_inputs:
+        #     prediction = np.ndarray.flatten(model.predict({'first_input': test_images,
+        #                                                    'second_input': test_images_masked}))
+        # else:
+        #     prediction = np.ndarray.flatten(model.predict(test_images))
+        # for i, predict_value in enumerate(prediction):
+        #     predict_value = str(round(predict_value, 2))
+        #     print(f"{i}: {test_img_descr[i]}: {predict_value} / {test_labels[i]}")
+        # print(f"test_acc {test_acc}")
