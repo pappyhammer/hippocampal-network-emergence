@@ -3490,7 +3490,7 @@ class ManualOnsetFrame(tk.Frame):
             self.map_img_fig.canvas.flush_events()
             self.anim_movie = animation.FuncAnimation(self.map_img_fig, func=self.animate_movie,
                                                       frames=self.n_frames_movie,
-                                                      blit=True, interval=60, repeat=True)  # repeat=True,
+                                                      blit=True, interval=100, repeat=True)  # repeat=True,
             return
             # self.after(self.movie_delay, self.update_plot_map_img)
         else:
@@ -3583,17 +3583,20 @@ class ManualOnsetFrame(tk.Frame):
                     print(f"Predictions accuracy {str(np.round(accuracy, 3))}")
                     # % of frames predicted as active that are active
                     n_true_frames_predicted = len(frames_predicted_as_active) - n_predicted_as_active_errors
-                    print(f"Ratio of True positive active predicted frames "
-                          f"{str(np.round(n_true_frames_predicted/len(frames_predicted_as_active), 3))}")
+                    if len(frames_predicted_as_active) > 0:
+                        print(f"Ratio of True positive active predicted frames "
+                              f"{str(np.round(n_true_frames_predicted/len(frames_predicted_as_active), 3))}")
                     # % of frames predicted as non active that are non active
                     n_true_frames_non_predicted = len(frames_predicted_as_non_active) - n_predicted_as_non_active_errors
-                    print(f"Ratio of True negative non-active predicted frames "
-                          f"{str(np.round(n_true_frames_non_predicted/len(frames_predicted_as_non_active), 3))}")
+                    if len(frames_predicted_as_non_active) > 0:
+                        print(f"Ratio of True negative non-active predicted frames "
+                              f"{str(np.round(n_true_frames_non_predicted/len(frames_predicted_as_non_active), 3))}")
                     # % of active frames that were detected as active
                     n_predicted_as_active_true = len(frames_predicted_as_active) - n_predicted_as_active_errors
-                    predictive_value = n_predicted_as_active_true / len(np.where(raster_dur)[0])
-                    print(f"% of active frames detected "
-                          f"{str(np.round(predictive_value, 3))}")
+                    if len(np.where(raster_dur)[0]) > 0:
+                        predictive_value = n_predicted_as_active_true / len(np.where(raster_dur)[0])
+                        print(f"% of active frames detected "
+                              f"{str(np.round(predictive_value, 3))}")
                     # for each transient, we want to know how many had at least one frame predicted as active
                     transient_periods = get_continous_time_periods(raster_dur)
                     # print(f"transient_periods {transient_periods}")

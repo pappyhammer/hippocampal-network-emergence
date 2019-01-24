@@ -150,6 +150,8 @@ class DataGenerator(keras.utils.Sequence):
         self.on_epoch_end()
 
     def prepare_augmentation(self):
+        # TODO: Augment data that are not frequent
+        # TODO: Add shifting transformation
         n_samples = len(self.data_list)
         new_data = []
         # for each keys will create as many new keys as transformation to be done
@@ -516,14 +518,14 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     return train_data, valid_data, test_data, test_movie_descr, cell_to_load_by_ms
 
 
-def build_model(input_shape, use_mulimodal_inputs=False, dropout_value=0):
+def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimodal_inputs=False, dropout_value=0,
+                without_bidirectional=False):
     n_frames = input_shape[0]
     # First, let's define a vision model using a Sequential model.
     # This model will encode an image into a vector.
     vision_model = Sequential()
     get_custom_objects().update({'swish': Swish(swish)})
     # to choose between swish and relu
-    activation_fct = "relu"
     vision_model.add(Conv2D(64, (3, 3), padding='same', input_shape=input_shape[1:]))
     if activation_fct != "swish":
         vision_model.add(Activation(activation_fct))
@@ -557,21 +559,41 @@ def build_model(input_shape, use_mulimodal_inputs=False, dropout_value=0):
     video_input = Input(shape=input_shape, name="video_input")
     # This is our video encoded via the previously trained vision_model (weights are reused)
     encoded_frame_sequence = TimeDistributed(vision_model)(video_input)  # the output will be a sequence of vectors
-    # encoded_video = LSTM(256)(encoded_frame_sequence)  # the output will be a vector
-    encoded_video = Bidirectional(LSTM(128, return_sequences=True))(encoded_frame_sequence)
-    # if we put input_shape in Bidirectional, it crashes
-    # encoded_video = Bidirectional(LSTM(128, return_sequences=True),
-    #                               input_shape=(n_frames, 128))(encoded_frame_sequence)
-    encoded_video = Bidirectional(LSTM(256))(encoded_video)
+    if without_bidirectional:
+        for lstm_index, lstm_size in enumerate(lstm_layers_size):
+            if lstm_index == 0:
+                encoded_video = LSTM(lstm_size, return_sequences=True)(encoded_frame_sequence)
+            else:
+                encoded_video = LSTM(lstm_size)(encoded_video)
+    else:
+        # encoded_video = LSTM(256)(encoded_frame_sequence)  # the output will be a vector
+        for lstm_index, lstm_size in enumerate(lstm_layers_size):
+            if lstm_index == 0:
+                encoded_video = Bidirectional(LSTM(lstm_size, return_sequences=True))(encoded_frame_sequence)
+            else:
+                encoded_video = Bidirectional(LSTM(lstm_size))(encoded_video)
+        # if we put input_shape in Bidirectional, it crashes
+        # encoded_video = Bidirectional(LSTM(128, return_sequences=True),
+        #                               input_shape=(n_frames, 128))(encoded_frame_sequence)
+
 
     video_input_masked = Input(shape=input_shape, name="video_input_masked")
     # This is our video encoded via the previously trained vision_model (weights are reused)
     encoded_frame_sequence_masked = TimeDistributed(vision_model)(
         video_input_masked)  # the output will be a sequence of vectors
     # encoded_video_masked = LSTM(256)(encoded_frame_sequence_masked)  # the output will be a vector
-
-    encoded_video_masked = Bidirectional(LSTM(128, return_sequences=True))(encoded_frame_sequence_masked)
-    encoded_video_masked = Bidirectional(LSTM(256))(encoded_video_masked)
+    if without_bidirectional:
+        for lstm_index, lstm_size in enumerate(lstm_layers_size):
+            if lstm_index == 0:
+                encoded_video_masked = LSTM(lstm_size, return_sequences=True)(encoded_frame_sequence_masked)
+            else:
+                encoded_video_masked = LSTM(lstm_size)(encoded_video_masked)
+    else:
+        for lstm_index, lstm_size in enumerate(lstm_layers_size):
+            if lstm_index == 0:
+                encoded_video_masked = Bidirectional(LSTM(lstm_size, return_sequences=True))(encoded_frame_sequence_masked)
+            else:
+                encoded_video_masked = Bidirectional(LSTM(lstm_size))(encoded_video_masked)
 
     # in case we want 2 videos, one with masked, and one with the cell centered
     if use_mulimodal_inputs:
@@ -820,18 +842,42 @@ def train_model():
     # 2) put all pixels in the border to 1
     # 3) Give 2 inputs, movie full frame (20x20 pixels) + movie mask non binary or binary
 
+    """
+    Best so far:
     use_mulimodal_inputs = True
-    n_epochs = 1
+    batch_size = 16 (different not tried)
+    window_len = 50 (just tried 100 otherwise)
+    max_width = 25
+    max_height = 25
+    overlap_value = 0.9
+    dropout_value = 0
+    pixels_around = 0
+    with_augmentation_for_training_data = True
+    buffer = None
+    split_values = (0.7, 0.2) (does it matter ?)
+    optimizer_choice = "adam"
+    activation_fct = "swish"
+    with_learning_rate_reduction = True
+    without_bidirectional = False
+    lstm_layers_size = [128, 256]
+    """
+    use_mulimodal_inputs = True
+    n_epochs = 10
     batch_size = 16
     window_len = 50
     max_width = 25
     max_height = 25
-    overlap_value = 0
-    dropout_value = 0.5
+    overlap_value = 0.9
+    dropout_value = 0
     pixels_around = 0
-    with_augmentation_for_training_data = False
+    with_augmentation_for_training_data = True
     buffer = None
     split_values = (0.7, 0.2)
+    optimizer_choice = "adam"
+    activation_fct = "swish"
+    with_learning_rate_reduction = True
+    without_bidirectional = False
+    lstm_layers_size = [128, 256]
 
     params_generator = {
         'batch_size': batch_size,
@@ -875,13 +921,20 @@ def train_model():
     # return
     # building the model
     start_time = time.time()
-    model = build_model(input_shape, dropout_value=dropout_value, use_mulimodal_inputs=use_mulimodal_inputs)
+    model = build_model(input_shape, activation_fct=activation_fct, dropout_value=dropout_value,
+                        use_mulimodal_inputs=use_mulimodal_inputs, without_bidirectional=without_bidirectional,
+                        lstm_layers_size=lstm_layers_size)
 
     print(model.summary())
 
     # Define the optimizer
     # from https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
-    optimizer = adam(lr=0.001, epsilon=1e-08, decay=0.0)
+
+    if optimizer_choice == "adam":
+        optimizer = adam(lr=0.001, epsilon=1e-08, decay=0.0)
+    else:
+        # default parameters: lr=0.001, rho=0.9, epsilon=None, decay=0.0
+        optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=None, decay=0.0)
     # optimizer = 'rmsprop'
 
     model.compile(optimizer=optimizer,
@@ -892,7 +945,7 @@ def train_model():
     # Set a learning rate annealer
     # from: https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
     learning_rate_reduction = ReduceLROnPlateau(monitor='val_sensitivity',
-                                                patience=3,
+                                                patience=2,
                                                 verbose=1,
                                                 factor=0.5,
                                                 min_lr=0.00001)
@@ -903,12 +956,19 @@ def train_model():
 
     # Train model on dataset
     start_time = time.time()
-    history = model.fit_generator(generator=training_generator,
-                                  validation_data=validation_generator,
-                                  epochs=n_epochs,
-                                  use_multiprocessing=True,
-                                  workers=10,
-                                  callbacks=[learning_rate_reduction])
+    if with_learning_rate_reduction:
+        history = model.fit_generator(generator=training_generator,
+                                      validation_data=validation_generator,
+                                      epochs=n_epochs,
+                                      use_multiprocessing=True,
+                                      workers=10,
+                                      callbacks=[learning_rate_reduction])
+    else:
+        history = model.fit_generator(generator=training_generator,
+                                      validation_data=validation_generator,
+                                      epochs=n_epochs,
+                                      use_multiprocessing=True,
+                                      workers=10)
     stop_time = time.time()
     print(f"Time for fitting the model to the data with {n_epochs} epochs: "
           f"{np.round(stop_time - start_time, 3)} s")
@@ -922,22 +982,7 @@ def train_model():
             plot_training_and_validation_values(history=history, key_name=key_name, n_epochs=n_epochs,
                                                 result_path=result_path, param=param)
 
-    source_profiles_dict = dict()
-    test_data, test_data_masked, test_labels = generate_movies_from_metadata(data_list=test_data_list,
-                                                                             window_len=window_len,
-                                                                             max_width=max_width,
-                                                                             max_height=max_height,
-                                                                             pixels_around=pixels_around,
-                                                                             buffer=buffer,
-                                                                             source_profiles_dict=source_profiles_dict)
-    if use_mulimodal_inputs:
-        test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate({'video_input': test_data,
-                                              'video_input_masked': test_data_masked},
-                                             test_labels)
-    else:
-        test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate(test_data_masked, test_labels)
-    print(f"test_acc {test_acc}, test_sensitivity {test_sensitivity}, test_specificity {test_specificity}")
-
+    history_dict = history.history
     start_time = time.time()
     model_descr = ""
     # model.save(f'{param.path_results}/transient_classifier_model_{model_descr}_test_acc_{test_acc}_{param.time_str}.h5')
@@ -948,9 +993,12 @@ def train_model():
 
     with open(file_name_txt, "w", encoding='UTF-8') as file:
         file.write(f"n epochs: {n_epochs}" + '\n')
-        file.write(f"with_augmentation_for_training_data {with_augmentation_for_training_data}")
+        file.write(f"with_augmentation_for_training_data {with_augmentation_for_training_data}" + '\n')
         file.write(f"batch_size: {batch_size}" + '\n')
+        file.write(f"with_learning_rate_reduction: {with_learning_rate_reduction}" + '\n')
+        file.write(f"without_bidirectional: {without_bidirectional}" + '\n')
         file.write(f"use_mulimodal_inputs: {use_mulimodal_inputs}" + '\n')
+        file.write(f"lstm_layers_size: {lstm_layers_size}" + '\n')
         file.write(f"window_len: {window_len}" + '\n')
         file.write(f"max_width: {max_width}" + '\n')
         file.write(f"max_height: {max_height}" + '\n')
@@ -959,10 +1007,16 @@ def train_model():
         file.write(f"pixels_around: {pixels_around}" + '\n')
         file.write(f"buffer: {'None' if (buffer is None) else buffer}" + '\n')
         file.write(f"split_values: {split_values}" + '\n')
-        file.write(f"test_loss: {test_loss}" + '\n')
-        file.write(f"test_acc: {test_acc}" + '\n')
-        file.write(f"test_sensitivity: {test_sensitivity}" + '\n')
-        file.write(f"test_specificity: {test_specificity}" + '\n')
+        file.write(f"optimizer_choice: {optimizer_choice}" + '\n')
+        file.write(f"activation_fct: {activation_fct}" + '\n')
+        file.write(f"train_loss: {history_dict['loss']}" + '\n')
+        file.write(f"val_loss: {history_dict['val_loss']}" + '\n')
+        file.write(f"train_acc: {history_dict['acc']}" + '\n')
+        file.write(f"val_acc: {history_dict['val_acc']}" + '\n')
+        file.write(f"train_sensitivity: {history_dict['sensitivity']}" + '\n')
+        file.write(f"val_sensitivity: {history_dict['val_sensitivity']}" + '\n')
+        file.write(f"train_specificity: {history_dict['specificity']}" + '\n')
+        file.write(f"val_specificity: {history_dict['val_specificity']}" + '\n')
 
         # cells used
         for ms_str, cells in cell_to_load_by_ms.items():
@@ -972,11 +1026,12 @@ def train_model():
             file.write("\n")
         file.write("" + '\n')
 
+    val_acc = history_dict['val_acc'][-1]
     model.save_weights(
-        f'{param.path_results}/transient_classifier_weights_{model_descr}_test_acc_{test_acc}_{param.time_str}.h5')
+        f'{param.path_results}/transient_classifier_weights_{model_descr}_val_acc_{val_acc}_{param.time_str}.h5')
     # Save the model architecture
     with open(
-            f'{param.path_results}/transient_classifier_model_architecture_{model_descr}_test_acc_{test_acc}_'
+            f'{param.path_results}/transient_classifier_model_architecture_{model_descr}_test_acc_{val_acc}_'
             f'{param.time_str}.json',
             'w') as f:
         f.write(model.to_json())
@@ -985,14 +1040,46 @@ def train_model():
     print(f"Time for saving the model: "
           f"{np.round(stop_time - start_time, 3)} s")
 
+    start_time = time.time()
+    source_profiles_dict = dict()
+    test_data, test_data_masked, test_labels = generate_movies_from_metadata(data_list=test_data_list,
+                                                                             window_len=window_len,
+                                                                             max_width=max_width,
+                                                                             max_height=max_height,
+                                                                             pixels_around=pixels_around,
+                                                                             buffer=buffer,
+                                                                             source_profiles_dict=source_profiles_dict)
+    stop_time = time.time()
+    print(f"Time for generating test data: "
+          f"{np.round(stop_time - start_time, 3)} s")
+    print(f"test_data.shape {test_data.shape}")
+
+    start_time = time.time()
     if use_mulimodal_inputs:
-        prediction = model.predict({'video_input': test_data,
-                                    'video_input_masked': test_data_masked})
+        test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate({'video_input': test_data,
+                                              'video_input_masked': test_data_masked},
+                                             test_labels, verbose=2)
     else:
-        prediction = model.predict(test_data_masked)
-    print(f"prediction.shape {prediction.shape}")
-    for i in np.arange(prediction.shape[0]):
-        print(f"Sum {i}: {np.sum(prediction[i])}")
+        test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate(test_data_masked, test_labels)
+    print(f"test_acc {test_acc}, test_sensitivity {test_sensitivity}, test_specificity {test_specificity}")
+
+    stop_time = time.time()
+    print(f"Time for evaluating test data: "
+          f"{np.round(stop_time - start_time, 3)} s")
+
+    # start_time = time.time()
+    # if use_mulimodal_inputs:
+    #     prediction = model.predict({'video_input': test_data,
+    #                                 'video_input_masked': test_data_masked})
+    # else:
+    #     prediction = model.predict(test_data_masked)
+    # print(f"prediction.shape {prediction.shape}")
+    # stop_time = time.time()
+    # print(f"Time to predict test data: "
+    #       f"{np.round(stop_time - start_time, 3)} s")
+
+    # for i in np.arange(prediction.shape[0]):
+    #     print(f"Sum {i}: {np.sum(prediction[i])}")
     # for i, test_label in enumerate(test_labels):
     #     if i > 5:
     #         break
