@@ -102,6 +102,19 @@ def v_h_flip(movie):
     return new_movie
 
 
+def rotate_movie(movie, angle):
+    """
+        movie is a 3D numpy array
+        :param movie:
+        :return:
+        """
+    new_movie = np.zeros(movie.shape)
+    for frame in np.arange(len(movie)):
+        new_movie[frame] = ndimage.rotate(movie[frame], angle=angle, reshape=False, mode='reflect')
+
+    return new_movie
+
+
 class DataGenerator(keras.utils.Sequence):
     """
     Based on an exemple found in https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
@@ -157,7 +170,11 @@ class DataGenerator(keras.utils.Sequence):
         # for each keys will create as many new keys as transformation to be done
         # adding the function to do the transformation to the value (list), and will create the same key
         # in labels, copying the original labels
-        augmentation_functions = [horizontal_flip, vertical_flip, v_h_flip]
+        rot_90 = lambda movie: rotate_movie(movie, 90)
+        # rot_180 = lambda movie: rotate_movie(movie, 180) # same as v_h_flip
+        rot_270 = lambda movie: rotate_movie(movie, 270)
+        augmentation_functions = [horizontal_flip, vertical_flip, v_h_flip,
+                                  rot_90, rot_270]
         #
         # augmentation_functions_name = ["horizontal_flip", "vertical_flip", "v_h_flip"]
 
@@ -434,25 +451,25 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
 
     full_data = []
 
+    # filtering the cells, to keep only the one not removed or with a good source profile according to cell classifier
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
-        # print(f"{ms.description}, len ms.cells_to_remove {len(ms.cells_to_remove)}, ms.cells_to_remove {ms.cells_to_remove}")
-        # cells_to_load_tmp = cell_to_load_by_ms[ms_str]
-        # print(f"len(cell_to_load_by_ms[ms_str]) {len(cell_to_load_by_ms[ms_str])}")
         cells_to_load = np.setdiff1d(cell_to_load_by_ms[ms_str], ms.cells_to_remove)
-        # print(f"len(cells_to_load) {len(cells_to_load)}")
-        # for cell in cells_to_load_tmp:
-        #     if cell not in ms.cells_to_remove[cell]:
-        #         cells_to_load.append(cell)
+        if ms.cell_cnn_predictions is not None:
+            # not taking into consideration cells that are not predicted as true from the cell classifier
+            cells_predicted_as_false = np.where(ms.cell_cnn_predictions < 0.5)[0]
+            cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
+
         total_n_cells += len(cells_to_load)
         cells_to_load = np.array(cells_to_load)
         cell_to_load_by_ms[ms_str] = cells_to_load
-        n_frames = ms.spike_struct.spike_nums_dur.shape[1]
-        # n_movies += int(np.ceil(n_frames / (sliding_window_len * overlap_value))) - 1
 
         movie_loaded = load_movie(ms)
         if not movie_loaded:
             raise Exception(f"could not load movie of ms {ms.description}")
+
+    if total_n_cells == 0:
+        raise Exception(f"No cells loaded")
 
     movies_descr = []
     movie_count = 0
@@ -697,8 +714,8 @@ def get_source_profile_for_prediction(ms, cell, augmentation_functions=None,
     return full_data, full_data_masked, full_data_frame_indices
 
 
-def predict_transient_from_saved_model(ms, cell, weights_file, json_file):
-    # TODO: use data transformation and overlap and average over each
+def predict_transient_from_saved_model(ms, cell, weights_file, json_file, overlap_value=0.8,
+                                       use_data_augmentation=True):
     start_time = time.time()
     # Model reconstruction from JSON file
     with open(json_file, 'r') as f:
@@ -716,8 +733,10 @@ def predict_transient_from_saved_model(ms, cell, weights_file, json_file):
     sliding_window_len = model.layers[0].output_shape[1]
     max_height = model.layers[0].output_shape[2]
     max_width = model.layers[0].output_shape[3]
-    augmentation_functions = [horizontal_flip, vertical_flip, v_h_flip]
-    overlap_value = 0.8
+    if use_data_augmentation:
+        augmentation_functions = [horizontal_flip, vertical_flip, v_h_flip]
+    else:
+        augmentation_functions = None
     data, data_masked, \
     data_frame_indices = get_source_profile_for_prediction(ms=ms, cell=cell,
                                                            sliding_window_len=sliding_window_len,
@@ -871,7 +890,7 @@ def train_model():
     window_len = 50
     max_width = 25
     max_height = 25
-    overlap_value = 0.96
+    overlap_value = 0.9
     dropout_value = 0
     pixels_around = 0
     with_augmentation_for_training_data = True

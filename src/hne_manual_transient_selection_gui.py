@@ -2093,7 +2093,8 @@ class ManualOnsetFrame(tk.Frame):
             return
         predictions = predict_transient_from_saved_model(ms=self.data_and_param.ms, cell=cell,
                                                          weights_file=self.transient_classifier_weights_file,
-                                                         json_file=self.transient_classifier_json_file)
+                                                         json_file=self.transient_classifier_json_file,
+                                                         overlap_value=0.9, use_data_augmentation=True)
         self.transient_prediction[cell] = predictions
         self.transient_prediction_periods[cell] = dict()
 
@@ -2494,6 +2495,12 @@ class ManualOnsetFrame(tk.Frame):
                             format=f"{save_format}")
 
             plt.close()
+
+        if predictions is not None:
+            # writing them in a file
+            with open(f"{path_results}/cell_classifier_cnn_results_{self.data_and_param.ms.description}.text", "w",
+                      encoding='UTF-8') as file:
+                file.write(f"{' '.join(str(p) for p in predictions)}" + '\n')
         # removed cells in cmap Gray, other cells in Parula
         # decide threshold  and if CNN model available, red border is real cell, green border if false
         # displaying value in the righ bottom border

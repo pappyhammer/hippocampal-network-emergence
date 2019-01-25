@@ -64,6 +64,9 @@ class MouseSession:
         self.coord = None
         # comes from the gui
         self.cells_to_remove = None
+        # array of float, each index corresponds to a cell and the value is the prediction made by the cell classifier
+        self.cell_cnn_predictions = None
+        self.load_cnn_cell_classifier_results()
         self.activity_threshold = None
         self.low_activity_threshold_by_percentile = dict()
         self.percentile_for_low_activity_threshold = percentile_for_low_activity_threshold
@@ -2446,6 +2449,30 @@ class MouseSession:
             # self.avg_cell_map_img = PIL.Image.open(self.param.path_data + file_name)
             # self.avg_cell_map_img = np.array(self.avg_cell_map_img).astype("uint8")
             self.avg_cell_map_img_file_name = self.param.path_data + file_name
+
+    def load_cnn_cell_classifier_results(self):
+        file_names = []
+
+        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path):
+            file_names.extend(local_filenames)
+            break
+        if len(file_names) == 0:
+            return
+
+        for file_name in file_names:
+            file_name = file_name.lower()
+            if (not file_name.startswith(".")) and file_name.endswith(".txt") and ('cnn' in file_name) and \
+                    (self.description.lower() in file_name):
+                self.cell_cnn_predictions = []
+                with open(self.param.path_data + file_name, "r", encoding='UTF-8') as file:
+                    for nb_line, line in enumerate(file):
+                        line_list = line.split()
+                        cells_list = [float(i) for i in line_list]
+                        self.cell_cnn_predictions.extend(cells_list)
+                self.cell_cnn_predictions = np.array(self.cell_cnn_predictions)
+                return
+
 
     def load_tif_movie(self, path):
         file_names = []
