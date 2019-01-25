@@ -53,6 +53,7 @@ class MouseSession:
     def __init__(self, age, session_id, param, nb_ms_by_frame, weight=None, spike_nums=None, spike_nums_dur=None,
                  percentile_for_low_activity_threshold=1):
         # should be a list of int
+        self.param = param
         self.age = age
         self.session_id = str(session_id)
         self.nb_ms_by_frame = nb_ms_by_frame
@@ -80,7 +81,6 @@ class MouseSession:
         self.tiff_movie_norm_0_1 = None
         # Pillow image
         self.tiff_movie_image = None
-        self.param = param
         # list of list of int representing cell indices
         # initiated when loading_cell_assemblies
         self.cell_assemblies = None
@@ -144,6 +144,9 @@ class MouseSession:
         self.noise_mvt = None
         self.noise_mvt_frames = None
         self.noise_mvt_frames_periods = None
+
+        # used for transient classifier purpose
+        self.transient_classifier_spike_nums_dur = dict()
 
         self.sce_bool = None
         self.sce_times_numbers = None
@@ -2451,28 +2454,31 @@ class MouseSession:
             self.avg_cell_map_img_file_name = self.param.path_data + file_name
 
     def load_cnn_cell_classifier_results(self):
+
+        path_to_results = self.param.path_data + "cell_classifier_results_txt/"
+
         file_names = []
 
         # look for filenames in the fisrst directory, if we don't break, it will go through all directories
-        for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path):
+        for (dirpath, dirnames, local_filenames) in os.walk(path_to_results):
             file_names.extend(local_filenames)
             break
         if len(file_names) == 0:
             return
 
         for file_name in file_names:
+            original_file_name = file_name
             file_name = file_name.lower()
             if (not file_name.startswith(".")) and file_name.endswith(".txt") and ('cnn' in file_name) and \
                     (self.description.lower() in file_name):
                 self.cell_cnn_predictions = []
-                with open(self.param.path_data + file_name, "r", encoding='UTF-8') as file:
+                with open(path_to_results + '/' + original_file_name, "r", encoding='UTF-8') as file:
                     for nb_line, line in enumerate(file):
                         line_list = line.split()
                         cells_list = [float(i) for i in line_list]
                         self.cell_cnn_predictions.extend(cells_list)
                 self.cell_cnn_predictions = np.array(self.cell_cnn_predictions)
                 return
-
 
     def load_tif_movie(self, path):
         file_names = []

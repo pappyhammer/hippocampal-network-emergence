@@ -22,6 +22,8 @@ from scipy import ndimage
 from random import shuffle
 from keras import backend as K
 import os
+from pattern_discovery.tools.misc import get_continous_time_periods
+import scipy.signal as signal
 
 import sys
 import platform
@@ -60,6 +62,150 @@ class DataForMs(p_disc_tools_param.Parameters):
         self.path_data = path_data
         self.cell_assemblies_data_path = None
         self.best_order_data_path = None
+
+
+class MovieEvent:
+    """
+    Class that represent an event in a movie, for exemple a transient, neuropil etc...
+    """
+    def __init__(self):
+        self.neuropil = False
+        self.real_transient = False
+        self.fake_transient = False
+        self.movement = False
+        # length in frames
+        self.length_event = 1
+        self.first_frame_event = None
+        self.last_frame_event = None
+
+
+class NeuropilEvent(MovieEvent):
+
+    def __init__(self, frame_index):
+        super().__init__()
+        self.neuropil = True
+        # frame_index could be None, in case we don't care about frame index
+        self.first_frame_event = frame_index
+        self.last_frame_event = frame_index
+
+
+class RealTransientEvent(MovieEvent):
+
+    def __init__(self, frames_period, amplitude):
+        super().__init__()
+        self.real_transient = True
+        self.first_frame_event = frames_period[0]
+        self.last_frame_event = frames_period[1]
+        self.length_event = self.last_frame_event - self.first_frame_event + 1
+        self.amplitude = amplitude
+
+
+class FakeTransientEvent(MovieEvent):
+
+    def __init__(self, frames_period, amplitude):
+        super().__init__()
+        self.fake_transient = True
+        self.first_frame_event = frames_period[0]
+        self.last_frame_event = frames_period[1]
+        self.length_event = self.last_frame_event - self.first_frame_event + 1
+        self.amplitude = amplitude
+
+
+class MovementEvent(MovieEvent):
+
+    def __init__(self, frames_period):
+        super().__init__()
+        self.movement = True
+        self.first_frame_event = frames_period[0]
+        self.last_frame_event = frames_period[1]
+        self.length_event = self.last_frame_event - self.first_frame_event + 1
+
+
+class MovieData:
+
+    def __init__(self, ms, cell, index_movie,
+                 encoded_frames, decoding_frame_dict,
+                 window_len, with_info=False):
+        self.ms = ms
+        self.cell = cell
+        # index of the first frame of the movie over the whole movie
+        self.index_movie = index_movie
+        self.last_index_movie = index_movie + window_len - 1
+        self.window_len = window_len
+        # weight to apply, use by the model to produce the loss function result
+        self.weight = 1
+        # number of transformation to perform on this movie, information to use if with_info == True
+        # otherwise it means the object will be tranform with the self.data_augmentation_fct
+        self.n_augmentations = 1
+        self.data_augmentation_fct = None
+        # movie_info dict containing the different informations about the movie such as the number of transients etc...
+        """
+        Keys so far (with value type) -> comments :
+        
+        n_transient (int)
+        transients_lengths (list of int)
+        transients_amplitudes (list of float)
+        n_cropped_transient (int) -> max value should be 2
+        cropped_transients_lengths (list of int)
+        n_fake_transient (int)
+        n_cropped_fake_transient (int) > max value should be 2
+        fake_transients_lengths (list of int)
+        fake_transients_amplitudes (list of float)
+        inter_neuron (boolean)
+        """
+        self.movie_info = None
+        self.encoded_frames = encoded_frames
+        self.decoding_frame_dict = decoding_frame_dict
+        if with_info:
+            self.movie_info = dict()
+            # then we want to know how many transients in this frame etc...
+            # each code represent a specific event
+            unique_codes = np.unique(encoded_frames[index_movie:index_movie+window_len])
+            for code in unique_codes:
+                event = decoding_frame_dict[code]
+                if event.neuropil:
+                    continue
+                if event.real_transient or event.fake_transient:
+
+                    # we need to determine if it's a cropped one or full one
+                    if (event.first_frame_event < index_movie) or (event.last_frame_event > self.last_index_movie):
+                        # it's cropped
+                        if event.real_transient:
+                            key_str = "n_cropped_transient"
+                            if "cropped_transients_lengths" not in self.movie_info:
+                                self.movie_info["cropped_transients_lengths"] = []
+                            self.movie_info["cropped_transients_lengths"].append(event.length_event)
+                        else:
+                            key_str = "n_cropped_fake_transient"
+                        self.movie_info[key_str] = self.movie_info.get(key_str, 0) + 1
+                        continue
+
+                    # means it's a full transient
+                    if event.real_transient:
+                        key_str = "n_transient"
+                        if "transients_lengths" not in self.movie_info:
+                            self.movie_info["transients_lengths"] = []
+                        self.movie_info["transients_lengths"].append(event.length_event)
+                        if "transients_amplitudes" not in self.movie_info:
+                            self.movie_info["transients_amplitudes"] = []
+                        self.movie_info["transients_amplitudes"].append(event.amplitude)
+                    else:
+                        key_str = "n_fake_transient"
+                        if "fake_transients_lengths" not in self.movie_info:
+                            self.movie_info["fake_transients_lengths"] = []
+                        self.movie_info["fake_transients_lengths"].append(event.length_event)
+                        if "fake_transients_amplitudes" not in self.movie_info:
+                            self.movie_info["fake_transients_amplitudes"] = []
+                        self.movie_info["fake_transients_amplitudes"].append(event.amplitude)
+                    self.movie_info[key_str] = self.movie_info.get(key_str, 0) + 1
+            if cell in ms.spike_struct.inter_neurons:
+                self.movie_info["inter_neuron"] = True
+
+    def __copy__(self):
+        movie_copy = MovieData(ms=self.ms, cell=self.cell, index_movie=self.index_movie,
+                               encoded_frames=self.encoded_frames, decoding_frame_dict=self.decoding_frame_dict,
+                               window_len=self.window_len)
+        movie_copy.data_augmentation_fct = self.data_augmentation_fct
 
 
 # data augmentation functions
@@ -126,8 +272,7 @@ class DataGenerator(keras.utils.Sequence):
                  is_shuffle=True, max_width=30, max_height=30):
         """
 
-        :param data_list: a list containing the information to get the data. Each element is a list with 3 elements
-        MouseSession instance, cell index, frame index
+        :param data_list: a list containing the information to get the data. Each element is an instance of MovieData
         :param batch_size:
         :param window_len:
         :param with_augmentation:
@@ -180,12 +325,10 @@ class DataGenerator(keras.utils.Sequence):
 
         for index_data in np.arange(n_samples):
             for fct in augmentation_functions:
-                elements = self.data_list[index_data]
-                ms = elements[0]
-                cell = elements[1]
-                frame_index = elements[2]
-                new_value = [ms, cell, frame_index, fct]
-                new_data.append(new_value)
+                movie_data = self.data_list[index_data]
+                new_movie = movie_data.copy()
+                new_movie.data_augmentation_fct = fct
+                new_data.append(new_movie)
 
         self.data_list.extend(new_data)
 
@@ -220,8 +363,10 @@ class DataGenerator(keras.utils.Sequence):
         # 'Generates data containing batch_size samples' # data : (self.batch_size, *dim, n_channels)
         # Initialization
 
-        data, data_masked, labels = generate_movies_from_metadata(data_list=data_list_tmp, window_len=self.window_len,
-                                                                  max_width=self.max_width, max_height=self.max_height,
+        data, data_masked, labels = generate_movies_from_metadata(movie_data_list=data_list_tmp,
+                                                                  window_len=self.window_len,
+                                                                  max_width=self.max_width,
+                                                                  max_height=self.max_height,
                                                                   pixels_around=self.pixels_around,
                                                                   buffer=self.buffer,
                                                                   source_profiles_dict=self.source_profiles_dict)
@@ -229,6 +374,7 @@ class DataGenerator(keras.utils.Sequence):
         # put more weight to the active frames
         # TODO: considering to put more weight to fake transient
         # TODO: reshape labels such as shape is (batch_size, window_len, 1) and then use "temporal" mode in compile
+        # TODO: otherwise, use the weight in the movie_data in data_list_tmp to apply the corresponding weight
         # sample_weights = np.ones(labels.shape)
         # sample_weights[labels == 1] = 5
         sample_weights = np.ones(labels.shape[0])
@@ -263,22 +409,20 @@ def swish(x):
     # return Lambda(lambda a: K.sigmoid(a) * a)(x)
 
 
-def generate_movies_from_metadata(data_list, window_len, max_width, max_height, pixels_around,
+def generate_movies_from_metadata(movie_data_list, window_len, max_width, max_height, pixels_around,
                                   buffer, source_profiles_dict):
-    batch_size = len(data_list)
+    batch_size = len(movie_data_list)
     data = np.zeros((batch_size, window_len, max_height, max_width, 1))
     data_masked = np.zeros((batch_size, window_len, max_height, max_width, 1))
     labels = np.zeros((batch_size, window_len), dtype="uint8")
 
     # Generate data
-    for index_batch, value in enumerate(data_list):
-        ms = value[0]
+    for index_batch, movie_data in enumerate(movie_data_list):
+        ms = movie_data.ms
         spike_nums_dur = ms.spike_struct.spike_nums_dur
-        cell = value[1]
-        frame_index = value[2]
-        augmentation_fct = None
-        if len(value) == 4:
-            augmentation_fct = value[3]
+        cell = movie_data.cell
+        frame_index = movie_data.index_movie
+        augmentation_fct = movie_data.data_augmentation_fct
 
         # now we generate the source profile of the cell for those frames and retrieve it if it has
         # already been generated
@@ -423,6 +567,111 @@ def get_source_profile_frames(ms, frames, coords):
     return source_profile
 
 
+def find_all_onsets_and_peaks_on_traces(ms, cell, threshold_factor=0.5):
+    trace = ms.traces[cell]
+    n_frames = trace.shape[0]
+    peak_nums = np.zeros(n_frames, dtype="int8")
+    peaks, properties = signal.find_peaks(x=trace, distance=2)
+    peak_nums[peaks] = 1
+    spike_nums = np.zeros(n_frames, dtype="int8")
+    onsets = []
+    diff_values = np.diff(trace)
+    for index, value in enumerate(diff_values):
+        if index == (len(diff_values) - 1):
+            continue
+        if value < 0:
+            if diff_values[index + 1] >= 0:
+                onsets.append(index + 1)
+    # print(f"onsets {len(onsets)}")
+    onsets = np.array(onsets)
+    spike_nums[onsets] = 1
+
+    threshold = (threshold_factor * np.std(trace)) + np.min(trace)
+    peaks_under_threshold_index = peaks[trace[peaks] < threshold]
+    # peaks_over_threshold_index = peaks[trace[peaks] >= threshold]
+    # removing peaks under threshold and associated onsets
+    peak_nums[peaks_under_threshold_index] = 0
+
+    # onsets to remove
+    onsets_index = np.where(spike_nums)[0]
+    onsets_detected = []
+    for peak_time in peaks_under_threshold_index:
+        # looking for the peak preceding the onset
+        onsets_before = np.where(onsets_index < peak_time)[0]
+        if len(onsets_before) > 0:
+            onset_to_remove = onsets_index[onsets_before[-1]]
+            onsets_detected.append(onset_to_remove)
+    spike_nums[np.array(onsets_detected)] = 0
+
+    # now we construct the spike_nums_dur
+    spike_nums_dur = np.zeros(n_frames, dtype="uint8")
+
+    peaks_index = np.where(peak_nums)[0]
+    onsets_index = np.where(spike_nums)[0]
+
+    for onset_index in onsets_index:
+        peaks_after = np.where(peaks_index > onset_index)[0]
+        if len(peaks_after) == 0:
+            continue
+        peaks_after = peaks_index[peaks_after]
+        peak_after = peaks_after[0]
+        if (peak_after - onset_index) > 200:
+            print(f"tc: {ms.description} long transient in cell {cell} of "
+                  f"duration {peak_after - onset_index} frames at frame {onset_index}")
+
+        spike_nums_dur[onset_index:peak_after + 1] = 1
+
+    return spike_nums_dur
+
+
+def cell_encoding(ms, cell):
+    # so far we need ms.traces
+    n_frames = ms.traces.shape[1]
+    encoded_frames = np.zeros(n_frames, dtype="int16")
+    decoding_frame_dict = dict()
+    # zero will be the Neuropil
+    decoding_frame_dict[0] = NeuropilEvent(frame_index=None)
+    next_code = 1
+
+    # we need spike_nums_dur and trace
+    if ms.spike_struct.spike_nums_dur is None:
+        if (ms.spike_struct.spike_nums is None) or (ms.spike_struct.peak_nums is None):
+            raise Exception(f"{ms.decription} spike_nums and peak_nums should not be None")
+        ms.build_spike_nums_dur()
+
+
+    # first we add the real transient
+    transient_periods = get_continous_time_periods(ms.spike_struct.spike_nums_dur[cell])
+    # list of tuple, first frame and last frame (included) of each transient
+    for transient_period in transient_periods:
+        amplitude = np.max(ms.raw_traces[cell, transient_period[0]:transient_period[1]+1])
+        encoded_frames[transient_period[0]:transient_period[1]+1] = next_code
+        event = RealTransientEvent(frames_period=transient_period, amplitude=amplitude)
+        decoding_frame_dict[next_code] = event
+        next_code += 1
+
+    # then we look for all transient and take the mean + 1 std of transient peak
+    # and keep the one that are not real as fake one
+    # for that first we need to compute peaks_nums, spike_nums and spike_nums_dur from all onsets
+    if cell not in ms.transient_classifier_spike_nums_dur:
+        ms.transient_classifier_spike_nums_dur[cell] = \
+            find_all_onsets_and_peaks_on_traces(ms=ms, cell=cell, threshold_factor=0.5)
+    tc_dur = ms.transient_classifier_spike_nums_dur[cell]
+    all_transient_periods = get_continous_time_periods(tc_dur)
+    for transient_period in all_transient_periods:
+        # checking if it's part of a real transient
+        sp_dur = ms.spike_struct.spike_nums_dur[cell]
+        if np.sum(sp_dur[transient_period[0]:transient_period[1]+1]) > 0:
+            continue
+        amplitude = np.max(ms.raw_traces[cell, transient_period[0]:transient_period[1] + 1])
+        encoded_frames[transient_period[0]:transient_period[1] + 1] = next_code
+        event = FakeTransientEvent(frames_period=transient_period, amplitude=amplitude)
+        decoding_frame_dict[next_code] = event
+        next_code += 1
+
+    return encoded_frames, decoding_frame_dict
+
+
 def load_data_for_generator(param, split_values, sliding_window_len, overlap_value,
                             movies_shuffling=None, with_shuffling=False):
     # TODO: stratification matters !
@@ -443,7 +692,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
                                             param=param,
-                                            load_traces=False, load_abf=False,
+                                            load_traces=True, load_abf=False,
                                             for_transient_classifier=True)
 
     total_n_cells = 0
@@ -456,6 +705,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         ms = ms_str_to_ms_dict[ms_str]
         cells_to_load = np.setdiff1d(cell_to_load_by_ms[ms_str], ms.cells_to_remove)
         if ms.cell_cnn_predictions is not None:
+            print(f"Using cnn predictions from {ms.description}")
             # not taking into consideration cells that are not predicted as true from the cell classifier
             cells_predicted_as_false = np.where(ms.cell_cnn_predictions < 0.5)[0]
             cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
@@ -482,33 +732,30 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
             # frames index of the beginning of each movie
             frames_step = int(np.ceil(sliding_window_len * (1 - overlap_value)))
             indices_movies = np.arange(0, n_frames, frames_step)
+            encoded_frames, decoding_frame_dict = cell_encoding(ms=ms, cell=cell)
 
             for i, index_movie in enumerate(indices_movies):
-                # if i == (len(indices_movies) - 1):
-                #     if (indices_movies[i - 1] + sliding_window_len) == n_frames:
-                #         break
-                #     else:
-                #         full_data.append([ms, cell, n_frames - sliding_window_len])
-                #
-                # else:
-                #     full_data.append([ms, cell, index_movie])
                 break_it = False
                 first_frame = index_movie
                 if (index_movie + sliding_window_len) == n_frames:
-                    full_data.append([ms, cell, index_movie])
                     break_it = True
                 elif (index_movie + sliding_window_len) > n_frames:
                     # in case the number of frames is not divisible by sliding_window_len
-                    full_data.append([ms, cell, n_frames - sliding_window_len])
                     first_frame = n_frames - sliding_window_len
                     break_it = True
-                else:
-                    full_data.append([ms, cell, index_movie])
+                movie_data = MovieData(ms=ms, cell=cell, index_movie=first_frame, window_len=sliding_window_len,
+                                       with_info=True, encoded_frames=encoded_frames,
+                                       decoding_frame_dict=decoding_frame_dict)
+                # TODO: use the movie_info in movie_data object to segregate the data, to collect information about
+                # TODO: about how to segregate the data (how many movie with transients etc...)
+                full_data.append(movie_data)
                 movies_descr.append(f"{ms.description}_cell_{cell}_first_frame_{first_frame}")
                 movie_count += 1
                 if break_it:
                     break
-
+    # TODO: Make a for loop in the movie_data to give for each the number of transformation to perform
+    # TODO: such that the data is balance
+    # TODO: Add a weight in addition if too many transformation
     print(f"movie_count {movie_count}")
     # cells shuffling
     if movies_shuffling is None:
@@ -815,8 +1062,10 @@ def plot_training_and_validation_values(history, key_name, result_path, param):
                             gridspec_kw={'height_ratios': [1],
                                          'width_ratios': [1]},
                             figsize=(5, 5))
-    ax1.plot(epochs, smooth_curve(train_values), 'bo', label=f'Training {key_name}')
-    ax1.plot(epochs, smooth_curve(val_values), 'b', label=f'Validation {key_name}')
+    # ax1.plot(epochs, smooth_curve(train_values), 'bo', label=f'Training {key_name}')
+    # ax1.plot(epochs, smooth_curve(val_values), 'b', label=f'Validation {key_name}')
+    ax1.plot(epochs, train_values, 'bo', label=f'Training {key_name}')
+    ax1.plot(epochs, val_values, 'b', label=f'Validation {key_name}')
     plt.title(f'Training and validation {key_name}')
     plt.xlabel('Epochs')
     plt.ylabel(f'{key_name}')
@@ -885,15 +1134,15 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     use_mulimodal_inputs = True
-    n_epochs = 10
+    n_epochs = 2
     batch_size = 16
     window_len = 50
     max_width = 25
     max_height = 25
-    overlap_value = 0.9
+    overlap_value = 0.1
     dropout_value = 0
     pixels_around = 0
-    with_augmentation_for_training_data = True
+    with_augmentation_for_training_data = False
     buffer = None
     split_values = (0.7, 0.2)
     optimizer_choice = "adam"
@@ -921,6 +1170,7 @@ def train_model():
                                                                    overlap_value=overlap_value,
                                                                    movies_shuffling=None,
                                                                    with_shuffling=False)
+
     stop_time = time.time()
     print(f"Time for loading data for generator: "
           f"{np.round(stop_time - start_time, 3)} s")
@@ -996,7 +1246,8 @@ def train_model():
     with_model_check_point = True
     # not very useful to save best only if we use EarlyStopping
     if with_model_check_point:
-        file_path = param.path_results + "/transient_classifier_weights_{epoch:02d}-{val_acc:.2f}.h5"
+        end_file_path = f"_{param.time_str}.h5"
+        file_path = param.path_results + "/transient_classifier_weights_{epoch:02d}-{val_acc:.4f}" + end_file_path
         # callbacks_list.append(ModelCheckpoint(filepath=file_path, monitor="val_acc", save_best_only="True",
         #                                       save_weights_only="True", mode="max"))
 
@@ -1074,8 +1325,8 @@ def train_model():
         file.write("" + '\n')
 
     val_acc = history_dict['val_acc'][-1]
-    model.save_weights(
-        f'{param.path_results}/transient_classifier_weights_{model_descr}_val_acc_{val_acc}_{param.time_str}.h5')
+    # model.save_weights(
+    #     f'{param.path_results}/transient_classifier_weights_{model_descr}_val_acc_{val_acc}_{param.time_str}.h5')
 
     stop_time = time.time()
     print(f"Time for saving the model: "
@@ -1083,7 +1334,7 @@ def train_model():
 
     start_time = time.time()
     source_profiles_dict = dict()
-    test_data, test_data_masked, test_labels = generate_movies_from_metadata(data_list=test_data_list,
+    test_data, test_data_masked, test_labels = generate_movies_from_metadata(movie_data_list=test_data_list,
                                                                              window_len=window_len,
                                                                              max_width=max_width,
                                                                              max_height=max_height,

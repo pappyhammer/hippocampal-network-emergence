@@ -2498,7 +2498,7 @@ class ManualOnsetFrame(tk.Frame):
 
         if predictions is not None:
             # writing them in a file
-            with open(f"{path_results}/cell_classifier_cnn_results_{self.data_and_param.ms.description}.text", "w",
+            with open(f"{path_results}/cell_classifier_cnn_results_{self.data_and_param.ms.description}.txt", "w",
                       encoding='UTF-8') as file:
                 file.write(f"{' '.join(str(p) for p in predictions)}" + '\n')
         # removed cells in cmap Gray, other cells in Parula
