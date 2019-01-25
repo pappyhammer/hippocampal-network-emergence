@@ -201,11 +201,12 @@ class MovieData:
             if cell in ms.spike_struct.inter_neurons:
                 self.movie_info["inter_neuron"] = True
 
-    def __copy__(self):
+    def copy(self):
         movie_copy = MovieData(ms=self.ms, cell=self.cell, index_movie=self.index_movie,
                                encoded_frames=self.encoded_frames, decoding_frame_dict=self.decoding_frame_dict,
                                window_len=self.window_len)
         movie_copy.data_augmentation_fct = self.data_augmentation_fct
+        return movie_copy
 
 
 # data augmentation functions
@@ -683,7 +684,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     use_small_sample = True
     if use_small_sample:
         ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(1)}
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(2)}
     else:
         ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
         cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(20),
@@ -1134,15 +1135,16 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     use_mulimodal_inputs = True
-    n_epochs = 2
+    n_epochs = 50
     batch_size = 16
     window_len = 50
     max_width = 25
     max_height = 25
-    overlap_value = 0.1
-    dropout_value = 0
+    overlap_value = 0.96
+    dropout_value = 0.2
+    # dropout_value_rnn = 0
     pixels_around = 0
-    with_augmentation_for_training_data = False
+    with_augmentation_for_training_data = True
     buffer = None
     split_values = (0.7, 0.2)
     optimizer_choice = "adam"
