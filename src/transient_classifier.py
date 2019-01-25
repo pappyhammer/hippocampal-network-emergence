@@ -7,7 +7,7 @@ from keras.models import Model, Sequential
 from keras.models import model_from_json
 from keras.optimizers import RMSprop, adam
 from keras import layers
-from keras.callbacks import ReduceLROnPlateau
+from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, EarlyStopping
 from keras.utils import to_categorical
 from keras.utils import get_custom_objects
 from matplotlib import pyplot as plt
@@ -526,6 +526,7 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
     vision_model = Sequential()
     get_custom_objects().update({'swish': Swish(swish)})
     # to choose between swish and relu
+
     vision_model.add(Conv2D(64, (3, 3), padding='same', input_shape=input_shape[1:]))
     if activation_fct != "swish":
         vision_model.add(Activation(activation_fct))
@@ -537,6 +538,7 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
     else:
         vision_model.add(Lambda(swish))
     vision_model.add(MaxPooling2D((2, 2)))
+
     vision_model.add(Conv2D(128, (3, 3), padding='same'))
     if activation_fct != "swish":
         vision_model.add(Activation(activation_fct))
@@ -548,6 +550,7 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
     else:
         vision_model.add(Lambda(swish))
     vision_model.add(MaxPooling2D((2, 2)))
+
     if dropout_value > 0:
         vision_model.add(layers.Dropout(dropout_value))
     # vision_model.add(Conv2D(256, (3, 3), activation=activation_fct, padding='same'))
@@ -576,7 +579,6 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
         # encoded_video = Bidirectional(LSTM(128, return_sequences=True),
         #                               input_shape=(n_frames, 128))(encoded_frame_sequence)
 
-
     video_input_masked = Input(shape=input_shape, name="video_input_masked")
     # This is our video encoded via the previously trained vision_model (weights are reused)
     encoded_frame_sequence_masked = TimeDistributed(vision_model)(
@@ -591,7 +593,8 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
     else:
         for lstm_index, lstm_size in enumerate(lstm_layers_size):
             if lstm_index == 0:
-                encoded_video_masked = Bidirectional(LSTM(lstm_size, return_sequences=True))(encoded_frame_sequence_masked)
+                encoded_video_masked = Bidirectional(LSTM(lstm_size, return_sequences=True))(
+                    encoded_frame_sequence_masked)
             else:
                 encoded_video_masked = Bidirectional(LSTM(lstm_size))(encoded_video_masked)
 
@@ -784,17 +787,17 @@ def smooth_curve(points, factor=0.8):
     return smoothed_points
 
 
-def plot_training_and_validation_values(history, key_name, n_epochs, result_path, param):
+def plot_training_and_validation_values(history, key_name, result_path, param):
     history_dict = history.history
-    acc_values = history_dict[key_name]
-    val_acc_values = history_dict['val_' + key_name]
-    epochs = range(1, n_epochs + 1)
+    train_values = history_dict[key_name]
+    val_values = history_dict['val_' + key_name]
+    epochs = range(1, len(val_values) + 1)
     fig, ax1 = plt.subplots(nrows=1, ncols=1,
                             gridspec_kw={'height_ratios': [1],
                                          'width_ratios': [1]},
                             figsize=(5, 5))
-    ax1.plot(epochs, smooth_curve(acc_values), 'bo', label=f'Training {key_name}')
-    ax1.plot(epochs, smooth_curve(val_acc_values), 'b', label=f'Validation {key_name}')
+    ax1.plot(epochs, smooth_curve(train_values), 'bo', label=f'Training {key_name}')
+    ax1.plot(epochs, smooth_curve(val_values), 'b', label=f'Validation {key_name}')
     plt.title(f'Training and validation {key_name}')
     plt.xlabel('Epochs')
     plt.ylabel(f'{key_name}')
@@ -807,6 +810,7 @@ def plot_training_and_validation_values(history, key_name, n_epochs, result_path
                     format=f"{save_format}")
 
     plt.close()
+
 
 def sensitivity(y_true, y_pred):
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
@@ -867,7 +871,7 @@ def train_model():
     window_len = 50
     max_width = 25
     max_height = 25
-    overlap_value = 0.9
+    overlap_value = 0.96
     dropout_value = 0
     pixels_around = 0
     with_augmentation_for_training_data = True
@@ -878,6 +882,8 @@ def train_model():
     with_learning_rate_reduction = True
     without_bidirectional = False
     lstm_layers_size = [128, 256]
+    with_early_stopping = True
+    model_descr = ""
 
     params_generator = {
         'batch_size': batch_size,
@@ -927,6 +933,13 @@ def train_model():
 
     print(model.summary())
 
+    # Save the model architecture
+    with open(
+            f'{param.path_results}/transient_classifier_model_architecture_{model_descr}_'
+            f'{param.time_str}.json',
+            'w') as f:
+        f.write(model.to_json())
+
     # Define the optimizer
     # from https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
 
@@ -948,7 +961,28 @@ def train_model():
                                                 patience=2,
                                                 verbose=1,
                                                 factor=0.5,
-                                                min_lr=0.00001)
+                                                mode='max',
+                                                min_lr=0.0001)  # used to be: 0.00001
+
+    # callbacks to be execute during training
+    # A callback is a set of functions to be applied at given stages of the training procedure.
+    callbacks_list = []
+    if with_learning_rate_reduction:
+        callbacks_list.append(learning_rate_reduction)
+
+    if with_early_stopping:
+        callbacks_list.append(EarlyStopping(monitor="val_acc", min_delta=0, patience=2, mode="max",
+                                            restore_best_weights=True))
+
+    with_model_check_point = True
+    # not very useful to save best only if we use EarlyStopping
+    if with_model_check_point:
+        file_path = param.path_results + "/transient_classifier_weights_{epoch:02d}-{val_acc:.2f}.h5"
+        # callbacks_list.append(ModelCheckpoint(filepath=file_path, monitor="val_acc", save_best_only="True",
+        #                                       save_weights_only="True", mode="max"))
+
+        callbacks_list.append(ModelCheckpoint(filepath=file_path, monitor="val_acc",
+                                              save_weights_only="True", mode="max"))
 
     stop_time = time.time()
     print(f"Time for building and compiling the model: "
@@ -956,35 +990,29 @@ def train_model():
 
     # Train model on dataset
     start_time = time.time()
-    if with_learning_rate_reduction:
-        history = model.fit_generator(generator=training_generator,
-                                      validation_data=validation_generator,
-                                      epochs=n_epochs,
-                                      use_multiprocessing=True,
-                                      workers=10,
-                                      callbacks=[learning_rate_reduction])
-    else:
-        history = model.fit_generator(generator=training_generator,
-                                      validation_data=validation_generator,
-                                      epochs=n_epochs,
-                                      use_multiprocessing=True,
-                                      workers=10)
+
+    history = model.fit_generator(generator=training_generator,
+                                  validation_data=validation_generator,
+                                  epochs=n_epochs,
+                                  use_multiprocessing=True,
+                                  workers=10,
+                                  callbacks=callbacks_list)
+
     stop_time = time.time()
     print(f"Time for fitting the model to the data with {n_epochs} epochs: "
           f"{np.round(stop_time - start_time, 3)} s")
-
 
     show_plots = True
 
     if show_plots:
         key_names = ["loss", "acc", "sensitivity", "specificity"]
         for key_name in key_names:
-            plot_training_and_validation_values(history=history, key_name=key_name, n_epochs=n_epochs,
+            plot_training_and_validation_values(history=history, key_name=key_name,
                                                 result_path=result_path, param=param)
 
     history_dict = history.history
     start_time = time.time()
-    model_descr = ""
+
     # model.save(f'{param.path_results}/transient_classifier_model_{model_descr}_test_acc_{test_acc}_{param.time_str}.h5')
 
     # saving params in a txt file
@@ -1029,12 +1057,6 @@ def train_model():
     val_acc = history_dict['val_acc'][-1]
     model.save_weights(
         f'{param.path_results}/transient_classifier_weights_{model_descr}_val_acc_{val_acc}_{param.time_str}.h5')
-    # Save the model architecture
-    with open(
-            f'{param.path_results}/transient_classifier_model_architecture_{model_descr}_test_acc_{val_acc}_'
-            f'{param.time_str}.json',
-            'w') as f:
-        f.write(model.to_json())
 
     stop_time = time.time()
     print(f"Time for saving the model: "
@@ -1057,8 +1079,8 @@ def train_model():
     start_time = time.time()
     if use_mulimodal_inputs:
         test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate({'video_input': test_data,
-                                              'video_input_masked': test_data_masked},
-                                             test_labels, verbose=2)
+                                                                                  'video_input_masked': test_data_masked},
+                                                                                 test_labels, verbose=2)
     else:
         test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate(test_data_masked, test_labels)
     print(f"test_acc {test_acc}, test_sensitivity {test_sensitivity}, test_specificity {test_specificity}")
