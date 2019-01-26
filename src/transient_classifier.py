@@ -24,7 +24,7 @@ from keras import backend as K
 import os
 from pattern_discovery.tools.misc import get_continous_time_periods
 import scipy.signal as signal
-
+import scipy.io as sio
 import sys
 import platform
 
@@ -68,6 +68,7 @@ class MovieEvent:
     """
     Class that represent an event in a movie, for exemple a transient, neuropil etc...
     """
+
     def __init__(self):
         self.neuropil = False
         self.real_transient = False
@@ -160,7 +161,7 @@ class MovieData:
             self.movie_info = dict()
             # then we want to know how many transients in this frame etc...
             # each code represent a specific event
-            unique_codes = np.unique(encoded_frames[index_movie:index_movie+window_len])
+            unique_codes = np.unique(encoded_frames[index_movie:index_movie + window_len])
             # print(f"unique_codes {unique_codes},  len {len(unique_codes)}")
             for code in unique_codes:
                 event = decoding_frame_dict[code]
@@ -217,7 +218,6 @@ class MovieData:
         if self.movie_info is None:
             return False
 
-
         if "n_transient" in self.movie_info:
             return False
         if "n_cropped_transient" in self.movie_info:
@@ -228,6 +228,7 @@ class MovieData:
             return False
 
         return True
+
 
 # data augmentation functions
 def horizontal_flip(movie):
@@ -662,14 +663,13 @@ def cell_encoding(ms, cell):
             raise Exception(f"{ms.decription} spike_nums and peak_nums should not be None")
         ms.build_spike_nums_dur()
 
-
     # first we add the real transient
     transient_periods = get_continous_time_periods(ms.spike_struct.spike_nums_dur[cell])
     # print(f"sum ms.spike_struct.spike_nums_dur[cell] {np.sum(ms.spike_struct.spike_nums_dur[cell])}")
     # list of tuple, first frame and last frame (included) of each transient
     for transient_period in transient_periods:
-        amplitude = np.max(ms.z_score_raw_traces[cell, transient_period[0]:transient_period[1]+1])
-        encoded_frames[transient_period[0]:transient_period[1]+1] = next_code
+        amplitude = np.max(ms.z_score_raw_traces[cell, transient_period[0]:transient_period[1] + 1])
+        encoded_frames[transient_period[0]:transient_period[1] + 1] = next_code
         event = RealTransientEvent(frames_period=transient_period, amplitude=amplitude)
         decoding_frame_dict[next_code] = event
         next_code += 1
@@ -685,7 +685,7 @@ def cell_encoding(ms, cell):
     for transient_period in all_transient_periods:
         # checking if it's part of a real transient
         sp_dur = ms.spike_struct.spike_nums_dur[cell]
-        if np.sum(sp_dur[transient_period[0]:transient_period[1]+1]) > 0:
+        if np.sum(sp_dur[transient_period[0]:transient_period[1] + 1]) > 0:
             continue
         amplitude = np.max(ms.z_score_raw_traces[cell, transient_period[0]:transient_period[1] + 1])
         encoded_frames[transient_period[0]:transient_period[1] + 1] = next_code
@@ -710,7 +710,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     use_small_sample = False
     if use_small_sample:
         ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([6])} # np.arange(1)
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([6])}  # np.arange(1)
     else:
         ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
         cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(20),
@@ -780,7 +780,6 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                 movie_count += 1
                 if break_it:
                     break
-
 
     print(f"movie_count {movie_count}")
     # cells shuffling
@@ -882,7 +881,6 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     print(f"mean fake_transient_amplitudes {np.mean(fake_transient_amplitudes)}")
     print(f"n_movies_by_session {n_movies_by_session}")
     print(f"n_movies_by_age {n_movies_by_age}")
-
 
     # TODO: Make a for loop in the movie_data to give for each the number of transformation to perform
     # TODO: such that the data is balance
@@ -1069,24 +1067,65 @@ def get_source_profile_for_prediction(ms, cell, augmentation_functions=None,
 
     return full_data, full_data_masked, full_data_frame_indices
 
+
 def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
-                                       use_data_augmentation=True):
+                                     use_data_augmentation=True):
     if len(ms_to_use) > 1:
         ms_to_use = list(ms_to_use[0])
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
-                        param=param,
-                        load_traces=False, load_abf=False,
-                        for_transient_classifier=True)
+                                            param=param,
+                                            load_traces=False, load_abf=False,
+                                            for_transient_classifier=True)
 
     ms = ms_str_to_ms_dict[ms_to_use[0]]
 
     n_cells = len(ms.coord)
     cells_to_load = np.arange(n_cells)
 
+    cells_to_load = np.setdiff1d(cells_to_load, ms.cells_to_remove)
+    if ms.cell_cnn_predictions is not None:
+        print(f"Using cnn predictions from {ms.description}")
+        # not taking into consideration cells that are not predicted as true from the cell classifier
+        cells_predicted_as_false = np.where(ms.cell_cnn_predictions < 0.5)[0]
+        cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
 
-def predict_transient_from_saved_model(ms, cell, weights_file, json_file, overlap_value=0.8,
-                                       use_data_augmentation=True):
+    total_n_cells = len(cells_to_load)
+    if total_n_cells == 0:
+        raise Exception(f"No cells loaded")
+
+    cells_to_load = np.array(cells_to_load)
+
+    movie_loaded = load_movie(ms)
+    if not movie_loaded:
+        raise Exception(f"could not load movie of ms {ms.description}")
+
+    n_frames = ms.tiff_movie.shape[0]
+    print(f"transients_prediction_from_movie n_frames {n_frames}")
+
+    spike_nums_dur = np.zeros((n_cells, n_frames), dtype="int8")
+    predictions_by_cell = np.zeros((n_cells, n_frames))
+
+    # loading model
+    path_to_tc_model = param.path_data + "transient_classifier_model/"
+    json_file = None
+    weights_file = None
+    # checking if the path exists
+    if os.path.isdir(path_to_tc_model):
+        # then we look for the json file (representing the model architecture) and the weights file
+        # we will assume there is only one file of each in this directory
+        # look for filenames in the first directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(path_to_tc_model):
+            for file_name in local_filenames:
+                if file_name.endswith(".json"):
+                    json_file = path_to_tc_model + file_name
+                if "weights" in file_name:
+                    weights_file = path_to_tc_model + file_name
+            # looking only in the top directory
+            break
+    if (json_file is None) or (weights_file is None):
+        raise Exception("model could not be loaded")
+
     start_time = time.time()
     # Model reconstruction from JSON file
     with open(json_file, 'r') as f:
@@ -1098,6 +1137,25 @@ def predict_transient_from_saved_model(ms, cell, weights_file, json_file, overla
     print(f"Time for loading model: "
           f"{np.round(stop_time - start_time, 3)} s")
 
+    start_time = time.time()
+    predictions_threshold = 0.2
+    for cell in cells_to_load:
+        predictions = predict_transient_from_model(ms=ms, cell=cell, model=model, overlap_value=overlap_value,
+                                                   use_data_augmentation=use_data_augmentation)
+        predictions_by_cell[cell] = predictions
+        spike_nums_dur[cell, predictions >= predictions_threshold] = 1
+
+    stop_time = time.time()
+    print(f"Time to predict {total_n_cells} cells: "
+          f"{np.round(stop_time - start_time, 3)} s")
+
+    file_name = f"/{ms.description}_predictions_{param.time_str}.mat"
+    sio.savemat(param.path_results + file_name, {'spike_nums_dur_predicted': spike_nums_dur,
+                                                 'predictions': predictions_by_cell})
+
+
+def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
+                                 use_data_augmentation=True):
     start_time = time.time()
     n_frames = len(ms.tiff_movie)
     multi_inputs = (model.layers[0].output_shape == model.layers[1].output_shape)
@@ -1130,7 +1188,7 @@ def predict_transient_from_saved_model(ms, cell, weights_file, json_file, overla
     else:
         predictions = model.predict(data_masked)
     stop_time = time.time()
-    print(f"Time to get predictions: "
+    print(f"Time to get predictions for cell {cell}: "
           f"{np.round(stop_time - start_time, 3)} s")
 
     # now we want to average each prediction for a given frame
@@ -1164,6 +1222,23 @@ def predict_transient_from_saved_model(ms, cell, weights_file, json_file, overla
         print(f"predictions len {len(predictions)}, n_frames {n_frames}")
 
     return predictions
+
+
+def predict_transient_from_saved_model(ms, cell, weights_file, json_file, overlap_value=0.8,
+                                       use_data_augmentation=True):
+    start_time = time.time()
+    # Model reconstruction from JSON file
+    with open(json_file, 'r') as f:
+        model = model_from_json(f.read())
+
+    # Load weights into the new model
+    model.load_weights(weights_file)
+    stop_time = time.time()
+    print(f"Time for loading model: "
+          f"{np.round(stop_time - start_time, 3)} s")
+
+    return predict_transient_from_model(ms=ms, cell=cell, model=model, overlap_value=overlap_value,
+                                        use_data_augmentation=use_data_augmentation)
 
 
 def smooth_curve(points, factor=0.8):
@@ -1232,6 +1307,13 @@ def train_model():
         os.mkdir(result_path)
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
+
+    go_predict_from_movie = True
+
+    if go_predict_from_movie:
+        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
+                                         use_data_augmentation=True)
+        return
 
     # 3 options to target the cell
     # 1) put the cell in the middle of the frame
