@@ -62,6 +62,8 @@ class MouseSession:
         # spike_nums represents the onsets of the neuron spikes
         self.traces = None
         self.raw_traces = None
+        self.z_score_traces = None
+        self.z_score_raw_traces = None
         self.coord = None
         # comes from the gui
         self.cells_to_remove = None
@@ -183,8 +185,21 @@ class MouseSession:
     def normalize_movie(self):
         if (self.tiff_movie is not None) and (self.tiff_movie_norm_0_1 is None):
             max_value = np.max(self.tiff_movie)
-            print(f"{self.description} max tiff_movie {str(np.round(max_value, 3))}")
+            print(f"{self.description} max tiff_movie {str(np.round(max_value, 3))}, "
+                  f"mean tiff_movie {str(np.round(np.mean(self.tiff_movie), 3))}, "
+                  f"median tiff_movie {str(np.round(np.median(self.tiff_movie), 3))}")
             self.tiff_movie_norm_0_1 = self.tiff_movie / max_value
+
+    def normalize_traces(self):
+        n_cells = self.traces.shape[0]
+        self.z_score_traces = np.zeros(self.traces.shape)
+        self.z_score_raw_traces = np.zeros(self.raw_traces.shape)
+        # z_score traces
+        for i in np.arange(n_cells):
+            self.z_score_traces[i, :] = (self.traces[i, :] - np.mean(self.traces[i, :])) / np.std(self.traces[i, :])
+            if self.raw_traces is not None:
+                self.z_score_raw_traces[i, :] = (self.raw_traces[i, :] - np.mean(self.raw_traces[i, :])) \
+                                        / np.std(self.raw_traces[i, :])
 
     def plot_psth_over_twitches_time_correlation_graph_style(self):
         """

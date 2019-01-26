@@ -111,7 +111,7 @@ class HNESpikeStructure:
         n_cells = len(self.spike_nums)
         n_frames = self.spike_nums.shape[1]
         ms = self.mouse_session
-        self.spike_nums_dur = np.zeros((n_cells, n_frames), dtype="uint8")
+        self.spike_nums_dur = np.zeros((n_cells, n_frames), dtype="int8")
         for cell in np.arange(n_cells):
             peaks_index = np.where(self.peak_nums[cell, :])[0]
             onsets_index = np.where(self.spike_nums[cell, :])[0]

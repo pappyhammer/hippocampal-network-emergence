@@ -161,6 +161,7 @@ class MovieData:
             # then we want to know how many transients in this frame etc...
             # each code represent a specific event
             unique_codes = np.unique(encoded_frames[index_movie:index_movie+window_len])
+            # print(f"unique_codes {unique_codes},  len {len(unique_codes)}")
             for code in unique_codes:
                 event = decoding_frame_dict[code]
                 if event.neuropil:
@@ -208,6 +209,25 @@ class MovieData:
         movie_copy.data_augmentation_fct = self.data_augmentation_fct
         return movie_copy
 
+    def is_only_neuropil(self):
+        """
+
+        :return: True if there is only neuropil (no transients), False otherwise
+        """
+        if self.movie_info is None:
+            return False
+
+
+        if "n_transient" in self.movie_info:
+            return False
+        if "n_cropped_transient" in self.movie_info:
+            return False
+        if "n_fake_transient" in self.movie_info:
+            return False
+        if "n_cropped_fake_transient" in self.movie_info:
+            return False
+
+        return True
 
 # data augmentation functions
 def horizontal_flip(movie):
@@ -309,7 +329,6 @@ class DataGenerator(keras.utils.Sequence):
         self.on_epoch_end()
 
     def prepare_augmentation(self):
-        # TODO: Augment data that are not frequent
         # TODO: Add shifting transformation
         n_samples = len(self.data_list)
         new_data = []
@@ -605,7 +624,7 @@ def find_all_onsets_and_peaks_on_traces(ms, cell, threshold_factor=0.5):
     spike_nums[np.array(onsets_detected)] = 0
 
     # now we construct the spike_nums_dur
-    spike_nums_dur = np.zeros(n_frames, dtype="uint8")
+    spike_nums_dur = np.zeros(n_frames, dtype="int8")
 
     peaks_index = np.where(peak_nums)[0]
     onsets_index = np.where(spike_nums)[0]
@@ -633,6 +652,9 @@ def cell_encoding(ms, cell):
     # zero will be the Neuropil
     decoding_frame_dict[0] = NeuropilEvent(frame_index=None)
     next_code = 1
+    if ms.z_score_traces is None:
+        # creatin the z_score traces
+        ms.normalize_traces()
 
     # we need spike_nums_dur and trace
     if ms.spike_struct.spike_nums_dur is None:
@@ -643,9 +665,10 @@ def cell_encoding(ms, cell):
 
     # first we add the real transient
     transient_periods = get_continous_time_periods(ms.spike_struct.spike_nums_dur[cell])
+    # print(f"sum ms.spike_struct.spike_nums_dur[cell] {np.sum(ms.spike_struct.spike_nums_dur[cell])}")
     # list of tuple, first frame and last frame (included) of each transient
     for transient_period in transient_periods:
-        amplitude = np.max(ms.raw_traces[cell, transient_period[0]:transient_period[1]+1])
+        amplitude = np.max(ms.z_score_raw_traces[cell, transient_period[0]:transient_period[1]+1])
         encoded_frames[transient_period[0]:transient_period[1]+1] = next_code
         event = RealTransientEvent(frames_period=transient_period, amplitude=amplitude)
         decoding_frame_dict[next_code] = event
@@ -656,7 +679,7 @@ def cell_encoding(ms, cell):
     # for that first we need to compute peaks_nums, spike_nums and spike_nums_dur from all onsets
     if cell not in ms.transient_classifier_spike_nums_dur:
         ms.transient_classifier_spike_nums_dur[cell] = \
-            find_all_onsets_and_peaks_on_traces(ms=ms, cell=cell, threshold_factor=0.5)
+            find_all_onsets_and_peaks_on_traces(ms=ms, cell=cell, threshold_factor=0.6)
     tc_dur = ms.transient_classifier_spike_nums_dur[cell]
     all_transient_periods = get_continous_time_periods(tc_dur)
     for transient_period in all_transient_periods:
@@ -664,7 +687,7 @@ def cell_encoding(ms, cell):
         sp_dur = ms.spike_struct.spike_nums_dur[cell]
         if np.sum(sp_dur[transient_period[0]:transient_period[1]+1]) > 0:
             continue
-        amplitude = np.max(ms.raw_traces[cell, transient_period[0]:transient_period[1] + 1])
+        amplitude = np.max(ms.z_score_raw_traces[cell, transient_period[0]:transient_period[1] + 1])
         encoded_frames[transient_period[0]:transient_period[1] + 1] = next_code
         event = FakeTransientEvent(frames_period=transient_period, amplitude=amplitude)
         decoding_frame_dict[next_code] = event
@@ -675,16 +698,19 @@ def cell_encoding(ms, cell):
 
 def load_data_for_generator(param, split_values, sliding_window_len, overlap_value,
                             movies_shuffling=None, with_shuffling=False):
-    # TODO: stratification matters !
     """
     Stratification is the technique to allocate the samples evenly based on sample classes
     so that training set and validation set have similar ratio of classes
+    p7_171012_a000_ms: up to cell 117
+    p9_18_09_27_a003_ms: up to cell ?
+    p12_171110_a000_ms: up to cell 7
+    p11_17_11_24_a000: 0 to 25 + 29
     """
     print("load_data_for_generator")
-    use_small_sample = True
+    use_small_sample = False
     if use_small_sample:
         ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(2)}
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([6])} # np.arange(1)
     else:
         ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
         cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(20),
@@ -754,9 +780,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                 movie_count += 1
                 if break_it:
                     break
-    # TODO: Make a for loop in the movie_data to give for each the number of transformation to perform
-    # TODO: such that the data is balance
-    # TODO: Add a weight in addition if too many transformation
+
+
     print(f"movie_count {movie_count}")
     # cells shuffling
     if movies_shuffling is None:
@@ -769,6 +794,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     train_data = []
     for index in movies_shuffling[:n_movies_for_training]:
         train_data.append(full_data[index])
+
     valid_data = []
     for index in movies_shuffling[n_movies_for_training:n_movies_for_training + n_movies_for_validation]:
         valid_data.append(full_data[index])
@@ -779,6 +805,88 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     test_movie_descr = []
     for movie in movies_shuffling[n_movies_for_training + n_movies_for_validation:]:
         test_movie_descr.append(movies_descr[movie])
+
+    # stratification on training data
+    # count corresponding to movies
+    # dict, key is the number of transient by movie, value is the number of movie with this number of transient
+    n_transient_dict = dict()
+    n_cropped_transient_dict = dict()
+    transient_lengths = []
+    transient_amplitudes = []
+    n_fake_transient_dict = dict()
+    n_cropped_fake_transient_dict = dict()
+    fake_transient_lengths = []
+    fake_transient_amplitudes = []
+    n_only_neuropil = 0
+    n_real_and_fake_transient = 0
+    # disct with key ms.description and value the number of movies for this session
+    n_movies_by_session = {}
+    # key int representing age, and value the number of movie for this session
+    n_movies_by_age = {}
+
+    for movie_data in train_data:
+        movie_info = movie_data.movie_info
+        only_neuropil = True
+        with_real_transient = False
+        if "n_transient" in movie_info:
+            with_real_transient = True
+            only_neuropil = False
+            n_transient = movie_info["n_transient"]
+            n_transient_dict[n_transient] = n_transient_dict.get(n_transient, 0) + 1
+        if ("n_cropped_transient" in movie_info) and (not with_real_transient):
+            only_neuropil = False
+            n_cropped_transient = movie_info["n_cropped_transient"]
+            n_cropped_transient_dict[n_cropped_transient] = n_cropped_transient_dict.get(n_cropped_transient, 0) + 1
+        if ("n_fake_transient" in movie_info) and (not with_real_transient):
+            only_neuropil = False
+            n_fake_transient = movie_info["n_fake_transient"]
+            n_fake_transient_dict[n_fake_transient] = n_fake_transient_dict.get(n_fake_transient, 0) + 1
+        if ("n_cropped_fake_transient" in movie_info) and (not with_real_transient):
+            only_neuropil = False
+            n_cropped_fake_transient = movie_info["n_cropped_fake_transient"]
+            n_cropped_fake_transient_dict[n_cropped_fake_transient] = \
+                n_cropped_fake_transient_dict.get(n_cropped_fake_transient, 0) + 1
+
+        if ("n_fake_transient" in movie_info) and with_real_transient:
+            n_real_and_fake_transient += 1
+
+        if only_neuropil:
+            n_only_neuropil += 1
+
+        if "transients_amplitudes" in movie_info:
+            transient_amplitudes.extend(movie_info["transients_amplitudes"])
+        if "transients_lengths" in movie_info:
+            transient_lengths.extend(movie_info["transients_lengths"])
+
+        if ("fake_transients_amplitudes" in movie_info) and (not with_real_transient):
+            fake_transient_amplitudes.extend(movie_info["fake_transients_amplitudes"])
+        if ("fake_transients_lengths" in movie_info) and (not with_real_transient):
+            fake_transient_lengths.extend(movie_info["fake_transients_lengths"])
+
+        n_movies_by_session[movie_data.ms.description] = n_movies_by_session.get(movie_data.ms.description, 0) + 1
+        n_movies_by_age[movie_data.ms.age] = n_movies_by_age.get(movie_data.ms.age, 0) + 1
+
+    print(f"len train data {len(train_data)}")
+    print(f"n_only_neuropil {n_only_neuropil}")
+    print(f"n_real_and_fake_transient {n_real_and_fake_transient}")
+
+    print(f"n_transient_dict {n_transient_dict}")
+    print(f"n_cropped_transient_dict {n_cropped_transient_dict}")
+    print(f"n_fake_transient_dict {n_fake_transient_dict}")
+    print(f"n_cropped_fake_transient_dict {n_cropped_fake_transient_dict}")
+    print(f"transient_lengths n {len(transient_lengths)} / min-max {np.min(transient_lengths)} - "
+          f"{np.max(transient_lengths)}")
+    print(f"mean transient_amplitudes {np.mean(transient_amplitudes)}")
+    print(f"fake_transient_lengths  n {len(fake_transient_lengths)} /  min-max {np.min(fake_transient_lengths)} - "
+          f"{np.max(fake_transient_lengths)} ")
+    print(f"mean fake_transient_amplitudes {np.mean(fake_transient_amplitudes)}")
+    print(f"n_movies_by_session {n_movies_by_session}")
+    print(f"n_movies_by_age {n_movies_by_age}")
+
+
+    # TODO: Make a for loop in the movie_data to give for each the number of transformation to perform
+    # TODO: such that the data is balance
+    # TODO: Add a weight in addition if too many transformation
 
     return train_data, valid_data, test_data, test_movie_descr, cell_to_load_by_ms
 
@@ -960,6 +1068,21 @@ def get_source_profile_for_prediction(ms, cell, augmentation_functions=None,
     #       f"{np.round(np.mean(times_for_get_source_profile_frames), 10)} s")
 
     return full_data, full_data_masked, full_data_frame_indices
+
+def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
+                                       use_data_augmentation=True):
+    if len(ms_to_use) > 1:
+        ms_to_use = list(ms_to_use[0])
+
+    ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
+                        param=param,
+                        load_traces=False, load_abf=False,
+                        for_transient_classifier=True)
+
+    ms = ms_str_to_ms_dict[ms_to_use[0]]
+
+    n_cells = len(ms.coord)
+    cells_to_load = np.arange(n_cells)
 
 
 def predict_transient_from_saved_model(ms, cell, weights_file, json_file, overlap_value=0.8,
@@ -1176,7 +1299,7 @@ def train_model():
     stop_time = time.time()
     print(f"Time for loading data for generator: "
           f"{np.round(stop_time - start_time, 3)} s")
-
+    raise Exception("TOTOOO")
     # Generators
     start_time = time.time()
     training_generator = DataGenerator(train_data_list, with_augmentation=with_augmentation_for_training_data,
@@ -1242,7 +1365,7 @@ def train_model():
         callbacks_list.append(learning_rate_reduction)
 
     if with_early_stopping:
-        callbacks_list.append(EarlyStopping(monitor="val_acc", min_delta=0, patience=2, mode="max",
+        callbacks_list.append(EarlyStopping(monitor="val_acc", min_delta=0, patience=4, mode="max",
                                             restore_best_weights=True))
 
     with_model_check_point = True
