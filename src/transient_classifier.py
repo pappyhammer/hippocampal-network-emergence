@@ -136,9 +136,44 @@ class MovieData:
         # weight to apply, use by the model to produce the loss function result
         self.weight = 1
         # number of transformation to perform on this movie, information to use if with_info == True
-        # otherwise it means the object will be tranform with the self.data_augmentation_fct
-        self.n_augmentations = 1
+        # otherwise it means the object will be transform with the self.data_augmentation_fct
+        self.n_augmentations_to_perform = 0
+
+        # used if a movie_data has been copied
         self.data_augmentation_fct = None
+
+        # set of functions used for data augmentation, one will be selected when copying a movie
+        self.data_augmentation_fct_set = set()
+        # adding fct to the set
+        flips = [horizontal_flip, vertical_flip, v_h_flip]
+        for flip in flips:
+            self.data_augmentation_fct_set.add(flip)
+        # 180° angle is the same as same as v_h_flip
+        # 10 angles
+        rotation_angles = [20, 50, 90, 120, 160, 200, 230, 270, 310, 240]
+        for angle in rotation_angles:
+            self.data_augmentation_fct_set.add(lambda movie: rotate_movie(movie, angle))
+        # 24 shifting transformations combinaison
+        x_shift_y_shift_couples = []
+        for x_shift in np.arange(-2, 3):
+            for y_shift in np.arange(-2, 3):
+                if (x_shift == 0) and (y_shift == 0):
+                    continue
+                x_shift_y_shift_couples.append((x_shift, y_shift))
+        # keeping 11 shifts, from random
+        n_shifts = 11
+        shift_indices = np.arange(len(x_shift_y_shift_couples))
+        if n_shifts < len(shift_indices):
+            np.random.shuffle(shift_indices)
+            shift_indices = shift_indices[:n_shifts]
+        for index in shift_indices:
+            x_shift = x_shift_y_shift_couples[index][0]
+            y_shift = x_shift_y_shift_couples[index][1]
+            self.data_augmentation_fct_set.add(lambda movie: shift_movie(movie, x_shift=x_shift, y_shift=x_shift))
+
+        self.n_available_augmentation_fct = len(self.data_augmentation_fct_set)
+        # self.data_augmentation_fct_set.pop()
+
         # movie_info dict containing the different informations about the movie such as the number of transients etc...
         """
         Keys so far (with value type) -> comments :
@@ -210,6 +245,9 @@ class MovieData:
         movie_copy.data_augmentation_fct = self.data_augmentation_fct
         return movie_copy
 
+    def pick_a_transformation_fct(self):
+        return self.data_augmentation_fct_set.pop()
+
     def is_only_neuropil(self):
         """
 
@@ -229,8 +267,12 @@ class MovieData:
 
         return True
 
+############################################################################################
+############################################################################################
+############################### data augmentation functions ###############################
+############################################################################################
+############################################################################################
 
-# data augmentation functions
 def horizontal_flip(movie):
     """
     movie is a 3D numpy array
@@ -283,6 +325,51 @@ def rotate_movie(movie, angle):
     return new_movie
 
 
+def shift_movie(movie, x_shift, y_shift):
+    """
+    movie is a 3D numpy array
+    :param movie:
+    :param x_shift:
+    :param y_shift:
+    :return:
+    """
+    if x_shift >= movie.shape[2]:
+        raise Exception(f"x_shift {x_shift} >= movie.shape[2] {movie.shape[2]}")
+    if y_shift >= movie.shape[1]:
+        raise Exception(f"y_shift {y_shift} >= movie.shape[1] {movie.shape[1]}")
+
+    new_movie = np.zeros(movie.shape)
+
+    if (y_shift == 0) and (x_shift == 0):
+        new_movie = movie[:, :, :]
+    elif (y_shift == 0) and (x_shift > 0):
+        for frame in np.arange(len(movie)):
+            new_movie[frame, :, :-x_shift] = movie[frame, :, x_shift:]
+    elif (y_shift == 0) and (x_shift < 0):
+        for frame in np.arange(len(movie)):
+            new_movie[frame, :, -x_shift:] = movie[frame, :, :x_shift]
+    elif (y_shift > 0) and (x_shift == 0):
+        for frame in np.arange(len(movie)):
+            new_movie[frame, :-y_shift, :] = movie[frame, y_shift:, :]
+    elif (y_shift < 0) and (x_shift == 0):
+        for frame in np.arange(len(movie)):
+            new_movie[frame, -y_shift:, :] = movie[frame, :y_shift, :]
+    elif (y_shift > 0) and (x_shift > 0):
+        for frame in np.arange(len(movie)):
+            new_movie[frame, :-y_shift, :-x_shift] = movie[frame, y_shift:, x_shift:]
+    elif (y_shift < 0) and (x_shift < 0):
+        for frame in np.arange(len(movie)):
+            new_movie[frame, -y_shift:, -x_shift:] = movie[frame, :y_shift, :x_shift]
+    elif (y_shift > 0) and (x_shift < 0):
+        for frame in np.arange(len(movie)):
+            new_movie[frame, :-y_shift, -x_shift:] = movie[frame, y_shift:, :x_shift]
+    elif (y_shift < 0) and (x_shift > 0):
+        for frame in np.arange(len(movie)):
+            new_movie[frame, -y_shift:, :-x_shift] = movie[frame, :y_shift, x_shift:]
+
+    return new_movie
+
+
 class DataGenerator(keras.utils.Sequence):
     """
     Based on an exemple found in https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
@@ -330,28 +417,49 @@ class DataGenerator(keras.utils.Sequence):
         self.on_epoch_end()
 
     def prepare_augmentation(self):
-        # TODO: Add shifting transformation
         n_samples = len(self.data_list)
+        print(f"n_samples before data augmentation: {n_samples}")
         new_data = []
         # for each keys will create as many new keys as transformation to be done
         # adding the function to do the transformation to the value (list), and will create the same key
         # in labels, copying the original labels
-        rot_90 = lambda movie: rotate_movie(movie, 90)
-        # rot_180 = lambda movie: rotate_movie(movie, 180) # same as v_h_flip
-        rot_270 = lambda movie: rotate_movie(movie, 270)
-        augmentation_functions = [horizontal_flip, vertical_flip, v_h_flip,
-                                  rot_90, rot_270]
+        # rot_90 = lambda movie: rotate_movie(movie, 90)
+        # # rot_180 = lambda movie: rotate_movie(movie, 180) # same as v_h_flip
+        # rot_270 = lambda movie: rotate_movie(movie, 270)
+        # shift_m_2_s = lambda movie: shift_movie(movie, x_shift=-2, y_shift=0)
+        # shift_p2_m_2 = lambda movie: shift_movie(movie, x_shift=2, y_shift=-2)
+        # shift_s_p_1 = lambda movie: shift_movie(movie, x_shift=0, y_shift=1)
+        # rot_30 = lambda movie: rotate_movie(movie, 30)
+        # rot_120 = lambda movie: rotate_movie(movie, 120)
+        # rot_260 = lambda movie: rotate_movie(movie, 260)
         #
-        # augmentation_functions_name = ["horizontal_flip", "vertical_flip", "v_h_flip"]
+        # # augmentation_functions = [horizontal_flip, vertical_flip, v_h_flip,
+        # #                           rot_90, rot_270]
+        # # augmentation_functions = [shift_m_2_s, shift_p2_m_2, shift_s_p_1]
+        # augmentation_functions = [rot_30, rot_120, rot_260]
+
+        # for index_data in np.arange(n_samples):
+        #     for fct in augmentation_functions:
+        #         movie_data = self.data_list[index_data]
+        #         new_movie = movie_data.copy()
+        #         new_movie.data_augmentation_fct = fct
+        #         new_data.append(new_movie)
 
         for index_data in np.arange(n_samples):
-            for fct in augmentation_functions:
-                movie_data = self.data_list[index_data]
+            movie_data = self.data_list[index_data]
+            # we will do as many transformation as indicated in movie_data.n_augmentations_to_perform
+            if movie_data.n_augmentations_to_perform == 0:
+                continue
+            for t in np.arange(movie_data.n_augmentations_to_perform):
+                if t >= movie_data.n_available_augmentation_fct:
+                    break
                 new_movie = movie_data.copy()
-                new_movie.data_augmentation_fct = fct
+                new_movie.data_augmentation_fct = movie_data.pick_a_transformation_fct()
                 new_data.append(new_movie)
 
         self.data_list.extend(new_data)
+
+        print(f"n_samples after data augmentation: {len(self.data_list)}")
 
     def __len__(self):
         # 'Denotes the number of batches per epoch'
@@ -466,6 +574,12 @@ def generate_movies_from_metadata(movie_data_list, window_len, max_width, max_he
         source_profile_frames_masked = np.copy(source_profile_frames)
         source_profile_frames_masked[:, mask_source_profile] = 0
 
+        # doing augmentation if the function exists
+        if augmentation_fct is not None:
+            source_profile_frames = augmentation_fct(source_profile_frames)
+            source_profile_frames_masked = augmentation_fct(source_profile_frames_masked)
+
+        # then we fit it the frame use by the network, padding the surrounding by zero if necessary
         profile_fit = np.zeros((len(frames), max_height, max_width))
         profile_fit_masked = np.zeros((len(frames), max_height, max_width))
         # we center the source profile
@@ -477,11 +591,6 @@ def generate_movies_from_metadata(movie_data_list, window_len, max_width, max_he
         profile_fit_masked[:, y_coord:source_profile_frames.shape[1] + y_coord,
         x_coord:source_profile_frames.shape[2] + x_coord] = \
             source_profile_frames_masked
-
-        # doing augmentation if the function exists
-        if augmentation_fct is not None:
-            profile_fit = augmentation_fct(profile_fit)
-            profile_fit_masked = augmentation_fct(profile_fit_masked)
 
         profile_fit = profile_fit.reshape((profile_fit.shape[0], profile_fit.shape[1], profile_fit.shape[2], 1))
         profile_fit_masked = profile_fit_masked.reshape((profile_fit_masked.shape[0], profile_fit_masked.shape[1],
@@ -551,6 +660,7 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0, b
     minx = max(0, minx - pixels_around)
     miny = max(0, miny - pixels_around)
     # we use max_width and max_height to make sure it won't be bigger than the frame used by the network
+    # and we crop the frame if necessary
     maxx = np.min(((len_frame_x - 1), (maxx + pixels_around), (minx + max_height - 1)))
     maxy = np.min(((len_frame_y - 1), (maxy + pixels_around), (miny + max_width - 1)))
 
@@ -707,10 +817,10 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     p11_17_11_24_a000: 0 to 25 + 29
     """
     print("load_data_for_generator")
-    use_small_sample = False
+    use_small_sample = True
     if use_small_sample:
         ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([6])}  # np.arange(1)
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0])}  # np.arange(1)
     else:
         ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
         cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(20),
@@ -1308,7 +1418,7 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
@@ -1340,13 +1450,13 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     use_mulimodal_inputs = True
-    n_epochs = 50
+    n_epochs = 10
     batch_size = 16
     window_len = 50
     max_width = 25
     max_height = 25
-    overlap_value = 0.96
-    dropout_value = 0.2
+    overlap_value = 0.90
+    dropout_value = 0
     # dropout_value_rnn = 0
     pixels_around = 0
     with_augmentation_for_training_data = True
@@ -1381,7 +1491,7 @@ def train_model():
     stop_time = time.time()
     print(f"Time for loading data for generator: "
           f"{np.round(stop_time - start_time, 3)} s")
-    raise Exception("TOTOOO")
+
     # Generators
     start_time = time.time()
     training_generator = DataGenerator(train_data_list, with_augmentation=with_augmentation_for_training_data,
@@ -1390,6 +1500,7 @@ def train_model():
     stop_time = time.time()
     print(f"Time to create generator: "
           f"{np.round(stop_time - start_time, 3)} s")
+    raise Exception("TOTOOO")
 
     # (sliding_window_size, max_width, max_height, 1)
     # sliding_window in frames, max_width, max_height: in pixel (100, 25, 25, 1) * n_movie

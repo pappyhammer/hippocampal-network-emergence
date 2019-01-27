@@ -3581,6 +3581,8 @@ class ManualOnsetFrame(tk.Frame):
                         self.raster_dur_for_a_cell[self.current_neuron] = raster_dur
                     else:
                         raster_dur = self.raster_dur_for_a_cell[self.current_neuron]
+
+                    frames_active = np.where(raster_dur)[0]
                     n_frames = len(raster_dur)
                     n_predicted_as_active_errors = len(np.where(raster_dur[frames_predicted_as_active] == 0)[0])
                     n_predicted_as_non_active_errors = len(np.where(raster_dur[frames_predicted_as_non_active] == 1)[0])
@@ -3593,6 +3595,8 @@ class ManualOnsetFrame(tk.Frame):
                     if len(frames_predicted_as_active) > 0:
                         print(f"Ratio of True positive active predicted frames "
                               f"{str(np.round(n_true_frames_predicted/len(frames_predicted_as_active), 3))}")
+                        print(f"True positive frames "
+                              f"{str(np.round(len(frames_predicted_as_active)/ len(frames_predicted_as_active), 3))}")
                     # % of frames predicted as non active that are non active
                     n_true_frames_non_predicted = len(frames_predicted_as_non_active) - n_predicted_as_non_active_errors
                     if len(frames_predicted_as_non_active) > 0:
