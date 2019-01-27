@@ -47,6 +47,8 @@ from cell_classifier import predict_cell_from_saved_model
 from transient_classifier import predict_transient_from_saved_model
 from pattern_discovery.tools.misc import get_continous_time_periods
 
+import classification_stat
+
 if sys.version_info[0] < 3:
     import Tkinter as tk
     from Tkinter import *
@@ -3538,13 +3540,14 @@ class ManualOnsetFrame(tk.Frame):
             classifier_filling_color = "forestgreen"
             if self.current_neuron in self.transient_prediction:
                 predictions = self.transient_prediction[self.current_neuron]
+
                 self.axe_plot.plot(np.arange(self.nb_times_traces), predictions,
                                    color="red", zorder=20)
                 threshold_tc = self.transient_classifier_threshold
                 if threshold_tc not in self.transient_prediction_periods[self.current_neuron]:
-                    active_frames_binary = np.zeros(len(predictions), dtype="int8")
-                    active_frames_binary[predictions >= threshold_tc] = 1
-                    active_periods = get_continous_time_periods(active_frames_binary)
+                    predicted_raster_dur = np.zeros(len(predictions), dtype="int8")
+                    predicted_raster_dur[predictions >= threshold_tc] = 1
+                    active_periods = get_continous_time_periods(predicted_raster_dur)
                     self.transient_prediction_periods[self.current_neuron][threshold_tc] = active_periods
                 else:
                     active_periods = self.transient_prediction_periods[self.current_neuron][threshold_tc]
@@ -3558,11 +3561,6 @@ class ManualOnsetFrame(tk.Frame):
 
                 # display the stat only when the threshold is changed
                 if self.print_transients_predictions_stat:
-                    print(f"Cell {self.current_neuron}")
-                    frames_predicted_as_active = np.where(predictions >= threshold_tc)[0]
-                    frames_predicted_as_non_active = np.where(predictions < threshold_tc)[0]
-                    print(f"n predictions > threshold: {len(frames_predicted_as_active)}")
-                    # measuring accuracy
                     # first we build the raster_dur for this cell
                     if self.current_neuron not in self.raster_dur_for_a_cell:
                         raster_dur = np.zeros(self.nb_times_traces, dtype="int8")
@@ -3582,47 +3580,21 @@ class ManualOnsetFrame(tk.Frame):
                     else:
                         raster_dur = self.raster_dur_for_a_cell[self.current_neuron]
 
-                    frames_active = np.where(raster_dur)[0]
-                    n_frames = len(raster_dur)
-                    n_predicted_as_active_errors = len(np.where(raster_dur[frames_predicted_as_active] == 0)[0])
-                    n_predicted_as_non_active_errors = len(np.where(raster_dur[frames_predicted_as_non_active] == 1)[0])
-                    accuracy = (n_frames - n_predicted_as_active_errors - n_predicted_as_non_active_errors) / n_frames
-                    default_accuracy = (n_frames - len(np.where(raster_dur)[0])) / n_frames
-                    print(f"Default accuracy {str(np.round(default_accuracy, 3))}")
-                    print(f"Predictions accuracy {str(np.round(accuracy, 3))}")
-                    # % of frames predicted as active that are active
-                    n_true_frames_predicted = len(frames_predicted_as_active) - n_predicted_as_active_errors
-                    if len(frames_predicted_as_active) > 0:
-                        print(f"Ratio of True positive active predicted frames "
-                              f"{str(np.round(n_true_frames_predicted/len(frames_predicted_as_active), 3))}")
-                        print(f"True positive frames "
-                              f"{str(np.round(len(frames_predicted_as_active)/ len(frames_predicted_as_active), 3))}")
-                    # % of frames predicted as non active that are non active
-                    n_true_frames_non_predicted = len(frames_predicted_as_non_active) - n_predicted_as_non_active_errors
-                    if len(frames_predicted_as_non_active) > 0:
-                        print(f"Ratio of True negative non-active predicted frames "
-                              f"{str(np.round(n_true_frames_non_predicted/len(frames_predicted_as_non_active), 3))}")
-                    # % of active frames that were detected as active
-                    n_predicted_as_active_true = len(frames_predicted_as_active) - n_predicted_as_active_errors
-                    if len(np.where(raster_dur)[0]) > 0:
-                        predictive_value = n_predicted_as_active_true / len(np.where(raster_dur)[0])
-                        print(f"% of active frames detected "
-                              f"{str(np.round(predictive_value, 3))}")
-                    # for each transient, we want to know how many had at least one frame predicted as active
-                    transient_periods = get_continous_time_periods(raster_dur)
-                    # print(f"transient_periods {transient_periods}")
-                    n_transients = len(transient_periods)
-                    # print(f"n_transients {n_transients}")
-                    n_transient_dectected = 0
-                    binary_predicted_as_active = np.zeros(len(predictions), dtype="int8")
-                    binary_predicted_as_active[predictions >= threshold_tc] = 1
-                    for transient_period in transient_periods:
-                        frames = np.arange(transient_period[0], transient_period[1] + 1)
-                        # print(f"np.sum(binary_predicted_as_active[frames] {np.sum(binary_predicted_as_active[frames])}")
-                        if np.sum(binary_predicted_as_active[frames]) > 0:
-                            n_transient_dectected += 1
-                    print(f"% of transient detected "
-                          f"{str(np.round(n_transient_dectected/n_transients, 3))}")
+                    predicted_raster_dur = np.zeros(self.nb_times_traces, dtype="int8")
+                    predicted_raster_dur[predictions >= threshold_tc] = 1
+                    frames_stat, transients_stat = classification_stat.compute_stats(raster_dur, predicted_raster_dur)
+
+                    # frames stats
+                    print(f"Cell {self.current_neuron} with threshold {threshold_tc}")
+                    print(f"Frames stat:")
+                    for key, value in frames_stat.items():
+                        print(f"{key}: {str(np.round(value, 4))}")
+
+                    print(f"###")
+                    print(f"Transients stat:")
+                    for key, value in transients_stat.items():
+                        print(f"{key}: {str(np.round(value, 4))}")
+
                     self.print_transients_predictions_stat = False
 
         if self.raw_traces_median is not None:
