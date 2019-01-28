@@ -19,8 +19,35 @@ class BenchmarkRasterDur:
         # same keys as raster_dur_dict, value will be a list of dict with results from benchmarks
         self.results_dict_global = dict()
 
+    def compute_stats_on_onsets(self):
+        print(f"{self.description} stats on onsets")
+        for cell in self.cells:
+            print(f"Cell {cell}")
+            for key, raster_dur in self.predicted_raster_dur_dict.items():
+                gt_rd = self.ground_truth_raster_dur[cell]
+                p_rd = raster_dur[cell]
+                frames_stat = cs.compute_stats_on_onsets(spike_nums=gt_rd, predicted_spike_nums=p_rd)
+                # frames stats
+                print(f"raster {key}")
+                print(f"Onsets stat:")
+                for k, value in frames_stat.items():
+                    print(f"{k}: {str(np.round(value, 4))}")
+            print("")
+            print("/////////////////")
+            print("")
+        print("All cells")
+        for key, raster_dur in self.predicted_raster_dur_dict.items():
+            gt_rd = self.ground_truth_raster_dur[self.cells]
+            p_rd = raster_dur[self.cells]
+            frames_stat = cs.compute_stats_on_onsets(gt_rd, p_rd)
+            # frames stats
+            print(f"raster {key}")
+            print(f"Onsets stat:")
+            for k, value in frames_stat.items():
+                print(f"{k}: {str(np.round(value, 4))}")
+
     def compute_stats(self):
-        print(f"{self.description} stats")
+        print(f"{self.description} stats on raster dur")
         for cell in self.cells:
             print(f"Cell {cell}")
             for key, raster_dur in self.predicted_raster_dur_dict.items():
@@ -92,8 +119,11 @@ def main_benchmark():
     path_results = path_results_raw + f"{time_str}"
     os.mkdir(path_results)
 
-    ground_truth_raster_dur = None
+    # ########### options ###################
     ms_to_benchmark = "p12_17_11_10_a000"
+    do_onsets_benchmarks = False
+    # ########### end options ###################
+
     data_dict = dict()
     if ms_to_benchmark == "p12_17_11_10_a000":
         # gt as ground_truth
@@ -106,10 +136,15 @@ def main_benchmark():
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p12/p12_17_11_10_a000"
         data_dict["caiman_raw"]["file_name"] = "p12_17_11_10_a000_RasterDur.mat"
+        data_dict["caiman_raw"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Spikenums_caiman.mat"
+        data_dict["caiman_raw"]["onsets_var_name"] = "spikenums"
+        data_dict["caiman_raw"]["to_bin"] = True
         data_dict["caiman_raw"]["var_name"] = "rasterdur"
         data_dict["caiman_filt"] = dict()
         data_dict["caiman_filt"]["path"] = "p12/p12_17_11_10_a000"
         data_dict["caiman_filt"]["file_name"] = "p12_17_11_10_a000_filt_RasterDur_caiman.mat"
+        data_dict["caiman_filt"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Bin100ms_spikedigital.mat"
+        data_dict["caiman_filt"]["onsets_var_name"] = "Bin100ms_spikedigital"
         data_dict["caiman_filt"]["var_name"] = "rasterdur"
 
     data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gui_file"]))
@@ -118,6 +153,7 @@ def main_benchmark():
     inter_neurons = data_file['inter_neurons'].astype(int)
     cells_to_remove = data_file['cells_to_remove'].astype(int)
     ground_truth_raster_dur = build_spike_nums_dur(spike_nums, peak_nums)
+    print(f"ground_truth_raster_dur.shape {ground_truth_raster_dur.shape}")
 
     cell_cnn_predictions = []
     with open(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["cnn"]), "r", encoding='UTF-8') as file:
@@ -133,6 +169,8 @@ def main_benchmark():
     cells_predicted_as_false = np.where(cell_cnn_predictions < 0.5)[0]
     cells_for_benchmark = np.setdiff1d(cells_for_benchmark, cells_predicted_as_false)
     predicted_raster_dur_dict = dict()
+    predicted_spike_nums_dict = dict()
+    # value is a dict
     for key, value in data_dict.items():
         if key == "gt":
             continue
@@ -140,9 +178,37 @@ def main_benchmark():
         raster_dur = data_file[value['var_name']].astype(int)
         predicted_raster_dur_dict[key] = raster_dur
 
+        if do_onsets_benchmarks:
+            # onsets
+            data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name_onsets"]))
+            predicted_spike_nums = data_file[value['onsets_var_name']].astype(int)
+            if "to_bin" in value:
+                # we need to bin predicted_spike_nums
+                new_predicted_spike_nums = np.zeros((predicted_spike_nums.shape[0], predicted_spike_nums.shape[1] // 2),
+                                                    dtype="int8")
+                for cell in np.arange(predicted_spike_nums.shape[0]):
+                    binned_cell = predicted_spike_nums[cell].reshape(-1, 2).mean(axis=1)
+                    binned_cell[binned_cell > 0] = 1
+                    new_predicted_spike_nums[cell] = binned_cell.astype("int")
+                predicted_spike_nums = new_predicted_spike_nums
+            print(f"predicted_spike_nums.shape {predicted_spike_nums.shape}")
+            predicted_spike_nums_dict[key] = predicted_spike_nums
+
     benchmarks = BenchmarkRasterDur(description=ms_to_benchmark, ground_truth_raster_dur=ground_truth_raster_dur,
                        predicted_raster_dur_dict=predicted_raster_dur_dict, cells=cells_for_benchmark)
 
     benchmarks.compute_stats()
+
+    if do_onsets_benchmarks:
+        print("")
+        print("#######################################")
+        print("#######################################")
+        print("#######################################")
+        print("")
+
+        benchmarks_onsets = BenchmarkRasterDur(description=ms_to_benchmark, ground_truth_raster_dur=spike_nums,
+                                        predicted_raster_dur_dict=predicted_spike_nums_dict, cells=cells_for_benchmark)
+
+        benchmarks_onsets.compute_stats_on_onsets()
 
 main_benchmark()

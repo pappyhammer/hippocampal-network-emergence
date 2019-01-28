@@ -123,3 +123,96 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur):
     transients_stat["FNR"] = 1 - transients_stat["TPR"]
 
     return frames_stat, transients_stat
+
+
+def compute_stats_on_onsets(spike_nums, predicted_spike_nums):
+    """
+    Compute the stats based on raster dur
+    :param spike_nums:
+    :param predicted_spike_nums:
+    :return: One dicts: with stats on onsets,
+    Frames dict has the following keys (as String):
+    TP: True Positive
+    FP: False Positive
+    FN: False Negative
+    TN: True Negative
+    sensitivity or TPR: True Positive Rate or Recall
+    specificity or TNR: True Negative Rate or Selectivity
+    FPR: False Positive Rate or Fall-out
+    FNR: False Negative Rate or Miss Rate
+    ACC: accuracy
+    Prevalence: sum positive conditions / total population (for frames only)
+    PPV: Positive Predictive Value or Precision
+    FDR: False Discovery Rate
+    FOR: False Omission Rate
+    NPV: Negative Predictive Value
+    LR+: Positive Likelihood ratio
+    LR-: Negative likelihood ratio
+
+    """
+
+    if spike_nums.shape != predicted_spike_nums.shape:
+        raise Exception("both spike_nums should have the same shape")
+    if len(spike_nums.shape) == 1:
+        # we transform them in a 2 dimensions array
+        spike_nums = spike_nums.reshape(1, spike_nums.shape[0])
+        predicted_spike_nums = predicted_spike_nums.reshape(1, predicted_spike_nums.shape[0])
+
+    frames_stat = dict()
+
+    # n_frames = spike_nums.shape[1]
+    n_cells = spike_nums.shape[0]
+
+    # positive means active frame, negative means non-active frames
+    # condition is the ground truth
+    # predicted is the one computed (RNN, CaiMan etc...)
+
+    tp_frames = 0
+    fp_frames = 0
+    fn_frames = 0
+    tn_frames = 0
+
+
+    for cell in np.arange(n_cells):
+        raster = spike_nums[cell]
+        predicted_raster = predicted_spike_nums[cell]
+
+        predicted_positive_frames = np.where(predicted_raster)[0]
+        predicted_negative_frames = np.where(predicted_raster == 0)[0]
+
+        tp_frames += len(np.where(raster[predicted_positive_frames] == 1)[0])
+        fp_frames += len(np.where(raster[predicted_positive_frames] == 0)[0])
+        fn_frames += len(np.where(raster[predicted_negative_frames] == 1)[0])
+        tn_frames += len(np.where(raster[predicted_negative_frames] == 0)[0])
+
+    frames_stat["TP"] = tp_frames
+    frames_stat["FP"] = fp_frames
+    frames_stat["FN"] = fn_frames
+    frames_stat["TN"] = tn_frames
+
+    # frames_stat["TPR"] = tp_frames / (tp_frames + fn_frames)
+    frames_stat["sensitivity"] = tp_frames / (tp_frames + fn_frames)
+    frames_stat["TPR"] = frames_stat["sensitivity"]
+
+    frames_stat["specificity"] = tn_frames / (tn_frames + fp_frames)
+    frames_stat["TNR"] = frames_stat["specificity"]
+
+    frames_stat["ACC"] = (tp_frames + tn_frames) / (tp_frames + tn_frames + fp_frames + fn_frames)
+
+    frames_stat["PPV"] = tp_frames / (tp_frames + fp_frames)
+
+    frames_stat["NPV"] = tn_frames / (tn_frames + fn_frames)
+
+    frames_stat["FNR"] = 1 - frames_stat["TPR"]
+
+    frames_stat["FPR"] = 1 - frames_stat["TNR"]
+
+    frames_stat["FDR"] = 1 - frames_stat["PPV"]
+
+    frames_stat["FOR"] = 1 - frames_stat["NPV"]
+
+    frames_stat["LR+"] = frames_stat["TPR"] / frames_stat["FPR"]
+
+    frames_stat["LR-"] = frames_stat["FNR"] / frames_stat["TNR"]
+
+    return frames_stat
