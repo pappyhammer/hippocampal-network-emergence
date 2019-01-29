@@ -124,14 +124,28 @@ class MovementEvent(MovieEvent):
 
 class StratificationCamembert:
 
-    def __init__(self, data_list, description, debug_mode=False):
+    def __init__(self, data_list, description,
+                                n_max_transformations, debug_mode=False):
         self.data_list = data_list
         self.n_movie_patch = len(data_list)
         self.description = description
         self.debug_mode = debug_mode
+        self.n_max_transformations = n_max_transformations
+
+        self.min_augmentation_for_fake_transient = 1
+        self.min_augmentation_for_cropped_fake_transient = 1
+        self.min_augmentation_for_transient = 2
+        self.min_augmentation_for_cropped_transient = 2
 
         self.n_transient_dict = dict()
         self.n_full_transient_total = 0
+        # perc of full fake with 1 transient
+        self.full_1_transient_perc = 0
+        # perc of full fake with 2 transients or more
+        self.full_2p_transient_perc = 0
+        # count
+        self.n_full_1_transient = 0
+        self.n_full_2p_transient = 0
         # % among all transients
         self.full_transient_perc = 0
         self.cropped_transient_perc = 0
@@ -154,7 +168,25 @@ class StratificationCamembert:
         self.fake_transient_perc = 0
         # % among all fake transients
         self.full_fake_transient_perc = 0
+        # perc of full fake with 1 transient
+        self.full_1_fake_transient_perc = 0
+        # perc of full fake with 2 transients or more
+        self.full_2p_fake_transient_perc = 0
+        # count
+        self.n_full_1_fake_transient = 0
+        self.n_full_2p_fake_transient = 0
         self.cropped_fake_transient_perc = 0
+
+        # MoviePatchData list
+        self.transient_movies = []
+        self.full_1_transient = []
+        self.full_2p_transient = []
+        self.cropped_transient_movies = []
+        self.fake_transient_movies = []
+        self.full_1_fake_transient = []
+        self.full_2p_fake_transient = []
+        self.cropped_fake_transient_movies = []
+        self.neuropil_movies = []
 
         self.n_only_neuropil = 0
         self.only_neuropil_perc = 0
@@ -175,6 +207,18 @@ class StratificationCamembert:
         for movie_data in self.data_list:
             self.n_movie_patch += 1 + movie_data.n_augmentations_to_perform
         self.n_transient_dict = dict()
+
+        # MoviePatchData list
+        self.transient_movies = []
+        self.full_1_transient = []
+        self.full_2p_transient = []
+        self.cropped_transient_movies = []
+        self.fake_transient_movies = []
+        self.full_1_fake_transient = []
+        self.full_2p_fake_transient = []
+        self.cropped_fake_transient_movies = []
+        self.neuropil_movies = []
+
         self.n_cropped_transient_dict = dict()
         self.transient_lengths = []
         self.transient_amplitudes = []
@@ -205,22 +249,34 @@ class StratificationCamembert:
                 with_real_transient = True
                 only_neuropil = False
                 n_transient = movie_info["n_transient"]
+                if n_transient == 1:
+                    self.full_1_transient.append(movie_data)
+                else:
+                    self.full_2p_transient.append(movie_data)
+                self.transient_movies.append(movie_data)
                 self.n_transient_dict[n_transient] = self.n_transient_dict.get(n_transient, 0) + n_movies
             if ("n_cropped_transient" in movie_info) and (not with_real_transient):
                 only_neuropil = False
                 with_cropped_real_transient = True
+                self.cropped_transient_movies.append(movie_data)
                 n_cropped_transient = movie_info["n_cropped_transient"]
                 self.n_cropped_transient_dict[n_cropped_transient] = \
                     self.n_cropped_transient_dict.get(n_cropped_transient, 0) + n_movies
             if ("n_fake_transient" in movie_info) and (not with_real_transient) and (not with_cropped_real_transient):
                 only_neuropil = False
                 with_fake_transient = True
+                self.fake_transient_movies.append(movie_data)
                 n_fake_transient = movie_info["n_fake_transient"]
+                if n_fake_transient == 1:
+                    self.full_1_fake_transient.append(movie_data)
+                else:
+                    self.full_2p_fake_transient.append(movie_data)
                 self.n_fake_transient_dict[n_fake_transient] = \
                     self.n_fake_transient_dict.get(n_fake_transient, 0) + n_movies
-            if ("n_cropped_fake_transient" in movie_info) and (not with_real_transient) and (not with_fake_transient)  \
+            if ("n_cropped_fake_transient" in movie_info) and (not with_real_transient) and (not with_fake_transient) \
                     and (not with_cropped_real_transient):
                 only_neuropil = False
+                self.cropped_fake_transient_movies.append(movie_data)
                 n_cropped_fake_transient = movie_info["n_cropped_fake_transient"]
                 self.n_cropped_fake_transient_dict[n_cropped_fake_transient] = \
                     self.n_cropped_fake_transient_dict.get(n_cropped_fake_transient, 0) + n_movies
@@ -258,8 +314,20 @@ class StratificationCamembert:
         if self.debug_mode:
             print(f"n_transient_dict {self.n_transient_dict}")
         self.n_full_transient_total = 0
+        self.n_full_1_transient = 0
+        self.n_full_2p_transient = 0
         for rep, count in self.n_transient_dict.items():
             self.n_full_transient_total += count
+            if rep == 1:
+                self.n_full_1_transient += count
+            else:
+                self.n_full_2p_transient += count
+        if self.n_full_transient_total > 0:
+            self.full_1_transient_perc = (self.n_full_1_transient / self.n_full_transient_total) * 100
+            self.full_2p_transient_perc = (self.n_full_2p_transient / self.n_full_transient_total) * 100
+            if self.debug_mode:
+                print(f"%%%%% 1 full real transient perc: {str(np.round(self.full_1_transient_perc, 2))} %")
+                print(f"%%%%% 2+ full real transient perc: {str(np.round(self.full_2p_transient_perc, 2))} %")
         if self.debug_mode:
             print(f"n_cropped_transient_dict {self.n_cropped_transient_dict}")
         self.n_cropped_transient_total = 0
@@ -273,8 +341,8 @@ class StratificationCamembert:
                   f"{str(np.round(self.total_transient_perc, 2))} %")
 
         if self.n_transient_total > 0:
-            self.full_transient_perc = (self.n_full_transient_total/self.n_transient_total)*100
-            self.cropped_transient_perc = (self.n_cropped_transient_total/self.n_transient_total)*100
+            self.full_transient_perc = (self.n_full_transient_total / self.n_transient_total) * 100
+            self.cropped_transient_perc = (self.n_cropped_transient_total / self.n_transient_total) * 100
             if self.debug_mode:
                 print(f"%%%%% Full: {str(np.round(self.full_transient_perc, 2))} %")
                 print(f"%%%%% Cropped: {str(np.round(self.cropped_transient_perc, 2))} %")
@@ -282,8 +350,20 @@ class StratificationCamembert:
         if self.debug_mode:
             print(f"n_fake_transient_dict {self.n_fake_transient_dict}")
         self.n_full_fake_transient_total = 0
+        self.n_full_1_fake_transient = 0
+        self.n_full_2p_fake_transient = 0
         for rep, count in self.n_fake_transient_dict.items():
             self.n_full_fake_transient_total += count
+            if rep == 1:
+                self.n_full_1_fake_transient += count
+            else:
+                self.n_full_2p_fake_transient += count
+        if self.n_full_fake_transient_total > 0:
+            self.full_1_fake_transient_perc = (self.n_full_1_fake_transient / self.n_full_fake_transient_total) * 100
+            self.full_2p_fake_transient_perc = (self.n_full_2p_fake_transient / self.n_full_fake_transient_total) * 100
+            if self.debug_mode:
+                print(f"%%%%% 1 full fake transient perc: {str(np.round(self.full_1_fake_transient_perc, 2))} %")
+                print(f"%%%%% 2+ full fake transient perc: {str(np.round(self.full_2p_fake_transient_perc, 2))} %")
         if self.debug_mode:
             print(f"n_cropped_fake_transient_dict {self.n_cropped_fake_transient_dict}")
         self.n_cropped_fake_transient_total = 0
@@ -296,8 +376,8 @@ class StratificationCamembert:
                   f"{str(np.round(self.fake_transient_perc, 2))} %")
 
         if self.n_fake_transient_total > 0:
-            self.full_fake_transient_perc = (self.n_full_fake_transient_total/self.n_fake_transient_total)*100
-            self.cropped_fake_transient_perc = (self.n_cropped_fake_transient_total/self.n_fake_transient_total)*100
+            self.full_fake_transient_perc = (self.n_full_fake_transient_total / self.n_fake_transient_total) * 100
+            self.cropped_fake_transient_perc = (self.n_cropped_fake_transient_total / self.n_fake_transient_total) * 100
             if self.debug_mode:
                 print(f"%%%%% Full: {str(np.round(self.full_fake_transient_perc, 2))} %")
                 print(f"%%%%% Cropped: {str(np.round(self.cropped_fake_transient_perc, 2))} %")
@@ -325,10 +405,91 @@ class StratificationCamembert:
         for movie_patch_data in self.data_list:
             movie_patch_data.add_n_augmentation(n_augmentation)
 
+    def balance_fake_transients(self, crop_non_crop_ratio_balance, non_crop_ratio_balance):
+        if self.n_fake_transient_total == 0:
+            return
+        tolerance = 0.05
+        for movie_data in self.fake_transient_movies:
+            movie_data.add_n_augmentation(n_augmentation=self.min_augmentation_for_fake_transient)
+        for movie_data in self.cropped_fake_transient_movies:
+            movie_data.add_n_augmentation(n_augmentation=self.min_augmentation_for_cropped_fake_transient)
+
+        # updating stat
+        self.compute_slices()
+        ratio = non_crop_ratio_balance[0] / non_crop_ratio_balance[1]
+        if ((self.n_full_2p_fake_transient > 0) and (self.n_full_1_fake_transient > 0)) and \
+                (np.abs((self.n_full_1_fake_transient / self.n_full_2p_fake_transient) - ratio) > tolerance):
+            # we have a 5% tolerance
+            if (self.n_full_2p_fake_transient * ratio) > self.n_full_1_fake_transient:
+                # if means we need to augment self.n_full_1_fake_transient
+                # first we need to determine the difference
+                diff = (self.n_full_2p_fake_transient * ratio) - self.n_full_1_fake_transient
+                augmentation_added = 0
+                movie_index = 0
+                while augmentation_added < diff:
+                    self.full_1_fake_transient[movie_index].add_n_augmentation(n_augmentation=1)
+                    movie_index = (movie_index + 1) % len(self.full_1_fake_transient)
+                    augmentation_added += 1
+            else:
+                # if means we need to augment self.n_full_2p_fake_transient
+                # first we want to respect the non_crop_ratio_balance
+                diff = (self.n_full_1_fake_transient / ratio) - self.n_full_2p_fake_transient
+                augmentation_added = 0
+                movie_index = 0
+                while augmentation_added < diff:
+                    self.full_2p_fake_transient[movie_index].add_n_augmentation(n_augmentation=1)
+                    movie_index = (movie_index + 1) % len(self.full_2p_fake_transient)
+                    augmentation_added += 1
+
+        # updating stat
+        self.compute_slices()
+
+        if self.n_cropped_fake_transient_total == 0:
+            return
+
+        # now we want to balance cropped and non cropped
+        ratio = crop_non_crop_ratio_balance[0] / crop_non_crop_ratio_balance[1]
+        if np.abs((self.n_full_fake_transient_total / self.n_cropped_fake_transient_total) - ratio) > tolerance:
+            if (self.n_cropped_fake_transient_total * ratio) > self.n_full_fake_transient_total:
+                # if means we need to augment self.n_full_fake_transient_total
+                # first we need to determine the difference
+                diff = (self.n_cropped_fake_transient_total * ratio) - self.n_full_fake_transient_total
+                # we want to add the same numbers such that we keep the ratio among the full_fake_transients
+                n_movie_patch_options = [self.n_full_fake_transient_total * x for x in
+                                         np.arange(1, (self.n_max_transformations -
+                                                       self.min_augmentation_for_fake_transient) + 2)]
+                n_movie_patch_options = np.array(n_movie_patch_options)
+                # print(f"++++++ n_movie_patch_options {n_movie_patch_options}")
+                # print(f"self.n_full_fake_transient_total {self.n_full_fake_transient_total}, "
+                #       f"self.n_cropped_fake_transient_total  {self.n_cropped_fake_transient_total }")
+                # print(f"obj: {self.n_full_fake_transient_total + diff}")
+                idx = (np.abs(n_movie_patch_options - self.n_full_fake_transient_total + diff)).argmin()
+                if idx > 0:
+                    for movie_patch_data in self.full_1_fake_transient:
+                        movie_patch_data.add_n_augmentation(n_augmentation=idx)
+                    for movie_patch_data in self.full_2p_fake_transient:
+                        movie_patch_data.add_n_augmentation(n_augmentation=idx)
+            else:
+                # if means we need to augment self.n_full_2p_fake_transient
+                # first we want to respect the non_crop_ratio_balance
+                diff = (self.n_full_fake_transient_total / ratio) - self.n_cropped_fake_transient_total
+                augmentation_added = 0
+                movie_index = 0
+                print(f"++++++ diff {diff}")
+                print(f"self.n_full_fake_transient_total {self.n_full_fake_transient_total}, "
+                      f"self.n_cropped_fake_transient_total  {self.n_cropped_fake_transient_total }")
+                # print(f"obj: {self.n_full_fake_transient_total + diff}")
+                while augmentation_added < diff:
+                    self.cropped_fake_transient_movies[movie_index].add_n_augmentation(n_augmentation=1)
+                    movie_index = (movie_index + 1) % len(self.cropped_fake_transient_movies)
+                    augmentation_added += 1
+        self.compute_slices()
 
 class StratificationDataProcessor:
 
-    def __init__(self, data_list, n_max_transformations, debug_mode=False):
+    def __init__(self, data_list, n_max_transformations, main_ratio_balance=(0.6, 0.25, 0.15),
+                 crop_non_crop_ratio_balance=(0.9, 0.1), non_crop_ratio_balance=(0.6, 0.4),
+                 debug_mode=False):
         self.data_list = data_list
         self.n_transformations_for_session = n_max_transformations // 3
         self.n_max_transformations = n_max_transformations - self.n_transformations_for_session
@@ -346,16 +507,24 @@ class StratificationDataProcessor:
         # just to have the stat
         StratificationCamembert(data_list=data_list,
                                 description="ALL DATA",
+                                n_max_transformations=self.n_max_transformations,
                                 debug_mode=debug_mode)
 
         self.camembert_by_session = dict()
         for session, session_movie_data in self.movie_patches_data_by_session.items():
             self.camembert_by_session[session] = StratificationCamembert(data_list=session_movie_data,
                                                                          description=session,
+                                                                         n_max_transformations=self.n_max_transformations,
                                                                          debug_mode=debug_mode)
-        # First we want to balance each session
+        # #### First we want to balance each session in itself
+        # a first step, would be to first balance the fake transients
+        # then see how many transformations are needed to be added to real transients to get the right proportion
+        # then look at neuropil and from neuropil decide if we want to delete some or do data augmentation in some of
+        # them
+        for camembert in self.camembert_by_session.values():
+            camembert.balance_fake_transients(crop_non_crop_ratio_balance, non_crop_ratio_balance)
 
-        # then balance session between themselves
+        # ####  then balance session between themselves
         # taking the sessions with the most movies and using it as exemples
         max_movie_patch = 0
         for camembert in self.camembert_by_session.values():
@@ -379,10 +548,12 @@ class StratificationDataProcessor:
         print(f"////////// AFTER balancing sessions //////////////")
         StratificationCamembert(data_list=data_list,
                                 description="ALL DATA",
+                                n_max_transformations=self.n_max_transformations,
                                 debug_mode=debug_mode)
 
     def do_stratification(self):
         pass
+
 
 class MoviePatchData:
 
@@ -508,7 +679,7 @@ class MoviePatchData:
         return movie_copy
 
     def add_n_augmentation(self, n_augmentation):
-        self.n_augmentations_to_perform = min(self.n_augmentations_to_perform+n_augmentation,
+        self.n_augmentations_to_perform = min(self.n_augmentations_to_perform + n_augmentation,
                                               self.n_available_augmentation_fct)
 
     def pick_a_transformation_fct(self):
@@ -532,6 +703,7 @@ class MoviePatchData:
             return False
 
         return True
+
 
 ############################################################################################
 ############################################################################################
@@ -1186,7 +1358,6 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                                                 debug_mode=True)
     strat_process.do_stratification()
 
-
     return train_data, valid_data, test_data, test_movie_descr, cell_to_load_by_ms
 
 
@@ -1826,7 +1997,6 @@ def train_model():
         file.write(f"val_sensitivity: {history_dict['val_sensitivity']}" + '\n')
         file.write(f"train_specificity: {history_dict['specificity']}" + '\n')
         file.write(f"val_specificity: {history_dict['val_specificity']}" + '\n')
-
 
         # cells used
         for ms_str, cells in cell_to_load_by_ms.items():
