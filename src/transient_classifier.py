@@ -122,7 +122,269 @@ class MovementEvent(MovieEvent):
         self.length_event = self.last_frame_event - self.first_frame_event + 1
 
 
-class MovieData:
+class StratificationCamembert:
+
+    def __init__(self, data_list, description, debug_mode=False):
+        self.data_list = data_list
+        self.n_movie_patch = len(data_list)
+        self.description = description
+        self.debug_mode = debug_mode
+
+        self.n_transient_dict = dict()
+        self.n_full_transient_total = 0
+        # % among all transients
+        self.full_transient_perc = 0
+        self.cropped_transient_perc = 0
+
+        self.n_cropped_transient_dict = dict()
+        self.n_cropped_transient_total = 0
+        self.n_transient_total = 0
+        self.total_transient_perc = 0
+        self.transient_lengths = []
+        self.transient_amplitudes = []
+
+        self.n_fake_transient_dict = dict()
+        self.n_cropped_fake_transient_dict = dict()
+        self.fake_transient_lengths = []
+        self.fake_transient_amplitudes = []
+        self.n_fake_transient_total = 0
+        self.n_cropped_fake_transient_total = 0
+        self.n_full_fake_transient_total = 0
+        # perc among the whole camembert
+        self.fake_transient_perc = 0
+        # % among all fake transients
+        self.full_fake_transient_perc = 0
+        self.cropped_fake_transient_perc = 0
+
+        self.n_only_neuropil = 0
+        self.only_neuropil_perc = 0
+        self.n_real_and_fake_transient = 0
+        # disct with key ms.description and value the number of movies for this session
+        self.n_movies_by_session = {}
+        # key int representing age, and value the number of movie for this session
+        self.n_movies_by_age = {}
+
+        self.compute_slices()
+
+    def compute_slices(self):
+        """
+        Compute the slices of the camembert
+        :return:
+        """
+        self.n_movie_patch = 0
+        for movie_data in self.data_list:
+            self.n_movie_patch += 1 + movie_data.n_augmentations_to_perform
+        self.n_transient_dict = dict()
+        self.n_cropped_transient_dict = dict()
+        self.transient_lengths = []
+        self.transient_amplitudes = []
+        self.n_fake_transient_dict = dict()
+        self.n_cropped_fake_transient_dict = dict()
+        self.fake_transient_lengths = []
+        self.fake_transient_amplitudes = []
+        self.n_only_neuropil = 0
+        self.only_neuropil_perc = 0
+        self.n_real_and_fake_transient = 0
+        # disct with key ms.description and value the number of movies for this session
+        self.n_movies_by_session = {}
+        # key int representing age, and value the number of movie for this session
+        self.n_movies_by_age = {}
+
+        if self.debug_mode:
+            print(f"{'##'*10}")
+            print(f"{self.description}")
+            print(f"{'##'*10}")
+        for movie_data in self.data_list:
+            movie_info = movie_data.movie_info
+            only_neuropil = True
+            with_real_transient = False
+            with_cropped_real_transient = False
+            with_fake_transient = False
+            n_movies = 1 + movie_data.n_augmentations_to_perform
+            if "n_transient" in movie_info:
+                with_real_transient = True
+                only_neuropil = False
+                n_transient = movie_info["n_transient"]
+                self.n_transient_dict[n_transient] = self.n_transient_dict.get(n_transient, 0) + n_movies
+            if ("n_cropped_transient" in movie_info) and (not with_real_transient):
+                only_neuropil = False
+                with_cropped_real_transient = True
+                n_cropped_transient = movie_info["n_cropped_transient"]
+                self.n_cropped_transient_dict[n_cropped_transient] = \
+                    self.n_cropped_transient_dict.get(n_cropped_transient, 0) + n_movies
+            if ("n_fake_transient" in movie_info) and (not with_real_transient) and (not with_cropped_real_transient):
+                only_neuropil = False
+                with_fake_transient = True
+                n_fake_transient = movie_info["n_fake_transient"]
+                self.n_fake_transient_dict[n_fake_transient] = \
+                    self.n_fake_transient_dict.get(n_fake_transient, 0) + n_movies
+            if ("n_cropped_fake_transient" in movie_info) and (not with_real_transient) and (not with_fake_transient)  \
+                    and (not with_cropped_real_transient):
+                only_neuropil = False
+                n_cropped_fake_transient = movie_info["n_cropped_fake_transient"]
+                self.n_cropped_fake_transient_dict[n_cropped_fake_transient] = \
+                    self.n_cropped_fake_transient_dict.get(n_cropped_fake_transient, 0) + n_movies
+
+            if with_fake_transient and with_real_transient:
+                self.n_real_and_fake_transient += n_movies
+
+            if only_neuropil:
+                self.n_only_neuropil += n_movies
+
+            if "transients_amplitudes" in movie_info:
+                self.transient_amplitudes.extend(movie_info["transients_amplitudes"])
+            if "transients_lengths" in movie_info:
+                self.transient_lengths.extend(movie_info["transients_lengths"])
+
+            if ("fake_transients_amplitudes" in movie_info) and (not with_real_transient):
+                self.fake_transient_amplitudes.extend(movie_info["fake_transients_amplitudes"])
+            if ("fake_transients_lengths" in movie_info) and (not with_real_transient):
+                self.fake_transient_lengths.extend(movie_info["fake_transients_lengths"])
+
+            self.n_movies_by_session[movie_data.ms.description] = \
+                self.n_movies_by_session.get(movie_data.ms.description, 0) + n_movies
+            self.n_movies_by_age[movie_data.ms.age] = self.n_movies_by_age.get(movie_data.ms.age, 0) + n_movies
+
+        self.only_neuropil_perc = (self.n_only_neuropil / self.n_movie_patch) * 100
+
+        if self.debug_mode:
+            print(f"{'#' * 10}")
+            print(f"{'#' * 10}")
+            print(f"{'#' * 10}")
+            print(f"len train data {self.n_movie_patch}")
+            print(f"%%%%% n_only_neuropil {self.n_only_neuropil}: {str(np.round(self.only_neuropil_perc, 2))} %")
+            print(f"n_real_and_fake_transient {self.n_real_and_fake_transient}")
+
+        if self.debug_mode:
+            print(f"n_transient_dict {self.n_transient_dict}")
+        self.n_full_transient_total = 0
+        for rep, count in self.n_transient_dict.items():
+            self.n_full_transient_total += count
+        if self.debug_mode:
+            print(f"n_cropped_transient_dict {self.n_cropped_transient_dict}")
+        self.n_cropped_transient_total = 0
+        for rep, count in self.n_cropped_transient_dict.items():
+            self.n_cropped_transient_total += count
+
+        self.n_transient_total = self.n_cropped_transient_total + self.n_full_transient_total
+        self.total_transient_perc = (self.n_transient_total / self.n_movie_patch) * 100
+        if self.debug_mode:
+            print(f"%%%%% Total movie with real transients {self.n_transient_total}: "
+                  f"{str(np.round(self.total_transient_perc, 2))} %")
+
+        if self.n_transient_total > 0:
+            self.full_transient_perc = (self.n_full_transient_total/self.n_transient_total)*100
+            self.cropped_transient_perc = (self.n_cropped_transient_total/self.n_transient_total)*100
+            if self.debug_mode:
+                print(f"%%%%% Full: {str(np.round(self.full_transient_perc, 2))} %")
+                print(f"%%%%% Cropped: {str(np.round(self.cropped_transient_perc, 2))} %")
+
+        if self.debug_mode:
+            print(f"n_fake_transient_dict {self.n_fake_transient_dict}")
+        self.n_full_fake_transient_total = 0
+        for rep, count in self.n_fake_transient_dict.items():
+            self.n_full_fake_transient_total += count
+        if self.debug_mode:
+            print(f"n_cropped_fake_transient_dict {self.n_cropped_fake_transient_dict}")
+        self.n_cropped_fake_transient_total = 0
+        for rep, count in self.n_cropped_fake_transient_dict.items():
+            self.n_cropped_fake_transient_total += count
+        self.n_fake_transient_total = self.n_cropped_fake_transient_total + self.n_full_fake_transient_total
+        self.fake_transient_perc = (self.n_fake_transient_total / self.n_movie_patch) * 100
+        if self.debug_mode:
+            print(f"%%%%% Total movie with fake transients {self.n_fake_transient_total}: "
+                  f"{str(np.round(self.fake_transient_perc, 2))} %")
+
+        if self.n_fake_transient_total > 0:
+            self.full_fake_transient_perc = (self.n_full_fake_transient_total/self.n_fake_transient_total)*100
+            self.cropped_fake_transient_perc = (self.n_cropped_fake_transient_total/self.n_fake_transient_total)*100
+            if self.debug_mode:
+                print(f"%%%%% Full: {str(np.round(self.full_fake_transient_perc, 2))} %")
+                print(f"%%%%% Cropped: {str(np.round(self.cropped_fake_transient_perc, 2))} %")
+
+        print(f"transient_lengths n {len(self.transient_lengths)} / min-max {np.min(self.transient_lengths)} - "
+              f"{np.max(self.transient_lengths)}")
+        print(f"mean transient_amplitudes {np.mean(self.transient_amplitudes)}")
+        print(f"fake_transient_lengths  n {len(self.fake_transient_lengths)} /  "
+              f"min-max {np.min(self.fake_transient_lengths)} - "
+              f"{np.max(self.fake_transient_lengths)} ")
+        print(f"mean fake_transient_amplitudes {np.mean(self.fake_transient_amplitudes)}")
+        print(f"n_movies_by_session {self.n_movies_by_session}")
+        for session, count in self.n_movies_by_session.items():
+            print(f"%%%%% {session}: {str(np.round((count/self.n_movie_patch)*100, 2))} %")
+        print(f"n_movies_by_age {self.n_movies_by_age}")
+        for age, count in self.n_movies_by_age.items():
+            print(f"%%%%% p{age}: {str(np.round((count/self.n_movie_patch)*100, 2))} %")
+
+    def add_augmentation_to_all_patches(self, n_augmentation):
+        """
+        Add to all movie patches in the camember a given number of augmentation
+        :param n_augmentation:
+        :return:
+        """
+        for movie_patch_data in self.data_list:
+            movie_patch_data.add_n_augmentation(n_augmentation)
+
+
+class StratificationDataProcessor:
+
+    def __init__(self, data_list, n_max_transformations, debug_mode=False):
+        self.data_list = data_list
+        self.n_transformations_for_session = n_max_transformations // 3
+        self.n_max_transformations = n_max_transformations - self.n_transformations_for_session
+
+        # for each session, we make a camembert of the movie_patches of this session
+        # and balance the patches in the session
+        # then we will balance the session among themselves by adding the number of augmentation
+        # for all the patches of a given session, thus keeping the balance in the data
+        self.movie_patches_data_by_session = dict()
+        for movie_data in data_list:
+            if movie_data.ms.description not in self.movie_patches_data_by_session:
+                self.movie_patches_data_by_session[movie_data.ms.description] = []
+            self.movie_patches_data_by_session[movie_data.ms.description].append(movie_data)
+
+        # just to have the stat
+        StratificationCamembert(data_list=data_list,
+                                description="ALL DATA",
+                                debug_mode=debug_mode)
+
+        self.camembert_by_session = dict()
+        for session, session_movie_data in self.movie_patches_data_by_session.items():
+            self.camembert_by_session[session] = StratificationCamembert(data_list=session_movie_data,
+                                                                         description=session,
+                                                                         debug_mode=debug_mode)
+        # First we want to balance each session
+
+        # then balance session between themselves
+        # taking the sessions with the most movies and using it as exemples
+        max_movie_patch = 0
+        for camembert in self.camembert_by_session.values():
+            max_movie_patch = max(max_movie_patch, camembert.n_movie_patch)
+
+        for camembert in self.camembert_by_session.values():
+            if camembert.n_movie_patch == max_movie_patch:
+                continue
+            # we need to find the multiplicator between 1 and (self.n_transformations_for_session +1)
+            # that would give the closest count from the max
+            n_movie_patch = camembert.n_movie_patch
+            # list of potential movie patches in this session depending on the augmentation factor
+            # from 1 (no transformation added) to (self.n_transformations_for_session + 1)
+            n_movie_patch_options = [n_movie_patch * x for x in np.arange(1, (self.n_transformations_for_session + 2))]
+            n_movie_patch_options = np.array(n_movie_patch_options)
+            idx = (np.abs(n_movie_patch_options - max_movie_patch)).argmin()
+            if idx > 0:
+                camembert.add_augmentation_to_all_patches(n_augmentation=idx)
+
+        # just to have the stat
+        print(f"////////// AFTER balancing sessions //////////////")
+        StratificationCamembert(data_list=data_list,
+                                description="ALL DATA",
+                                debug_mode=debug_mode)
+
+    def do_stratification(self):
+        pass
+
+class MoviePatchData:
 
     def __init__(self, ms, cell, index_movie,
                  encoded_frames, decoding_frame_dict,
@@ -239,11 +501,15 @@ class MovieData:
                 self.movie_info["inter_neuron"] = True
 
     def copy(self):
-        movie_copy = MovieData(ms=self.ms, cell=self.cell, index_movie=self.index_movie,
-                               encoded_frames=self.encoded_frames, decoding_frame_dict=self.decoding_frame_dict,
-                               window_len=self.window_len)
+        movie_copy = MoviePatchData(ms=self.ms, cell=self.cell, index_movie=self.index_movie,
+                                    encoded_frames=self.encoded_frames, decoding_frame_dict=self.decoding_frame_dict,
+                                    window_len=self.window_len)
         movie_copy.data_augmentation_fct = self.data_augmentation_fct
         return movie_copy
+
+    def add_n_augmentation(self, n_augmentation):
+        self.n_augmentations_to_perform = min(self.n_augmentations_to_perform+n_augmentation,
+                                              self.n_available_augmentation_fct)
 
     def pick_a_transformation_fct(self):
         return self.data_augmentation_fct_set.pop()
@@ -381,7 +647,7 @@ class DataGenerator(keras.utils.Sequence):
                  is_shuffle=True, max_width=30, max_height=30):
         """
 
-        :param data_list: a list containing the information to get the data. Each element is an instance of MovieData
+        :param data_list: a list containing the information to get the data. Each element is an instance of MoviePatchData
         :param batch_size:
         :param window_len:
         :param with_augmentation:
@@ -819,8 +1085,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     print("load_data_for_generator")
     use_small_sample = True
     if use_small_sample:
-        ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0])}  # np.arange(1)
+        ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms"]
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0]), "p7_171012_a000_ms": np.arange(10)}  # np.arange(1)
     else:
         ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
         cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(20),
@@ -880,11 +1146,11 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                     # in case the number of frames is not divisible by sliding_window_len
                     first_frame = n_frames - sliding_window_len
                     break_it = True
-                movie_data = MovieData(ms=ms, cell=cell, index_movie=first_frame, window_len=sliding_window_len,
-                                       with_info=True, encoded_frames=encoded_frames,
-                                       decoding_frame_dict=decoding_frame_dict)
-                # TODO: use the movie_info in movie_data object to segregate the data, to collect information about
-                # TODO: about how to segregate the data (how many movie with transients etc...)
+                movie_data = MoviePatchData(ms=ms, cell=cell, index_movie=first_frame, window_len=sliding_window_len,
+                                            with_info=True, encoded_frames=encoded_frames,
+                                            decoding_frame_dict=decoding_frame_dict)
+                # TODO: use the movie_info in movie_data object to stratificate the data, to collect information about
+                # TODO: about how to stratificate the data (how many movie with transients etc...)
                 full_data.append(movie_data)
                 movies_descr.append(f"{ms.description}_cell_{cell}_first_frame_{first_frame}")
                 movie_count += 1
@@ -915,86 +1181,11 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     for movie in movies_shuffling[n_movies_for_training + n_movies_for_validation:]:
         test_movie_descr.append(movies_descr[movie])
 
-    # stratification on training data
-    # count corresponding to movies
-    # dict, key is the number of transient by movie, value is the number of movie with this number of transient
-    n_transient_dict = dict()
-    n_cropped_transient_dict = dict()
-    transient_lengths = []
-    transient_amplitudes = []
-    n_fake_transient_dict = dict()
-    n_cropped_fake_transient_dict = dict()
-    fake_transient_lengths = []
-    fake_transient_amplitudes = []
-    n_only_neuropil = 0
-    n_real_and_fake_transient = 0
-    # disct with key ms.description and value the number of movies for this session
-    n_movies_by_session = {}
-    # key int representing age, and value the number of movie for this session
-    n_movies_by_age = {}
+    n_max_transformations = train_data[0].n_available_augmentation_fct
+    strat_process = StratificationDataProcessor(data_list=train_data, n_max_transformations=n_max_transformations,
+                                                debug_mode=True)
+    strat_process.do_stratification()
 
-    for movie_data in train_data:
-        movie_info = movie_data.movie_info
-        only_neuropil = True
-        with_real_transient = False
-        if "n_transient" in movie_info:
-            with_real_transient = True
-            only_neuropil = False
-            n_transient = movie_info["n_transient"]
-            n_transient_dict[n_transient] = n_transient_dict.get(n_transient, 0) + 1
-        if ("n_cropped_transient" in movie_info) and (not with_real_transient):
-            only_neuropil = False
-            n_cropped_transient = movie_info["n_cropped_transient"]
-            n_cropped_transient_dict[n_cropped_transient] = n_cropped_transient_dict.get(n_cropped_transient, 0) + 1
-        if ("n_fake_transient" in movie_info) and (not with_real_transient):
-            only_neuropil = False
-            n_fake_transient = movie_info["n_fake_transient"]
-            n_fake_transient_dict[n_fake_transient] = n_fake_transient_dict.get(n_fake_transient, 0) + 1
-        if ("n_cropped_fake_transient" in movie_info) and (not with_real_transient):
-            only_neuropil = False
-            n_cropped_fake_transient = movie_info["n_cropped_fake_transient"]
-            n_cropped_fake_transient_dict[n_cropped_fake_transient] = \
-                n_cropped_fake_transient_dict.get(n_cropped_fake_transient, 0) + 1
-
-        if ("n_fake_transient" in movie_info) and with_real_transient:
-            n_real_and_fake_transient += 1
-
-        if only_neuropil:
-            n_only_neuropil += 1
-
-        if "transients_amplitudes" in movie_info:
-            transient_amplitudes.extend(movie_info["transients_amplitudes"])
-        if "transients_lengths" in movie_info:
-            transient_lengths.extend(movie_info["transients_lengths"])
-
-        if ("fake_transients_amplitudes" in movie_info) and (not with_real_transient):
-            fake_transient_amplitudes.extend(movie_info["fake_transients_amplitudes"])
-        if ("fake_transients_lengths" in movie_info) and (not with_real_transient):
-            fake_transient_lengths.extend(movie_info["fake_transients_lengths"])
-
-        n_movies_by_session[movie_data.ms.description] = n_movies_by_session.get(movie_data.ms.description, 0) + 1
-        n_movies_by_age[movie_data.ms.age] = n_movies_by_age.get(movie_data.ms.age, 0) + 1
-
-    print(f"len train data {len(train_data)}")
-    print(f"n_only_neuropil {n_only_neuropil}")
-    print(f"n_real_and_fake_transient {n_real_and_fake_transient}")
-
-    print(f"n_transient_dict {n_transient_dict}")
-    print(f"n_cropped_transient_dict {n_cropped_transient_dict}")
-    print(f"n_fake_transient_dict {n_fake_transient_dict}")
-    print(f"n_cropped_fake_transient_dict {n_cropped_fake_transient_dict}")
-    print(f"transient_lengths n {len(transient_lengths)} / min-max {np.min(transient_lengths)} - "
-          f"{np.max(transient_lengths)}")
-    print(f"mean transient_amplitudes {np.mean(transient_amplitudes)}")
-    print(f"fake_transient_lengths  n {len(fake_transient_lengths)} /  min-max {np.min(fake_transient_lengths)} - "
-          f"{np.max(fake_transient_lengths)} ")
-    print(f"mean fake_transient_amplitudes {np.mean(fake_transient_amplitudes)}")
-    print(f"n_movies_by_session {n_movies_by_session}")
-    print(f"n_movies_by_age {n_movies_by_age}")
-
-    # TODO: Make a for loop in the movie_data to give for each the number of transformation to perform
-    # TODO: such that the data is balance
-    # TODO: Add a weight in addition if too many transformation
 
     return train_data, valid_data, test_data, test_movie_descr, cell_to_load_by_ms
 
@@ -1469,6 +1660,7 @@ def train_model():
     lstm_layers_size = [128, 256]
     with_early_stopping = True
     model_descr = ""
+    with_shuffling = True
 
     params_generator = {
         'batch_size': batch_size,
@@ -1486,7 +1678,7 @@ def train_model():
                                                                    sliding_window_len=window_len,
                                                                    overlap_value=overlap_value,
                                                                    movies_shuffling=None,
-                                                                   with_shuffling=False)
+                                                                   with_shuffling=with_shuffling)
 
     stop_time = time.time()
     print(f"Time for loading data for generator: "
@@ -1611,6 +1803,7 @@ def train_model():
         file.write(f"n epochs: {n_epochs}" + '\n')
         file.write(f"with_augmentation_for_training_data {with_augmentation_for_training_data}" + '\n')
         file.write(f"batch_size: {batch_size}" + '\n')
+        file.write(f"with_shuffling: {with_shuffling}" + '\n')
         file.write(f"with_learning_rate_reduction: {with_learning_rate_reduction}" + '\n')
         file.write(f"without_bidirectional: {without_bidirectional}" + '\n')
         file.write(f"use_mulimodal_inputs: {use_mulimodal_inputs}" + '\n')
@@ -1633,6 +1826,7 @@ def train_model():
         file.write(f"val_sensitivity: {history_dict['val_sensitivity']}" + '\n')
         file.write(f"train_specificity: {history_dict['specificity']}" + '\n')
         file.write(f"val_specificity: {history_dict['val_specificity']}" + '\n')
+
 
         # cells used
         for ms_str, cells in cell_to_load_by_ms.items():
