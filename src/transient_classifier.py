@@ -426,12 +426,60 @@ class StratificationCamembert:
 
     def add_augmentation_to_all_patches(self, n_augmentation):
         """
-        Add to all movie patches in the camember a given number of augmentation
+        Add to all movie patches in the camember a given number of augmentation, except neuropil
         :param n_augmentation:
         :return:
         """
         for movie_patch_data in self.data_list:
-            movie_patch_data.add_n_augmentation(n_augmentation)
+            if "only_neuropil" not in movie_patch_data.movie_info:
+                movie_patch_data.add_n_augmentation(n_augmentation)
+
+    def set_weights(self):
+        # first we compute the thresholds
+        # print(f"len(self.transient_amplitudes['real']) {len(self.transient_amplitudes['real'])}")
+        real_amplitudes = np.unique(self.transient_amplitudes["real"])
+        # print(f"real_amplitudes {len(real_amplitudes)}")
+        fake_amplitudes = np.unique(self.transient_amplitudes["fake"])
+
+        real_lengths = np.unique(self.transient_lengths["real"])
+        fake_lengths = np.unique(self.transient_lengths["fake"])
+
+        real_amplitudes_threshold = np.percentile(real_amplitudes, 10)
+        fake_amplitudes_threshold = np.percentile(real_amplitudes, 90)
+        real_lengths_threshold = np.percentile(real_lengths, 90)
+        fake_lengths_threshold = np.percentile(fake_lengths, 90)
+
+        for movie_data in self.data_list:
+            movie_info = movie_data.movie_info
+            if "n_transient" in movie_info:
+                if "transients_lengths" in movie_info:
+                    lengths = np.array(movie_info["transients_lengths"])
+                    if len(np.where(lengths > real_lengths_threshold)[0]) > 0:
+                        # print(f"lengths {lengths}, real_lengths_threshold {real_lengths_threshold}")
+                        # means at least a transient length is superior to the 90th percentile
+                        movie_data.weight = 3
+                if "transients_amplitudes" in movie_info:
+                    amplitudes = np.array(movie_info["transients_amplitudes"])
+                    if len(np.where(amplitudes < real_amplitudes_threshold)[0]) > 0:
+                        # print(f"amplitudes {amplitudes}, real_amplitudes_threshold {real_amplitudes_threshold}")
+                        # means at least a transient amplitude is inferior to the 10th percentile
+                        movie_data.weight = 3
+                continue
+            if "n_cropped_transient" in movie_info:
+                continue
+            if "n_fake_transient" in movie_info:
+                if "fake_transients_lengths" in movie_info:
+                    lengths = np.array(movie_info["fake_transients_lengths"])
+                    if len(np.where(lengths > fake_lengths_threshold)[0]) > 0:
+                        # print(f"lengths {lengths}, real_lengths_threshold {fake_lengths_threshold}")
+                        # means at least a transient length is superior to the 90th percentile
+                        movie_data.weight = 3
+                if "fake_transients_amplitudes" in movie_info:
+                    amplitudes = np.array(movie_info["fake_transients_amplitudes"])
+                    if len(np.where(amplitudes < fake_amplitudes_threshold)[0]) > 0:
+                        # means at least a transient amplitude is superior to the 90th percentile
+                        movie_data.weight = 3
+                continue
 
     def balance_all(self, main_ratio_balance):
         # main_ratio_balance = (0.6, 0.25, 0.15)
@@ -553,7 +601,6 @@ class StratificationCamembert:
             print("")
         # updating the stat
         self.compute_slices()
-
 
     def balance_transients(self, which_ones, crop_non_crop_ratio_balance, non_crop_ratio_balance):
         if which_ones not in ["fake", "real"]:
@@ -761,7 +808,7 @@ class StratificationCamembert:
 
 class StratificationDataProcessor:
 
-    def __init__(self, data_list, n_max_transformations, main_ratio_balance=(0.7, 0.15, 0.15),
+    def __init__(self, data_list, n_max_transformations, main_ratio_balance=(0.6, 0.25, 0.15),
                  crop_non_crop_ratio_balance=(0.9, 0.1), non_crop_ratio_balance=(0.6, 0.4),
                  debug_mode=False):
         self.data_list = data_list
@@ -843,10 +890,12 @@ class StratificationDataProcessor:
         # just to have the stat
         if debug_mode:
             print(f"////////// AFTER balancing sessions //////////////")
-        StratificationCamembert(data_list=self.data_list,
+        balanced_camembert = StratificationCamembert(data_list=self.data_list,
                                 description="ALL DATA",
                                 n_max_transformations=self.n_max_transformations,
                                 debug_mode=True)
+        # setting the weight based on amplitudes and lenths of the transients
+        balanced_camembert.set_weights()
 
     def get_new_data_list(self):
         return self.data_list
