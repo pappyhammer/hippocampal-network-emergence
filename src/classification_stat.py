@@ -97,21 +97,26 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur):
 
     frames_stat["ACC"] = (tp_frames + tn_frames) / (tp_frames + tn_frames + fp_frames + fn_frames)
 
-    frames_stat["PPV"] = tp_frames / (tp_frames + fp_frames)
-
-    frames_stat["NPV"] = tn_frames / (tn_frames + fn_frames)
+    if (tp_frames + fp_frames) > 0:
+        frames_stat["PPV"] = tp_frames / (tp_frames + fp_frames)
+    if (tn_frames + fn_frames) > 0:
+        frames_stat["NPV"] = tn_frames / (tn_frames + fn_frames)
 
     frames_stat["FNR"] = 1 - frames_stat["TPR"]
 
     frames_stat["FPR"] = 1 - frames_stat["TNR"]
 
-    frames_stat["FDR"] = 1 - frames_stat["PPV"]
+    if "PPV" in frames_stat:
+        frames_stat["FDR"] = 1 - frames_stat["PPV"]
 
-    frames_stat["FOR"] = 1 - frames_stat["NPV"]
+    if "NPV" in frames_stat:
+        frames_stat["FOR"] = 1 - frames_stat["NPV"]
 
-    frames_stat["LR+"] = frames_stat["TPR"] / frames_stat["FPR"]
+    if frames_stat["FPR"] > 0:
+        frames_stat["LR+"] = frames_stat["TPR"] / frames_stat["FPR"]
 
-    frames_stat["LR-"] = frames_stat["FNR"] / frames_stat["TNR"]
+    if frames_stat["TNR"] > 0:
+        frames_stat["LR-"] = frames_stat["FNR"] / frames_stat["TNR"]
 
     # transients dict
     transients_stat["TP"] = tp_transients

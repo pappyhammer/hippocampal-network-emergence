@@ -1291,9 +1291,8 @@ class DataGenerator(keras.utils.Sequence):
         # sample_weights = np.ones(labels.shape)
         # sample_weights[labels == 1] = 5
         sample_weights = np.ones(labels.shape[0])
-        for i in np.arange(labels.shape[0]):
-            if np.sum(labels[i]) > 0:
-                sample_weights[i] = 3
+        for index_batch, movie_data in enumerate(data_list_tmp):
+            sample_weights[index_batch] = movie_data.weight
 
         return {'video_input': data, 'video_input_masked': data_masked}, labels, sample_weights
 
@@ -1604,7 +1603,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     use_small_sample = True
     if use_small_sample:
         ms_to_use = ["p7_171012_a000_ms"]
-        cell_to_load_by_ms = {"p7_171012_a000_ms": np.arange(20)}  # np.arange(1)
+        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([8])}  # np.arange(1)
     else:
         ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
         cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(20),
@@ -1902,11 +1901,13 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
     cells_to_load = np.arange(n_cells)
 
     cells_to_load = np.setdiff1d(cells_to_load, ms.cells_to_remove)
-    if ms.cell_cnn_predictions is not None:
-        print(f"Using cnn predictions from {ms.description}")
-        # not taking into consideration cells that are not predicted as true from the cell classifier
-        cells_predicted_as_false = np.where(ms.cell_cnn_predictions < 0.5)[0]
-        cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
+    using_cnn_predictions = False
+    if using_cnn_predictions:
+        if ms.cell_cnn_predictions is not None:
+            print(f"Using cnn predictions from {ms.description}")
+            # not taking into consideration cells that are not predicted as true from the cell classifier
+            cells_predicted_as_false = np.where(ms.cell_cnn_predictions < 0.5)[0]
+            cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
 
     total_n_cells = len(cells_to_load)
     if total_n_cells == 0:
@@ -2177,7 +2178,7 @@ def train_model():
     lstm_layers_size = [128, 256]
     with_early_stopping = True
     model_descr = ""
-    with_shuffling = False
+    with_shuffling = True
 
     params_generator = {
         'batch_size': batch_size,
@@ -2209,7 +2210,7 @@ def train_model():
     stop_time = time.time()
     print(f"Time to create generator: "
           f"{np.round(stop_time - start_time, 3)} s")
-    raise Exception("TOTOOO")
+    # raise Exception("TOTOOO")
 
     # (sliding_window_size, max_width, max_height, 1)
     # sliding_window in frames, max_width, max_height: in pixel (100, 25, 25, 1) * n_movie
@@ -2267,7 +2268,7 @@ def train_model():
         callbacks_list.append(learning_rate_reduction)
 
     if with_early_stopping:
-        callbacks_list.append(EarlyStopping(monitor="val_acc", min_delta=0, patience=4, mode="max",
+        callbacks_list.append(EarlyStopping(monitor="val_sensitivity", min_delta=0, patience=5, mode="max",
                                             restore_best_weights=True))
 
     with_model_check_point = True

@@ -3,6 +3,11 @@ import classification_stat as cs
 import hdf5storage
 from datetime import datetime
 import os
+import matplotlib.pyplot as plt
+
+from matplotlib.figure import SubplotParams
+import matplotlib.gridspec as gridspec
+from sortedcontainers import SortedDict
 
 
 class BenchmarkRasterDur:
@@ -15,7 +20,8 @@ class BenchmarkRasterDur:
         self.predicted_raster_dur_dict = predicted_raster_dur_dict
         # first key is the cell, value a dict with
         # same keys as raster_dur_dict, value will be a list of dict with results from benchmarks
-        self.results_dict_by_cell = dict()
+        self.results_frames_dict_by_cell = dict()
+        self.results_transients_dict_by_cell = dict()
         # same keys as raster_dur_dict, value will be a list of dict with results from benchmarks
         self.results_dict_global = dict()
 
@@ -50,10 +56,14 @@ class BenchmarkRasterDur:
         print(f"{self.description} stats on raster dur")
         for cell in self.cells:
             print(f"Cell {cell}")
+            self.results_frames_dict_by_cell[cell] = SortedDict()
+            self.results_transients_dict_by_cell[cell] = SortedDict()
             for key, raster_dur in self.predicted_raster_dur_dict.items():
                 gt_rd = self.ground_truth_raster_dur[cell]
                 p_rd = raster_dur[cell]
                 frames_stat, transients_stat = cs.compute_stats(gt_rd, p_rd)
+                self.results_frames_dict_by_cell[cell][key] = frames_stat
+                self.results_transients_dict_by_cell[cell][key] = transients_stat
                 # frames stats
                 print(f"raster {key}")
                 print(f"Frames stat:")
@@ -85,6 +95,170 @@ class BenchmarkRasterDur:
                 print(f"{k}: {str(np.round(value, 4))}")
             print("")
 
+    def plot_boxplots_for_frames_stat(self, path_results, description, time_str, save_formats="pdf"):
+        stats_to_show = ["sensitivity", "specificity", "PPV", "NPV"]
+        colors = ["cornflowerblue", "blue", "steelblue", "skyblue"]
+
+        stat_fig, axes = plt.subplots(nrows=2, ncols=2, squeeze=True,
+                                      gridspec_kw={'height_ratios': [0.5, 0.5],
+                                                   'width_ratios': [0.5, 0.5]},
+                                      figsize=(10, 10))
+
+        stat_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
+        axes = np.ndarray.flatten(axes)
+        fig_patch = stat_fig.patch
+        # rgba = c_map(0)
+        face_color = "black"
+        text_color = "white"
+        title_color = "red"
+        fig_patch.set_facecolor(face_color)
+
+        for stat_index, stat_name in enumerate(stats_to_show):
+            ax = axes[stat_index]
+            n_cells = len(self.results_frames_dict_by_cell)
+
+            ax.set_facecolor(face_color)
+            ax.xaxis.set_ticks_position('none')
+            ax.xaxis.label.set_color(text_color)
+            ax.tick_params(axis='x', colors=text_color)
+            ax.yaxis.label.set_color(text_color)
+            ax.tick_params(axis='y', colors=text_color)
+            # ax.set_xticklabels([])
+            # ax.set_yticklabels([])
+            # ax.get_yaxis().set_visible(False)
+            # ax.get_xaxis().set_visible(False)
+
+            ax.set_frame_on(False)
+            n_box_plots = None
+            labels = None
+            values_by_prediction = None
+            for cell_index, cell_to_display in enumerate(self.results_frames_dict_by_cell.keys()):
+                if n_box_plots is None:
+                    n_box_plots = len(self.results_frames_dict_by_cell[cell_to_display])
+                    labels = list(self.results_frames_dict_by_cell[cell_to_display].keys())
+                    values_by_prediction = [[] for n in np.arange(n_box_plots)]
+                for label_index, label in enumerate(labels):
+                    values_by_prediction[label_index].\
+                        append(self.results_frames_dict_by_cell[cell_to_display][label][stat_name])
+
+            colorfull = True
+
+            bplot = ax.boxplot(values_by_prediction, patch_artist=colorfull,
+                               labels=labels, sym='', zorder=1)  # whis=[5, 95], sym='+'
+
+            for element in ['boxes', 'whiskers', 'fliers', 'caps']:
+                plt.setp(bplot[element], color="white")
+
+            for element in ['means', 'medians']:
+                plt.setp(bplot[element], color="silver")
+
+            if colorfull:
+                colors = colors[:n_box_plots]
+                for patch, color in zip(bplot['boxes'], colors):
+                    patch.set_facecolor(color)
+
+            # ax.set_ylabel(f"proportion")
+            # ax.set_xlabel("age")
+            xticks = np.arange(1, n_box_plots + 1)
+            ax.set_xticks(xticks)
+            # sce clusters labels
+            ax.set_xticklabels(labels)
+
+            ax.set_title(stat_name, color=title_color, pad=20)
+
+
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+        for save_format in save_formats:
+            stat_fig.savefig(f'{path_results}/'
+                             f'{description}_box_plots_predictions_frames_on_{n_cells}_cells'
+                             f'_{time_str}.{save_format}',
+                             format=f"{save_format}",
+                             facecolor=stat_fig.get_facecolor(), edgecolor='none')
+
+    def plot_boxplots_for_transients_stat(self, path_results, description, time_str, save_formats="pdf"):
+        stats_to_show = ["sensitivity"]
+        colors = ["cornflowerblue", "blue", "steelblue", "skyblue"]
+
+        stat_fig, axes = plt.subplots(nrows=1, ncols=1, squeeze=True,
+                                      gridspec_kw={'height_ratios': [1],
+                                                   'width_ratios': [1]},
+                                      figsize=(8, 8))
+
+        stat_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
+        # axes = np.ndarray.flatten(axes)
+        fig_patch = stat_fig.patch
+        # rgba = c_map(0)
+        face_color = "black"
+        text_color = "white"
+        title_color = "red"
+        fig_patch.set_facecolor(face_color)
+
+        for stat_index, stat_name in enumerate(stats_to_show):
+            ax = axes
+            n_cells = len(self.results_transients_dict_by_cell)
+
+            # now adding as many suplots as need, depending on how many overlap has the cell
+
+            ax.set_facecolor(face_color)
+            ax.xaxis.set_ticks_position('none')
+            ax.xaxis.label.set_color(text_color)
+            ax.tick_params(axis='x', colors=text_color)
+            ax.yaxis.label.set_color(text_color)
+            ax.tick_params(axis='y', colors=text_color)
+            # ax.set_xticklabels([])
+            # ax.set_yticklabels([])
+            # ax.get_yaxis().set_visible(False)
+            # ax.get_xaxis().set_visible(False)
+
+            ax.set_frame_on(False)
+            n_box_plots = None
+            labels = None
+            values_by_prediction = None
+            for cell_index, cell_to_display in enumerate(self.results_transients_dict_by_cell.keys()):
+                if n_box_plots is None:
+                    n_box_plots = len(self.results_transients_dict_by_cell[cell_to_display])
+                    labels = list(self.results_transients_dict_by_cell[cell_to_display].keys())
+                    values_by_prediction = [[] for n in np.arange(n_box_plots)]
+                for label_index, label in enumerate(labels):
+                    values_by_prediction[label_index].\
+                        append(self.results_transients_dict_by_cell[cell_to_display][label][stat_name])
+
+            colorfull = True
+
+            bplot = ax.boxplot(values_by_prediction, patch_artist=colorfull,
+                               labels=labels, sym='', zorder=1)  # whis=[5, 95], sym='+'
+
+            for element in ['boxes', 'whiskers', 'fliers', 'caps']:
+                plt.setp(bplot[element], color="white")
+
+            for element in ['means', 'medians']:
+                plt.setp(bplot[element], color="silver")
+
+            if colorfull:
+                colors = colors[:n_box_plots]
+                for patch, color in zip(bplot['boxes'], colors):
+                    patch.set_facecolor(color)
+
+            # ax.set_ylabel(f"proportion")
+            # ax.set_xlabel("age")
+            xticks = np.arange(1, n_box_plots + 1)
+            ax.set_xticks(xticks)
+            # sce clusters labels
+            ax.set_xticklabels(labels)
+
+            ax.set_title(stat_name, color=title_color, pad=20)
+
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+        for save_format in save_formats:
+            stat_fig.savefig(f'{path_results}/'
+                             f'{description}_box_plots_predictions_transients_on_{n_cells}_cell'
+                             f'_{time_str}.{save_format}',
+                             format=f"{save_format}",
+                             facecolor=stat_fig.get_facecolor(), edgecolor='none')
+
+
 def build_spike_nums_dur(spike_nums, peak_nums):
     n_cells = len(spike_nums)
     n_frames = spike_nums.shape[1]
@@ -102,6 +276,7 @@ def build_spike_nums_dur(spike_nums, peak_nums):
 
             spike_nums_dur[cell, onset_index:peak_after + 1] = 1
     return spike_nums_dur
+
 
 def main_benchmark():
     root_path = None
@@ -133,6 +308,13 @@ def main_benchmark():
         data_dict["gt"]["gui_file"] = "p12_17_11_10_a000_GUI_JD.mat"
         data_dict["gt"]["cnn"] = "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt"
         data_dict["gt"]["cells"] = np.arange(7)
+
+        data_dict["rnn"] = dict()
+        data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_01_26.19-22-21.mat"
+        data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["rnn"]["predictions"] = "predictions"
+
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p12/p12_17_11_10_a000"
         data_dict["caiman_raw"]["file_name"] = "p12_17_11_10_a000_RasterDur.mat"
@@ -140,6 +322,7 @@ def main_benchmark():
         data_dict["caiman_raw"]["onsets_var_name"] = "spikenums"
         data_dict["caiman_raw"]["to_bin"] = True
         data_dict["caiman_raw"]["var_name"] = "rasterdur"
+
         data_dict["caiman_filt"] = dict()
         data_dict["caiman_filt"]["path"] = "p12/p12_17_11_10_a000"
         data_dict["caiman_filt"]["file_name"] = "p12_17_11_10_a000_filt_RasterDur_caiman.mat"
@@ -147,6 +330,7 @@ def main_benchmark():
         data_dict["caiman_filt"]["onsets_var_name"] = "Bin100ms_spikedigital"
         data_dict["caiman_filt"]["var_name"] = "rasterdur"
 
+    # ground truth
     data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gui_file"]))
     peak_nums = data_file['LocPeakMatrix_Python'].astype(int)
     spike_nums = data_file['Bin100ms_spikedigital_Python'].astype(int)
@@ -161,13 +345,13 @@ def main_benchmark():
             line_list = line.split()
             cells_list = [float(i) for i in line_list]
             cell_cnn_predictions.extend(cells_list)
-    cell_cnn_predictions = np.array(cell_cnn_predictions)
+    cells_predicted_as_false = np.array(cell_cnn_predictions).astype(int)
     cells_for_benchmark = data_dict["gt"]["cells"]
+    # adding cells not selected by cnn
     cells_for_benchmark = np.setdiff1d(cells_for_benchmark, cells_to_remove)
-
     # not taking into consideration cells that are not predicted as true from the cell classifier
-    cells_predicted_as_false = np.where(cell_cnn_predictions < 0.5)[0]
     cells_for_benchmark = np.setdiff1d(cells_for_benchmark, cells_predicted_as_false)
+
     predicted_raster_dur_dict = dict()
     predicted_spike_nums_dict = dict()
     # value is a dict
@@ -195,9 +379,14 @@ def main_benchmark():
             predicted_spike_nums_dict[key] = predicted_spike_nums
 
     benchmarks = BenchmarkRasterDur(description=ms_to_benchmark, ground_truth_raster_dur=ground_truth_raster_dur,
-                       predicted_raster_dur_dict=predicted_raster_dur_dict, cells=cells_for_benchmark)
+                                    predicted_raster_dur_dict=predicted_raster_dur_dict, cells=cells_for_benchmark)
 
     benchmarks.compute_stats()
+
+    benchmarks.plot_boxplots_for_frames_stat(description=ms_to_benchmark, time_str=time_str, path_results=path_results,
+                                             save_formats="pdf")
+    benchmarks.plot_boxplots_for_transients_stat(description=ms_to_benchmark, time_str=time_str, path_results=path_results,
+                                             save_formats="pdf")
 
     if do_onsets_benchmarks:
         print("")
@@ -207,8 +396,10 @@ def main_benchmark():
         print("")
 
         benchmarks_onsets = BenchmarkRasterDur(description=ms_to_benchmark, ground_truth_raster_dur=spike_nums,
-                                        predicted_raster_dur_dict=predicted_spike_nums_dict, cells=cells_for_benchmark)
+                                               predicted_raster_dur_dict=predicted_spike_nums_dict,
+                                               cells=cells_for_benchmark)
 
         benchmarks_onsets.compute_stats_on_onsets()
+
 
 main_benchmark()
