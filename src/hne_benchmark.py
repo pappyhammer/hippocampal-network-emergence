@@ -4,6 +4,9 @@ import hdf5storage
 from datetime import datetime
 import os
 import matplotlib.pyplot as plt
+import scipy.io as sio
+import scipy.signal as signal
+from pattern_discovery.tools.misc import get_continous_time_periods
 
 from matplotlib.figure import SubplotParams
 import matplotlib.gridspec as gridspec
@@ -278,6 +281,48 @@ def build_spike_nums_dur(spike_nums, peak_nums):
     return spike_nums_dur
 
 
+def build_p7_17_10_12_a000_raster_dur_caiman(path_data, path_results):
+    path_data += "p7/p7_17_10_12_a000/"
+    file_name_onsets = "Robin_30_01_19/p7_17_10_12_a000_filt_Bin100ms_spikedigital.mat"
+    file_name_trace = "p7_17_10_12_a000_Traces.mat"
+
+    data_traces = hdf5storage.loadmat(path_data + file_name_onsets)
+    spike_nums = data_traces["filt_Bin100ms_spikedigital"].astype(float)
+    # raster_dur with just 1 sec filter
+    data_raster_dur = hdf5storage.loadmat(path_data + "Robin_30_01_19/p7_17_10_12_a000_RasterDur.mat")
+    raster_dur_non_filt = data_raster_dur["rasterdur"].astype(int)
+
+    n_cells = len(spike_nums)
+    n_frames = spike_nums.shape[1]
+
+    # building peak_nums
+
+    peak_nums = np.zeros((n_cells, n_frames), dtype="int8")
+    for cell in np.arange(n_cells):
+        time_periods = get_continous_time_periods(raster_dur_non_filt[cell])
+        for time_period in time_periods:
+            peak_nums[cell, time_period[1]] = 1
+
+    spike_nums_dur = np.zeros((n_cells, n_frames), dtype="int8")
+    for cell in np.arange(n_cells):
+        peaks_index = np.where(peak_nums[cell, :])[0]
+        onsets_index = np.where(spike_nums[cell, :])[0]
+
+        for onset_index in onsets_index:
+            peaks_after = np.where(peaks_index > onset_index)[0]
+            if len(peaks_after) == 0:
+                continue
+            peaks_after = peaks_index[peaks_after]
+            peak_after = peaks_after[0]
+            if (peak_after - onset_index) > 200:
+                print(f"long transient in cell {cell} of "
+                      f"duration {peak_after - onset_index} frames at frame {onset_index}")
+
+            spike_nums_dur[cell, onset_index:peak_after + 1] = 1
+
+    path_results += "/"
+    sio.savemat(path_results + "p7_17_10_12_a000_caiman_raster_dur.mat", {'rasterdur': spike_nums_dur})
+
 def main_benchmark():
     root_path = None
     with open("param_hne.txt", "r", encoding='UTF-8') as file:
@@ -294,8 +339,14 @@ def main_benchmark():
     path_results = path_results_raw + f"{time_str}"
     os.mkdir(path_results)
 
+    build_p7 = False
+    if build_p7:
+        build_p7_17_10_12_a000_raster_dur_caiman(path_data=path_data, path_results=path_results)
+        return
+
     # ########### options ###################
-    ms_to_benchmark = "p12_17_11_10_a000"
+    # ms_to_benchmark = "p12_17_11_10_a000"
+    ms_to_benchmark = "p7_17_10_12_a000"
     do_onsets_benchmarks = False
     # ########### end options ###################
 
@@ -303,7 +354,6 @@ def main_benchmark():
     if ms_to_benchmark == "p12_17_11_10_a000":
         # gt as ground_truth
         data_dict["gt"] = dict()
-        # p12
         data_dict["gt"]["path"] = "p12/p12_17_11_10_a000"
         data_dict["gt"]["gui_file"] = "p12_17_11_10_a000_GUI_JD.mat"
         data_dict["gt"]["cnn"] = "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt"
@@ -329,6 +379,24 @@ def main_benchmark():
         data_dict["caiman_filt"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Bin100ms_spikedigital.mat"
         data_dict["caiman_filt"]["onsets_var_name"] = "Bin100ms_spikedigital"
         data_dict["caiman_filt"]["var_name"] = "rasterdur"
+    elif ms_to_benchmark == "p7_17_10_12_a000":
+        # gt as ground_truth
+        data_dict["gt"] = dict()
+        data_dict["gt"]["path"] = "p7/p7_17_10_12_a000"
+        data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_GUI_transients_RD.mat"
+        data_dict["gt"]["cnn"] = "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt"
+        data_dict["gt"]["cells"] = np.arange(117)
+
+        data_dict["caiman_raw"] = dict()
+        data_dict["caiman_raw"]["path"] = "p7/p7_17_10_12_a000"
+        data_dict["caiman_raw"]["file_name"] = "Robin_30_01_19/p7_17_10_12_a000_RasterDur.mat"
+        data_dict["caiman_raw"]["var_name"] = "rasterdur"
+
+        data_dict["caiman_filt"] = dict()
+        data_dict["caiman_filt"]["path"] = "p7/p7_17_10_12_a000"
+        data_dict["caiman_filt"]["file_name"] = "Robin_30_01_19/p7_17_10_12_a000_caiman_raster_dur.mat"
+        data_dict["caiman_filt"]["var_name"] = "rasterdur"
+
 
     # ground truth
     data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gui_file"]))
@@ -367,7 +435,7 @@ def main_benchmark():
             data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name_onsets"]))
             predicted_spike_nums = data_file[value['onsets_var_name']].astype(int)
             if "to_bin" in value:
-                # we need to bin predicted_spike_nums
+                # we need to bin predicted_spike_nums, because there are 50 000 frames
                 new_predicted_spike_nums = np.zeros((predicted_spike_nums.shape[0], predicted_spike_nums.shape[1] // 2),
                                                     dtype="int8")
                 for cell in np.arange(predicted_spike_nums.shape[0]):
