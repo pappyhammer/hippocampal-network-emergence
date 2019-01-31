@@ -155,12 +155,12 @@ class StratificationCamembert:
         self.cropped_transient_movies["real"] = []
 
         self.min_augmentation_for_transient = dict()
-        self.min_augmentation_for_transient["fake"] = 1
+        self.min_augmentation_for_transient["fake"] = 0
         self.min_augmentation_for_transient["real"] = 2
 
         self.min_augmentation_for_cropped_transient = dict()
-        self.min_augmentation_for_cropped_transient["fake"] = 1
-        self.min_augmentation_for_cropped_transient["real"] = 2
+        self.min_augmentation_for_cropped_transient["fake"] = 0
+        self.min_augmentation_for_cropped_transient["real"] = 0
 
         # count
         self.n_full_1_transient = dict()
@@ -501,7 +501,7 @@ class StratificationCamembert:
             print(f"$$$$$$$$$$$$$$$$$$$$$$ camembert.balance_all {main_ratio_balance} $$$$$$$$$$$$$$$$$$$$$$")
             print("")
 
-        tolerance = 0.05
+        tolerance = 0.5
 
         # dealing with the case of the ratio is 0
         if (main_ratio_balance[0] == 0) and first_round:
@@ -708,10 +708,12 @@ class StratificationCamembert:
             return
 
         tolerance = 0.5
-        for movie_data in self.transient_movies[which_ones]:
-            movie_data.add_n_augmentation(n_augmentation=self.min_augmentation_for_transient[which_ones])
-        for movie_data in self.cropped_transient_movies[which_ones]:
-            movie_data.add_n_augmentation(n_augmentation=self.min_augmentation_for_cropped_transient[which_ones])
+        if self.min_augmentation_for_transient[which_ones] > 0:
+            for movie_data in self.transient_movies[which_ones]:
+                movie_data.add_n_augmentation(n_augmentation=self.min_augmentation_for_transient[which_ones])
+        if self.min_augmentation_for_cropped_transient[which_ones] > 0:
+            for movie_data in self.cropped_transient_movies[which_ones]:
+                movie_data.add_n_augmentation(n_augmentation=self.min_augmentation_for_cropped_transient[which_ones])
 
         if self.debug_mode:
             print("")
@@ -1071,10 +1073,12 @@ class StratificationDataProcessor:
 
 class MoviePatchData:
 
-    def __init__(self, ms, cell, index_movie,
+    def __init__(self, ms, cell, index_movie, max_n_transformations,
                  encoded_frames, decoding_frame_dict,
                  window_len, with_info=False):
-        manual_max_transformation = 10
+        # max_n_transformationsmax number of transofrmations to a movie patch
+        # if the number of available function to transform is lower, the lower one would be kept
+        self.manual_max_transformation = max_n_transformations
         self.ms = ms
         self.cell = cell
         # index of the first frame of the movie over the whole movie
@@ -1119,7 +1123,7 @@ class MoviePatchData:
             y_shift = x_shift_y_shift_couples[index][1]
             self.data_augmentation_fct_set.add(lambda movie: shift_movie(movie, x_shift=x_shift, y_shift=x_shift))
 
-        self.n_available_augmentation_fct = min(manual_max_transformation, len(self.data_augmentation_fct_set))
+        self.n_available_augmentation_fct = min(self.manual_max_transformation, len(self.data_augmentation_fct_set))
         # self.data_augmentation_fct_set.pop()
 
         # movie_info dict containing the different informations about the movie such as the number of transients etc...
@@ -1192,6 +1196,7 @@ class MoviePatchData:
 
     def copy(self):
         movie_copy = MoviePatchData(ms=self.ms, cell=self.cell, index_movie=self.index_movie,
+                                    max_n_transformations=self.manual_max_transformation,
                                     encoded_frames=self.encoded_frames, decoding_frame_dict=self.decoding_frame_dict,
                                     window_len=self.window_len)
         movie_copy.data_augmentation_fct = self.data_augmentation_fct
@@ -1763,13 +1768,15 @@ def cell_encoding(ms, cell):
 
 
 def load_data_for_generator(param, split_values, sliding_window_len, overlap_value,
+                            max_n_transformations,
                             movies_shuffling=None, with_shuffling=False, main_ratio_balance=(0.6, 0.25, 0.15),
                             crop_non_crop_ratio_balance=(0.9, 0.1),
                             non_crop_ratio_balance=(0.6, 0.4)):
     """
     Stratification is the technique to allocate the samples evenly based on sample classes
     so that training set and validation set have similar ratio of classes
-    p7_171012_a000_ms: up to cell 117
+    p7_171012_a000_ms: up to cell 117, interesting cells:
+    52 (69t), 75 (59t), 81 (50t), 93 (35t), 115 (28t)
     p8_18_10_24_a005: up to cell 25 ?
     p9_18_09_27_a003_ms: up to cell ?
     p12_171110_a000_ms: up to cell 7
@@ -1779,7 +1786,9 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     use_small_sample = True
     if use_small_sample:
         ms_to_use = ["p7_171012_a000_ms"]
-        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 75])}  # np.arange(1) np.array([8])
+        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 75, 81, 93, 115])}  # np.arange(1) np.array([8])
+        # ms_to_use = ["p12_171110_a000_ms"]
+        # cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0])}
     else:
         ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
         cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(20),
@@ -1842,6 +1851,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                     first_frame = n_frames - sliding_window_len
                     break_it = True
                 movie_data = MoviePatchData(ms=ms, cell=cell, index_movie=first_frame, window_len=sliding_window_len,
+                                            max_n_transformations=max_n_transformations,
                                             with_info=True, encoded_frames=encoded_frames,
                                             decoding_frame_dict=decoding_frame_dict)
                 # TODO: use the movie_info in movie_data object to stratificate the data, to collect information about
@@ -2310,7 +2320,7 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         transients_prediction_from_movie(ms_to_use=["p7_171012_a000_ms"], param=param, overlap_value=0.8,
@@ -2350,6 +2360,7 @@ def train_model():
     max_height = 25
     overlap_value = 0.9
     dropout_value = 0
+    max_n_transformations = 6
     # dropout_value_rnn = 0
     pixels_around = 0
     with_augmentation_for_training_data = True
@@ -2381,9 +2392,10 @@ def train_model():
                                                                    overlap_value=overlap_value,
                                                                    movies_shuffling=None,
                                                                    with_shuffling=with_shuffling,
-                                                                   main_ratio_balance=(0.9, 0, 0),
+                                                                   main_ratio_balance=(0.75, 0.05, 0.20),
                                                                    crop_non_crop_ratio_balance=(0.8, 0.2),
-                                                                   non_crop_ratio_balance=(0.85, 0.15)
+                                                                   non_crop_ratio_balance=(0.85, 0.15),
+                                                                   max_n_transformations=max_n_transformations
                                                                    )
 
     stop_time = time.time()
