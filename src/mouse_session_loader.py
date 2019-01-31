@@ -476,6 +476,18 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                 "p8/p8_18_10_24_a005/p8_18_10_24_a005_Corrected_RasterDur.mat",
                                                 variables_mapping=variables_mapping)
         p8_18_10_24_a005_ms.set_avg_cell_map_tif(file_name="p8/p8_18_10_24_a005/AVG_p8_18_10_24_a005.tif")
+
+        if for_cell_classifier or for_transient_classifier:
+            variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                 "peak_nums": "LocPeakMatrix_Python",
+                                 "cells_to_remove": "cells_to_remove",
+                                 "inter_neurons_from_gui": "inter_neurons"}
+            p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load=
+                                                   "p8/p8_18_10_24_a005/p8_18_10_24_a005_GUI_Transiant MP.mat",
+                                                   variables_mapping=variables_mapping,
+                                                   from_gui=True)
+            p8_18_10_24_a005_ms.build_spike_nums_dur()
+
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_Traces.mat",

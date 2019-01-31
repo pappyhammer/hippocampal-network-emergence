@@ -27,6 +27,7 @@ import scipy.signal as signal
 import scipy.io as sio
 import sys
 import platform
+from pattern_discovery.tools.signal import smooth_convolve
 
 print(f"sys.maxsize {sys.maxsize}, platform.architecture {platform.architecture()}")
 
@@ -288,6 +289,10 @@ class StratificationCamembert:
                 self.transient_movies["real"].append(movie_data)
                 self.n_transient_dict["real"][n_transient] = self.n_transient_dict["real"].get(n_transient,
                                                                                                0) + n_movies
+                if "transients_amplitudes" in movie_info:
+                    self.transient_amplitudes["real"].extend(movie_info["transients_amplitudes"])
+                if "transients_lengths" in movie_info:
+                    self.transient_lengths["real"].extend(movie_info["transients_lengths"])
             if ("n_cropped_transient" in movie_info) and (not with_real_transient):
                 only_neuropil = False
                 with_cropped_real_transient = True
@@ -306,6 +311,11 @@ class StratificationCamembert:
                     self.full_2p_transient["fake"].append(movie_data)
                 self.n_transient_dict["fake"][n_fake_transient] = \
                     self.n_transient_dict["fake"].get(n_fake_transient, 0) + n_movies
+
+                if ("fake_transients_amplitudes" in movie_info) and (not with_real_transient):
+                    self.transient_amplitudes["fake"].extend(movie_info["fake_transients_amplitudes"])
+                if ("fake_transients_lengths" in movie_info) and (not with_real_transient):
+                    self.transient_lengths["fake"].extend(movie_info["fake_transients_lengths"])
             if ("n_cropped_fake_transient" in movie_info) and (not with_real_transient) and (not with_fake_transient) \
                     and (not with_cropped_real_transient):
                 only_neuropil = False
@@ -320,16 +330,6 @@ class StratificationCamembert:
             if only_neuropil:
                 self.n_only_neuropil += n_movies
                 self.neuropil_movies.append(movie_data)
-
-            if "transients_amplitudes" in movie_info:
-                self.transient_amplitudes["real"].extend(movie_info["transients_amplitudes"])
-            if "transients_lengths" in movie_info:
-                self.transient_lengths["real"].extend(movie_info["transients_lengths"])
-
-            if ("fake_transients_amplitudes" in movie_info) and (not with_real_transient):
-                self.transient_amplitudes["fake"].extend(movie_info["fake_transients_amplitudes"])
-            if ("fake_transients_lengths" in movie_info) and (not with_real_transient):
-                self.transient_lengths["fake"].extend(movie_info["fake_transients_lengths"])
 
             self.n_movies_by_session[movie_data.ms.description] = \
                 self.n_movies_by_session.get(movie_data.ms.description, 0) + n_movies
@@ -541,6 +541,7 @@ class StratificationCamembert:
         if (main_ratio_balance[0] > 0) and (main_ratio_balance[1] > 0):
 
             ratio_real_fake = main_ratio_balance[0] / main_ratio_balance[1]
+
             if (self.n_transient_total["real"] > 0) and (self.n_transient_total["fake"] > 0):
                 if np.abs((self.n_transient_total["real"] / self.n_transient_total["fake"]) - ratio_real_fake) > \
                         tolerance:
@@ -572,6 +573,7 @@ class StratificationCamembert:
                                 new_data_list.append(movie_data)
                             self.data_list = new_data_list
                         else:
+                            # we add real transients
                             n_real_to_add = (self.n_transient_total["fake"] * ratio_real_fake) - \
                                             self.n_transient_total["real"]
                             print(f"n_real_to_add {n_real_to_add}")
@@ -1009,9 +1011,9 @@ class StratificationDataProcessor:
         # for camembert in self.camembert_by_session.values():
         #     camembert.balance_all(main_ratio_balance=main_ratio_balance)
 
-            # balancing the real transients, fake ones and neuropils among themselves
-            for camembert in self.camembert_by_session.values():
-                camembert.balance_all(main_ratio_balance=main_ratio_balance, first_round=True)
+        # balancing the real transients, fake ones and neuropils among themselves
+        for camembert in self.camembert_by_session.values():
+            camembert.balance_all(main_ratio_balance=main_ratio_balance, first_round=True)
 
         # them
         for camembert in self.camembert_by_session.values():
@@ -1768,6 +1770,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     Stratification is the technique to allocate the samples evenly based on sample classes
     so that training set and validation set have similar ratio of classes
     p7_171012_a000_ms: up to cell 117
+    p8_18_10_24_a005: up to cell 25 ?
     p9_18_09_27_a003_ms: up to cell ?
     p12_171110_a000_ms: up to cell 7
     p11_17_11_24_a000: 0 to 25 + 29
@@ -1776,7 +1779,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     use_small_sample = True
     if use_small_sample:
         ms_to_use = ["p7_171012_a000_ms"]
-        cell_to_load_by_ms = {"p7_171012_a000_ms": np.arange(2)}  # np.arange(1) np.array([8])
+        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 75])}  # np.arange(1) np.array([8])
     else:
         ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
         cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(20),
@@ -2063,7 +2066,7 @@ def get_source_profile_for_prediction(ms, cell, augmentation_functions=None,
 
 
 def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
-                                     use_data_augmentation=True):
+                                     use_data_augmentation=True, cells_to_predict=None):
     if len(ms_to_use) > 1:
         ms_to_use = list(ms_to_use[0])
 
@@ -2075,10 +2078,13 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
     ms = ms_str_to_ms_dict[ms_to_use[0]]
 
     n_cells = len(ms.coord)
-    cells_to_load = np.arange(n_cells)
+    if cells_to_predict is None:
+        cells_to_load = np.arange(n_cells)
+    else:
+        cells_to_load = np.array(cells_to_predict)
 
     cells_to_load = np.setdiff1d(cells_to_load, ms.cells_to_remove)
-    using_cnn_predictions = False
+    using_cnn_predictions = True
     if using_cnn_predictions:
         if ms.cell_cnn_predictions is not None:
             print(f"Using cnn predictions from {ms.description}")
@@ -2134,7 +2140,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
           f"{np.round(stop_time - start_time, 3)} s")
 
     start_time = time.time()
-    predictions_threshold = 0.2
+    predictions_threshold = 0.4
     for cell in cells_to_load:
         predictions = predict_transient_from_model(ms=ms, cell=cell, model=model, overlap_value=overlap_value,
                                                    use_data_augmentation=use_data_augmentation)
@@ -2304,11 +2310,12 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
-                                         use_data_augmentation=True)
+        transients_prediction_from_movie(ms_to_use=["p7_171012_a000_ms"], param=param, overlap_value=0.8,
+                                         use_data_augmentation=True, cells_to_predict=np.arange(118))
+        # p12_171110_a000_ms
         return
 
     # 3 options to target the cell
@@ -2336,7 +2343,7 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     use_mulimodal_inputs = True
-    n_epochs = 10
+    n_epochs = 20
     batch_size = 16
     window_len = 50
     max_width = 25
@@ -2374,9 +2381,9 @@ def train_model():
                                                                    overlap_value=overlap_value,
                                                                    movies_shuffling=None,
                                                                    with_shuffling=with_shuffling,
-                                                                   main_ratio_balance=(1, 0, 0),
-                                                                   crop_non_crop_ratio_balance=(0.9, 0.1),
-                                                                   non_crop_ratio_balance=(0.75, 0.25)
+                                                                   main_ratio_balance=(0.9, 0, 0),
+                                                                   crop_non_crop_ratio_balance=(0.8, 0.2),
+                                                                   non_crop_ratio_balance=(0.85, 0.15)
                                                                    )
 
     stop_time = time.time()
@@ -2391,7 +2398,7 @@ def train_model():
     stop_time = time.time()
     print(f"Time to create generator: "
           f"{np.round(stop_time - start_time, 3)} s")
-    # raise Exception("TOTOOO")
+    raise Exception("TOTOOO")
 
     # (sliding_window_size, max_width, max_height, 1)
     # sliding_window in frames, max_width, max_height: in pixel (100, 25, 25, 1) * n_movie

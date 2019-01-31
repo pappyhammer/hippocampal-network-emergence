@@ -3544,6 +3544,9 @@ class ManualOnsetFrame(tk.Frame):
                 self.axe_plot.plot(np.arange(self.nb_times_traces), predictions,
                                    color="red", zorder=20)
                 threshold_tc = self.transient_classifier_threshold
+                self.axe_plot.hlines(threshold_tc, 0, self.nb_times_traces - 1, color="red",
+                                     linewidth=0.5,
+                                     linestyles="dashed")
                 if threshold_tc not in self.transient_prediction_periods[self.current_neuron]:
                     predicted_raster_dur = np.zeros(len(predictions), dtype="int8")
                     predicted_raster_dur[predictions >= threshold_tc] = 1

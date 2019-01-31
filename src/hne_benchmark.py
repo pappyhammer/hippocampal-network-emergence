@@ -11,6 +11,7 @@ from pattern_discovery.tools.misc import get_continous_time_periods
 from matplotlib.figure import SubplotParams
 import matplotlib.gridspec as gridspec
 from sortedcontainers import SortedDict
+from pattern_discovery.tools.signal import smooth_convolve
 
 
 class BenchmarkRasterDur:
@@ -281,13 +282,84 @@ def build_spike_nums_dur(spike_nums, peak_nums):
     return spike_nums_dur
 
 
+def manually_boost_rnn(title, path_data, raster_dur_file_name, trace_file_name, path_results, trace_var_name,
+                       smooth_the_trace=True):
+    data_traces = hdf5storage.loadmat(path_data + trace_file_name)
+    traces = data_traces[trace_var_name].astype(float)
+
+    data_raster_dur = hdf5storage.loadmat(path_data + raster_dur_file_name)
+    raster_dur_predicted = data_raster_dur["spike_nums_dur_predicted"].astype(int)
+
+    n_cells = traces.shape[0]
+    n_times = traces.shape[1]
+
+    for i in np.arange(n_cells):
+        traces[i, :] = (traces[i, :] - np.mean(traces[i, :])) / np.std(traces[i, :])
+        if smooth_the_trace:
+            # smoothing the trace
+            windows = ['hanning', 'hamming', 'bartlett', 'blackman']
+            i_w = 1
+            window_length = 11
+            smooth_signal = smooth_convolve(x=traces[i], window_len=window_length,
+                                            window=windows[i_w])
+            beg = (window_length - 1) // 2
+            traces[i] = smooth_signal[beg:-beg]
+
+    peak_nums = np.zeros((n_cells, n_times), dtype="int8")
+    for cell in np.arange(n_cells):
+        peaks, properties = signal.find_peaks(x=traces[cell], distance=2)
+        peak_nums[cell, peaks] = 1
+    spike_nums = np.zeros((n_cells, n_times), dtype="int8")
+    for cell in np.arange(n_cells):
+        onsets = []
+        diff_values = np.diff(traces[cell])
+        for index, value in enumerate(diff_values):
+            if index == (len(diff_values) - 1):
+                continue
+            if value < 0:
+                if diff_values[index + 1] >= 0:
+                    onsets.append(index + 1)
+        spike_nums[cell, np.array(onsets)] = 1
+
+    spike_nums_dur = np.zeros((n_cells, n_times), dtype="int8")
+    for cell in np.arange(n_cells):
+        peaks_index = np.where(peak_nums[cell, :])[0]
+        onsets_index = np.where(spike_nums[cell, :])[0]
+
+        for onset_index in onsets_index:
+            peaks_after = np.where(peaks_index > onset_index)[0]
+            if len(peaks_after) == 0:
+                continue
+            peaks_after = peaks_index[peaks_after]
+            peak_after = peaks_after[0]
+            if (peak_after - onset_index) > 200:
+                print(f"long transient in cell {cell} of "
+                      f"duration {peak_after - onset_index} frames at frame {onset_index}")
+
+            spike_nums_dur[cell, onset_index:peak_after + 1] = 1
+
+    for cell in np.arange(n_cells):
+        predicted_periods = get_continous_time_periods(raster_dur_predicted[cell])
+
+        for period in predicted_periods:
+            # if the predicted period corresponds to no active frames in the spike_nums_dur
+            # then it is considered false and we remove it
+            beg = period[0]
+            end = period[1]
+            if np.sum(spike_nums_dur[cell, beg:end+1]) == 0:
+                raster_dur_predicted[cell, beg:end+1] = 0
+
+    path_results += "/"
+    sio.savemat(path_results + f"{title}boost_rnn_raster_dur.mat", {'spike_nums_dur_predicted': raster_dur_predicted})
+
+
 def build_p7_17_10_12_a000_raster_dur_caiman(path_data, path_results):
     path_data += "p7/p7_17_10_12_a000/"
     file_name_onsets = "Robin_30_01_19/p7_17_10_12_a000_filt_Bin100ms_spikedigital.mat"
     file_name_trace = "p7_17_10_12_a000_Traces.mat"
 
-    data_traces = hdf5storage.loadmat(path_data + file_name_onsets)
-    spike_nums = data_traces["filt_Bin100ms_spikedigital"].astype(float)
+    data_onsets = hdf5storage.loadmat(path_data + file_name_onsets)
+    spike_nums = data_onsets["filt_Bin100ms_spikedigital"].astype(float)
     # raster_dur with just 1 sec filter
     data_raster_dur = hdf5storage.loadmat(path_data + "Robin_30_01_19/p7_17_10_12_a000_RasterDur.mat")
     raster_dur_non_filt = data_raster_dur["rasterdur"].astype(int)
@@ -323,6 +395,7 @@ def build_p7_17_10_12_a000_raster_dur_caiman(path_data, path_results):
     path_results += "/"
     sio.savemat(path_results + "p7_17_10_12_a000_caiman_raster_dur.mat", {'rasterdur': spike_nums_dur})
 
+
 def main_benchmark():
     root_path = None
     with open("param_hne.txt", "r", encoding='UTF-8') as file:
@@ -344,6 +417,25 @@ def main_benchmark():
         build_p7_17_10_12_a000_raster_dur_caiman(path_data=path_data, path_results=path_results)
         return
 
+    boost_rnn = True
+    if boost_rnn:
+        title = "p7_17_10_12_a000"
+        path_data = path_data + "p7/p7_17_10_12_a000/"
+        raster_dur_file_name = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
+
+        # trace_file_name = "p7_17_10_12_a000_raw_Traces.mat"
+        # trace_var_name = "raw_traces"
+        # smooth_the_trace = True
+
+        trace_file_name = "p7_17_10_12_a000_Traces.mat"
+        trace_var_name = "C_df"
+        smooth_the_trace = False
+
+        manually_boost_rnn(title=title, path_data=path_data, raster_dur_file_name=raster_dur_file_name,
+                           trace_file_name=trace_file_name, path_results=path_results,
+                           trace_var_name=trace_var_name, smooth_the_trace=smooth_the_trace)
+        return
+
     # ########### options ###################
     # ms_to_benchmark = "p12_17_11_10_a000"
     ms_to_benchmark = "p7_17_10_12_a000"
@@ -356,7 +448,9 @@ def main_benchmark():
         data_dict["gt"] = dict()
         data_dict["gt"]["path"] = "p12/p12_17_11_10_a000"
         data_dict["gt"]["gui_file"] = "p12_17_11_10_a000_GUI_JD.mat"
-        data_dict["gt"]["cnn"] = "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt"
+        data_dict["gt"]["gt_file"] = "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt"
+        data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P12_17_11_10_a000.txt"
+        data_dict["gt"]["cnn_threshold"] = 0.5
         data_dict["gt"]["cells"] = np.arange(7)
 
         data_dict["rnn"] = dict()
@@ -384,8 +478,23 @@ def main_benchmark():
         data_dict["gt"] = dict()
         data_dict["gt"]["path"] = "p7/p7_17_10_12_a000"
         data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_GUI_transients_RD.mat"
-        data_dict["gt"]["cnn"] = "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt"
-        data_dict["gt"]["cells"] = np.arange(117)
+        data_dict["gt"]["gt_file"] = "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt"
+        data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P7_17_10_12_a000.txt"
+        data_dict["gt"]["cnn_threshold"] = 0.5
+        data_dict["gt"]["cells"] = np.arange(118)
+        data_dict["gt"]["cells_to_remove"] = np.array([52, 75])
+
+        data_dict["rnn"] = dict()
+        data_dict["rnn"]["path"] = "p7/p7_17_10_12_a000"
+        data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
+        data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["rnn"]["predictions"] = "predictions"
+
+        # data_dict["boost_rnn"] = dict()
+        # data_dict["boost_rnn"]["path"] = "p7/p7_17_10_12_a000"
+        # data_dict["boost_rnn"]["file_name"] = "p7_17_10_12_a000boost_rnn_raster_dur.mat"
+        # data_dict["boost_rnn"]["var_name"] = "spike_nums_dur_predicted"
+
 
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p7/p7_17_10_12_a000"
@@ -407,18 +516,35 @@ def main_benchmark():
     ground_truth_raster_dur = build_spike_nums_dur(spike_nums, peak_nums)
     print(f"ground_truth_raster_dur.shape {ground_truth_raster_dur.shape}")
 
+    using_gt_cell_classifier = False
+    cells_false_gt = []
+    if using_gt_cell_classifier and (path_data, "gt_file" in data_dict["gt"]):
+        with open(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gt_file"]), "r",
+                  encoding='UTF-8') as file:
+            for nb_line, line in enumerate(file):
+                line_list = line.split()
+                cells_list = [float(i) for i in line_list]
+                cells_false_gt.extend(cells_list)
+        cells_false_gt = np.array(cells_false_gt).astype(int)
+
     cell_cnn_predictions = []
-    with open(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["cnn"]), "r", encoding='UTF-8') as file:
+    with open(os.path.join(path_data, data_dict["gt"]["cnn"]), "r", encoding='UTF-8') as file:
         for nb_line, line in enumerate(file):
             line_list = line.split()
             cells_list = [float(i) for i in line_list]
             cell_cnn_predictions.extend(cells_list)
-    cells_predicted_as_false = np.array(cell_cnn_predictions).astype(int)
+    cell_cnn_predictions= np.array(cell_cnn_predictions)
+    cells_predicted_as_false = np.where(cell_cnn_predictions < data_dict["gt"]["cnn_threshold"])[0]
+    # print(f"cells_predicted_as_false {cells_predicted_as_false}")
     cells_for_benchmark = data_dict["gt"]["cells"]
     # adding cells not selected by cnn
     cells_for_benchmark = np.setdiff1d(cells_for_benchmark, cells_to_remove)
     # not taking into consideration cells that are not predicted as true from the cell classifier
     cells_for_benchmark = np.setdiff1d(cells_for_benchmark, cells_predicted_as_false)
+    if "cells_to_remove" in data_dict["gt"]:
+        cells_for_benchmark = np.setdiff1d(cells_for_benchmark, data_dict["gt"]["cells_to_remove"])
+    # print(f"cells_for_benchmark {cells_for_benchmark}")
+    # return
 
     predicted_raster_dur_dict = dict()
     predicted_spike_nums_dict = dict()
