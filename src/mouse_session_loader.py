@@ -109,8 +109,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
             p7_171012_a000_ms.build_spike_nums_dur()
             if for_cell_classifier:
-                p7_171012_a000_ms.load_cells_to_remove_from_txt(file_name="p7/p7_17_10_12_a000/"
-                                                                          "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt")
+                p7_171012_a000_ms.\
+                    load_cells_to_remove_from_txt(file_name="p7/p7_17_10_12_a000/"
+                                                            "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Traces.mat",
@@ -866,12 +867,25 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # p13_18_10_29_a001_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
         p13_18_10_29_a001_ms.set_inter_neurons([68])
         # duration of those interneurons: 13.31
-        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+
+        if for_cell_classifier or for_transient_classifier:
+            variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                 "peak_nums": "LocPeakMatrix_Python",
+                                 "cells_to_remove": "cells_to_remove",
+                                 "inter_neurons_from_gui": "inter_neurons"}
+            p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
+                                                  "p13/p13_18_10_29_a001/p13_18_10_29_a001_GUI_transients_RD.mat",
+                                                  variables_mapping=variables_mapping,
+                                                  from_gui=True)
+
+            p13_18_10_29_a001_ms.build_spike_nums_dur()
+        else:
+            variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
                              "spike_nums": "filt_Bin100ms_spikedigital",
                              "spike_durations": "LOC3"}
-        p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
-                                                 "p13/p13_18_10_29_a001/p13_18_10_29_a001_Corrected_RasterDur.mat",
-                                                 variables_mapping=variables_mapping)
+            p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
+                                                     "p13/p13_18_10_29_a001/p13_18_10_29_a001_Corrected_RasterDur.mat",
+                                                     variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p13_18_10_29_a001_ms.load_data_from_file(

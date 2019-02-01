@@ -417,7 +417,7 @@ def main_benchmark():
         build_p7_17_10_12_a000_raster_dur_caiman(path_data=path_data, path_results=path_results)
         return
 
-    boost_rnn = True
+    boost_rnn = False
     if boost_rnn:
         title = "p7_17_10_12_a000"
         path_data = path_data + "p7/p7_17_10_12_a000/"
@@ -486,7 +486,8 @@ def main_benchmark():
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p7/p7_17_10_12_a000"
-        data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
+        data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_01.15-56-10.mat"
+        # P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
 

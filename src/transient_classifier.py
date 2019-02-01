@@ -180,6 +180,12 @@ class StratificationCamembert:
         self.full_2p_transient["fake"] = []
         self.full_2p_transient["real"] = []
 
+        # contains the indices of the movies (from data_list) in a sorted order (based on amplitude, from low to high)
+        self.full_transient_sorted_amplitude = dict()
+        self.full_transient_sorted_amplitude["fake"] = []
+        self.full_transient_sorted_amplitude["real"] = []
+
+
         self.n_transient_dict = dict()
         self.n_transient_dict["fake"] = dict()
         self.n_transient_dict["real"] = dict()
@@ -246,6 +252,9 @@ class StratificationCamembert:
         for movie_data in self.data_list:
             self.n_movie_patch += (1 + movie_data.n_augmentations_to_perform)
 
+        sorted_amplitudes = dict()
+        amplitudes_movie_index = dict()
+
         for which_ones in ["real", "fake"]:
             # initializing variables
             self.transient_movies[which_ones] = []
@@ -256,6 +265,9 @@ class StratificationCamembert:
             self.n_cropped_transient_dict[which_ones] = dict()
             self.transient_lengths[which_ones] = []
             self.transient_amplitudes[which_ones] = []
+            self.full_transient_sorted_amplitude[which_ones] = []
+            sorted_amplitudes[which_ones] = []
+            amplitudes_movie_index[which_ones] = []
 
         # MoviePatchData list
         self.neuropil_movies = []
@@ -271,7 +283,7 @@ class StratificationCamembert:
             print(f"{'##' * 10}")
             print(f"{self.description}")
             print(f"{'##' * 10}")
-        for movie_data in self.data_list:
+        for movie_index, movie_data in enumerate(self.data_list):
             movie_info = movie_data.movie_info
             only_neuropil = True
             with_real_transient = False
@@ -291,6 +303,8 @@ class StratificationCamembert:
                                                                                                0) + n_movies
                 if "transients_amplitudes" in movie_info:
                     self.transient_amplitudes["real"].extend(movie_info["transients_amplitudes"])
+                    sorted_amplitudes["real"].append(np.max(movie_info["transients_amplitudes"]))
+                    amplitudes_movie_index["real"].append(movie_index)
                 if "transients_lengths" in movie_info:
                     self.transient_lengths["real"].extend(movie_info["transients_lengths"])
             if ("n_cropped_transient" in movie_info) and (not with_real_transient):
@@ -300,6 +314,9 @@ class StratificationCamembert:
                 n_cropped_transient = movie_info["n_cropped_transient"]
                 self.n_cropped_transient_dict["real"][n_cropped_transient] = \
                     self.n_cropped_transient_dict["real"].get(n_cropped_transient, 0) + n_movies
+                if "transients_amplitudes" in movie_info:
+                    sorted_amplitudes["real"].append(np.max(movie_info["transients_amplitudes"]))
+                    amplitudes_movie_index["real"].append(movie_index)
             if ("n_fake_transient" in movie_info) and (not with_real_transient) and (not with_cropped_real_transient):
                 only_neuropil = False
                 with_fake_transient = True
@@ -312,9 +329,11 @@ class StratificationCamembert:
                 self.n_transient_dict["fake"][n_fake_transient] = \
                     self.n_transient_dict["fake"].get(n_fake_transient, 0) + n_movies
 
-                if ("fake_transients_amplitudes" in movie_info) and (not with_real_transient):
+                if "fake_transients_amplitudes" in movie_info:
                     self.transient_amplitudes["fake"].extend(movie_info["fake_transients_amplitudes"])
-                if ("fake_transients_lengths" in movie_info) and (not with_real_transient):
+                    sorted_amplitudes["fake"].append(np.max(movie_info["fake_transients_amplitudes"]))
+                    amplitudes_movie_index["fake"].append(movie_index)
+                if "fake_transients_lengths" in movie_info:
                     self.transient_lengths["fake"].extend(movie_info["fake_transients_lengths"])
             if ("n_cropped_fake_transient" in movie_info) and (not with_real_transient) and (not with_fake_transient) \
                     and (not with_cropped_real_transient):
@@ -323,6 +342,9 @@ class StratificationCamembert:
                 n_cropped_fake_transient = movie_info["n_cropped_fake_transient"]
                 self.n_cropped_transient_dict["fake"][n_cropped_fake_transient] = \
                     self.n_cropped_transient_dict["fake"].get(n_cropped_fake_transient, 0) + n_movies
+                if "fake_transients_amplitudes" in movie_info:
+                    sorted_amplitudes["fake"].append(np.max(movie_info["fake_transients_amplitudes"]))
+                    amplitudes_movie_index["fake"].append(movie_index)
 
             if with_fake_transient and with_real_transient:
                 self.n_real_and_fake_transient += n_movies
@@ -334,6 +356,12 @@ class StratificationCamembert:
             self.n_movies_by_session[movie_data.ms.description] = \
                 self.n_movies_by_session.get(movie_data.ms.description, 0) + n_movies
             self.n_movies_by_age[movie_data.ms.age] = self.n_movies_by_age.get(movie_data.ms.age, 0) + n_movies
+
+        # sorting movie_data by amplitude, from the smallest to the biggest
+        for which_ones in ["real", "fake"]:
+            index_array = np.argsort(sorted_amplitudes[which_ones])
+            for index in index_array:
+                self.full_transient_sorted_amplitude[which_ones].append(amplitudes_movie_index[which_ones][index])
 
         self.only_neuropil_perc = (self.n_only_neuropil / self.n_movie_patch) * 100
 
@@ -465,36 +493,43 @@ class StratificationCamembert:
         for movie_data in self.data_list:
             movie_info = movie_data.movie_info
             if "n_transient" in movie_info:
+                if movie_info["n_transient"] > 1:
+                    movie_data.weight += 5
                 if (real_lengths_threshold is not None) and ("transients_lengths" in movie_info):
                     lengths = np.array(movie_info["transients_lengths"])
                     if len(np.where(lengths > real_lengths_threshold)[0]) > 0:
                         # print(f"lengths {lengths}, real_lengths_threshold {real_lengths_threshold}")
                         # means at least a transient length is superior to the 90th percentile
-                        movie_data.weight = 3
+                        movie_data.weight += 3
                 if (real_amplitudes_threshold is not None) and ("transients_amplitudes" in movie_info):
                     amplitudes = np.array(movie_info["transients_amplitudes"])
                     if len(np.where(amplitudes < real_amplitudes_threshold)[0]) > 0:
                         # print(f"amplitudes {amplitudes}, real_amplitudes_threshold {real_amplitudes_threshold}")
                         # means at least a transient amplitude is inferior to the 10th percentile
-                        movie_data.weight = 3
+                        movie_data.weight += 3
                 continue
             if "n_cropped_transient" in movie_info:
                 continue
             if "n_fake_transient" in movie_info:
+                movie_data.weight += 20
                 if (fake_lengths_threshold is not None) and ("fake_transients_lengths" in movie_info):
                     lengths = np.array(movie_info["fake_transients_lengths"])
                     if len(np.where(lengths > fake_lengths_threshold)[0]) > 0:
                         # print(f"lengths {lengths}, real_lengths_threshold {fake_lengths_threshold}")
                         # means at least a transient length is superior to the 90th percentile
-                        movie_data.weight = 3
+                        movie_data.weight += 3
                 if (fake_amplitudes_threshold is not None) and ("fake_transients_amplitudes" in movie_info):
                     amplitudes = np.array(movie_info["fake_transients_amplitudes"])
                     if len(np.where(amplitudes < fake_amplitudes_threshold)[0]) > 0:
                         # means at least a transient amplitude is superior to the 90th percentile
-                        movie_data.weight = 3
+                        movie_data.weight += 3
                 continue
+            if "n_cropped_fake_transient" in movie_info:
+                movie_data.weight += 5
 
     def balance_all(self, main_ratio_balance,  first_round):
+        # if a ratio is put to one, then the class is untouched, but then the sum of other ratio should be equal to
+        # 1 or set to -1 as well
         # main_ratio_balance = (0.6, 0.25, 0.15)
         if self.debug_mode:
             print("")
@@ -552,25 +587,42 @@ class StratificationCamembert:
                             # we want to change self.data_list
                             n_fake_to_delete = int(self.n_transient_total["fake"] -
                                                    (self.n_transient_total["real"] / ratio_real_fake))
-                            n_fake_removed = 0
+                            delete_low_amplitudes_first = True
                             new_data_list = []
-                            for movie_data in self.data_list:
-                                movie_info = movie_data.movie_info
-                                if "n_transient" in movie_info:
-                                    new_data_list.append(movie_data)
-                                    continue
-                                if "n_cropped_transient" in movie_info:
-                                    new_data_list.append(movie_data)
-                                    continue
-                                if "n_fake_transient" in movie_info:
-                                    if n_fake_removed < n_fake_to_delete:
-                                        n_fake_removed += (1 + movie_data.n_augmentations_to_perform)
+                            if delete_low_amplitudes_first:
+                                indices_to_remove = []
+                                n_fake_removed = 0
+                                sorted_index = 0
+                                while n_fake_removed < n_fake_to_delete:
+                                    index_data_list = self.full_transient_sorted_amplitude["fake"][sorted_index]
+                                    indices_to_remove.append(index_data_list)
+                                    movie_data = self.data_list[index_data_list]
+                                    n_fake_removed += (1 + movie_data.n_augmentations_to_perform)
+                                    sorted_index += 1
+
+                                for index_data_list, movie_data in enumerate(self.data_list):
+                                    if index_data_list in indices_to_remove:
                                         continue
-                                if "n_cropped_fake_transient" in movie_info:
-                                    if n_fake_removed < n_fake_to_delete:
-                                        n_fake_removed += (1 + movie_data.n_augmentations_to_perform)
+                                    new_data_list.append(movie_data)
+                            else:
+                                n_fake_removed = 0
+                                for movie_data in self.data_list:
+                                    movie_info = movie_data.movie_info
+                                    if "n_transient" in movie_info:
+                                        new_data_list.append(movie_data)
                                         continue
-                                new_data_list.append(movie_data)
+                                    if "n_cropped_transient" in movie_info:
+                                        new_data_list.append(movie_data)
+                                        continue
+                                    if "n_fake_transient" in movie_info:
+                                        if n_fake_removed < n_fake_to_delete:
+                                            n_fake_removed += (1 + movie_data.n_augmentations_to_perform)
+                                            continue
+                                    if "n_cropped_fake_transient" in movie_info:
+                                        if n_fake_removed < n_fake_to_delete:
+                                            n_fake_removed += (1 + movie_data.n_augmentations_to_perform)
+                                            continue
+                                    new_data_list.append(movie_data)
                             self.data_list = new_data_list
                         else:
                             # we add real transients
@@ -650,7 +702,7 @@ class StratificationCamembert:
                     continue
                 new_data_list.append(movie_data)
             self.data_list = new_data_list
-        elif self.n_only_neuropil > 0:
+        elif (main_ratio_balance[2] > 0) and (self.n_only_neuropil > 0):
             if (self.n_transient_total["real"] > 0) or (self.n_transient_total["fake"] > 0):
                 n_transient_total = self.n_transient_total["real"] + self.n_transient_total["fake"]
                 ratio_transients_neuropils = (main_ratio_balance[0] + main_ratio_balance[1]) / main_ratio_balance[2]
@@ -658,6 +710,7 @@ class StratificationCamembert:
                           ratio_transients_neuropils) > tolerance:
                     if (self.n_only_neuropil * ratio_transients_neuropils) > n_transient_total:
                         # it means they are too many neuropil, we need to remove some
+                        # TODO: See to remove neuropils with the lowest variation
                         n_neuropils_to_remove = int(self.n_only_neuropil -
                                                     (n_transient_total / ratio_transients_neuropils))
                         # print(f"!!!!!!!!!!!!!!!!!! n_neuropils_to_remove {n_neuropils_to_remove}")
@@ -687,7 +740,6 @@ class StratificationCamembert:
                             movie_index = (movie_index + 1) % len(self.neuropil_movies)
                             augmentation_added += 1
 
-
         if self.debug_mode:
             print("")
             print(f"***************** After balancing real transients, fake ones and neuropil *****************")
@@ -696,6 +748,8 @@ class StratificationCamembert:
         self.compute_slices()
 
     def balance_transients(self, which_ones, crop_non_crop_ratio_balance, non_crop_ratio_balance):
+        # if a ratio is put to one, then the class is untouched, but then the sum of other ratio should be equal to
+        # 1 or set to -1 as well
         if which_ones not in ["fake", "real"]:
             raise Exception(f"which_ones not in {['fake', 'real']}")
 
@@ -872,7 +926,6 @@ class StratificationCamembert:
 
             # updating stat
             self.compute_slices()
-
 
         if crop_non_crop_ratio_balance[1] == 0:
             # we want to delete all the  cropped transients
@@ -1064,7 +1117,8 @@ class StratificationDataProcessor:
                                                      description="ALL DATA",
                                                      n_max_transformations=self.n_max_transformations,
                                                      debug_mode=True)
-        # setting the weight based on amplitudes and lenths of the transients
+        # setting the weight based on amplitudes and lengths of the transients
+        # also adding weight to fake transients, and multiple real ones
         balanced_camembert.set_weights()
 
     def get_new_data_list(self):
@@ -1095,16 +1149,19 @@ class MoviePatchData:
         self.data_augmentation_fct = None
 
         # set of functions used for data augmentation, one will be selected when copying a movie
-        self.data_augmentation_fct_set = set()
+        self.data_augmentation_fct_list = list()
+        # functions based on rotations and flips
+        rot_fct = []
         # adding fct to the set
         flips = [horizontal_flip, vertical_flip, v_h_flip]
         for flip in flips:
-            self.data_augmentation_fct_set.add(flip)
+            rot_fct.append(flip)
         # 180° angle is the same as same as v_h_flip
         # 10 angles
-        rotation_angles = [20, 50, 90, 120, 160, 200, 230, 270, 310, 240]
+        rotation_angles = np.array([20, 50, 90, 120, 160, 200, 230, 270, 310, 240])
+        shuffle(rotation_angles)
         for angle in rotation_angles:
-            self.data_augmentation_fct_set.add(lambda movie: rotate_movie(movie, angle))
+            rot_fct.append(lambda movie: rotate_movie(movie, angle))
         # 24 shifting transformations combinaison
         x_shift_y_shift_couples = []
         for x_shift in np.arange(-2, 3):
@@ -1112,6 +1169,7 @@ class MoviePatchData:
                 if (x_shift == 0) and (y_shift == 0):
                     continue
                 x_shift_y_shift_couples.append((x_shift, y_shift))
+        shifts_fct = []
         # keeping 11 shifts, from random
         n_shifts = 11
         shift_indices = np.arange(len(x_shift_y_shift_couples))
@@ -1121,10 +1179,15 @@ class MoviePatchData:
         for index in shift_indices:
             x_shift = x_shift_y_shift_couples[index][0]
             y_shift = x_shift_y_shift_couples[index][1]
-            self.data_augmentation_fct_set.add(lambda movie: shift_movie(movie, x_shift=x_shift, y_shift=x_shift))
+            shifts_fct.append(lambda movie: shift_movie(movie, x_shift=x_shift, y_shift=x_shift))
 
-        self.n_available_augmentation_fct = min(self.manual_max_transformation, len(self.data_augmentation_fct_set))
-        # self.data_augmentation_fct_set.pop()
+        for i in np.arange(max(len(rot_fct), len(shifts_fct))):
+            if i < len(rot_fct):
+                self.data_augmentation_fct_list.append(rot_fct[i])
+            if i < len(shifts_fct):
+                self.data_augmentation_fct_list.append(shifts_fct[i])
+
+        self.n_available_augmentation_fct = min(self.manual_max_transformation, len(self.data_augmentation_fct_list))
 
         # movie_info dict containing the different informations about the movie such as the number of transients etc...
         """
@@ -1166,8 +1229,14 @@ class MoviePatchData:
                             if "cropped_transients_lengths" not in self.movie_info:
                                 self.movie_info["cropped_transients_lengths"] = []
                             self.movie_info["cropped_transients_lengths"].append(event.length_event)
+                            if "transients_amplitudes" not in self.movie_info:
+                                self.movie_info["transients_amplitudes"] = []
+                            self.movie_info["transients_amplitudes"].append(event.amplitude)
                         else:
                             key_str = "n_cropped_fake_transient"
+                            if "fake_transients_amplitudes" not in self.movie_info:
+                                self.movie_info["fake_transients_amplitudes"] = []
+                            self.movie_info["fake_transients_amplitudes"].append(event.amplitude)
                         self.movie_info[key_str] = self.movie_info.get(key_str, 0) + 1
                         continue
 
@@ -1194,6 +1263,15 @@ class MoviePatchData:
             if is_only_neuropil:
                 self.movie_info["only_neuropil"] = True
 
+    def __eq__(self, other):
+        if self.ms.description != other.ms.description:
+            return False
+        if self.cell != other.cell:
+            return False
+        if self.index_movie != self.index_movie:
+            return False
+        return True
+
     def copy(self):
         movie_copy = MoviePatchData(ms=self.ms, cell=self.cell, index_movie=self.index_movie,
                                     max_n_transformations=self.manual_max_transformation,
@@ -1207,7 +1285,11 @@ class MoviePatchData:
                                               self.n_available_augmentation_fct)
 
     def pick_a_transformation_fct(self):
-        return self.data_augmentation_fct_set.pop()
+        if len(self.data_augmentation_fct_list) > 0:
+            fct = self.data_augmentation_fct_list[0]
+            self.data_augmentation_fct_list = self.data_augmentation_fct_list[1:]
+            return fct
+        return None
 
     def is_only_neuropil(self):
         """
@@ -1382,30 +1464,6 @@ class DataGenerator(keras.utils.Sequence):
         n_samples = len(self.data_list)
         print(f"n_samples before data augmentation: {n_samples}")
         new_data = []
-        # for each keys will create as many new keys as transformation to be done
-        # adding the function to do the transformation to the value (list), and will create the same key
-        # in labels, copying the original labels
-        # rot_90 = lambda movie: rotate_movie(movie, 90)
-        # # rot_180 = lambda movie: rotate_movie(movie, 180) # same as v_h_flip
-        # rot_270 = lambda movie: rotate_movie(movie, 270)
-        # shift_m_2_s = lambda movie: shift_movie(movie, x_shift=-2, y_shift=0)
-        # shift_p2_m_2 = lambda movie: shift_movie(movie, x_shift=2, y_shift=-2)
-        # shift_s_p_1 = lambda movie: shift_movie(movie, x_shift=0, y_shift=1)
-        # rot_30 = lambda movie: rotate_movie(movie, 30)
-        # rot_120 = lambda movie: rotate_movie(movie, 120)
-        # rot_260 = lambda movie: rotate_movie(movie, 260)
-        #
-        # # augmentation_functions = [horizontal_flip, vertical_flip, v_h_flip,
-        # #                           rot_90, rot_270]
-        # # augmentation_functions = [shift_m_2_s, shift_p2_m_2, shift_s_p_1]
-        # augmentation_functions = [rot_30, rot_120, rot_260]
-
-        # for index_data in np.arange(n_samples):
-        #     for fct in augmentation_functions:
-        #         movie_data = self.data_list[index_data]
-        #         new_movie = movie_data.copy()
-        #         new_movie.data_augmentation_fct = fct
-        #         new_data.append(new_movie)
 
         for index_data in np.arange(n_samples):
             movie_data = self.data_list[index_data]
@@ -1771,12 +1829,13 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                             max_n_transformations,
                             movies_shuffling=None, with_shuffling=False, main_ratio_balance=(0.6, 0.25, 0.15),
                             crop_non_crop_ratio_balance=(0.9, 0.1),
-                            non_crop_ratio_balance=(0.6, 0.4)):
+                            non_crop_ratio_balance=(0.6, 0.4),
+                            seed_value=None):
     """
     Stratification is the technique to allocate the samples evenly based on sample classes
     so that training set and validation set have similar ratio of classes
     p7_171012_a000_ms: up to cell 117, interesting cells:
-    52 (69t), 75 (59t), 81 (50t), 93 (35t), 115 (28t)
+    52 (69t), 75 (59t), 81 (50t), 93 (35t), 115 (28t), 83, 53 (51 mvt)
     p8_18_10_24_a005: up to cell 25 ?
     p9_18_09_27_a003_ms: up to cell ?
     p12_171110_a000_ms: up to cell 7
@@ -1786,7 +1845,9 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     use_small_sample = True
     if use_small_sample:
         ms_to_use = ["p7_171012_a000_ms"]
-        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 75, 81, 93, 115])}  # np.arange(1) np.array([8])
+        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 75])}
+        # np.arange(1) np.array([8])
+        # np.array([52, 53, 75, 81, 83, 93, 115]
         # ms_to_use = ["p12_171110_a000_ms"]
         # cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0])}
     else:
@@ -1867,6 +1928,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     if movies_shuffling is None:
         movies_shuffling = np.arange(movie_count)
         if with_shuffling:
+            if seed_value is not None:
+                np.random.seed(seed_value)
             np.random.shuffle(movies_shuffling)
 
     n_movies_for_training = int(movie_count * split_values[0])
@@ -2291,16 +2354,50 @@ def plot_training_and_validation_values(history, key_name, result_path, param):
     plt.close()
 
 
+# from: http://www.deepideas.net/unbalanced-classes-machine-learning/
 def sensitivity(y_true, y_pred):
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
     possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
     return true_positives / (possible_positives + K.epsilon())
 
 
+# from: http://www.deepideas.net/unbalanced-classes-machine-learning/
 def specificity(y_true, y_pred):
     true_negatives = K.sum(K.round(K.clip((1 - y_true) * (1 - y_pred), 0, 1)))
     possible_negatives = K.sum(K.round(K.clip(1 - y_true, 0, 1)))
     return true_negatives / (possible_negatives + K.epsilon())
+
+
+def precision(y_true, y_pred):
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+    return true_positives / (predicted_positives + K.epsilon())
+
+
+# from https://stackoverflow.com/questions/41458859/keras-custom-metric-for-single-class-accuracy
+def single_class_accuracy_precision(interesting_class_id):
+    def precision(y_true, y_pred):
+        class_id_true = K.argmax(y_true, axis=-1)
+        class_id_preds = K.argmax(y_pred, axis=-1)
+        # Replace class_id_preds with class_id_true for recall here
+        accuracy_mask = K.cast(K.equal(class_id_preds, interesting_class_id), 'int32')
+        class_acc_tensor = K.cast(K.equal(class_id_true, class_id_preds), 'int32') * accuracy_mask
+        class_acc = K.sum(class_acc_tensor) / K.maximum(K.sum(accuracy_mask), 1)
+        return class_acc
+    return precision
+
+
+# from https://stackoverflow.com/questions/41458859/keras-custom-metric-for-single-class-accuracy
+def single_class_accuracy_recall(interesting_class_id):
+    def recall(y_true, y_pred):
+        class_id_true = K.argmax(y_true, axis=-1)
+        class_id_preds = K.argmax(y_pred, axis=-1)
+        # Replace class_id_true with class_id_preds for precision here
+        accuracy_mask = K.cast(K.equal(class_id_true, interesting_class_id), 'int32')
+        class_acc_tensor = K.cast(K.equal(class_id_true, class_id_preds), 'int32') * accuracy_mask
+        class_acc = K.sum(class_acc_tensor) / K.maximum(K.sum(accuracy_mask), 1)
+        return class_acc
+    return recall
 
 
 def train_model():
@@ -2353,27 +2450,33 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     use_mulimodal_inputs = True
-    n_epochs = 20
+    n_epochs = 15
     batch_size = 16
     window_len = 50
     max_width = 25
     max_height = 25
     overlap_value = 0.9
-    dropout_value = 0
-    max_n_transformations = 6
+    dropout_value = 0.5
+    max_n_transformations = 8
     # dropout_value_rnn = 0
     pixels_around = 0
     with_augmentation_for_training_data = True
     buffer = None
-    split_values = (0.7, 0.2)
-    optimizer_choice = "adam"
+    split_values = (0.6, 0.2)
+    optimizer_choice = "RMSprop"  # "adam"
     activation_fct = "swish"
     with_learning_rate_reduction = True
+    learning_rate_reduction_patience = 1
     without_bidirectional = False
-    lstm_layers_size = [128, 256]
+    lstm_layers_size = [256, 512] # 128, 256, 512
     with_early_stopping = True
+    early_stop_patience = 10 # 10
     model_descr = ""
     with_shuffling = True
+    seed_value = 42  # use None for not using seed
+    main_ratio_balance = (0.8, 0.1, 0.1)
+    crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
+    non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
 
     params_generator = {
         'batch_size': batch_size,
@@ -2386,17 +2489,19 @@ def train_model():
 
     start_time = time.time()
     train_data_list, valid_data_list, test_data_list, \
-    test_movie_descr, cell_to_load_by_ms = load_data_for_generator(param,
-                                                                   split_values=split_values,
-                                                                   sliding_window_len=window_len,
-                                                                   overlap_value=overlap_value,
-                                                                   movies_shuffling=None,
-                                                                   with_shuffling=with_shuffling,
-                                                                   main_ratio_balance=(0.75, 0.05, 0.20),
-                                                                   crop_non_crop_ratio_balance=(0.8, 0.2),
-                                                                   non_crop_ratio_balance=(0.85, 0.15),
-                                                                   max_n_transformations=max_n_transformations
-                                                                   )
+    test_movie_descr, cell_to_load_by_ms = \
+        load_data_for_generator(param,
+                                split_values=split_values,
+                                sliding_window_len=window_len,
+                                overlap_value=overlap_value,
+                                movies_shuffling=None,
+                                with_shuffling=with_shuffling,
+                                main_ratio_balance=main_ratio_balance,
+                                crop_non_crop_ratio_balance=crop_non_crop_ratio_balance,
+                                non_crop_ratio_balance=non_crop_ratio_balance,
+                                max_n_transformations=max_n_transformations,
+                                seed_value=seed_value
+                                )
 
     stop_time = time.time()
     print(f"Time for loading data for generator: "
@@ -2447,15 +2552,17 @@ def train_model():
         optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=None, decay=0.0)
     # optimizer = 'rmsprop'
 
+    # precision = PPV and recall = sensitiviy but in our case just concerning the active frames
+    # the sensitivity and specificity otherwise refers to non-active and active frames classifier
     model.compile(optimizer=optimizer,
                   loss='binary_crossentropy',
-                  metrics=['accuracy', sensitivity, specificity])
+                  metrics=['accuracy', sensitivity, specificity, precision])
     # sample_weight_mode="temporal",
 
     # Set a learning rate annealer
     # from: https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
-    learning_rate_reduction = ReduceLROnPlateau(monitor='val_sensitivity',
-                                                patience=2,
+    learning_rate_reduction = ReduceLROnPlateau(monitor='val_precision',
+                                                patience=learning_rate_reduction_patience,
                                                 verbose=1,
                                                 factor=0.5,
                                                 mode='max',
@@ -2468,7 +2575,7 @@ def train_model():
         callbacks_list.append(learning_rate_reduction)
 
     if with_early_stopping:
-        callbacks_list.append(EarlyStopping(monitor="val_sensitivity", min_delta=0, patience=5, mode="max",
+        callbacks_list.append(EarlyStopping(monitor="val_precision", min_delta=0, patience=early_stop_patience, mode="max",
                                             restore_best_weights=True))
 
     with_model_check_point = True
@@ -2496,6 +2603,7 @@ def train_model():
                                   workers=10,
                                   callbacks=callbacks_list)
 
+    print(f"history.history.keys() {history.history.keys()}")
     stop_time = time.time()
     print(f"Time for fitting the model to the data with {n_epochs} epochs: "
           f"{np.round(stop_time - start_time, 3)} s")
@@ -2503,7 +2611,7 @@ def train_model():
     show_plots = True
 
     if show_plots:
-        key_names = ["loss", "acc", "sensitivity", "specificity"]
+        key_names = ["loss", "acc", "sensitivity", "specificity", "precision"]
         for key_name in key_names:
             plot_training_and_validation_values(history=history, key_name=key_name,
                                                 result_path=result_path, param=param)
@@ -2522,6 +2630,7 @@ def train_model():
         file.write(f"with_augmentation_for_training_data {with_augmentation_for_training_data}" + '\n')
         file.write(f"batch_size: {batch_size}" + '\n')
         file.write(f"with_shuffling: {with_shuffling}" + '\n')
+        file.write(f"seed_value: {seed_value}" + '\n')
         file.write(f"with_learning_rate_reduction: {with_learning_rate_reduction}" + '\n')
         file.write(f"without_bidirectional: {without_bidirectional}" + '\n')
         file.write(f"use_mulimodal_inputs: {use_mulimodal_inputs}" + '\n')
@@ -2534,6 +2643,10 @@ def train_model():
         file.write(f"pixels_around: {pixels_around}" + '\n')
         file.write(f"buffer: {'None' if (buffer is None) else buffer}" + '\n')
         file.write(f"split_values: {split_values}" + '\n')
+        file.write(f"main_ratio_balance: {main_ratio_balance}" + '\n')
+        file.write(f"crop_non_crop_ratio_balance: {crop_non_crop_ratio_balance}" + '\n')
+        file.write(f"non_crop_ratio_balance: {non_crop_ratio_balance}" + '\n')
+        file.write(f"max_n_transformations: {max_n_transformations}" + '\n')
         file.write(f"optimizer_choice: {optimizer_choice}" + '\n')
         file.write(f"activation_fct: {activation_fct}" + '\n')
         file.write(f"train_loss: {history_dict['loss']}" + '\n')
@@ -2544,6 +2657,10 @@ def train_model():
         file.write(f"val_sensitivity: {history_dict['val_sensitivity']}" + '\n')
         file.write(f"train_specificity: {history_dict['specificity']}" + '\n')
         file.write(f"val_specificity: {history_dict['val_specificity']}" + '\n')
+        file.write(f"train_precision: {history_dict['precision']}" + '\n')
+        file.write(f"val_precision: {history_dict['val_precision']}" + '\n')
+        # file.write(f"train_recall: {history_dict['recall']}" + '\n')
+        # file.write(f"val_recall: {history_dict['val_recall']}" + '\n')
 
         # cells used
         for ms_str, cells in cell_to_load_by_ms.items():
@@ -2574,15 +2691,28 @@ def train_model():
     print(f"Time for generating test data: "
           f"{np.round(stop_time - start_time, 3)} s")
     print(f"test_data.shape {test_data.shape}")
+    # calculating default accuracy by putting all predictions to zero
+
+    # test_labels
+    n_test_frames = 0
+    n_rights = 0
+    for batch_labels in test_labels:
+        n_rights += len(batch_labels) - np.sum(batch_labels)
+        n_test_frames += len(batch_labels)
+    print(f"Default test accuracy {str(np.round(n_rights / n_test_frames, 3))}")
 
     start_time = time.time()
     if use_mulimodal_inputs:
-        test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate({'video_input': test_data,
-                                                                                  'video_input_masked': test_data_masked},
-                                                                                 test_labels, verbose=2)
+        test_loss, test_acc, test_sensitivity, test_specificity, test_precision = \
+            model.evaluate({'video_input': test_data,
+                            'video_input_masked': test_data_masked},
+                           test_labels, verbose=2)
     else:
-        test_loss, test_acc, test_sensitivity, test_specificity = model.evaluate(test_data_masked, test_labels)
-    print(f"test_acc {test_acc}, test_sensitivity {test_sensitivity}, test_specificity {test_specificity}")
+        test_loss, test_acc, test_sensitivity, test_specificity, test_precision = \
+            model.evaluate(test_data_masked, test_labels)
+
+    print(f"test_acc {test_acc}, test_sensitivity {test_sensitivity}, test_specificity {test_specificity}, "
+          f"test_precision {test_precision}")
 
     stop_time = time.time()
     print(f"Time for evaluating test data: "
