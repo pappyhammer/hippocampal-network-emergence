@@ -2096,7 +2096,7 @@ class ManualOnsetFrame(tk.Frame):
         predictions = predict_transient_from_saved_model(ms=self.data_and_param.ms, cell=cell,
                                                          weights_file=self.transient_classifier_weights_file,
                                                          json_file=self.transient_classifier_json_file,
-                                                         overlap_value=0.8, use_data_augmentation=True)
+                                                         overlap_value=0.8, use_data_augmentation=False)
         self.transient_prediction[cell] = predictions
         self.transient_prediction_periods[cell] = dict()
 

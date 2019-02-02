@@ -2584,6 +2584,23 @@ class MouseSession:
         # print(f"cells_to_remove {cells_to_remove}")
         self.cells_to_remove = cells_to_remove
 
+    def clean_data_using_cells_to_remove(self):
+        if len(self.cells_to_remove) == 0:
+            return
+        n_cells = self.spike_struct.n_cells
+        # print(f"self.coord[1].shape {self.coord[1].shape}")
+        # raise Exception("titi")
+        new_coord = []
+        for cell in np.arange(n_cells):
+            if cell in self.cells_to_remove:
+                continue
+            new_coord.append(self.coord[cell])
+
+        self.coord_obj = CoordClass(coord=new_coord, nb_col=200,
+                                    nb_lines=200)
+        self.spike_struct.clean_data_using_cells_to_remove(cells_to_remove=self.cells_to_remove)
+        # raise Exception("titi")
+
     def detect_n_in_n_out(self):
         self.spike_struct.detect_n_in_n_out()
 

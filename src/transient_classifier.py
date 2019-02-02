@@ -1029,7 +1029,7 @@ class StratificationCamembert:
 
 class StratificationDataProcessor:
 
-    def __init__(self, data_list, n_max_transformations, main_ratio_balance=(0.6, 0.25, 0.15),
+    def __init__(self, data_list, description, n_max_transformations, main_ratio_balance=(0.6, 0.25, 0.15),
                  crop_non_crop_ratio_balance=(0.9, 0.1), non_crop_ratio_balance=(0.6, 0.4),
                  debug_mode=False):
         self.data_list = data_list
@@ -1048,7 +1048,7 @@ class StratificationDataProcessor:
 
         # just to have the stat
         StratificationCamembert(data_list=self.data_list,
-                                description="ALL DATA",
+                                description=description,
                                 n_max_transformations=self.n_max_transformations,
                                 debug_mode=True)
 
@@ -1114,7 +1114,7 @@ class StratificationDataProcessor:
         if debug_mode:
             print(f"////////// AFTER balancing sessions //////////////")
         balanced_camembert = StratificationCamembert(data_list=self.data_list,
-                                                     description="ALL DATA",
+                                                     description=description+"_balanced",
                                                      n_max_transformations=self.n_max_transformations,
                                                      debug_mode=True)
         # setting the weight based on amplitudes and lengths of the transients
@@ -1425,7 +1425,8 @@ class DataGenerator(keras.utils.Sequence):
                  is_shuffle=True, max_width=30, max_height=30):
         """
 
-        :param data_list: a list containing the information to get the data. Each element is an instance of MoviePatchData
+        :param data_list: a list containing the information to get the data. Each element
+        is an instance of MoviePatchData
         :param batch_size:
         :param window_len:
         :param with_augmentation:
@@ -1501,6 +1502,8 @@ class DataGenerator(keras.utils.Sequence):
     def on_epoch_end(self):
         # 'Updates indexes after each epoch'
         self.indexes = np.arange(self.n_samples)
+        # TODO: each mini-batch should have the same proportion of data (neuropil, transients, fake transients)
+        # TODO: create a function that shuffle the index with respect of this information
         if self.is_shuffle:
             np.random.shuffle(self.indexes)
         # self.data_keys = list(self.data_dict.keys())
@@ -1835,7 +1838,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     Stratification is the technique to allocate the samples evenly based on sample classes
     so that training set and validation set have similar ratio of classes
     p7_171012_a000_ms: up to cell 117, interesting cells:
-    52 (69t), 75 (59t), 81 (50t), 93 (35t), 115 (28t), 83, 53 (51 mvt)
+    52 (69t), 75 (59t), 81 (50t), 93 (35t), 115 (28t), 83, 53 (51 mvt), 3
     p8_18_10_24_a005: up to cell 25 ?
     p9_18_09_27_a003_ms: up to cell ?
     p12_171110_a000_ms: up to cell 7
@@ -1845,7 +1848,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     use_small_sample = True
     if use_small_sample:
         ms_to_use = ["p7_171012_a000_ms"]
-        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 75])}
+        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([3, 52, 53, 75, 81, 83, 93, 115])}
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
         # ms_to_use = ["p12_171110_a000_ms"]
@@ -1930,7 +1933,52 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         if with_shuffling:
             if seed_value is not None:
                 np.random.seed(seed_value)
-            np.random.shuffle(movies_shuffling)
+            sc = StratificationCamembert(data_list=full_data,
+                                    description="FULL DATA",
+                                    n_max_transformations=6,
+                                    debug_mode=True)
+            try_balancing = False
+            # shuffle seems to work better
+            if try_balancing:
+                full_data = []
+                index_fake = 0
+                index_real = 0
+                index_neuropil = 0
+                batch_size = 100
+                len_fake = len(sc.transient_movies["fake"])
+                len_real = len(sc.transient_movies["real"])
+                len_neuropil = len(sc.neuropil_movies)
+                n_fake_by_batch = int((len_fake / movie_count) * batch_size)
+                n_real_by_batch = int((len_real / movie_count) * batch_size)
+                n_neuropil_by_batch = int((len_neuropil / movie_count) * batch_size)
+
+                while True:
+                    no_patches_added = True
+                    if index_real < len_real:
+                        end_index = min(index_real + n_real_by_batch, len_real)
+                        for i in np.arange(index_real, end_index):
+                            full_data.append(sc.transient_movies["real"][i])
+                        index_real = end_index
+                        no_patches_added = False
+
+                    if index_fake < len_fake:
+                        end_index = min(index_fake + n_fake_by_batch, len_fake)
+                        for i in np.arange(index_fake, end_index):
+                            full_data.append(sc.transient_movies["fake"][i])
+                        index_fake = end_index
+                        no_patches_added = False
+
+                    if index_neuropil < len_neuropil:
+                        end_index = min(index_neuropil + n_neuropil_by_batch, len_neuropil)
+                        for i in np.arange(index_neuropil, end_index):
+                            full_data.append(sc.neuropil_movies[i])
+                        index_neuropil = end_index
+                        no_patches_added = False
+
+                    if no_patches_added:
+                        break
+            else:
+                np.random.shuffle(movies_shuffling)
 
     n_movies_for_training = int(movie_count * split_values[0])
     n_movies_for_validation = int(movie_count * split_values[1])
@@ -1941,9 +1989,19 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     valid_data = []
     for index in movies_shuffling[n_movies_for_training:n_movies_for_training + n_movies_for_validation]:
         valid_data.append(full_data[index])
+
+    StratificationCamembert(data_list=valid_data,
+                            description="VALIDATION DATA",
+                            n_max_transformations=6,
+                            debug_mode=True)
     test_data = []
     for index in movies_shuffling[n_movies_for_training + n_movies_for_validation:]:
         test_data.append(full_data[index])
+
+    StratificationCamembert(data_list=test_data,
+                            description="TEST DATA",
+                            n_max_transformations=6,
+                            debug_mode=True)
 
     test_movie_descr = []
     for movie in movies_shuffling[n_movies_for_training + n_movies_for_validation:]:
@@ -1951,6 +2009,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
 
     n_max_transformations = train_data[0].n_available_augmentation_fct
     strat_process = StratificationDataProcessor(data_list=train_data, n_max_transformations=n_max_transformations,
+                                                description="TRAINING DATA",
                                                 debug_mode=False, main_ratio_balance=main_ratio_balance,
                                                 crop_non_crop_ratio_balance=crop_non_crop_ratio_balance,
                                                 non_crop_ratio_balance=non_crop_ratio_balance)
@@ -2450,14 +2509,14 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     use_mulimodal_inputs = True
-    n_epochs = 50
+    n_epochs = 40
     batch_size = 16
     window_len = 50
     max_width = 25
     max_height = 25
     overlap_value = 0.9
     dropout_value = 0.5
-    max_n_transformations = 8
+    max_n_transformations = 6
     # dropout_value_rnn = 0
     pixels_around = 0
     with_augmentation_for_training_data = True
@@ -2470,11 +2529,11 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [256, 512] # 128, 256, 512
     with_early_stopping = True
-    early_stop_patience = 10 # 10
+    early_stop_patience = 5 # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None for not using seed
-    main_ratio_balance = (0.8, 0.1, 0.1)
+    main_ratio_balance = (0.60, 0.20, 0.20)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
 
@@ -2515,7 +2574,7 @@ def train_model():
     stop_time = time.time()
     print(f"Time to create generator: "
           f"{np.round(stop_time - start_time, 3)} s")
-    # raise Exception("TOTOOO")
+    raise Exception("TOTOOO")
 
     # (sliding_window_size, max_width, max_height, 1)
     # sliding_window in frames, max_width, max_height: in pixel (100, 25, 25, 1) * n_movie
@@ -2575,7 +2634,7 @@ def train_model():
         callbacks_list.append(learning_rate_reduction)
 
     if with_early_stopping:
-        callbacks_list.append(EarlyStopping(monitor="val_precision", min_delta=0, patience=early_stop_patience, mode="max",
+        callbacks_list.append(EarlyStopping(monitor="val_acc", min_delta=0, patience=early_stop_patience, mode="max",
                                             restore_best_weights=True))
 
     with_model_check_point = True

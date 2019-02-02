@@ -142,7 +142,7 @@ class BenchmarkRasterDur:
                     labels = list(self.results_frames_dict_by_cell[cell_to_display].keys())
                     values_by_prediction = [[] for n in np.arange(n_box_plots)]
                 for label_index, label in enumerate(labels):
-                    values_by_prediction[label_index].\
+                    values_by_prediction[label_index]. \
                         append(self.results_frames_dict_by_cell[cell_to_display][label][stat_name])
 
             colorfull = True
@@ -169,7 +169,6 @@ class BenchmarkRasterDur:
             ax.set_xticklabels(labels)
 
             ax.set_title(stat_name, color=title_color, pad=20)
-
 
         if isinstance(save_formats, str):
             save_formats = [save_formats]
@@ -225,7 +224,7 @@ class BenchmarkRasterDur:
                     labels = list(self.results_transients_dict_by_cell[cell_to_display].keys())
                     values_by_prediction = [[] for n in np.arange(n_box_plots)]
                 for label_index, label in enumerate(labels):
-                    values_by_prediction[label_index].\
+                    values_by_prediction[label_index]. \
                         append(self.results_transients_dict_by_cell[cell_to_display][label][stat_name])
 
             colorfull = True
@@ -346,11 +345,133 @@ def manually_boost_rnn(title, path_data, raster_dur_file_name, trace_file_name, 
             # then it is considered false and we remove it
             beg = period[0]
             end = period[1]
-            if np.sum(spike_nums_dur[cell, beg:end+1]) == 0:
-                raster_dur_predicted[cell, beg:end+1] = 0
+            if np.sum(spike_nums_dur[cell, beg:end + 1]) == 0:
+                raster_dur_predicted[cell, beg:end + 1] = 0
 
     path_results += "/"
     sio.savemat(path_results + f"{title}boost_rnn_raster_dur.mat", {'spike_nums_dur_predicted': raster_dur_predicted})
+
+
+def build_raster_dur_from_caiman_25000_frames_onsets(file_name, var_name, trace_file_name, trace_var_name,
+                                                    description, path_results):
+    data_onsets = hdf5storage.loadmat(file_name)
+    # print(f"data_onsets {list(data_onsets.keys())}")
+    # return
+    caiman_spike_nums = data_onsets[var_name].astype(float)
+
+    print(f"caiman_spike_nums.shape {caiman_spike_nums.shape}")
+
+    # we need to bin it, to get 12500 frames
+    spike_nums_bin = np.zeros((caiman_spike_nums.shape[0], caiman_spike_nums.shape[1] // 2),
+                              dtype="int8")
+    for cell in np.arange(spike_nums_bin.shape[0]):
+        binned_cell = caiman_spike_nums[cell].reshape(-1, 2).mean(axis=1)
+        binned_cell[binned_cell > 0] = 1
+        spike_nums_bin[cell] = binned_cell.astype("int")
+    caiman_spike_nums = spike_nums_bin
+
+    print(f"caiman_spike_nums.shape {caiman_spike_nums.shape}")
+
+    data_traces = hdf5storage.loadmat(trace_file_name)
+    traces = data_traces[trace_var_name].astype(float)
+
+    n_cells = traces.shape[0]
+    n_times = traces.shape[1]
+
+    for i in np.arange(n_cells):
+        traces[i, :] = (traces[i, :] - np.mean(traces[i, :])) / np.std(traces[i, :])
+        # if smooth_the_trace:
+        #     # smoothing the trace
+        #     windows = ['hanning', 'hamming', 'bartlett', 'blackman']
+        #     i_w = 1
+        #     window_length = 11
+        #     smooth_signal = smooth_convolve(x=traces[i], window_len=window_length,
+        #                                     window=windows[i_w])
+        #     beg = (window_length - 1) // 2
+        #     traces[i] = smooth_signal[beg:-beg]
+
+    # detecting all onsets
+    spike_nums_all = np.zeros((n_cells, n_times), dtype="int8")
+    for cell in np.arange(n_cells):
+        onsets = []
+        diff_values = np.diff(traces[cell])
+        for index, value in enumerate(diff_values):
+            if index == (len(diff_values) - 1):
+                continue
+            if value < 0:
+                if diff_values[index + 1] >= 0:
+                    onsets.append(index + 1)
+        spike_nums_all[cell, np.array(onsets)] = 1
+
+    caiman_peak_nums = np.zeros((n_cells, n_times), dtype="int8")
+    for cell in np.arange(n_cells):
+        peaks, properties = signal.find_peaks(x=traces[cell], distance=2)
+        caiman_peak_nums[cell, peaks] = 1
+
+    spike_nums_dur = np.zeros((n_cells, n_times), dtype="int8")
+
+    for cell in np.arange(n_cells):
+        peaks_index = np.where(caiman_peak_nums[cell])[0]
+        # for each peaks we look at onsets before, until an onset is at higher amplitude than the previous one
+        # if none of the onset are from caiman, we don't consider this peak as part of a transient
+        # otherwise we add the transient to the raster_dur, using the caiman onset with the lowest amplitudes
+        caiman_onsets_index = np.where(caiman_spike_nums[cell])[0]
+        all_onsets_index = np.where(spike_nums_all[cell])[0]
+        n_transients = 0
+        for peak_index in peaks_index:
+            onsets_before_peak = all_onsets_index[all_onsets_index < peak_index]
+            if len(onsets_before_peak) == 0:
+                continue
+            # looking for the lowest amplitude onsets
+            last_amplitude = None
+            lowest_onset = None
+            peak_amplitude = traces[cell, peak_index]
+            last_peak_index = peak_index
+            onset_found = True
+            for onset_index in onsets_before_peak[::-1]:
+                if last_amplitude is None:
+                    last_amplitude = traces[cell, onset_index]
+                    lowest_onset = onset_index
+                    if last_amplitude > peak_amplitude:
+                        onset_found = False
+                        break
+                else:
+                    amplitude = traces[cell, onset_index]
+                    if amplitude > last_amplitude:
+                        # then it's over
+                        break
+                    else:
+                        # first we want to check if no peak between the last peak and the index is higher than the
+                        # lowest peak encounter
+                        new_peaks_index = peaks_index[np.logical_and(peaks_index > onset_index,
+                                                                     peaks_index < last_peak_index)]
+                        if len(new_peaks_index) > 0:
+                            if traces[cell, new_peaks_index[0]] > traces[cell, last_peak_index]:
+                                # print(f"cell {cell}: break peak > last_peak")
+                                break
+                            last_peak_index = new_peaks_index[0]
+                        last_amplitude = amplitude
+                        lowest_onset = onset_index
+            if not onset_found:
+                continue
+            else:
+                # now we want to see if there is a caiman onset between this onset and the peak
+                # taking the furthest one
+                # we allow a 2 frames imprecision, due to the bin operation
+                if lowest_onset > 1:
+                    lowest_onset -= 2
+                # print(f"cell {cell}: len lowest to peak {peak_index + 1 - lowest_onset}")
+                caiman_champion = np.where(np.logical_and(caiman_onsets_index >= lowest_onset,
+                                                          caiman_onsets_index < peak_index))[0]
+                if len(caiman_champion) > 0:
+                    spike_nums_dur[cell, caiman_onsets_index[caiman_champion[0]]:peak_index + 1] = 1
+                    # print(f"cell {cell}: len transient {peak_index + 1 - caiman_onsets_index[caiman_champion[0]]}")
+                    n_transients += 1
+        print(f"cell {cell}: n_transients {n_transients}")
+        periods = get_continous_time_periods(spike_nums_dur[cell])
+        print(f"cell {cell}: real n_transients {len(periods)}")
+    path_results += "/"
+    sio.savemat(path_results + f"{description}_caiman_raster_dur_JD_version.mat", {'rasterdur': spike_nums_dur})
 
 
 def build_p7_17_10_12_a000_raster_dur_caiman(path_data, path_results):
@@ -412,6 +533,31 @@ def main_benchmark():
     path_results = path_results_raw + f"{time_str}"
     os.mkdir(path_results)
 
+    do_build_raster_dur_on_25000 = False
+    if do_build_raster_dur_on_25000:
+        build_p12 = False
+        build_p7 = True
+        if build_p12:
+            path_data = path_data + "p12/p12_17_11_10_a000/"
+            file_name = path_data + "robin_28_01_19/" + "p12_17_11_10_a000_Spikenums_caiman.mat"
+            var_name = "spikenums"
+            trace_file_name = path_data + "p12_17_11_10_a000_Traces.mat"
+            trace_var_name = "C_df"
+            description = "p12_17_11_10_a000"
+        if build_p7:
+            path_data = path_data + "p7/p7_17_10_12_a000/"
+            file_name = path_data + "Robin_30_01_19/" + "p7_17_10_12_a000_spikenums.mat"
+            var_name = "spikenums"
+            trace_file_name = path_data + "p7_17_10_12_a000_Traces.mat"
+            trace_var_name = "C_df"
+            description = "p7_17_10_12_a000"
+
+        build_raster_dur_from_caiman_25000_frames_onsets(file_name=file_name, var_name=var_name,
+                                                         trace_file_name=trace_file_name, trace_var_name=trace_var_name,
+                                                         description=description,
+                                                         path_results=path_results)
+        return
+
     build_p7 = False
     if build_p7:
         build_p7_17_10_12_a000_raster_dur_caiman(path_data=path_data, path_results=path_results)
@@ -437,8 +583,8 @@ def main_benchmark():
         return
 
     # ########### options ###################
-    # ms_to_benchmark = "p12_17_11_10_a000"
-    ms_to_benchmark = "p7_17_10_12_a000"
+    ms_to_benchmark = "p12_17_11_10_a000"
+    # ms_to_benchmark = "p7_17_10_12_a000"
     do_onsets_benchmarks = False
     # ########### end options ###################
 
@@ -447,11 +593,11 @@ def main_benchmark():
         # gt as ground_truth
         data_dict["gt"] = dict()
         data_dict["gt"]["path"] = "p12/p12_17_11_10_a000"
-        data_dict["gt"]["gui_file"] = "p12_17_11_10_a000_GUI_JD.mat"
+        data_dict["gt"]["gui_file"] = "p12_17_11_10_a000_GUI_JDMP.mat"
         data_dict["gt"]["gt_file"] = "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt"
         data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P12_17_11_10_a000.txt"
         data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.arange(7)
+        data_dict["gt"]["cells"] = np.arange(10)
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
@@ -466,13 +612,19 @@ def main_benchmark():
         data_dict["caiman_raw"]["onsets_var_name"] = "spikenums"
         data_dict["caiman_raw"]["to_bin"] = True
         data_dict["caiman_raw"]["var_name"] = "rasterdur"
+        # "p12_17_11_10_a000_caiman_raster_dur_JD_version.mat"
 
-        data_dict["caiman_filt"] = dict()
-        data_dict["caiman_filt"]["path"] = "p12/p12_17_11_10_a000"
-        data_dict["caiman_filt"]["file_name"] = "p12_17_11_10_a000_filt_RasterDur_caiman.mat"
-        data_dict["caiman_filt"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Bin100ms_spikedigital.mat"
-        data_dict["caiman_filt"]["onsets_var_name"] = "Bin100ms_spikedigital"
-        data_dict["caiman_filt"]["var_name"] = "rasterdur"
+        data_dict["caiman_jd"] = dict()
+        data_dict["caiman_jd"]["path"] = "p12/p12_17_11_10_a000"
+        data_dict["caiman_jd"]["file_name"] = "p12_17_11_10_a000_caiman_raster_dur_JD_version.mat"
+        data_dict["caiman_jd"]["var_name"] = "rasterdur"
+
+        # data_dict["caiman_filt"] = dict()
+        # data_dict["caiman_filt"]["path"] = "p12/p12_17_11_10_a000"
+        # data_dict["caiman_filt"]["file_name"] = "p12_17_11_10_a000_filt_RasterDur_caiman.mat"
+        # data_dict["caiman_filt"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Bin100ms_spikedigital.mat"
+        # data_dict["caiman_filt"]["onsets_var_name"] = "Bin100ms_spikedigital"
+        # data_dict["caiman_filt"]["var_name"] = "rasterdur"
     elif ms_to_benchmark == "p7_17_10_12_a000":
         # gt as ground_truth
         data_dict["gt"] = dict()
@@ -491,22 +643,25 @@ def main_benchmark():
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
 
+        data_dict["caiman_jd"] = dict()
+        data_dict["caiman_jd"]["path"] = "p7/p7_17_10_12_a000"
+        data_dict["caiman_jd"]["file_name"] = "p7_17_10_12_a000_caiman_raster_dur_JD_version.mat"
+        data_dict["caiman_jd"]["var_name"] = "rasterdur"
+
         # data_dict["boost_rnn"] = dict()
         # data_dict["boost_rnn"]["path"] = "p7/p7_17_10_12_a000"
         # data_dict["boost_rnn"]["file_name"] = "p7_17_10_12_a000boost_rnn_raster_dur.mat"
         # data_dict["boost_rnn"]["var_name"] = "spike_nums_dur_predicted"
-
 
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p7/p7_17_10_12_a000"
         data_dict["caiman_raw"]["file_name"] = "Robin_30_01_19/p7_17_10_12_a000_RasterDur.mat"
         data_dict["caiman_raw"]["var_name"] = "rasterdur"
 
-        data_dict["caiman_filt"] = dict()
-        data_dict["caiman_filt"]["path"] = "p7/p7_17_10_12_a000"
-        data_dict["caiman_filt"]["file_name"] = "Robin_30_01_19/p7_17_10_12_a000_caiman_raster_dur.mat"
-        data_dict["caiman_filt"]["var_name"] = "rasterdur"
-
+        # data_dict["caiman_filt"] = dict()
+        # data_dict["caiman_filt"]["path"] = "p7/p7_17_10_12_a000"
+        # data_dict["caiman_filt"]["file_name"] = "Robin_30_01_19/p7_17_10_12_a000_caiman_raster_dur.mat"
+        # data_dict["caiman_filt"]["var_name"] = "rasterdur"
 
     # ground truth
     data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gui_file"]))
@@ -534,7 +689,7 @@ def main_benchmark():
             line_list = line.split()
             cells_list = [float(i) for i in line_list]
             cell_cnn_predictions.extend(cells_list)
-    cell_cnn_predictions= np.array(cell_cnn_predictions)
+    cell_cnn_predictions = np.array(cell_cnn_predictions)
     cells_predicted_as_false = np.where(cell_cnn_predictions < data_dict["gt"]["cnn_threshold"])[0]
     # print(f"cells_predicted_as_false {cells_predicted_as_false}")
     cells_for_benchmark = data_dict["gt"]["cells"]
@@ -580,8 +735,9 @@ def main_benchmark():
 
     benchmarks.plot_boxplots_for_frames_stat(description=ms_to_benchmark, time_str=time_str, path_results=path_results,
                                              save_formats="pdf")
-    benchmarks.plot_boxplots_for_transients_stat(description=ms_to_benchmark, time_str=time_str, path_results=path_results,
-                                             save_formats="pdf")
+    benchmarks.plot_boxplots_for_transients_stat(description=ms_to_benchmark, time_str=time_str,
+                                                 path_results=path_results,
+                                                 save_formats="pdf")
 
     if do_onsets_benchmarks:
         print("")

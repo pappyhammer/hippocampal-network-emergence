@@ -105,6 +105,89 @@ class HNESpikeStructure:
         self.graph_in = None
         self.graph_out = None
 
+    def clean_data_using_cells_to_remove(self, cells_to_remove):
+        if len(cells_to_remove) == 0:
+            return
+
+        new_n_cells = self.n_cells - len(cells_to_remove)
+        cells_to_remove = np.array(cells_to_remove)
+        mask = np.ones(self.n_cells, dtype="bool")
+        mask[cells_to_remove] = False
+
+        if self.spike_nums is not None:
+            self.spike_nums = self.spike_nums[mask]
+
+        if self.spike_nums_dur is not None:
+            self.spike_nums_dur = self.spike_nums_dur[mask]
+
+        if self.peak_nums is not None:
+            self.peak_nums = self.peak_nums[mask]
+
+        if self.n_in_matrix is not None:
+            self.n_in_matrix = self.n_in_matrix[mask]
+
+        if self.n_out_matrix is not None:
+            self.n_out_matrix = self.n_out_matrix[mask]
+
+        if self.graph_in is not None:
+            self.graph_in = self.graph_in[mask]
+
+        if self.graph_out is not None:
+            self.graph_out = self.graph_out[mask]
+
+        # if self.spike_nums is not None:
+        #     new_spike_nums = np.zeros((new_n_cells, self.spike_nums.shape[1]), dtype="int8")
+        # if self.spike_nums_dur is not None:
+        #     new_spike_nums_dur = np.zeros((new_n_cells, self.spike_nums_dur.shape[1]), dtype="int8")
+        # if self.peak_nums is not None:
+        #     new_peak_nums = np.zeros((new_n_cells, self.spike_nums_dur.shape[1]), dtype="int8")
+        # if self.n_in_matrix is not None:
+        #     new_n_in_matrix = np.zeros((new_n_cells, self.n_in_matrix.shape[1]))
+        # if self.n_out_matrix is not None:
+        #     new_n_out_matrix = np.zeros((new_n_cells, self.n_out_matrix.shape[1]))
+        # if self.graph_in is not None:
+        #     new_graph_in = np.zeros((new_n_cells, self.graph_in.shape[1]))
+        # if self.graph_out is not None:
+        #     new_graph_out = np.zeros((new_n_cells, self.graph_out.shape[1]))
+
+        if self.labels is not None:
+            new_labels = []
+        # cell_count = 0
+        for cell in np.arange(self.n_cells):
+            if cell in cells_to_remove:
+                continue
+            # if self.spike_nums is not None:
+            #     new_spike_nums[cell_count] = self.spike_nums[cell]
+            # if self.spike_nums_dur is not None:
+            #     new_spike_nums_dur[cell_count] = self.spike_nums_dur[cell]
+            # if self.peak_nums is not None:
+            #     new_peak_nums[cell_count] = self.peak_nums[cell]
+            #
+            # if self.n_in_matrix is not None:
+            #     self.n_in_matrix[cell] = np.zeros((new_n_cells, self.n_in_matrix.shape[1]))
+            # if self.n_out_matrix is not None:
+            #     self.n_out_matrix[cell] = np.zeros((new_n_cells, self.n_out_matrix.shape[1]))
+            # if self.graph_in is not None:
+            #     self.graph_in[cell] = np.zeros((new_n_cells, self.graph_in.shape[1]))
+            # if self.graph_out is not None:
+            #     self.graph_out[cell] = np.zeros((new_n_cells, self.graph_out.shape[1]))
+
+            if self.labels is not None:
+                new_labels.append(self.labels[cell])
+
+            # cell_count += 1
+
+        # if self.spike_nums is not None:
+        #     self.spike_nums = new_spike_nums
+        # if self.spike_nums_dur is not None:
+        #     self.spike_nums_dur = new_spike_nums_dur
+        # if self.peak_nums is not None:
+        #     self.peak_nums = new_peak_nums
+        if self.labels is not None:
+            self.labels = new_labels
+        self.n_cells = new_n_cells
+
+
     def build_spike_nums_dur(self):
         if (self.spike_nums is None) or (self.peak_nums is None):
             return
@@ -289,6 +372,7 @@ class HNESpikeStructure:
         # inter_neurons can be manually added
         if self.inter_neurons is not None:
             return
+        return
         # otherwise, we select them throught a spike duration treshold
 
         # cells_ordered_by_duration = np.argsort(avg_spike_duration_by_cell)

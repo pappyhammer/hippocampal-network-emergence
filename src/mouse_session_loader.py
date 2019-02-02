@@ -748,9 +748,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p12_171110_a000_ms = MouseSession(age=12, session_id="17_11_10_a000", nb_ms_by_frame=100, param=param,
                                           weight=7)
         # calculated with 99th percentile on raster dur
-        p12_171110_a000_ms.activity_threshold = 10
+        # p12_171110_a000_ms.activity_threshold = 10
         # p12_171110_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
-        p12_171110_a000_ms.set_inter_neurons([106, 144])
+        # p12_171110_a000_ms.set_inter_neurons([106, 144])
         # duration of those interneurons: 18.29  14.4
         # variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
         #                      "spike_nums": "filt_Bin100ms_spikedigital",
@@ -761,18 +761,21 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                  "cells_to_remove": "cells_to_remove",
                                  "inter_neurons_from_gui": "inter_neurons"}
             p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                                                   "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_JD.mat",
+                                                   "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_JDMP.mat",
                                                    variables_mapping=variables_mapping,
                                                    from_gui=True)
             p12_171110_a000_ms.build_spike_nums_dur()
             if for_cell_classifier:
                 p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
                                                                        "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
-        # else:
-        #     variables_mapping = {"spike_nums_dur": "rasterdur"}
-        #     p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-        #                                            "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur_2nd_dec.mat",
-        #                                            variables_mapping=variables_mapping)
+        else:
+            variables_mapping = {"spike_nums_dur": "spike_nums_dur_predicted"}
+            p12_171110_a000_ms.\
+                load_data_from_file(file_name_to_load=
+                                    "p12/p12_17_11_10_a000/P12_17_11_10_a000_predictions_2019_01_26.19-22-21.mat",
+                                    variables_mapping=variables_mapping)
+            p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
+                                                                       "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p12_171110_a000_ms.load_data_from_file(
@@ -789,6 +792,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p12_171110_a000_ms.set_avg_cell_map_tif(file_name="p12/p12_17_11_10_a000/AVG_p12_17_11_10_a000.tif")
         if load_movie:
             p12_171110_a000_ms.load_tif_movie(path="p12/p12_17_11_10_a000/")
+
+        if (not for_cell_classifier) and (not for_transient_classifier):
+            p12_171110_a000_ms.clean_data_using_cells_to_remove()
+
         ms_str_to_ms_dict["p12_171110_a000_ms"] = p12_171110_a000_ms
 
     if "p12_17_11_10_a002_ms" in ms_str_to_load:
