@@ -1992,13 +1992,13 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
         vision_model.add(Lambda(swish))
     vision_model.add(MaxPooling2D((2, 2)))
 
-    if dropout_value > 0:
-        vision_model.add(layers.Dropout(dropout_value))
     # vision_model.add(Conv2D(256, (3, 3), activation=activation_fct, padding='same'))
     # vision_model.add(Conv2D(256, (3, 3), activation=activation_fct))
     # vision_model.add(Conv2D(256, (3, 3), activation=activation_fct))
     # vision_model.add(MaxPooling2D((2, 2)))
     vision_model.add(Flatten())
+    if dropout_value > 0:
+        vision_model.add(layers.Dropout(dropout_value))
 
     video_input = Input(shape=input_shape, name="video_input")
     # This is our video encoded via the previously trained vision_model (weights are reused)
@@ -2450,7 +2450,7 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     use_mulimodal_inputs = True
-    n_epochs = 15
+    n_epochs = 50
     batch_size = 16
     window_len = 50
     max_width = 25
@@ -2466,7 +2466,7 @@ def train_model():
     optimizer_choice = "RMSprop"  # "adam"
     activation_fct = "swish"
     with_learning_rate_reduction = True
-    learning_rate_reduction_patience = 1
+    learning_rate_reduction_patience = 2
     without_bidirectional = False
     lstm_layers_size = [256, 512] # 128, 256, 512
     with_early_stopping = True
@@ -2515,7 +2515,7 @@ def train_model():
     stop_time = time.time()
     print(f"Time to create generator: "
           f"{np.round(stop_time - start_time, 3)} s")
-    raise Exception("TOTOOO")
+    # raise Exception("TOTOOO")
 
     # (sliding_window_size, max_width, max_height, 1)
     # sliding_window in frames, max_width, max_height: in pixel (100, 25, 25, 1) * n_movie
