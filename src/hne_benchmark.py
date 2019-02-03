@@ -597,11 +597,11 @@ def main_benchmark():
         data_dict["gt"]["gt_file"] = "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt"
         data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P12_17_11_10_a000.txt"
         data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.arange(10)
+        data_dict["gt"]["cells"] = np.arange(7)
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
-        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_01_26.19-22-21.mat"
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
 
@@ -614,17 +614,17 @@ def main_benchmark():
         data_dict["caiman_raw"]["var_name"] = "rasterdur"
         # "p12_17_11_10_a000_caiman_raster_dur_JD_version.mat"
 
-        data_dict["caiman_jd"] = dict()
-        data_dict["caiman_jd"]["path"] = "p12/p12_17_11_10_a000"
-        data_dict["caiman_jd"]["file_name"] = "p12_17_11_10_a000_caiman_raster_dur_JD_version.mat"
-        data_dict["caiman_jd"]["var_name"] = "rasterdur"
+        # data_dict["caiman_jd"] = dict()
+        # data_dict["caiman_jd"]["path"] = "p12/p12_17_11_10_a000"
+        # data_dict["caiman_jd"]["file_name"] = "p12_17_11_10_a000_caiman_raster_dur_JD_version.mat"
+        # data_dict["caiman_jd"]["var_name"] = "rasterdur"
 
-        # data_dict["caiman_filt"] = dict()
-        # data_dict["caiman_filt"]["path"] = "p12/p12_17_11_10_a000"
-        # data_dict["caiman_filt"]["file_name"] = "p12_17_11_10_a000_filt_RasterDur_caiman.mat"
-        # data_dict["caiman_filt"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Bin100ms_spikedigital.mat"
-        # data_dict["caiman_filt"]["onsets_var_name"] = "Bin100ms_spikedigital"
-        # data_dict["caiman_filt"]["var_name"] = "rasterdur"
+        data_dict["caiman_filt"] = dict()
+        data_dict["caiman_filt"]["path"] = "p12/p12_17_11_10_a000"
+        data_dict["caiman_filt"]["file_name"] = "p12_17_11_10_a000_filt_RasterDur_caiman.mat"
+        data_dict["caiman_filt"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Bin100ms_spikedigital.mat"
+        data_dict["caiman_filt"]["onsets_var_name"] = "Bin100ms_spikedigital"
+        data_dict["caiman_filt"]["var_name"] = "rasterdur"
     elif ms_to_benchmark == "p7_17_10_12_a000":
         # gt as ground_truth
         data_dict["gt"] = dict()

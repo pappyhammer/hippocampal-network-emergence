@@ -1,7 +1,7 @@
 import numpy as np
 import hdf5storage
 import keras
-from keras.layers import Conv2D, MaxPooling2D, Flatten, Bidirectional
+from keras.layers import Conv2D, MaxPooling2D, Flatten, Bidirectional, BatchNormalization
 from keras.layers import Input, LSTM, Embedding, Dense, TimeDistributed, Activation, Lambda
 from keras.models import Model, Sequential
 from keras.models import model_from_json
@@ -1258,7 +1258,7 @@ class MoviePatchData:
                             self.movie_info["fake_transients_amplitudes"] = []
                         self.movie_info["fake_transients_amplitudes"].append(event.amplitude)
                     self.movie_info[key_str] = self.movie_info.get(key_str, 0) + 1
-            if cell in ms.spike_struct.inter_neurons:
+            if (ms.spike_struct.inter_neurons is not None) and (cell in ms.spike_struct.inter_neurons):
                 self.movie_info["inter_neuron"] = True
             if is_only_neuropil:
                 self.movie_info["only_neuropil"] = True
@@ -1652,8 +1652,8 @@ def scale_polygon_to_source(poly_gon, minx, miny):
 
 
 def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0, buffer=None):
-    len_frame_x = ms.tiff_movie[0].shape[1]
-    len_frame_y = ms.tiff_movie[0].shape[0]
+    len_frame_x = ms.tiff_movie_normalized[0].shape[1]
+    len_frame_y = ms.tiff_movie_normalized[0].shape[0]
 
     # determining the size of the square surrounding the cell so it includes all overlapping cells around
     overlapping_cells = ms.coord_obj.intersect_cells[cell]
@@ -1698,24 +1698,13 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0, b
     ImageDraw.Draw(img).polygon(list(scaled_poly_gon.exterior.coords), outline=0, fill=0)
     mask = np.array(img)
 
-    # source_profile = np.zeros((len(frames), len_y, len_x))
-
-    # frames_tiff = ms.tiff_movie[frames]
-    # source_profile = frames_tiff[:, miny:maxy + 1, minx:maxx + 1]
-    # normalized so that value are between 0 and 1
-    # source_profile = source_profile / np.max(ms.tiff_movie)
 
     return mask, (minx, maxx, miny, maxy)
 
 
 def get_source_profile_frames(ms, frames, coords):
     (minx, maxx, miny, maxy) = coords
-    # frames_tiff = ms.tiff_movie_norm_0_1[frames]
-    # source_profile = frames_tiff[:, miny:maxy + 1, minx:maxx + 1]
-    source_profile = ms.tiff_movie_norm_0_1[frames, miny:maxy + 1, minx:maxx + 1]
-
-    # normalized so that value are between 0 and 1
-    # source_profile = source_profile / np.max(ms.tiff_movie)
+    source_profile = ms.tiff_movie_normalized[frames, miny:maxy + 1, minx:maxx + 1]
 
     return source_profile
 
@@ -1843,16 +1832,21 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     p9_18_09_27_a003_ms: up to cell ?
     p12_171110_a000_ms: up to cell 7
     p11_17_11_24_a000: 0 to 25 + 29
+    p13_18_10_29_a001: 0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117
+
+    # p13_18_10_29_a001_GUI_transients_RD.mat
     """
     print("load_data_for_generator")
     use_small_sample = True
     if use_small_sample:
-        ms_to_use = ["p7_171012_a000_ms"]
-        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([3, 52, 53, 75, 81, 83, 93, 115])}
+        # ms_to_use = ["p7_171012_a000_ms"]
+        # cell_to_load_by_ms = {"p7_171012_a000_ms": np.arange(90)} # np.array([3, 52, 53, 75, 81, 83, 93, 115])
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
         # ms_to_use = ["p12_171110_a000_ms"]
-        # cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0])}
+        # cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])}
+        ms_to_use = ["p13_18_10_29_a001_ms"]
+        cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
         ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
         cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(20),
@@ -2018,8 +2012,9 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     return train_data, valid_data, test_data, test_movie_descr, cell_to_load_by_ms
 
 
-def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimodal_inputs=False, dropout_value=0,
-                without_bidirectional=False):
+def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimodal_inputs=False, dropout_rate=0,
+                dropout_rnn_rate=0,
+                without_bidirectional=False, with_batch_normalization=False):
     n_frames = input_shape[0]
     # First, let's define a vision model using a Sequential model.
     # This model will encode an image into a vector.
@@ -2032,11 +2027,15 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
         vision_model.add(Activation(activation_fct))
     else:
         vision_model.add(Lambda(swish))
+    if with_batch_normalization:
+        vision_model.add(BatchNormalization())
     vision_model.add(Conv2D(64, (3, 3)))
     if activation_fct != "swish":
         vision_model.add(Activation(activation_fct))
     else:
         vision_model.add(Lambda(swish))
+    if with_batch_normalization:
+        vision_model.add(BatchNormalization())
     vision_model.add(MaxPooling2D((2, 2)))
 
     vision_model.add(Conv2D(128, (3, 3), padding='same'))
@@ -2049,6 +2048,8 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
         vision_model.add(Activation(activation_fct))
     else:
         vision_model.add(Lambda(swish))
+    if with_batch_normalization:
+        vision_model.add(BatchNormalization())
     vision_model.add(MaxPooling2D((2, 2)))
 
     # vision_model.add(Conv2D(256, (3, 3), activation=activation_fct, padding='same'))
@@ -2056,8 +2057,8 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
     # vision_model.add(Conv2D(256, (3, 3), activation=activation_fct))
     # vision_model.add(MaxPooling2D((2, 2)))
     vision_model.add(Flatten())
-    if dropout_value > 0:
-        vision_model.add(layers.Dropout(dropout_value))
+    if dropout_rate > 0:
+        vision_model.add(layers.Dropout(dropout_rate))
 
     video_input = Input(shape=input_shape, name="video_input")
     # This is our video encoded via the previously trained vision_model (weights are reused)
@@ -2065,16 +2066,27 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
     if without_bidirectional:
         for lstm_index, lstm_size in enumerate(lstm_layers_size):
             if lstm_index == 0:
-                encoded_video = LSTM(lstm_size, return_sequences=True)(encoded_frame_sequence)
+                encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate,
+                                     recurrent_dropout=dropout_rnn_rate,
+                                     return_sequences=True)(encoded_frame_sequence)
             else:
-                encoded_video = LSTM(lstm_size)(encoded_video)
+                encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate, recurrent_dropout=dropout_rnn_rate)(
+                    encoded_video)
     else:
         # encoded_video = LSTM(256)(encoded_frame_sequence)  # the output will be a vector
         for lstm_index, lstm_size in enumerate(lstm_layers_size):
             if lstm_index == 0:
-                encoded_video = Bidirectional(LSTM(lstm_size, return_sequences=True))(encoded_frame_sequence)
+                encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
+                                                   recurrent_dropout=dropout_rnn_rate,
+                                                   return_sequences=True))(encoded_frame_sequence)
             else:
-                encoded_video = Bidirectional(LSTM(lstm_size))(encoded_video)
+                encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
+                                                   recurrent_dropout=dropout_rnn_rate))(encoded_video)
+
+        # TODO: test if GlobalMaxPool1D +/- dropout is useful here ?
+        # encoded_video = GlobalMaxPool1D()(encoded_video)
+        # encoded_video = Dropout(0.25)(encoded_video)
+
         # if we put input_shape in Bidirectional, it crashes
         # encoded_video = Bidirectional(LSTM(128, return_sequences=True),
         #                               input_shape=(n_frames, 128))(encoded_frame_sequence)
@@ -2087,21 +2099,39 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
     if without_bidirectional:
         for lstm_index, lstm_size in enumerate(lstm_layers_size):
             if lstm_index == 0:
-                encoded_video_masked = LSTM(lstm_size, return_sequences=True)(encoded_frame_sequence_masked)
+                encoded_video_masked = LSTM(lstm_size, dropout=dropout_rnn_rate, recurrent_dropout=dropout_rnn_rate,
+                                            return_sequences=True)(encoded_frame_sequence_masked)
             else:
-                encoded_video_masked = LSTM(lstm_size)(encoded_video_masked)
+                encoded_video_masked = LSTM(lstm_size, dropout=dropout_rnn_rate,
+                                            recurrent_dropout=dropout_rnn_rate)(encoded_video_masked)
     else:
         for lstm_index, lstm_size in enumerate(lstm_layers_size):
             if lstm_index == 0:
-                encoded_video_masked = Bidirectional(LSTM(lstm_size, return_sequences=True))(
+                encoded_video_masked = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
+                                                          recurrent_dropout=dropout_rnn_rate, return_sequences=True))(
                     encoded_frame_sequence_masked)
             else:
-                encoded_video_masked = Bidirectional(LSTM(lstm_size))(encoded_video_masked)
+                encoded_video_masked = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
+                                                          recurrent_dropout=dropout_rnn_rate
+                                                          ))(encoded_video_masked)
 
     # in case we want 2 videos, one with masked, and one with the cell centered
     if use_mulimodal_inputs:
         merged = layers.concatenate([encoded_video, encoded_video_masked])
-        # output = TimeDistributed(Dense(1, activation='sigmoid')))
+        if with_batch_normalization:
+            merged = BatchNormalization()(merged)
+        if dropout_rate > 0:
+            merged = layers.Dropout(dropout_rate)(merged)
+        # TODO: test those 7 lines (https://www.kaggle.com/amansrivastava/exploration-bi-lstm-model)
+        # number_dense_units = 1000
+        # merged = Dense(number_dense_units, activation=activation_function)(merged)
+        # merged = Activation(activation_fct)(merged)
+        # if with_batch_normalization:
+        #     merged = BatchNormalization()(merged)
+        # if dropout_rate > 0:
+        #     merged = (layers.Dropout(dropout_rate)(merged)
+
+        # output = TimeDistributed(Dense(1, activation='sigmoid')))(merged)
         output = Dense(n_frames, activation='sigmoid')(merged)
         video_model = Model(inputs=[video_input, video_input_masked], outputs=output)
     else:
@@ -2114,7 +2144,7 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
 
 def get_source_profile_for_prediction(ms, cell, augmentation_functions=None,
                                       overlap_value=0, max_width=30, max_height=30, sliding_window_len=100):
-    n_frames = ms.tiff_movie.shape[0]
+    n_frames = ms.tiff_movie_normalized.shape[0]
     n_augmentation_fct = 0
     if augmentation_functions is not None:
         n_augmentation_fct = len(augmentation_functions)
@@ -2234,7 +2264,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
     if not movie_loaded:
         raise Exception(f"could not load movie of ms {ms.description}")
 
-    n_frames = ms.tiff_movie.shape[0]
+    n_frames = ms.tiff_movie_normalized.shape[0]
     print(f"transients_prediction_from_movie n_frames {n_frames}")
 
     spike_nums_dur = np.zeros((n_cells, n_frames), dtype="int8")
@@ -2291,7 +2321,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
 def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
                                  use_data_augmentation=True):
     start_time = time.time()
-    n_frames = len(ms.tiff_movie)
+    n_frames = len(ms.tiff_movie_normalized)
     multi_inputs = (model.layers[0].output_shape == model.layers[1].output_shape)
     sliding_window_len = model.layers[0].output_shape[1]
     max_height = model.layers[0].output_shape[2]
@@ -2479,9 +2509,10 @@ def train_model():
     go_predict_from_movie = False
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p7_171012_a000_ms"], param=param, overlap_value=0.8,
-                                         use_data_augmentation=True, cells_to_predict=np.arange(118))
+        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
+                                         use_data_augmentation=True, cells_to_predict=np.arange(10))
         # p12_171110_a000_ms
+        # p7_171012_a000_ms
         return
 
     # 3 options to target the cell
@@ -2509,20 +2540,20 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     use_mulimodal_inputs = True
-    n_epochs = 40
+    n_epochs = 15
     batch_size = 16
     window_len = 50
     max_width = 25
     max_height = 25
     overlap_value = 0.9
-    dropout_value = 0.5
+    dropout_value = 0
     max_n_transformations = 6
-    # dropout_value_rnn = 0
+    dropout_value_rnn = 0
     pixels_around = 0
     with_augmentation_for_training_data = True
     buffer = None
     split_values = (0.6, 0.2)
-    optimizer_choice = "RMSprop"  # "adam"
+    optimizer_choice = "RMSprop"  # "adam", SGD
     activation_fct = "swish"
     with_learning_rate_reduction = True
     learning_rate_reduction_patience = 2
@@ -2574,8 +2605,6 @@ def train_model():
     stop_time = time.time()
     print(f"Time to create generator: "
           f"{np.round(stop_time - start_time, 3)} s")
-    raise Exception("TOTOOO")
-
     # (sliding_window_size, max_width, max_height, 1)
     # sliding_window in frames, max_width, max_height: in pixel (100, 25, 25, 1) * n_movie
     input_shape = training_generator.input_shape
@@ -2588,11 +2617,13 @@ def train_model():
     # return
     # building the model
     start_time = time.time()
-    model = build_model(input_shape, activation_fct=activation_fct, dropout_value=dropout_value,
+    model = build_model(input_shape, activation_fct=activation_fct, dropout_rate=dropout_value,
+                        dropout_rnn_rate=dropout_value_rnn,
                         use_mulimodal_inputs=use_mulimodal_inputs, without_bidirectional=without_bidirectional,
                         lstm_layers_size=lstm_layers_size)
 
     print(model.summary())
+    raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(
@@ -2609,6 +2640,7 @@ def train_model():
     else:
         # default parameters: lr=0.001, rho=0.9, epsilon=None, decay=0.0
         optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=None, decay=0.0)
+    # keras.optimizers.SGD(lr=0.01, momentum=0.0, decay=0.0, nesterov=False)
     # optimizer = 'rmsprop'
 
     # precision = PPV and recall = sensitiviy but in our case just concerning the active frames
@@ -2699,6 +2731,7 @@ def train_model():
         file.write(f"max_height: {max_height}" + '\n')
         file.write(f"overlap_value: {overlap_value}" + '\n')
         file.write(f"dropout_value: {dropout_value}" + '\n')
+        file.write(f"dropout_value_rnn: {dropout_value_rnn}" + '\n')
         file.write(f"pixels_around: {pixels_around}" + '\n')
         file.write(f"buffer: {'None' if (buffer is None) else buffer}" + '\n')
         file.write(f"split_values: {split_values}" + '\n')

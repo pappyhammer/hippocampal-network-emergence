@@ -81,6 +81,7 @@ class MouseSession:
         self.tiff_movie = None
         # will be use by the cell and transient classifier, normalize between 0 and 1
         self.tiff_movie_norm_0_1 = None
+        self.tiff_movie_normalized = None
         # Pillow image
         self.tiff_movie_image = None
         # list of list of int representing cell indices
@@ -183,12 +184,28 @@ class MouseSession:
         self.events_by_twitches_group = SortedDict()
 
     def normalize_movie(self):
-        if (self.tiff_movie is not None) and (self.tiff_movie_norm_0_1 is None):
-            max_value = np.max(self.tiff_movie)
-            print(f"{self.description} max tiff_movie {str(np.round(max_value, 3))}, "
-                  f"mean tiff_movie {str(np.round(np.mean(self.tiff_movie), 3))}, "
-                  f"median tiff_movie {str(np.round(np.median(self.tiff_movie), 3))}")
-            self.tiff_movie_norm_0_1 = self.tiff_movie / max_value
+        do_01_normalization = False
+        do_z_score_normalization = True
+
+        if do_01_normalization:
+            # 0 to 1 normalization
+            if (self.tiff_movie is not None) and (self.tiff_movie_normalized is None):
+                max_value = np.max(self.tiff_movie)
+                min_value = np.min(self.tiff_movie)
+                (x - min) / (max - min)
+                print(f"{self.description} max tiff_movie {str(np.round(max_value, 3))}, "
+                      f"mean tiff_movie {str(np.round(np.mean(self.tiff_movie), 3))}, "
+                      f"median tiff_movie {str(np.round(np.median(self.tiff_movie), 3))}")
+                self.tiff_movie_normalized = (self.tiff_movie - min_value) / (max_value - min_value)
+
+        if do_z_score_normalization:
+            # z-score standardization
+            if (self.tiff_movie is not None) and (self.tiff_movie_normalized is None):
+                max_value = np.max(self.tiff_movie)
+                print(f"{self.description} max tiff_movie {str(np.round(max_value, 3))}, "
+                      f"mean tiff_movie {str(np.round(np.mean(self.tiff_movie), 3))}, "
+                      f"std tiff_movie {str(np.round(np.std(self.tiff_movie), 3))}")
+                self.tiff_movie_normalized = (self.tiff_movie - np.mean(self.tiff_movie)) / np.std(self.tiff_movie)
 
     def normalize_traces(self):
         n_cells = self.traces.shape[0]
@@ -2585,7 +2602,7 @@ class MouseSession:
         self.cells_to_remove = cells_to_remove
 
     def clean_data_using_cells_to_remove(self):
-        if len(self.cells_to_remove) == 0:
+        if (self.cells_to_remove is None) or len(self.cells_to_remove) == 0:
             return
         n_cells = self.spike_struct.n_cells
         # print(f"self.coord[1].shape {self.coord[1].shape}")

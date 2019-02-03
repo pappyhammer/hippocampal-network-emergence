@@ -979,6 +979,7 @@ class ManualOnsetFrame(tk.Frame):
             self.data_and_param.ms.tiff_movie = self.tiff_movie
             self.data_and_param.ms.avg_cell_map_img = np.mean(self.tiff_movie, axis=0)
             self.data_and_param.ms.normalize_movie()
+            self.tiff_movie = self.data_and_param.ms.tiff_movie_normalized
         self.michou_path = "michou/"
         self.michou_img_file_names = []
         # look for filenames in the fisrst directory, if we don't break, it will go through all directories

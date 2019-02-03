@@ -118,6 +118,7 @@ def load_movie(ms):
             stop_time = time.time()
             print(f"Time for loading movie: "
                   f"{np.round(stop_time-start_time, 3)} s")
+            ms.normalize_movie()
         return True
     return False
 
@@ -153,8 +154,8 @@ def scale_polygon_to_source(poly_gon, minx, miny):
 
 
 def get_source_profile(cell, ms, binary_version=True, pixels_around=0, bounds=None, buffer=None):
-    len_frame_x = ms.tiff_movie[0].shape[1]
-    len_frame_y = ms.tiff_movie[0].shape[0]
+    len_frame_x = ms.tiff_movie_normalized[0].shape[1]
+    len_frame_y = ms.tiff_movie_normalized[0].shape[0]
 
     # determining the size of the square surrounding the cell
     poly_gon = ms.coord_obj.cells_polygon[cell]
@@ -212,7 +213,7 @@ def get_source_profile(cell, ms, binary_version=True, pixels_around=0, bounds=No
                 continue
             onset = onsets_frames[onsets_before_peak[-1]]
             # print(f"onset {onset}, peak {peak}")
-            frames_tiff = ms.tiff_movie[onset:peak + 1]
+            frames_tiff = ms.tiff_movie_normalized[onset:peak + 1]
             for frame_index, frame_tiff in enumerate(frames_tiff):
                 tmp_source_profile += (frame_tiff[miny:maxy + 1, minx:maxx + 1] * raw_traces[cell, onset + frame_index])
             # averaging
