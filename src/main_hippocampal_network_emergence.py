@@ -1854,7 +1854,7 @@ def main():
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = False
+    just_plot_all_cells_on_map = True
     do_plot_psth_twitches = False
     just_plot_raster = False
     just_do_seqnmf = False
@@ -1898,7 +1898,7 @@ def main():
     # ##########################################################################################
     # ################################ PATTERNS SEARCH #########################################
     # ##########################################################################################
-    do_pattern_search = True
+    do_pattern_search = False
     keep_the_longest_seq = False
     split_pattern_search = False
     use_only_uniformity_method = True

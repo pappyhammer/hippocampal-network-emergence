@@ -15,7 +15,8 @@ from pattern_discovery.tools.signal import smooth_convolve
 
 
 class BenchmarkRasterDur:
-    def __init__(self, description, ground_truth_raster_dur, predicted_raster_dur_dict, cells):
+    def __init__(self, description, ground_truth_raster_dur, predicted_raster_dur_dict, cells,
+                 debug_mode=True):
         self.description = description
         self.ground_truth_raster_dur = ground_truth_raster_dur
         # cells on which base the ground truth
@@ -28,38 +29,47 @@ class BenchmarkRasterDur:
         self.results_transients_dict_by_cell = dict()
         # same keys as raster_dur_dict, value will be a list of dict with results from benchmarks
         self.results_dict_global = dict()
+        self.debug_mode = debug_mode
 
     def compute_stats_on_onsets(self):
-        print(f"{self.description} stats on onsets")
+        if self.debug_mode:
+            print(f"{self.description} stats on onsets")
         for cell in self.cells:
-            print(f"Cell {cell}")
+            if self.debug_mode:
+                print(f"Cell {cell}")
             for key, raster_dur in self.predicted_raster_dur_dict.items():
                 gt_rd = self.ground_truth_raster_dur[cell]
                 p_rd = raster_dur[cell]
                 frames_stat = cs.compute_stats_on_onsets(spike_nums=gt_rd, predicted_spike_nums=p_rd)
                 # frames stats
-                print(f"raster {key}")
-                print(f"Onsets stat:")
-                for k, value in frames_stat.items():
-                    print(f"{k}: {str(np.round(value, 4))}")
-            print("")
-            print("/////////////////")
-            print("")
-        print("All cells")
+                if self.debug_mode:
+                    print(f"raster {key}")
+                    print(f"Onsets stat:")
+                    for k, value in frames_stat.items():
+                        print(f"{k}: {str(np.round(value, 4))}")
+            if self.debug_mode:
+                print("")
+                print("/////////////////")
+                print("")
+        if self.debug_mode:
+            print("All cells")
         for key, raster_dur in self.predicted_raster_dur_dict.items():
             gt_rd = self.ground_truth_raster_dur[self.cells]
             p_rd = raster_dur[self.cells]
             frames_stat = cs.compute_stats_on_onsets(gt_rd, p_rd)
             # frames stats
-            print(f"raster {key}")
-            print(f"Onsets stat:")
-            for k, value in frames_stat.items():
-                print(f"{k}: {str(np.round(value, 4))}")
+            if self.debug_mode:
+                print(f"raster {key}")
+                print(f"Onsets stat:")
+                for k, value in frames_stat.items():
+                    print(f"{k}: {str(np.round(value, 4))}")
 
     def compute_stats(self):
-        print(f"{self.description} stats on raster dur")
+        if self.debug_mode:
+            print(f"{self.description} stats on raster dur")
         for cell in self.cells:
-            print(f"Cell {cell}")
+            if self.debug_mode:
+                print(f"Cell {cell}")
             self.results_frames_dict_by_cell[cell] = SortedDict()
             self.results_transients_dict_by_cell[cell] = SortedDict()
             for key, raster_dur in self.predicted_raster_dur_dict.items():
@@ -68,36 +78,40 @@ class BenchmarkRasterDur:
                 frames_stat, transients_stat = cs.compute_stats(gt_rd, p_rd)
                 self.results_frames_dict_by_cell[cell][key] = frames_stat
                 self.results_transients_dict_by_cell[cell][key] = transients_stat
-                # frames stats
-                print(f"raster {key}")
-                print(f"Frames stat:")
-                for k, value in frames_stat.items():
-                    print(f"{k}: {str(np.round(value, 4))}")
-
-                print(f"###")
-                print(f"Transients stat:")
-                for k, value in transients_stat.items():
-                    print(f"{k}: {str(np.round(value, 4))}")
+                if self.debug_mode:
+                    # frames stats
+                    print(f"raster {key}")
+                    print(f"Frames stat:")
+                    for k, value in frames_stat.items():
+                        print(f"{k}: {str(np.round(value, 4))}")
+                if self.debug_mode:
+                    print(f"###")
+                    print(f"Transients stat:")
+                    for k, value in transients_stat.items():
+                        print(f"{k}: {str(np.round(value, 4))}")
+                    print("")
+            if self.debug_mode:
                 print("")
-            print("")
-            print("/////////////////")
-            print("")
-        print("All cells")
+                print("/////////////////")
+                print("")
+        if self.debug_mode:
+            print("All cells")
         for key, raster_dur in self.predicted_raster_dur_dict.items():
             gt_rd = self.ground_truth_raster_dur[self.cells]
             p_rd = raster_dur[self.cells]
             frames_stat, transients_stat = cs.compute_stats(gt_rd, p_rd)
             # frames stats
-            print(f"raster {key}")
-            print(f"Frames stat:")
-            for k, value in frames_stat.items():
-                print(f"{k}: {str(np.round(value, 4))}")
-
-            print(f"###")
-            print(f"Transients stat:")
-            for k, value in transients_stat.items():
-                print(f"{k}: {str(np.round(value, 4))}")
-            print("")
+            if self.debug_mode:
+                print(f"raster {key}")
+                print(f"Frames stat:")
+                for k, value in frames_stat.items():
+                    print(f"{k}: {str(np.round(value, 4))}")
+            if self.debug_mode:
+                print(f"###")
+                print(f"Transients stat:")
+                for k, value in transients_stat.items():
+                    print(f"{k}: {str(np.round(value, 4))}")
+                print("")
 
     def plot_boxplots_for_frames_stat(self, path_results, description, time_str, save_formats="pdf"):
         stats_to_show = ["sensitivity", "specificity", "PPV", "NPV"]
@@ -517,6 +531,101 @@ def build_p7_17_10_12_a000_raster_dur_caiman(path_data, path_results):
     sio.savemat(path_results + "p7_17_10_12_a000_caiman_raster_dur.mat", {'rasterdur': spike_nums_dur})
 
 
+def build_raster_dur_from_predictions(predictions, predictions_threshold, cells, n_total_cells, n_frames):
+    predicted_raster_dur_dict = np.zeros((n_total_cells, n_frames), dtype="int8")
+    for cell in cells:
+        pred = predictions[cell]
+        # print(f"predictions_threshold: {predictions_threshold}: "
+        #       f"{len(np.where(predictions >= predictions_threshold)[0])}")
+        predicted_raster_dur_dict[cell, pred >= predictions_threshold] = 1
+    return predicted_raster_dur_dict
+
+
+def plot_roc_predictions(ground_truth_raster_dur, rnn_predictions, cells,
+                         path_results, description, time_str,
+                         save_formats):
+
+    n_frames = ground_truth_raster_dur.shape[1]
+    n_cells = ground_truth_raster_dur.shape[0]
+    sensitivity_values = []
+    specificity_values = []
+    threshold_values = np.arange(0, 1.05, 0.05)
+
+    for predictions_threshold in threshold_values:
+        # building the raster_dur
+        predicted_raster_dur_dict = build_raster_dur_from_predictions(predictions=rnn_predictions,
+                                                                      predictions_threshold=predictions_threshold,
+                                                                      cells=cells,
+                                                                      n_total_cells=n_cells, n_frames=n_frames)
+
+        raster_dict = {"raster_dur": predicted_raster_dur_dict}
+        benchmarks = BenchmarkRasterDur(description=description, ground_truth_raster_dur=ground_truth_raster_dur,
+                                        predicted_raster_dur_dict=raster_dict, cells=cells,
+                                        debug_mode=False)
+
+        benchmarks.compute_stats()
+        avg_sensitivity = []
+        avg_specificity = []
+        for cell in cells:
+            avg_sensitivity.append(benchmarks.results_frames_dict_by_cell[cell]["raster_dur"]["sensitivity"])
+            avg_specificity.append(benchmarks.results_frames_dict_by_cell[cell]["raster_dur"]["specificity"])
+        sensitivity_values.append(np.mean(avg_sensitivity))
+        specificity_values.append(np.mean(avg_specificity))
+
+    specificity_values = np.array(specificity_values)
+
+    roc_fig, ax = plt.subplots(nrows=1, ncols=1, squeeze=True,
+                                  gridspec_kw={'height_ratios': [1],
+                                               'width_ratios': [1]},
+                                  figsize=(8, 8))
+
+    roc_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
+    # axes = np.ndarray.flatten(axes)
+    fig_patch = roc_fig.patch
+    # rgba = c_map(0)
+    face_color = "black"
+    text_color = "white"
+    title_color = "red"
+    fig_patch.set_facecolor(face_color)
+
+    ax.set_facecolor(face_color)
+    # ax.xaxis.set_ticks_position('none')
+    ax.xaxis.label.set_color(text_color)
+    ax.tick_params(axis='x', colors=text_color)
+    ax.yaxis.label.set_color(text_color)
+    ax.tick_params(axis='y', colors=text_color)
+    # ax.set_xticklabels([])
+    # ax.set_yticklabels([])
+    # ax.get_yaxis().set_visible(False)
+    # ax.get_xaxis().set_visible(False)
+
+    ax.set_frame_on(False)
+
+    ax.plot(1 - specificity_values, sensitivity_values, color="red", lw=2)  # whis=[5, 95], sym='+'
+    for index, predictions_threshold in enumerate(threshold_values):
+        ax.text(x=1 - specificity_values[index], y=sensitivity_values[index],
+                s=f"{str(np.round(predictions_threshold, 2))}", color="white", zorder=22,
+                ha='center', va="center", fontsize=5, fontweight='bold')
+
+    ax.set_ylabel(f"sensitivity")
+    ax.set_xlabel("1 - specificity")
+    # xticks = np.arange(1, n_box_plots + 1)
+    # ax.set_xticks(xticks)
+    # sce clusters labels
+    # ax.set_xticklabels(labels)
+
+    ax.set_title("ROC", color=title_color, pad=20)
+
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        roc_fig.savefig(f'{path_results}/'
+                         f'{description}_ROC_threshold_predictions_on_{len(cells)}_cells'
+                         f'_{time_str}.{save_format}',
+                         format=f"{save_format}",
+                         facecolor=roc_fig.get_facecolor(), edgecolor='none')
+
+
 def main_benchmark():
     root_path = None
     with open("param_hne.txt", "r", encoding='UTF-8') as file:
@@ -532,6 +641,8 @@ def main_benchmark():
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     path_results = path_results_raw + f"{time_str}"
     os.mkdir(path_results)
+
+    do_plot_roc_predictions = False
 
     do_build_raster_dur_on_25000 = False
     if do_build_raster_dur_on_25000:
@@ -597,13 +708,15 @@ def main_benchmark():
         data_dict["gt"]["gt_file"] = "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt"
         data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P12_17_11_10_a000.txt"
         data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.arange(7)
+        data_dict["gt"]["cells"] = np.arange(10)
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
         data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_01_26.19-22-21.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
+        data_dict["rnn"]["prediction_threshold"] = 0.35
 
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p12/p12_17_11_10_a000"
@@ -671,6 +784,8 @@ def main_benchmark():
     cells_to_remove = data_file['cells_to_remove'].astype(int)
     ground_truth_raster_dur = build_spike_nums_dur(spike_nums, peak_nums)
     print(f"ground_truth_raster_dur.shape {ground_truth_raster_dur.shape}")
+    n_cells = ground_truth_raster_dur.shape[0]
+    n_frames = ground_truth_raster_dur.shape[1]
 
     using_gt_cell_classifier = False
     cells_false_gt = []
@@ -702,6 +817,15 @@ def main_benchmark():
     # print(f"cells_for_benchmark {cells_for_benchmark}")
     # return
 
+    data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["rnn"]["path"], data_dict["rnn"]["file_name"]))
+    rnn_predictions = data_file[data_dict["rnn"]['predictions']]
+    if do_plot_roc_predictions:
+        plot_roc_predictions(ground_truth_raster_dur=ground_truth_raster_dur, rnn_predictions=rnn_predictions,
+                             cells=cells_for_benchmark,
+                             time_str=time_str, description=ms_to_benchmark,
+                             path_results=path_results, save_formats="pdf")
+        return
+
     predicted_raster_dur_dict = dict()
     predicted_spike_nums_dict = dict()
     # value is a dict
@@ -709,24 +833,32 @@ def main_benchmark():
         if key == "gt":
             continue
         data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name"]))
-        raster_dur = data_file[value['var_name']].astype(int)
-        predicted_raster_dur_dict[key] = raster_dur
+        if key == "rnn" and ("prediction_threshold" in value):
+            predicted_raster_dur_dict[key] = \
+                build_raster_dur_from_predictions(predictions=data_file[value["predictions"]],
+                                                  predictions_threshold=value["prediction_threshold"],
+                                                  cells=cells_for_benchmark,
+                                                  n_total_cells=n_cells,
+                                                  n_frames=n_frames)
+        else:
+            raster_dur = data_file[value['var_name']].astype(int)
+            predicted_raster_dur_dict[key] = raster_dur
 
-        if do_onsets_benchmarks:
-            # onsets
-            data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name_onsets"]))
-            predicted_spike_nums = data_file[value['onsets_var_name']].astype(int)
-            if "to_bin" in value:
-                # we need to bin predicted_spike_nums, because there are 50 000 frames
-                new_predicted_spike_nums = np.zeros((predicted_spike_nums.shape[0], predicted_spike_nums.shape[1] // 2),
-                                                    dtype="int8")
-                for cell in np.arange(predicted_spike_nums.shape[0]):
-                    binned_cell = predicted_spike_nums[cell].reshape(-1, 2).mean(axis=1)
-                    binned_cell[binned_cell > 0] = 1
-                    new_predicted_spike_nums[cell] = binned_cell.astype("int")
-                predicted_spike_nums = new_predicted_spike_nums
-            print(f"predicted_spike_nums.shape {predicted_spike_nums.shape}")
-            predicted_spike_nums_dict[key] = predicted_spike_nums
+            if do_onsets_benchmarks:
+                # onsets
+                data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name_onsets"]))
+                predicted_spike_nums = data_file[value['onsets_var_name']].astype(int)
+                if "to_bin" in value:
+                    # we need to bin predicted_spike_nums, because there are 50 000 frames
+                    new_predicted_spike_nums = np.zeros((predicted_spike_nums.shape[0], predicted_spike_nums.shape[1] // 2),
+                                                        dtype="int8")
+                    for cell in np.arange(predicted_spike_nums.shape[0]):
+                        binned_cell = predicted_spike_nums[cell].reshape(-1, 2).mean(axis=1)
+                        binned_cell[binned_cell > 0] = 1
+                        new_predicted_spike_nums[cell] = binned_cell.astype("int")
+                    predicted_spike_nums = new_predicted_spike_nums
+                print(f"predicted_spike_nums.shape {predicted_spike_nums.shape}")
+                predicted_spike_nums_dict[key] = predicted_spike_nums
 
     benchmarks = BenchmarkRasterDur(description=ms_to_benchmark, ground_truth_raster_dur=ground_truth_raster_dur,
                                     predicted_raster_dur_dict=predicted_raster_dur_dict, cells=cells_for_benchmark)

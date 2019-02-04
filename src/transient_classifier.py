@@ -5,7 +5,7 @@ from keras.layers import Conv2D, MaxPooling2D, Flatten, Bidirectional, BatchNorm
 from keras.layers import Input, LSTM, Embedding, Dense, TimeDistributed, Activation, Lambda
 from keras.models import Model, Sequential
 from keras.models import model_from_json
-from keras.optimizers import RMSprop, adam
+from keras.optimizers import RMSprop, adam, SGD
 from keras import layers
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, EarlyStopping
 from keras.utils import to_categorical
@@ -1826,32 +1826,49 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     """
     Stratification is the technique to allocate the samples evenly based on sample classes
     so that training set and validation set have similar ratio of classes
-    p7_171012_a000_ms: up to cell 117, interesting cells:
+    p7_171012_a000_ms: up to cell 117 included, interesting cells:
     52 (69t), 75 (59t), 81 (50t), 93 (35t), 115 (28t), 83, 53 (51 mvt), 3
-    p8_18_10_24_a005: up to cell 25 ?
-    p9_18_09_27_a003_ms: up to cell ?
-    p12_171110_a000_ms: up to cell 7
+    p8_18_10_24_a005_ms: up to cell 22 included
+    p9_18_09_27_a003_ms: up to cell 31 included
     p11_17_11_24_a000: 0 to 25 + 29
+    p12_171110_a000_ms: up to cell 9 included (10 soon)
     p13_18_10_29_a001: 0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117
 
     # p13_18_10_29_a001_GUI_transients_RD.mat
     """
+    # TODO: code to count how many transients in total
     print("load_data_for_generator")
-    use_small_sample = True
-    if use_small_sample:
+    use_small_sample = False
+    # used for counting how many cells and transients available
+    load_them_all = False
+    if load_them_all:
+        ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p9_18_09_27_a003_ms", "p11_17_11_24_a000_ms",
+                     "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
+        cell_to_load_by_ms = {"p7_171012_a000_ms": np.arange(118), "p8_18_10_24_a005_ms": np.arange(22),
+                              "p9_18_09_27_a003_ms": np.arange(32),
+                              "p11_17_11_24_a000_ms": np.concatenate((np.arange(26), [29])),
+                              "p12_171110_a000_ms": np.arange(10),
+                              "p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])}
+    elif use_small_sample:
         # ms_to_use = ["p7_171012_a000_ms"]
         # cell_to_load_by_ms = {"p7_171012_a000_ms": np.arange(90)} # np.array([3, 52, 53, 75, 81, 83, 93, 115])
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
-        # ms_to_use = ["p12_171110_a000_ms"]
-        # cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])}
-        ms_to_use = ["p13_18_10_29_a001_ms"]
-        cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
+        ms_to_use = ["p12_171110_a000_ms"]
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])}
+        # ms_to_use = ["p13_18_10_29_a001_ms"]
+        # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
-        ms_to_use = ["p12_171110_a000_ms", "p7_171012_a000_ms", "p9_18_09_27_a003_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(5), "p7_171012_a000_ms": np.arange(20),
-                              "p9_18_09_27_a003_ms": np.arange(15)}
-        # max p7: 117, max p9: 30, max p12: 6
+        ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p11_17_11_24_a000_ms",
+                     "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
+        #  "p9_18_09_27_a003_ms",
+        cell_to_load_by_ms = {"p7_171012_a000_ms":  np.array([52, 53]), # 75, 81
+                              "p8_18_10_24_a005_ms": np.array([0, 1]), # 9, 10
+                              # "p9_18_09_27_a003_ms": np.array([3, 5]), # 7, 9
+                              "p11_17_11_24_a000_ms": np.array([3, 22]), # 24,29
+                              "p12_171110_a000_ms": np.array([0, 7]), # 3
+                              "p13_18_10_29_a001_ms": np.array([0, 5])} # 12, 13
+        # max p7: 117, max p9: 30, max p12: 6 .build_spike_nums_dur()
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
                                             param=param,
@@ -1863,11 +1880,13 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
 
     full_data = []
 
+    n_transients_available = 0
+
     # filtering the cells, to keep only the one not removed or with a good source profile according to cell classifier
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
         cells_to_load = np.setdiff1d(cell_to_load_by_ms[ms_str], ms.cells_to_remove)
-        if ms.cell_cnn_predictions is not None:
+        if (not load_them_all) and ms.cell_cnn_predictions is not None:
             print(f"Using cnn predictions from {ms.description}")
             # not taking into consideration cells that are not predicted as true from the cell classifier
             cells_predicted_as_false = np.where(ms.cell_cnn_predictions < 0.5)[0]
@@ -1877,10 +1896,19 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         cells_to_load = np.array(cells_to_load)
         cell_to_load_by_ms[ms_str] = cells_to_load
 
-        movie_loaded = load_movie(ms)
-        if not movie_loaded:
-            raise Exception(f"could not load movie of ms {ms.description}")
+        if load_them_all:
+            for cell in cells_to_load:
+                n_transients_available += len(get_continous_time_periods(ms.spike_struct.spike_nums_dur[cell]))
+        else:
+            movie_loaded = load_movie(ms)
+            if not movie_loaded:
+                raise Exception(f"could not load movie of ms {ms.description}")
 
+    if load_them_all:
+        print(f"n_sessions {len(ms_to_use)}")
+        print(f"total_n_cells {total_n_cells}")
+        print(f"n_transients_available {n_transients_available}")
+        raise Exception(f"load_them_all")
     if total_n_cells == 0:
         raise Exception(f"No cells loaded")
 
@@ -1912,8 +1940,6 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                                             max_n_transformations=max_n_transformations,
                                             with_info=True, encoded_frames=encoded_frames,
                                             decoding_frame_dict=decoding_frame_dict)
-                # TODO: use the movie_info in movie_data object to stratificate the data, to collect information about
-                # TODO: about how to stratificate the data (how many movie with transients etc...)
                 full_data.append(movie_data)
                 movies_descr.append(f"{ms.description}_cell_{cell}_first_frame_{first_frame}")
                 movie_count += 1
@@ -2246,7 +2272,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
         cells_to_load = np.array(cells_to_predict)
 
     cells_to_load = np.setdiff1d(cells_to_load, ms.cells_to_remove)
-    using_cnn_predictions = True
+    using_cnn_predictions = False
     if using_cnn_predictions:
         if ms.cell_cnn_predictions is not None:
             print(f"Using cnn predictions from {ms.description}")
@@ -2540,30 +2566,31 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     use_mulimodal_inputs = True
-    n_epochs = 15
+    n_epochs = 22
     batch_size = 16
     window_len = 50
     max_width = 25
     max_height = 25
     overlap_value = 0.9
     dropout_value = 0
-    max_n_transformations = 6
     dropout_value_rnn = 0
+    with_batch_normalization = True
+    max_n_transformations = 6
     pixels_around = 0
     with_augmentation_for_training_data = True
     buffer = None
     split_values = (0.6, 0.2)
-    optimizer_choice = "RMSprop"  # "adam", SGD
+    optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
     with_learning_rate_reduction = True
     learning_rate_reduction_patience = 2
     without_bidirectional = False
     lstm_layers_size = [256, 512] # 128, 256, 512
-    with_early_stopping = True
-    early_stop_patience = 5 # 10
+    with_early_stopping = False
+    early_stop_patience = 15 # 10
     model_descr = ""
     with_shuffling = True
-    seed_value = 42  # use None for not using seed
+    seed_value = 42  # use None to not use seed
     main_ratio_balance = (0.60, 0.20, 0.20)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
@@ -2620,10 +2647,11 @@ def train_model():
     model = build_model(input_shape, activation_fct=activation_fct, dropout_rate=dropout_value,
                         dropout_rnn_rate=dropout_value_rnn,
                         use_mulimodal_inputs=use_mulimodal_inputs, without_bidirectional=without_bidirectional,
-                        lstm_layers_size=lstm_layers_size)
+                        lstm_layers_size=lstm_layers_size,
+                        with_batch_normalization=with_batch_normalization)
 
     print(model.summary())
-    raise Exception("TOTOOO")
+    # raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(
@@ -2637,6 +2665,9 @@ def train_model():
 
     if optimizer_choice == "adam":
         optimizer = adam(lr=0.001, epsilon=1e-08, decay=0.0)
+    elif optimizer_choice == "SGD":
+        # default parameters: lr=0.01, momentum=0.0, decay=0.0, nesterov=False
+        optimizer = SGD(lr=0.01, momentum=0.0, decay=0.0, nesterov=False)
     else:
         # default parameters: lr=0.001, rho=0.9, epsilon=None, decay=0.0
         optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=None, decay=0.0)
@@ -2657,7 +2688,7 @@ def train_model():
                                                 verbose=1,
                                                 factor=0.5,
                                                 mode='max',
-                                                min_lr=0.0001)  # used to be: 0.00001
+                                                min_lr=0.00001)  # used to be: 0.00001
 
     # callbacks to be execute during training
     # A callback is a set of functions to be applied at given stages of the training procedure.
@@ -2732,6 +2763,7 @@ def train_model():
         file.write(f"overlap_value: {overlap_value}" + '\n')
         file.write(f"dropout_value: {dropout_value}" + '\n')
         file.write(f"dropout_value_rnn: {dropout_value_rnn}" + '\n')
+        file.write(f"with_batch_normalization: {with_batch_normalization}" + '\n')
         file.write(f"pixels_around: {pixels_around}" + '\n')
         file.write(f"buffer: {'None' if (buffer is None) else buffer}" + '\n')
         file.write(f"split_values: {split_values}" + '\n')

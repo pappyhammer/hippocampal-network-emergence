@@ -2646,7 +2646,7 @@ class ManualOnsetFrame(tk.Frame):
             save_formats = [save_formats]
         for save_format in save_formats:
             sources_profile_fig.savefig(f'{path_results}/'
-                                        f'source_profiles_map_{self.data_and_param.ms.description}_cmap_{key_cmap}'
+                                        f'{self.data_and_param.ms.description}_source_profiles_map_cmap_{key_cmap}'
                                         f'_{self.data_and_param.time_str}.{save_format}',
                                         format=f"{save_format}",
                                         facecolor=sources_profile_fig.get_facecolor(), edgecolor='none')

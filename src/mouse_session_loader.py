@@ -468,14 +468,14 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p8_18_10_24_a005_ms.activity_threshold = 9
         # p8_18_10_24_a005_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
         # p8_18_10_24_a005_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
-        p8_18_10_24_a005_ms.set_inter_neurons([33, 112, 206])
+        # p8_18_10_24_a005_ms.set_inter_neurons([33, 112, 206])
         # duration of those interneurons: 18.92, 27.33, 20.55
-        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                             "spike_nums": "filt_Bin100ms_spikedigital",
-                             "spike_durations": "LOC3"}
-        p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load=
-                                                "p8/p8_18_10_24_a005/p8_18_10_24_a005_Corrected_RasterDur.mat",
-                                                variables_mapping=variables_mapping)
+        # variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+        #                      "spike_nums": "filt_Bin100ms_spikedigital",
+        #                      "spike_durations": "LOC3"}
+        # p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load=
+        #                                         "p8/p8_18_10_24_a005/p8_18_10_24_a005_Corrected_RasterDur.mat",
+        #                                         variables_mapping=variables_mapping)
         p8_18_10_24_a005_ms.set_avg_cell_map_tif(file_name="p8/p8_18_10_24_a005/AVG_p8_18_10_24_a005.tif")
 
         if for_cell_classifier or for_transient_classifier:
@@ -683,16 +683,16 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p11_17_11_24_a000_ms = MouseSession(age=11, session_id="17_11_24_a000", nb_ms_by_frame=100, param=param,
                                             weight=6.7)
         # calculated with 99th percentile on raster dur
-        p11_17_11_24_a000_ms.activity_threshold = 11
+        # p11_17_11_24_a000_ms.activity_threshold = 11
         # p11_17_11_24_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
-        p11_17_11_24_a000_ms.set_inter_neurons([193])
+        # p11_17_11_24_a000_ms.set_inter_neurons([193])
         # duration of those interneurons: 19.09
-        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                             "spike_nums": "filt_Bin100ms_spikedigital",
-                             "spike_durations": "LOC3"}
-        p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load=
-                                                 "p11/p11_17_11_24_a000/p11_17_11_24_a000_Corrected_RasterDur.mat",
-                                                 variables_mapping=variables_mapping)
+        # variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+        #                      "spike_nums": "filt_Bin100ms_spikedigital",
+        #                      "spike_durations": "LOC3"}
+        # p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load=
+        #                                          "p11/p11_17_11_24_a000/p11_17_11_24_a000_Corrected_RasterDur.mat",
+        #                                          variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p11_17_11_24_a000_ms.load_data_from_file(
@@ -774,8 +774,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         #         load_data_from_file(file_name_to_load=
         #                             "p12/p12_17_11_10_a000/P12_17_11_10_a000_predictions_2019_01_26.19-22-21.mat",
         #                             variables_mapping=variables_mapping)
-        #     p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
-        #                                                                "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
+            # p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
+            #                                                            "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p12_171110_a000_ms.load_data_from_file(
