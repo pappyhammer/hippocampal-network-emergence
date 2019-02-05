@@ -85,7 +85,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # p7_171012_a000_ms.set_low_activity_threshold(threshold=6, percentile_value=1)
         # p7_171012_a000_ms.set_low_activity_threshold(threshold=7, percentile_value=5)
         # p7_171012_a000_ms.set_inter_neurons([305, 360, 398, 412])
-        p7_171012_a000_ms.set_inter_neurons([])
+        # p7_171012_a000_ms.set_inter_neurons([])
         # duration of those interneurons: 13.23  12.48  10.8   11.88
         # variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
         #                      "spike_nums": "filt_Bin100ms_spikedigital",
@@ -692,7 +692,18 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         #                      "spike_durations": "LOC3"}
         # p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load=
         #                                          "p11/p11_17_11_24_a000/p11_17_11_24_a000_Corrected_RasterDur.mat",
+        #
         #                                          variables_mapping=variables_mapping)
+        if for_cell_classifier or for_transient_classifier:
+            variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                 "peak_nums": "LocPeakMatrix_Python",
+                                 "cells_to_remove": "cells_to_remove",
+                                 "inter_neurons_from_gui": "inter_neurons"}
+            p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load=
+                                                    "p11/p11_17_11_24_a000/p11_17_11_24_a000_GUI_transients_RD.mat",
+                                                    variables_mapping=variables_mapping,
+                                                    from_gui=True)
+            p11_17_11_24_a000_ms.build_spike_nums_dur()
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p11_17_11_24_a000_ms.load_data_from_file(

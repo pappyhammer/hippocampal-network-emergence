@@ -511,18 +511,18 @@ class StratificationCamembert:
             if "n_cropped_transient" in movie_info:
                 continue
             if "n_fake_transient" in movie_info:
-                movie_data.weight += 20
+                movie_data.weight += 50
                 if (fake_lengths_threshold is not None) and ("fake_transients_lengths" in movie_info):
                     lengths = np.array(movie_info["fake_transients_lengths"])
                     if len(np.where(lengths > fake_lengths_threshold)[0]) > 0:
                         # print(f"lengths {lengths}, real_lengths_threshold {fake_lengths_threshold}")
                         # means at least a transient length is superior to the 90th percentile
-                        movie_data.weight += 3
+                        movie_data.weight += 5
                 if (fake_amplitudes_threshold is not None) and ("fake_transients_amplitudes" in movie_info):
                     amplitudes = np.array(movie_info["fake_transients_amplitudes"])
                     if len(np.where(amplitudes < fake_amplitudes_threshold)[0]) > 0:
                         # means at least a transient amplitude is superior to the 90th percentile
-                        movie_data.weight += 3
+                        movie_data.weight += 10
                 continue
             if "n_cropped_fake_transient" in movie_info:
                 movie_data.weight += 5
@@ -590,6 +590,7 @@ class StratificationCamembert:
                             delete_low_amplitudes_first = True
                             new_data_list = []
                             if delete_low_amplitudes_first:
+                                # but keeping some still, thus keeping one and removing one
                                 indices_to_remove = []
                                 n_fake_removed = 0
                                 sorted_index = 0
@@ -1838,7 +1839,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     """
     # TODO: code to count how many transients in total
     print("load_data_for_generator")
-    use_small_sample = False
+    use_small_sample = True
     # used for counting how many cells and transients available
     load_them_all = False
     if load_them_all:
@@ -1850,12 +1851,13 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                               "p12_171110_a000_ms": np.arange(10),
                               "p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])}
     elif use_small_sample:
-        # ms_to_use = ["p7_171012_a000_ms"]
-        # cell_to_load_by_ms = {"p7_171012_a000_ms": np.arange(90)} # np.array([3, 52, 53, 75, 81, 83, 93, 115])
+        ms_to_use = ["p7_171012_a000_ms"]
+        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 53, 75, 81, 83, 93, 115])}
+        # np.array([3, 52, 53, 75, 81, 83, 93, 115])
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
-        ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])}
+        # ms_to_use = ["p12_171110_a000_ms"]
+        # cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 7])}
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
@@ -2255,6 +2257,7 @@ def get_source_profile_for_prediction(ms, cell, augmentation_functions=None,
 
 def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
                                      use_data_augmentation=True, cells_to_predict=None):
+    # TODO: Pass a dict to predict more than one session at once
     if len(ms_to_use) > 1:
         ms_to_use = list(ms_to_use[0])
 
@@ -2536,7 +2539,10 @@ def train_model():
 
     if go_predict_from_movie:
         transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
-                                         use_data_augmentation=True, cells_to_predict=np.arange(10))
+                                         use_data_augmentation=True,
+                                         cells_to_predict=np.arange(10))
+        # "p13_18_10_29_a001_ms"
+        # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
         # p12_171110_a000_ms
         # p7_171012_a000_ms
         return
@@ -2566,9 +2572,9 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     use_mulimodal_inputs = True
-    n_epochs = 22
+    n_epochs = 40
     batch_size = 16
-    window_len = 50
+    window_len = 10
     max_width = 25
     max_height = 25
     overlap_value = 0.9
@@ -2583,11 +2589,11 @@ def train_model():
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
     with_learning_rate_reduction = True
-    learning_rate_reduction_patience = 2
+    learning_rate_reduction_patience = 3
     without_bidirectional = False
     lstm_layers_size = [256, 512] # 128, 256, 512
-    with_early_stopping = False
-    early_stop_patience = 15 # 10
+    with_early_stopping = True
+    early_stop_patience = 25 # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed

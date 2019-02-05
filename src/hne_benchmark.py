@@ -642,7 +642,6 @@ def main_benchmark():
     path_results = path_results_raw + f"{time_str}"
     os.mkdir(path_results)
 
-    do_plot_roc_predictions = False
 
     do_build_raster_dur_on_25000 = False
     if do_build_raster_dur_on_25000:
@@ -696,7 +695,9 @@ def main_benchmark():
     # ########### options ###################
     ms_to_benchmark = "p12_17_11_10_a000"
     # ms_to_benchmark = "p7_17_10_12_a000"
+    # ms_to_benchmark = "p13_18_10_29_a001_ms"
     do_onsets_benchmarks = False
+    do_plot_roc_predictions = False
     # ########### end options ###################
 
     data_dict = dict()
@@ -712,19 +713,21 @@ def main_benchmark():
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
-        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
+        # "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat" based on best 2 p12 cells predictions
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_01_26.19-22-21.mat"
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_from_5_sessions_2019_02_05.23-37-09.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.35
+        data_dict["rnn"]["prediction_threshold"] = 0.4
 
-        data_dict["caiman_raw"] = dict()
-        data_dict["caiman_raw"]["path"] = "p12/p12_17_11_10_a000"
-        data_dict["caiman_raw"]["file_name"] = "p12_17_11_10_a000_RasterDur.mat"
-        data_dict["caiman_raw"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Spikenums_caiman.mat"
-        data_dict["caiman_raw"]["onsets_var_name"] = "spikenums"
-        data_dict["caiman_raw"]["to_bin"] = True
-        data_dict["caiman_raw"]["var_name"] = "rasterdur"
+        # data_dict["caiman_raw"] = dict()
+        # data_dict["caiman_raw"]["path"] = "p12/p12_17_11_10_a000"
+        # data_dict["caiman_raw"]["file_name"] = "p12_17_11_10_a000_RasterDur.mat"
+        # data_dict["caiman_raw"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Spikenums_caiman.mat"
+        # data_dict["caiman_raw"]["onsets_var_name"] = "spikenums"
+        # data_dict["caiman_raw"]["to_bin"] = True
+        # data_dict["caiman_raw"]["var_name"] = "rasterdur"
         # "p12_17_11_10_a000_caiman_raster_dur_JD_version.mat"
 
         # data_dict["caiman_jd"] = dict()
@@ -738,6 +741,29 @@ def main_benchmark():
         data_dict["caiman_filt"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Bin100ms_spikedigital.mat"
         data_dict["caiman_filt"]["onsets_var_name"] = "Bin100ms_spikedigital"
         data_dict["caiman_filt"]["var_name"] = "rasterdur"
+    elif ms_to_benchmark == "p13_18_10_29_a001_ms":
+        # gt as ground_truth
+        data_dict["gt"] = dict()
+        data_dict["gt"]["path"] = "p13/p13_18_10_29_a001"
+        data_dict["gt"]["gui_file"] = "p13_18_10_29_a001_GUI_transients_RD.mat"
+        data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P13_18_10_29_a001.txt"
+        data_dict["gt"]["cnn_threshold"] = 0.5
+        data_dict["gt"]["cells"] = np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
+
+        data_dict["rnn"] = dict()
+        data_dict["rnn"]["path"] = "p13/p13_18_10_29_a001"
+        data_dict["rnn"]["file_name"] = "P13_18_10_29_a001_predictions_2019_02_05.22-54-05.mat"
+        # P13_18_10_29_a001_predictions_2019_02_05.22-54-05.mat trained on 5 sessions, 10 cells
+        data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["rnn"]["predictions"] = "predictions"
+        data_dict["rnn"]["prediction_threshold"] = 0.5
+
+        # data_dict["caiman_filt"] = dict()
+        # data_dict["caiman_filt"]["path"] = "p13/p13_18_10_29_a001"
+        # data_dict["caiman_filt"]["file_name"] = "p12_17_11_10_a000_filt_RasterDur_caiman.mat"
+        # data_dict["caiman_filt"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Bin100ms_spikedigital.mat"
+        # data_dict["caiman_filt"]["onsets_var_name"] = "Bin100ms_spikedigital"
+        # data_dict["caiman_filt"]["var_name"] = "rasterdur"
     elif ms_to_benchmark == "p7_17_10_12_a000":
         # gt as ground_truth
         data_dict["gt"] = dict()
@@ -865,9 +891,14 @@ def main_benchmark():
 
     benchmarks.compute_stats()
 
-    benchmarks.plot_boxplots_for_frames_stat(description=ms_to_benchmark, time_str=time_str, path_results=path_results,
+    description = ms_to_benchmark
+    if "prediction_threshold" in data_dict["rnn"]:
+        threshold_value = data_dict["rnn"]["prediction_threshold"]
+        description += f"_thr_{threshold_value}_"
+
+    benchmarks.plot_boxplots_for_frames_stat(description=description, time_str=time_str, path_results=path_results,
                                              save_formats="pdf")
-    benchmarks.plot_boxplots_for_transients_stat(description=ms_to_benchmark, time_str=time_str,
+    benchmarks.plot_boxplots_for_transients_stat(description=description, time_str=time_str,
                                                  path_results=path_results,
                                                  save_formats="pdf")
 
