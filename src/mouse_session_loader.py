@@ -465,7 +465,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p8_18_10_24_a005_ms = MouseSession(age=8, session_id="18_10_24_a005", nb_ms_by_frame=100, param=param,
                                            weight=6.4)
         # calculated with 99th percentile on raster dur
-        p8_18_10_24_a005_ms.activity_threshold = 9
+        # p8_18_10_24_a005_ms.activity_threshold = 9
         # p8_18_10_24_a005_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
         # p8_18_10_24_a005_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
         # p8_18_10_24_a005_ms.set_inter_neurons([33, 112, 206])
@@ -484,9 +484,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                  "cells_to_remove": "cells_to_remove",
                                  "inter_neurons_from_gui": "inter_neurons"}
             p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load=
-                                                   "p8/p8_18_10_24_a005/p8_18_10_24_a005_GUI_Transiant MP.mat",
+                                                   "p8/p8_18_10_24_a005/p8_18_10_24_a005_GUI_transientsRD.mat",
                                                    variables_mapping=variables_mapping,
                                                    from_gui=True)
+            # p8_18_10_24_a005_GUI_Transiant MP.mat
             p8_18_10_24_a005_ms.build_spike_nums_dur()
 
         if load_traces:
@@ -779,14 +780,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             if for_cell_classifier:
                 p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
                                                                        "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
-        # else:
-        #     variables_mapping = {"spike_nums_dur": "spike_nums_dur_predicted"}
-        #     p12_171110_a000_ms.\
-        #         load_data_from_file(file_name_to_load=
-        #                             "p12/p12_17_11_10_a000/P12_17_11_10_a000_predictions_2019_01_26.19-22-21.mat",
-        #                             variables_mapping=variables_mapping)
-            # p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
-            #                                                            "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
+        else:
+            variables_mapping = {"spike_nums_dur": "spike_nums_dur_predicted"}
+            # not the best prediction, but done on all CNN validated cells
+            p12_171110_a000_ms.\
+                load_data_from_file(file_name_to_load=
+                                    "p12/p12_17_11_10_a000/P12_17_11_10_a000_predictions_2019_02_06.22-48-11_all_cnn_cells_trained_2_p12_cells.mat",
+                                    variables_mapping=variables_mapping)
+            p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
+                                                                       "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p12_171110_a000_ms.load_data_from_file(

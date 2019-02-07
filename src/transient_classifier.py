@@ -155,7 +155,7 @@ class StratificationCamembert:
         self.cropped_transient_movies["real"] = []
 
         self.min_augmentation_for_transient = dict()
-        self.min_augmentation_for_transient["fake"] = 0
+        self.min_augmentation_for_transient["fake"] = 2
         self.min_augmentation_for_transient["real"] = 2
 
         self.min_augmentation_for_cropped_transient = dict()
@@ -1829,7 +1829,9 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     so that training set and validation set have similar ratio of classes
     p7_171012_a000_ms: up to cell 117 included, interesting cells:
     52 (69t), 75 (59t), 81 (50t), 93 (35t), 115 (28t), 83, 53 (51 mvt), 3
-    p8_18_10_24_a005_ms: up to cell 22 included
+    p8_18_10_24_a005_ms: up to cell 22 included (MP)
+    p8_18_10_24_a005_ms: 9, 10, 13, 28, 41, 42,, 207, 321, 110 (RD)
+    (with transients 9 (25), 10 (43), 13(83), 28(53), 41(55), 42(63),, 207(16), 321(36), 110(27)): best 13 & 42
     p9_18_09_27_a003_ms: up to cell 31 included
     p11_17_11_24_a000: 0 to 25 + 29
     p12_171110_a000_ms: up to cell 9 included (10 soon)
@@ -1851,8 +1853,10 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                               "p12_171110_a000_ms": np.arange(10),
                               "p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])}
     elif use_small_sample:
-        ms_to_use = ["p7_171012_a000_ms"]
-        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 53, 75, 81, 83, 93, 115])}
+        # ms_to_use = ["p7_171012_a000_ms"]
+        # cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 53, 75, 81, 83, 93, 115])}
+        ms_to_use = ["p8_18_10_24_a005_ms"]
+        cell_to_load_by_ms = {"p8_18_10_24_a005_ms": np.array([13, 41, 42])}
         # np.array([3, 52, 53, 75, 81, 83, 93, 115])
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
@@ -2275,7 +2279,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
         cells_to_load = np.array(cells_to_predict)
 
     cells_to_load = np.setdiff1d(cells_to_load, ms.cells_to_remove)
-    using_cnn_predictions = False
+    using_cnn_predictions = True
     if using_cnn_predictions:
         if ms.cell_cnn_predictions is not None:
             print(f"Using cnn predictions from {ms.description}")
@@ -2538,13 +2542,16 @@ def train_model():
     go_predict_from_movie = False
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
+        transients_prediction_from_movie(ms_to_use=["p8_18_10_24_a005_ms"], param=param, overlap_value=0.8,
                                          use_data_augmentation=True,
-                                         cells_to_predict=np.arange(10))
+                                         cells_to_predict=np.array([9, 10, 13, 28, 41, 42, 207, 321, 110]))
+        # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
         # p12_171110_a000_ms
+        # np.arange(10)
         # p7_171012_a000_ms
+        # np.arange(118)
         return
 
     # 3 options to target the cell
@@ -2572,14 +2579,14 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     use_mulimodal_inputs = True
-    n_epochs = 40
+    n_epochs = 30
     batch_size = 16
-    window_len = 10
+    window_len = 50
     max_width = 25
     max_height = 25
     overlap_value = 0.9
-    dropout_value = 0
-    dropout_value_rnn = 0
+    dropout_value = 0.2
+    dropout_value_rnn = 0.2
     with_batch_normalization = True
     max_n_transformations = 6
     pixels_around = 0
@@ -2589,15 +2596,15 @@ def train_model():
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
     with_learning_rate_reduction = True
-    learning_rate_reduction_patience = 3
+    learning_rate_reduction_patience = 2
     without_bidirectional = False
     lstm_layers_size = [256, 512] # 128, 256, 512
     with_early_stopping = True
-    early_stop_patience = 25 # 10
+    early_stop_patience = 10 # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
-    main_ratio_balance = (0.60, 0.20, 0.20)
+    main_ratio_balance = (0.8, 0, 0.2)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
 
@@ -2657,7 +2664,7 @@ def train_model():
                         with_batch_normalization=with_batch_normalization)
 
     print(model.summary())
-    # raise Exception("TOTOOO")
+    raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(
@@ -2689,7 +2696,7 @@ def train_model():
 
     # Set a learning rate annealer
     # from: https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
-    learning_rate_reduction = ReduceLROnPlateau(monitor='val_precision',
+    learning_rate_reduction = ReduceLROnPlateau(monitor='val_sensitivity',
                                                 patience=learning_rate_reduction_patience,
                                                 verbose=1,
                                                 factor=0.5,
@@ -2703,7 +2710,8 @@ def train_model():
         callbacks_list.append(learning_rate_reduction)
 
     if with_early_stopping:
-        callbacks_list.append(EarlyStopping(monitor="val_acc", min_delta=0, patience=early_stop_patience, mode="max",
+        callbacks_list.append(EarlyStopping(monitor="val_sensitivity", min_delta=0,
+                                            patience=early_stop_patience, mode="max",
                                             restore_best_weights=True))
 
     with_model_check_point = True

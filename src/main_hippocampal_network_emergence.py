@@ -1830,8 +1830,8 @@ def main():
     ms_str_to_load = ["p9_18_09_27_a003_ms"]
     ms_str_to_load = ["p12_171110_a000_ms"]
     ms_str_to_load = ["p60_a529_2015_02_25_ms"]
-    ms_str_to_load = ["p12_171110_a000_ms"]
     ms_str_to_load = ["p7_171012_a000_ms"]
+    ms_str_to_load = ["p12_171110_a000_ms"]
 
     # 256
 
@@ -1854,7 +1854,7 @@ def main():
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = True
+    just_plot_all_cells_on_map = False
     do_plot_psth_twitches = False
     just_plot_raster = False
     just_do_seqnmf = False
@@ -1890,18 +1890,18 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 10)
-    # range_n_clusters_k_mean = np.array([8])
+    # range_n_clusters_k_mean = np.arange(2, 10)
+    range_n_clusters_k_mean = np.array([5])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
 
     # ##########################################################################################
     # ################################ PATTERNS SEARCH #########################################
     # ##########################################################################################
-    do_pattern_search = False
+    do_pattern_search = True
     keep_the_longest_seq = False
     split_pattern_search = False
-    use_only_uniformity_method = True
+    use_only_uniformity_method = False
     use_loss_score_to_keep_the_best_from_tree = False
     use_sce_times_for_pattern_search = False
     use_ordered_spike_nums_for_surrogate = True

@@ -192,11 +192,11 @@ class MouseSession:
             if (self.tiff_movie is not None) and (self.tiff_movie_normalized is None):
                 max_value = np.max(self.tiff_movie)
                 min_value = np.min(self.tiff_movie)
-                (x - min) / (max - min)
                 print(f"{self.description} max tiff_movie {str(np.round(max_value, 3))}, "
                       f"mean tiff_movie {str(np.round(np.mean(self.tiff_movie), 3))}, "
                       f"median tiff_movie {str(np.round(np.median(self.tiff_movie), 3))}")
-                self.tiff_movie_normalized = (self.tiff_movie - min_value) / (max_value - min_value)
+                # self.tiff_movie_normalized = (self.tiff_movie - min_value) / (max_value - min_value)
+                self.tiff_movie_normalized = self.tiff_movie / max_value
 
         if do_z_score_normalization:
             # z-score standardization
@@ -2583,7 +2583,10 @@ class MouseSession:
             self.spike_struct.set_spike_amplitudes(data[variables_mapping["spike_amplitudes"]])
 
         if "cells_to_remove" in variables_mapping:
-            self.cells_to_remove = data[variables_mapping["cells_to_remove"]].astype(int)[0]
+            if len(data[variables_mapping["cells_to_remove"]]) == 0:
+                self.cells_to_remove = np.zeros(0, dtype="int16")
+            else:
+                self.cells_to_remove = data[variables_mapping["cells_to_remove"]].astype(int)[0]
 
         if "peak_nums" in variables_mapping:
             self.spike_struct.peak_nums = data[variables_mapping["peak_nums"]].astype(int)

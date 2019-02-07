@@ -615,6 +615,7 @@ def plot_roc_predictions(ground_truth_raster_dur, rnn_predictions, cells,
     # ax.set_xticklabels(labels)
 
     ax.set_title("ROC", color=title_color, pad=20)
+    # ax.set_xscale("log")
 
     if isinstance(save_formats, str):
         save_formats = [save_formats]
@@ -693,9 +694,10 @@ def main_benchmark():
         return
 
     # ########### options ###################
-    ms_to_benchmark = "p12_17_11_10_a000"
+    # ms_to_benchmark = "p12_17_11_10_a000"
     # ms_to_benchmark = "p7_17_10_12_a000"
     # ms_to_benchmark = "p13_18_10_29_a001_ms"
+    ms_to_benchmark = "p8_18_10_24_a005_ms"
     do_onsets_benchmarks = False
     do_plot_roc_predictions = False
     # ########### end options ###################
@@ -713,17 +715,18 @@ def main_benchmark():
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
-        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
         # "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat" based on best 2 p12 cells predictions
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_01_26.19-22-21.mat"
-        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_from_5_sessions_2019_02_05.23-37-09.mat"
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_from_5_sessions_2019_02_05.23-37-09.mat"
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_06.22-06-13_from_p8_training.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.4
+        data_dict["rnn"]["prediction_threshold"] = 0.15
 
         # data_dict["caiman_raw"] = dict()
         # data_dict["caiman_raw"]["path"] = "p12/p12_17_11_10_a000"
-        # data_dict["caiman_raw"]["file_name"] = "p12_17_11_10_a000_RasterDur.mat"
+        # data_dict["caiman_raw"]["file_name"] = "p12_17_11_10_a000_RasterDur.mat" -
         # data_dict["caiman_raw"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Spikenums_caiman.mat"
         # data_dict["caiman_raw"]["onsets_var_name"] = "spikenums"
         # data_dict["caiman_raw"]["to_bin"] = True
@@ -777,30 +780,64 @@ def main_benchmark():
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p7/p7_17_10_12_a000"
-        data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_01.15-56-10.mat"
-        # P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat
+        # not of these two better than caiman
+        # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_01.15-56-10.mat"
+        # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
+        # bad results
+        # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_06.12-53-02_on_6_cells_overfitting.mat"
+        data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_06.14-58-40_5_sessions_training.mat"
+        # not good
+        # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_06.20-48-56_on_2_cells_02_02_19_1_30_26.mat"
+        #  P7_17_10_12_a000_predictions_2019_02_06.20-48-56_on_2_cells_02_02_19_1_30_26.mat
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
+        data_dict["rnn"]["prediction_threshold"] = 0.4
 
-        data_dict["caiman_jd"] = dict()
-        data_dict["caiman_jd"]["path"] = "p7/p7_17_10_12_a000"
-        data_dict["caiman_jd"]["file_name"] = "p7_17_10_12_a000_caiman_raster_dur_JD_version.mat"
-        data_dict["caiman_jd"]["var_name"] = "rasterdur"
+        # data_dict["caiman_jd"] = dict()
+        # data_dict["caiman_jd"]["path"] = "p7/p7_17_10_12_a000"
+        # data_dict["caiman_jd"]["file_name"] = "p7_17_10_12_a000_caiman_raster_dur_JD_version.mat"
+        # data_dict["caiman_jd"]["var_name"] = "rasterdur"
 
         # data_dict["boost_rnn"] = dict()
         # data_dict["boost_rnn"]["path"] = "p7/p7_17_10_12_a000"
         # data_dict["boost_rnn"]["file_name"] = "p7_17_10_12_a000boost_rnn_raster_dur.mat"
         # data_dict["boost_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        #
+        # data_dict["caiman_raw"] = dict()
+        # data_dict["caiman_raw"]["path"] = "p7/p7_17_10_12_a000"
+        # data_dict["caiman_raw"]["file_name"] = "Robin_30_01_19/p7_17_10_12_a000_RasterDur.mat"
+        # data_dict["caiman_raw"]["var_name"] = "rasterdur"
 
-        data_dict["caiman_raw"] = dict()
-        data_dict["caiman_raw"]["path"] = "p7/p7_17_10_12_a000"
-        data_dict["caiman_raw"]["file_name"] = "Robin_30_01_19/p7_17_10_12_a000_RasterDur.mat"
-        data_dict["caiman_raw"]["var_name"] = "rasterdur"
+        data_dict["caiman_filt"] = dict()
+        data_dict["caiman_filt"]["path"] = "p7/p7_17_10_12_a000"
+        data_dict["caiman_filt"]["file_name"] = "Robin_30_01_19/p7_17_10_12_a000_caiman_raster_dur.mat"
+        data_dict["caiman_filt"]["var_name"] = "rasterdur"
+    elif ms_to_benchmark == "p8_18_10_24_a005_ms":
+        # gt as ground_truth
+        data_dict["gt"] = dict()
+        data_dict["gt"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["gt"]["gui_file"] = "p8_18_10_24_a005_GUI_transientsRD.mat"
+        data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P8_18_10_24_a005.txt"
+        data_dict["gt"]["cnn_threshold"] = 0.5
+        data_dict["gt"]["cells"] = np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
 
-        # data_dict["caiman_filt"] = dict()
-        # data_dict["caiman_filt"]["path"] = "p7/p7_17_10_12_a000"
-        # data_dict["caiman_filt"]["file_name"] = "Robin_30_01_19/p7_17_10_12_a000_caiman_raster_dur.mat"
-        # data_dict["caiman_filt"]["var_name"] = "rasterdur"
+        data_dict["rnn"] = dict()
+        data_dict["rnn"]["path"] = "p8/p8_18_10_24_a005"
+        # train on 2 of the cell of Robin
+        # trained on 2 cells of p8
+        # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.20-29-38_9_cells_from_Robin.mat"
+        # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.22-18-43_from_p12_training.mat"
+        # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.22-33-03_trained_on_5_sessions.mat"
+        data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_07.13-31-43_train_on_3_cells_p8.mat"
+
+        data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["rnn"]["predictions"] = "predictions"
+        data_dict["rnn"]["prediction_threshold"] = 0.3
+
+        data_dict["caiman_filt"] = dict()
+        data_dict["caiman_filt"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["caiman_filt"]["file_name"] = "p8_18_10_24_a005_filt_RasterDur.mat"
+        data_dict["caiman_filt"]["var_name"] = "rasterdur"
 
     # ground truth
     data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gui_file"]))
