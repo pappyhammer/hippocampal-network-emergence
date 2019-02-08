@@ -780,15 +780,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             if for_cell_classifier:
                 p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
                                                                        "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
-        else:
-            variables_mapping = {"spike_nums_dur": "spike_nums_dur_predicted"}
-            # not the best prediction, but done on all CNN validated cells
-            p12_171110_a000_ms.\
-                load_data_from_file(file_name_to_load=
-                                    "p12/p12_17_11_10_a000/P12_17_11_10_a000_predictions_2019_02_06.22-48-11_all_cnn_cells_trained_2_p12_cells.mat",
-                                    variables_mapping=variables_mapping)
-            p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
-                                                                       "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
+        # else:
+        #     variables_mapping = {"spike_nums_dur": "spike_nums_dur_predicted"}
+        #     # not the best prediction, but done on all CNN validated cells
+        #     p12_171110_a000_ms.\
+        #         load_data_from_file(file_name_to_load=
+        #                             "p12/p12_17_11_10_a000/P12_17_11_10_a000_predictions_2019_02_06.22-48-11_all_cnn_cells_trained_2_p12_cells.mat",
+        #                             variables_mapping=variables_mapping)
+        #     p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
+        #                                                                "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p12_171110_a000_ms.load_data_from_file(

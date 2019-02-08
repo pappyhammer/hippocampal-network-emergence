@@ -674,6 +674,11 @@ class ManualOnsetFrame(tk.Frame):
         # if self.data_and_param.ms.cells_to_remove is not None:
         #     for cell_to_remove in self.data_and_param.ms.cells_to_remove:
         #         self.cells_to_remove[cell_to_remove] = 1
+        self.doubtful_frames_nums = np.zeros(self.nb_times_traces, dtype="int8")
+        # list of tuple of 2 int indicating the beginning and end of each corrupt frames period
+        self.doubtful_frames_periods = []
+        self.update_doubtful_frames_periods()
+
         self.display_raw_traces = self.raw_traces is not None
         self.raw_traces_seperate_plot = False
         # neuron's trace displayed
@@ -764,7 +769,7 @@ class ManualOnsetFrame(tk.Frame):
         empty_label.pack(side=LEFT)
 
         self.prev_button = Button(top_frame)
-        self.prev_button["text"] = ' previous cell '
+        self.prev_button["text"] = ' <- '
         self.prev_button["fg"] = "blue"
         self.prev_button['state'] = DISABLED  # ''normal
         self.prev_button["command"] = event_lambda(self.select_previous_neuron)
@@ -772,33 +777,33 @@ class ManualOnsetFrame(tk.Frame):
         self.prev_button.pack(side=LEFT)
 
         empty_label = Label(top_frame)
-        empty_label["text"] = " " * 2
+        empty_label["text"] = ""
         empty_label.pack(side=LEFT)
 
         self.neuron_label = Label(top_frame)
-        self.neuron_label["text"] = "0"
+        self.neuron_label["text"] = "cell 0"
         self.neuron_label["fg"] = "red"
         self.neuron_label.pack(side=LEFT)
 
         empty_label = Label(top_frame)
-        empty_label["text"] = " " * 2
+        empty_label["text"] = ""
         empty_label.pack(side=LEFT)
 
         self.next_button = Button(top_frame)
-        self.next_button["text"] = ' next cell '
+        self.next_button["text"] = ' -> '
         self.next_button["fg"] = 'blue'
         self.next_button["command"] = event_lambda(self.select_next_neuron)
         self.next_button.pack(side=LEFT)
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = " " * 3
-        empty_label.pack(side=LEFT)
-
-        self.zoom_fit_button = Button(top_frame)
-        self.zoom_fit_button["text"] = ' y zoom fit '
-        self.zoom_fit_button["fg"] = 'blue'
-        self.zoom_fit_button["command"] = event_lambda(self.update_plot, amplitude_zoom_fit=True)
-        self.zoom_fit_button.pack(side=LEFT)
+        # empty_label = Label(top_frame)
+        # empty_label["text"] = " " * 3
+        # empty_label.pack(side=LEFT)
+        #
+        # self.zoom_fit_button = Button(top_frame)
+        # self.zoom_fit_button["text"] = ' y zoom fit '
+        # self.zoom_fit_button["fg"] = 'blue'
+        # self.zoom_fit_button["command"] = event_lambda(self.update_plot, amplitude_zoom_fit=True)
+        # self.zoom_fit_button.pack(side=LEFT)
 
         empty_label = Label(top_frame)
         empty_label["text"] = " " * 3
@@ -809,13 +814,13 @@ class ManualOnsetFrame(tk.Frame):
         # empty_label.pack(side=LEFT)
 
         self.add_onset_button = Button(top_frame)
-        self.add_onset_button["text"] = ' ADD ONSET OFF '
+        self.add_onset_button["text"] = ' + ONSET OFF '
         self.add_onset_button["fg"] = 'red'
         self.add_onset_button["command"] = self.add_onset_switch_mode
         self.add_onset_button.pack(side=LEFT)
 
         empty_label = Label(top_frame)
-        empty_label["text"] = " " * 1
+        empty_label["text"] = "" * 1
         empty_label.pack(side=LEFT)
 
         self.onset_numbers_label = Label(top_frame)
@@ -823,11 +828,11 @@ class ManualOnsetFrame(tk.Frame):
         self.onset_numbers_label.pack(side=LEFT)
 
         empty_label = Label(top_frame)
-        empty_label["text"] = " " * 1
+        empty_label["text"] = "" * 1
         empty_label.pack(side=LEFT)
 
         self.remove_onset_button = Button(top_frame)
-        self.remove_onset_button["text"] = ' REMOVE ONSET OFF '
+        self.remove_onset_button["text"] = ' - ONSET OFF '
         self.remove_onset_button["fg"] = 'red'
         self.remove_onset_button["command"] = self.remove_onset_switch_mode
         self.remove_onset_button.pack(side=LEFT)
@@ -845,13 +850,13 @@ class ManualOnsetFrame(tk.Frame):
         empty_label.pack(side=LEFT)
 
         self.add_peak_button = Button(top_frame)
-        self.add_peak_button["text"] = ' ADD PEAK OFF '
+        self.add_peak_button["text"] = ' + PEAK OFF '
         self.add_peak_button["fg"] = 'red'
         self.add_peak_button["command"] = self.add_peak_switch_mode
         self.add_peak_button.pack(side=LEFT)
 
         empty_label = Label(top_frame)
-        empty_label["text"] = " " * 1
+        empty_label["text"] = "" * 1
         empty_label.pack(side=LEFT)
 
         self.peak_numbers_label = Label(top_frame)
@@ -859,11 +864,11 @@ class ManualOnsetFrame(tk.Frame):
         self.peak_numbers_label.pack(side=LEFT)
 
         empty_label = Label(top_frame)
-        empty_label["text"] = " " * 1
+        empty_label["text"] = "" * 1
         empty_label.pack(side=LEFT)
 
         self.remove_peak_button = Button(top_frame)
-        self.remove_peak_button["text"] = ' REMOVE PEAK OFF '
+        self.remove_peak_button["text"] = ' - PEAK OFF '
         self.remove_peak_button["fg"] = 'red'
         self.remove_peak_button["command"] = self.remove_peak_switch_mode
         self.remove_peak_button.pack(side=LEFT)
@@ -873,7 +878,7 @@ class ManualOnsetFrame(tk.Frame):
         empty_label.pack(side=LEFT)
 
         self.remove_all_button = Button(top_frame)
-        self.remove_all_button["text"] = ' REMOVE ALL OFF '
+        self.remove_all_button["text"] = ' - ALL OFF '
         self.remove_all_button["fg"] = 'red'
         self.remove_all_button["command"] = self.remove_all_switch_mode
         self.remove_all_button.pack(side=LEFT)
@@ -1631,10 +1636,10 @@ class ManualOnsetFrame(tk.Frame):
         self.add_onset_mode = not self.add_onset_mode
         if self.add_onset_mode:
             self.add_onset_button["fg"] = 'green'
-            self.add_onset_button["text"] = ' ADD ONSET ON '
+            self.add_onset_button["text"] = ' + ONSET ON '
         else:
             self.add_onset_button["fg"] = 'red'
-            self.add_onset_button["text"] = ' ADD ONSET OFF '
+            self.add_onset_button["text"] = ' + ONSET OFF '
 
     def remove_onset_switch_mode(self, from_remove_onset_button=True):
         # deactivating other button
@@ -1644,14 +1649,14 @@ class ManualOnsetFrame(tk.Frame):
 
         if self.remove_onset_mode:
             self.remove_onset_button["fg"] = 'green'
-            self.remove_onset_button["text"] = ' REMOVE ONSET ON '
+            self.remove_onset_button["text"] = ' - ONSET ON '
             self.first_click_to_remove = None
         else:
             if self.first_click_to_remove is not None:
                 self.first_click_to_remove = None
                 self.update_plot()
             self.remove_onset_button["fg"] = 'red'
-            self.remove_onset_button["text"] = ' REMOVE ONSET OFF '
+            self.remove_onset_button["text"] = ' - ONSET OFF '
 
     def update_contour_for_cell(self, cell):
         # used in order to have access to contour after animation
@@ -1677,7 +1682,7 @@ class ManualOnsetFrame(tk.Frame):
 
         if self.remove_peak_mode:
             self.remove_peak_button["fg"] = 'green'
-            self.remove_peak_button["text"] = ' REMOVE PEAK ON '
+            self.remove_peak_button["text"] = ' - PEAK ON '
             # in case one click would have been made when remove onset was activated
             if self.first_click_to_remove is not None:
                 self.first_click_to_remove = None
@@ -1687,7 +1692,7 @@ class ManualOnsetFrame(tk.Frame):
                 self.first_click_to_remove = None
                 self.update_plot()
             self.remove_peak_button["fg"] = 'red'
-            self.remove_peak_button["text"] = ' REMOVE PEAK OFF '
+            self.remove_peak_button["text"] = ' - PEAK OFF '
 
     def remove_all_switch_mode(self, from_remove_all_button=True):
         if from_remove_all_button and (not self.remove_all_mode):
@@ -1696,7 +1701,7 @@ class ManualOnsetFrame(tk.Frame):
 
         if self.remove_all_mode:
             self.remove_all_button["fg"] = 'green'
-            self.remove_all_button["text"] = ' REMOVE ALL ON '
+            self.remove_all_button["text"] = ' - ALL ON '
             # in case one click would have been made when remove onset was activated
             if self.first_click_to_remove is not None:
                 self.first_click_to_remove = None
@@ -1706,7 +1711,7 @@ class ManualOnsetFrame(tk.Frame):
                 self.first_click_to_remove = None
                 self.update_plot()
             self.remove_all_button["fg"] = 'red'
-            self.remove_all_button["text"] = ' REMOVE ALL OFF '
+            self.remove_all_button["text"] = ' - ALL OFF '
 
     def onrelease_map(self, event):
         """
@@ -2175,6 +2180,13 @@ class ManualOnsetFrame(tk.Frame):
         self.is_saved = False
         self.save_button['state'] = 'normal'
 
+    def update_doubtful_frames_periods(self):
+        if np.sum(self.doubtful_frames_nums) == 0:
+            self.doubtful_frames_periods = []
+            return
+
+        self.doubtful_frames_periods = get_continous_time_periods(self.doubtful_frames_nums)
+
     def normalize_traces(self):
         self.ratio_traces = np.zeros((self.nb_neurons, self.traces.shape[1]))
         # z_score traces
@@ -2308,10 +2320,10 @@ class ManualOnsetFrame(tk.Frame):
         self.add_peak_mode = not self.add_peak_mode
         if self.add_peak_mode:
             self.add_peak_button["fg"] = 'green'
-            self.add_peak_button["text"] = ' ADD PEAK ON '
+            self.add_peak_button["text"] = ' + PEAK ON '
         else:
             self.add_peak_button["fg"] = 'red'
-            self.add_peak_button["text"] = ' ADD PEAK OFF '
+            self.add_peak_button["text"] = ' + PEAK OFF '
 
     def validation_before_closing(self):
         if not self.is_saved:
@@ -3641,6 +3653,11 @@ class ManualOnsetFrame(tk.Frame):
             max_value = np.max(self.traces[self.current_neuron, :])
             min_value = np.min(self.traces[self.current_neuron, :])
 
+        if len(self.doubtful_frames_periods) > 0:
+            for doubtful_frames_period in self.doubtful_frames_periods:
+                self.axe_plot.axvspan(doubtful_frames_period[0], doubtful_frames_period[1], ymax=1,
+                                      alpha=0.5, facecolor="black", zorder=15)
+
         if self.raw_traces_binned is not None:
             min_value = min(min_value, np.min(self.raw_traces_binned[self.current_neuron, :]))
         # plotting onsets
@@ -4050,7 +4067,7 @@ class ManualOnsetFrame(tk.Frame):
                 # print(f"Time for computing source and transients correlation for cell {self.current_neuron}: "
                 #       f"{np.round(stop_time-start_time, 3)} s")
 
-        self.neuron_label["text"] = f"{self.current_neuron}"
+        self.neuron_label["text"] = f"cell {self.current_neuron}"
         # self.spin_box_button.icursor(new_neuron)
         self.clear_and_update_entry_neuron_widget()
         self.onset_numbers_label["text"] = f"{self.numbers_of_onset()}"
