@@ -112,6 +112,7 @@ class DataAndParam(p_disc_tools_param.Parameters):
         self.best_order_data_path = None
         self.spike_nums = None
         self.peak_nums = None
+        self.doubtful_frames_nums = None
         self.traces = None
         self.raw_traces = None
         self.ms = None
@@ -284,6 +285,8 @@ class ChooseSessionFrame(tk.Frame):
                     e = ErrorMessageFrame(error_message="Bin100ms_spikedigital not found")
                     e.mainloop()
                     return
+                if "doubtful_frames_nums" in data_file:
+                    data_and_param.doubtful_frames_nums = data_file['doubtful_frames_nums'].astype(int)
                 if "inter_neurons" in data_file:
                     data_and_param.inter_neurons = data_file['inter_neurons'].astype(int)
                 if "cells_to_remove" in data_file:
@@ -463,6 +466,40 @@ class AddPeakAction(ManualAction):
     def redo(self):
         super().redo()
         self.session_frame.peak_nums[self.neuron, self.added_time] = 1
+
+
+class AddDoubtfulFramesAction(ManualAction):
+    def __init__(self, x_from, x_to, backup_values, **kwargs):
+        super().__init__(**kwargs)
+        self.x_from = x_from
+        self.x_to = x_to
+        self.backup_values = backup_values
+
+    def undo(self):
+        super().undo()
+        self.session_frame.doubtful_frames_nums[self.neuron, self.x_from:self.x_to] = self.backup_values
+        self.session_frame.update_doubtful_frames_periods(cell=self.neuron)
+
+    def redo(self):
+        super().redo()
+        self.session_frame.doubtful_frames_nums[self.neuron, self.x_from:self.x_to] = 1
+        self.session_frame.update_doubtful_frames_periods(cell=self.neuron)
+
+
+class RemoveDoubtfulFramesAction(ManualAction):
+    def __init__(self, removed_times, **kwargs):
+        super().__init__(**kwargs)
+        self.removed_times = removed_times
+
+    def undo(self):
+        super().undo()
+        self.session_frame.doubtful_frames_nums[self.neuron, self.removed_times] = 1
+        self.session_frame.update_doubtful_frames_periods(cell=self.neuron)
+
+    def redo(self):
+        super().redo()
+        self.session_frame.doubtful_frames_nums[self.neuron, self.removed_times] = 0
+        self.session_frame.update_doubtful_frames_periods(cell=self.neuron)
 
 
 def get_file_name_and_path(path_file):
@@ -671,13 +708,17 @@ class ManualOnsetFrame(tk.Frame):
         if self.data_and_param.cells_to_remove is not None:
             for cell_to_remove in self.data_and_param.cells_to_remove:
                 self.cells_to_remove[cell_to_remove] = 1
-        # if self.data_and_param.ms.cells_to_remove is not None:
-        #     for cell_to_remove in self.data_and_param.ms.cells_to_remove:
-        #         self.cells_to_remove[cell_to_remove] = 1
-        self.doubtful_frames_nums = np.zeros(self.nb_times_traces, dtype="int8")
-        # list of tuple of 2 int indicating the beginning and end of each corrupt frames period
-        self.doubtful_frames_periods = []
-        self.update_doubtful_frames_periods()
+
+        # Key cell,
+        # value: list of tuple of 2 int indicating the beginning and end of each corrupt frames period
+        self.doubtful_frames_periods = dict()
+        if self.data_and_param.doubtful_frames_nums is not None:
+            print("self.data_and_param.doubtful_frames_nums")
+            self.doubtful_frames_nums = self.data_and_param.doubtful_frames_nums
+            for cell in np.arange(self.nb_neurons):
+                self.update_doubtful_frames_periods(cell=cell)
+        else:
+            self.doubtful_frames_nums = np.zeros((self.nb_neurons, self.nb_times_traces), dtype="int8")
 
         self.display_raw_traces = self.raw_traces is not None
         self.raw_traces_seperate_plot = False
@@ -689,6 +730,8 @@ class ManualOnsetFrame(tk.Frame):
         self.add_peak_mode = False
         self.remove_peak_mode = False
         self.remove_all_mode = False
+        self.add_doubtful_frames_mode = False
+        self.remove_doubtful_frames_mode = False
         # used to remove under the threshold (std or correlation value)
         self.peaks_under_threshold_index = None
         # to know if the actual displayed is saved
@@ -804,6 +847,26 @@ class ManualOnsetFrame(tk.Frame):
         # self.zoom_fit_button["fg"] = 'blue'
         # self.zoom_fit_button["command"] = event_lambda(self.update_plot, amplitude_zoom_fit=True)
         # self.zoom_fit_button.pack(side=LEFT)
+
+        empty_label = Label(top_frame)
+        empty_label["text"] = " " * 3
+        empty_label.pack(side=LEFT)
+
+        self.remove_doubtful_frames_button = Button(top_frame)
+        self.remove_doubtful_frames_button["text"] = ' - DOUBT OFF '
+        self.remove_doubtful_frames_button["fg"] = 'red'
+        self.remove_doubtful_frames_button["command"] = self.remove_doubtful_frames_switch_mode
+        self.remove_doubtful_frames_button.pack(side=LEFT)
+
+        empty_label = Label(top_frame)
+        empty_label["text"] = " " * 1
+        empty_label.pack(side=LEFT)
+
+        self.add_doubtful_frames_mode_button = Button(top_frame)
+        self.add_doubtful_frames_mode_button["text"] = ' + DOUBT OFF '
+        self.add_doubtful_frames_mode_button["fg"] = 'red'
+        self.add_doubtful_frames_mode_button["command"] = self.add_doubtful_frames_switch_mode
+        self.add_doubtful_frames_mode_button.pack(side=LEFT)
 
         empty_label = Label(top_frame)
         empty_label["text"] = " " * 3
@@ -1628,6 +1691,10 @@ class ManualOnsetFrame(tk.Frame):
             self.add_onset_switch_mode(from_add_onset_button=False)
         if (initiator != "switch_source_profile_mode") and self.source_mode:
             self.switch_source_profile_mode(from_check_box=False, from_key_shortcut=True)
+        if (initiator != "add_doubtful_frames_switch_mode") and self.add_doubtful_frames_mode:
+            self.add_doubtful_frames_switch_mode(from_add_doubtful_frames_button=False)
+        if (initiator != "remove_doubtful_frames_switch_mode") and self.remove_doubtful_frames_mode:
+            self.remove_doubtful_frames_switch_mode(from_remove_doubtful_frames_button=False)
 
     def add_onset_switch_mode(self, from_add_onset_button=True):
         # if it was called due to the action of pressing the remove button, we're not calling the remove switch mode
@@ -1657,6 +1724,39 @@ class ManualOnsetFrame(tk.Frame):
                 self.update_plot()
             self.remove_onset_button["fg"] = 'red'
             self.remove_onset_button["text"] = ' - ONSET OFF '
+
+    def add_doubtful_frames_switch_mode(self, from_add_doubtful_frames_button=True):
+        if from_add_doubtful_frames_button and (not self.add_doubtful_frames_mode):
+            self.swith_all_click_actions(initiator="add_doubtful_frames_switch_mode")
+
+        self.add_doubtful_frames_mode = not self.add_doubtful_frames_mode
+        if self.add_doubtful_frames_mode:
+            self.add_doubtful_frames_mode_button["fg"] = 'green'
+            self.add_doubtful_frames_mode_button["text"] = ' + DOUBT ON '
+            self.first_click_to_remove = None
+        else:
+            if self.first_click_to_remove is not None:
+                self.first_click_to_remove = None
+                self.update_plot()
+            self.add_doubtful_frames_mode_button["fg"] = 'red'
+            self.add_doubtful_frames_mode_button["text"] = ' + DOUBT OFF '
+
+    def remove_doubtful_frames_switch_mode(self, from_remove_doubtful_frames_button=True):
+        # deactivating other button
+        if from_remove_doubtful_frames_button and (not self.remove_doubtful_frames_mode):
+            self.swith_all_click_actions(initiator="remove_doubtful_frames_switch_mode")
+
+        self.remove_doubtful_frames_mode = not self.remove_doubtful_frames_mode
+        if self.remove_doubtful_frames_mode:
+            self.remove_doubtful_frames_button["fg"] = 'green'
+            self.remove_doubtful_frames_button["text"] = ' - DOUBT ON '
+            self.first_click_to_remove = None
+        else:
+            if self.first_click_to_remove is not None:
+                self.first_click_to_remove = None
+                self.update_plot()
+            self.remove_doubtful_frames_button["fg"] = 'red'
+            self.remove_doubtful_frames_button["text"] = ' - DOUBT OFF '
 
     def update_contour_for_cell(self, cell):
         # used in order to have access to contour after animation
@@ -1742,7 +1842,8 @@ class ManualOnsetFrame(tk.Frame):
                 :return:
         """
         if (not self.remove_onset_mode) and (not self.add_onset_mode) and (not self.remove_peak_mode) \
-                and (not self.add_peak_mode) \
+                and (not self.add_peak_mode) and (not self.add_doubtful_frames_mode) \
+                and (not self.remove_doubtful_frames_mode) \
                 and (not self.remove_all_mode) and (not self.movie_mode) and (not self.source_mode):
             return
 
@@ -1764,6 +1865,7 @@ class ManualOnsetFrame(tk.Frame):
             elif self.add_peak_mode:
                 self.add_peak(at_time=int(round(event.xdata)), amplitude=event.ydata)
             elif self.source_mode:
+                # we want to display the source and transient profile of the selected transient
                 # print(f"self.source_mode click release {event.xdata}")
                 transient = None
                 # we check if we are between an onset and a peak
@@ -1811,7 +1913,8 @@ class ManualOnsetFrame(tk.Frame):
             return
 
         if self.remove_onset_mode or self.remove_peak_mode or \
-                self.remove_all_mode or self.movie_mode:
+                self.remove_all_mode or self.movie_mode or \
+                self.add_doubtful_frames_mode or self.remove_doubtful_frames_mode:
             if self.first_click_to_remove is not None:
                 if self.remove_onset_mode:
                     self.remove_onset(x_from=self.first_click_to_remove["x"], x_to=int(round(event.xdata)))
@@ -1819,6 +1922,10 @@ class ManualOnsetFrame(tk.Frame):
                     self.remove_peak(x_from=self.first_click_to_remove["x"], x_to=int(round(event.xdata)))
                 elif self.movie_mode:
                     self.start_playing_movie(x_from=self.first_click_to_remove["x"], x_to=int(round(event.xdata)))
+                elif self.add_doubtful_frames_mode:
+                    self.add_doubtful_frames(x_from=self.first_click_to_remove["x"], x_to=int(round(event.xdata)))
+                elif self.remove_doubtful_frames_mode:
+                    self.remove_doubtful_frames(x_from=self.first_click_to_remove["x"], x_to=int(round(event.xdata)))
                 else:
                     self.remove_all(x_from=self.first_click_to_remove["x"], x_to=int(round(event.xdata)))
             else:
@@ -2180,12 +2287,12 @@ class ManualOnsetFrame(tk.Frame):
         self.is_saved = False
         self.save_button['state'] = 'normal'
 
-    def update_doubtful_frames_periods(self):
-        if np.sum(self.doubtful_frames_nums) == 0:
-            self.doubtful_frames_periods = []
+    def update_doubtful_frames_periods(self, cell):
+        if np.sum(self.doubtful_frames_nums[cell]) == 0:
+            self.doubtful_frames_periods[cell] = []
             return
 
-        self.doubtful_frames_periods = get_continous_time_periods(self.doubtful_frames_nums)
+        self.doubtful_frames_periods[cell] = get_continous_time_periods(self.doubtful_frames_nums[cell])
 
     def normalize_traces(self):
         self.ratio_traces = np.zeros((self.nb_neurons, self.traces.shape[1]))
@@ -2324,6 +2431,95 @@ class ManualOnsetFrame(tk.Frame):
         else:
             self.add_peak_button["fg"] = 'red'
             self.add_peak_button["text"] = ' + PEAK OFF '
+
+    def remove_doubtful_frames(self, x_from, x_to):
+        # taking in consideration the case where the click is outside the graph border
+        if x_from < 0:
+            x_from = 0
+        elif x_from > (self.nb_times_traces - 1):
+            x_from = (self.nb_times_traces - 1)
+
+        if x_to < 0:
+            x_to = 0
+        elif x_to > (self.nb_times_traces - 1):
+            x_to = (self.nb_times_traces - 1)
+
+        if x_from == x_to:
+            return
+
+        self.first_click_to_remove = None
+
+        # in case x_from is after x_to
+        min_value = min(x_from, x_to)
+        max_value = max(x_from, x_to)
+        x_from = min_value
+        x_to = max_value
+        # if the sum is zero, then we're not removing any onset
+        modification_done = (np.sum(self.doubtful_frames_nums[self.current_neuron, x_from:x_to]) > 0)
+        if modification_done:
+            removed_times = np.where(self.doubtful_frames_nums[self.current_neuron, x_from:x_to] > 0)[0] + x_from
+            self.doubtful_frames_nums[self.current_neuron, x_from:x_to] = 0
+            self.update_doubtful_frames_periods(cell=self.current_neuron)
+            left_x_limit, right_x_limit = self.axe_plot.get_xlim()
+            bottom_limit, top_limit = self.axe_plot.get_ylim()
+            self.last_actions.append(RemoveDoubtfulFramesAction(removed_times=removed_times,
+                                                               session_frame=self,
+                                                               neuron=self.current_neuron, is_saved=self.is_saved,
+                                                               x_limits=(left_x_limit, right_x_limit),
+                                                               y_limits=(bottom_limit, top_limit)))
+            # no more undone_actions
+            self.undone_actions = []
+            self.redo_button['state'] = DISABLED
+            self.unsaved()
+            self.undo_button['state'] = 'normal'
+        # update to remove the cross of the first click at least
+        self.update_after_onset_change()
+
+    def add_doubtful_frames(self, x_from, x_to):
+        # taking in consideration the case where the click is outside the graph border
+        if x_from < 0:
+            x_from = 0
+        elif x_from > (self.nb_times_traces - 1):
+            x_from = (self.nb_times_traces - 1)
+
+        if x_to < 0:
+            x_to = 0
+        elif x_to > (self.nb_times_traces - 1):
+            x_to = (self.nb_times_traces - 1)
+
+        if x_from == x_to:
+            return
+
+        self.first_click_to_remove = None
+
+        # in case x_from is after x_to
+        min_value = min(x_from, x_to)
+        max_value = max(x_from, x_to)
+        x_from = min_value
+        x_to = max_value
+
+        backup_values = np.copy(self.doubtful_frames_nums[self.current_neuron, x_from:x_to])
+        # print(f"add corrupt frames from {x_from} to {x_to}")
+        self.doubtful_frames_nums[self.current_neuron, x_from:(x_to + 1)] = 1
+        self.update_doubtful_frames_periods(cell=self.current_neuron)
+
+        left_x_limit, right_x_limit = self.axe_plot.get_xlim()
+        bottom_limit, top_limit = self.axe_plot.get_ylim()
+        self.last_actions.append(AddDoubtfulFramesAction(x_from=x_from, x_to=x_to,
+                                                        backup_values=backup_values,
+                                                        session_frame=self,
+                                                        neuron=self.current_neuron, is_saved=self.is_saved,
+                                                        x_limits=(left_x_limit, right_x_limit),
+                                                        y_limits=(bottom_limit, top_limit)))
+        # no more undone_actions
+        self.undone_actions = []
+        self.redo_button['state'] = DISABLED
+
+        self.unsaved()
+        self.undo_button['state'] = 'normal'
+
+        self.update_after_onset_change()
+
 
     def validation_before_closing(self):
         if not self.is_saved:
@@ -2709,9 +2905,9 @@ class ManualOnsetFrame(tk.Frame):
         inter_neurons = np.where(self.inter_neurons)[0]
         sio.savemat(self.save_path + self.save_file_name, {'Bin100ms_spikedigital_Python': self.spike_nums,
                                                            'LocPeakMatrix_Python': self.peak_nums,
-                                                           # 'C_df': self.traces, 'raw_traces': self.raw_traces,
                                                            'cells_to_remove': cells_to_remove,
-                                                           'inter_neurons': inter_neurons})
+                                                           'inter_neurons': inter_neurons,
+                                                           "doubtful_frames_nums": self.doubtful_frames_nums})
 
         if and_close:
             self.root.destroy()
@@ -3653,8 +3849,9 @@ class ManualOnsetFrame(tk.Frame):
             max_value = np.max(self.traces[self.current_neuron, :])
             min_value = np.min(self.traces[self.current_neuron, :])
 
-        if len(self.doubtful_frames_periods) > 0:
-            for doubtful_frames_period in self.doubtful_frames_periods:
+        if (self.current_neuron in self.doubtful_frames_periods) and \
+                (len(self.doubtful_frames_periods[self.current_neuron]) > 0):
+            for doubtful_frames_period in self.doubtful_frames_periods[self.current_neuron]:
                 self.axe_plot.axvspan(doubtful_frames_period[0], doubtful_frames_period[1], ymax=1,
                                       alpha=0.5, facecolor="black", zorder=15)
 
