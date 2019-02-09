@@ -1839,7 +1839,6 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
 
     # p13_18_10_29_a001_GUI_transients_RD.mat
     """
-    # TODO: code to count how many transients in total
     print("load_data_for_generator")
     use_small_sample = True
     # used for counting how many cells and transients available
@@ -1884,7 +1883,11 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     total_n_cells = 0
     # n_movies = 0
 
-    full_data = []
+    # full_data = []
+    train_data = []
+    valid_data = []
+    test_data = []
+    test_movie_descr = []
 
     n_transients_available = 0
 
@@ -1922,116 +1925,138 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
 
     movies_descr = []
     movie_count = 0
+    split_order = np.arange(3)
+    if seed_value is not None:
+        np.random.seed(seed_value)
+    np.random.shuffle(split_order)
+
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
         spike_nums_dur = ms.spike_struct.spike_nums_dur
         n_frames = spike_nums_dur.shape[1]
         for cell in cell_to_load_by_ms[ms_str]:
-            # then we slide the window
-            # frames index of the beginning of each movie
-            frames_step = int(np.ceil(sliding_window_len * (1 - overlap_value)))
-            indices_movies = np.arange(0, n_frames, frames_step)
+            index_so_far = 0
             encoded_frames, decoding_frame_dict = cell_encoding(ms=ms, cell=cell)
+            for split_index in split_order:
+                start_index = index_so_far
+                end_index = start_index + int(n_frames * split_values[split_index])
+                index_so_far = end_index
 
-            for i, index_movie in enumerate(indices_movies):
-                break_it = False
-                first_frame = index_movie
-                if (index_movie + sliding_window_len) == n_frames:
-                    break_it = True
-                elif (index_movie + sliding_window_len) > n_frames:
-                    # in case the number of frames is not divisible by sliding_window_len
-                    first_frame = n_frames - sliding_window_len
-                    break_it = True
-                movie_data = MoviePatchData(ms=ms, cell=cell, index_movie=first_frame, window_len=sliding_window_len,
-                                            max_n_transformations=max_n_transformations,
-                                            with_info=True, encoded_frames=encoded_frames,
-                                            decoding_frame_dict=decoding_frame_dict)
-                full_data.append(movie_data)
-                movies_descr.append(f"{ms.description}_cell_{cell}_first_frame_{first_frame}")
-                movie_count += 1
-                if break_it:
-                    break
+                if split_index > 0:
+                    # then we create validation and test dataset with no data transformation
+                    frames_step = sliding_window_len
+                    if split_index == 1:
+                        data_list_to_fill = valid_data
+                    else:
+                        data_list_to_fill = test_data
+                else:
+                    # we create training dataset with overlap
+                    # then we slide the window
+                    # frames index of the beginning of each movie
+                    frames_step = int(np.ceil(sliding_window_len * (1 - overlap_value)))
+                    data_list_to_fill = train_data
+                indices_movies = np.arange(start_index, end_index, frames_step)
+                for i, index_movie in enumerate(indices_movies):
+                    break_it = False
+                    first_frame = index_movie
+                    if (index_movie + sliding_window_len) == n_frames:
+                        break_it = True
+                    elif (index_movie + sliding_window_len) > n_frames:
+                        # in case the number of frames is not divisible by sliding_window_len
+                        first_frame = n_frames - sliding_window_len
+                        break_it = True
+                    movie_data = MoviePatchData(ms=ms, cell=cell, index_movie=first_frame,
+                                                window_len=sliding_window_len,
+                                                max_n_transformations=max_n_transformations,
+                                                with_info=True, encoded_frames=encoded_frames,
+                                                decoding_frame_dict=decoding_frame_dict)
+                    data_list_to_fill.append(movie_data)
+                    if split_index == 2:
+                        test_movie_descr.append(f"{ms.description}_cell_{cell}_first_frame_{first_frame}")
+                    movie_count += 1
+                    if break_it:
+                        break
 
     print(f"movie_count {movie_count}")
     # cells shuffling
-    if movies_shuffling is None:
-        movies_shuffling = np.arange(movie_count)
-        if with_shuffling:
-            if seed_value is not None:
-                np.random.seed(seed_value)
-            sc = StratificationCamembert(data_list=full_data,
-                                    description="FULL DATA",
-                                    n_max_transformations=6,
-                                    debug_mode=True)
-            try_balancing = False
-            # shuffle seems to work better
-            if try_balancing:
-                full_data = []
-                index_fake = 0
-                index_real = 0
-                index_neuropil = 0
-                batch_size = 100
-                len_fake = len(sc.transient_movies["fake"])
-                len_real = len(sc.transient_movies["real"])
-                len_neuropil = len(sc.neuropil_movies)
-                n_fake_by_batch = int((len_fake / movie_count) * batch_size)
-                n_real_by_batch = int((len_real / movie_count) * batch_size)
-                n_neuropil_by_batch = int((len_neuropil / movie_count) * batch_size)
+    # if movies_shuffling is None:
+    #     movies_shuffling = np.arange(movie_count)
+    #     if with_shuffling:
+    #         if seed_value is not None:
+    #             np.random.seed(seed_value)
+    #         sc = StratificationCamembert(data_list=full_data,
+    #                                 description="FULL DATA",
+    #                                 n_max_transformations=6,
+    #                                 debug_mode=True)
+    #         try_balancing = False
+    #         # shuffle seems to work better
+    #         if try_balancing:
+    #             full_data = []
+    #             index_fake = 0
+    #             index_real = 0
+    #             index_neuropil = 0
+    #             batch_size = 100
+    #             len_fake = len(sc.transient_movies["fake"])
+    #             len_real = len(sc.transient_movies["real"])
+    #             len_neuropil = len(sc.neuropil_movies)
+    #             n_fake_by_batch = int((len_fake / movie_count) * batch_size)
+    #             n_real_by_batch = int((len_real / movie_count) * batch_size)
+    #             n_neuropil_by_batch = int((len_neuropil / movie_count) * batch_size)
+    #
+    #             while True:
+    #                 no_patches_added = True
+    #                 if index_real < len_real:
+    #                     end_index = min(index_real + n_real_by_batch, len_real)
+    #                     for i in np.arange(index_real, end_index):
+    #                         full_data.append(sc.transient_movies["real"][i])
+    #                     index_real = end_index
+    #                     no_patches_added = False
+    #
+    #                 if index_fake < len_fake:
+    #                     end_index = min(index_fake + n_fake_by_batch, len_fake)
+    #                     for i in np.arange(index_fake, end_index):
+    #                         full_data.append(sc.transient_movies["fake"][i])
+    #                     index_fake = end_index
+    #                     no_patches_added = False
+    #
+    #                 if index_neuropil < len_neuropil:
+    #                     end_index = min(index_neuropil + n_neuropil_by_batch, len_neuropil)
+    #                     for i in np.arange(index_neuropil, end_index):
+    #                         full_data.append(sc.neuropil_movies[i])
+    #                     index_neuropil = end_index
+    #                     no_patches_added = False
+    #
+    #                 if no_patches_added:
+    #                     break
+    #         else:
+    #             np.random.shuffle(movies_shuffling)
 
-                while True:
-                    no_patches_added = True
-                    if index_real < len_real:
-                        end_index = min(index_real + n_real_by_batch, len_real)
-                        for i in np.arange(index_real, end_index):
-                            full_data.append(sc.transient_movies["real"][i])
-                        index_real = end_index
-                        no_patches_added = False
-
-                    if index_fake < len_fake:
-                        end_index = min(index_fake + n_fake_by_batch, len_fake)
-                        for i in np.arange(index_fake, end_index):
-                            full_data.append(sc.transient_movies["fake"][i])
-                        index_fake = end_index
-                        no_patches_added = False
-
-                    if index_neuropil < len_neuropil:
-                        end_index = min(index_neuropil + n_neuropil_by_batch, len_neuropil)
-                        for i in np.arange(index_neuropil, end_index):
-                            full_data.append(sc.neuropil_movies[i])
-                        index_neuropil = end_index
-                        no_patches_added = False
-
-                    if no_patches_added:
-                        break
-            else:
-                np.random.shuffle(movies_shuffling)
-
-    n_movies_for_training = int(movie_count * split_values[0])
-    n_movies_for_validation = int(movie_count * split_values[1])
-    train_data = []
-    for index in movies_shuffling[:n_movies_for_training]:
-        train_data.append(full_data[index])
-
-    valid_data = []
-    for index in movies_shuffling[n_movies_for_training:n_movies_for_training + n_movies_for_validation]:
-        valid_data.append(full_data[index])
+    # n_movies_for_training = int(movie_count * split_values[0])
+    # n_movies_for_validation = int(movie_count * split_values[1])
+    # train_data = []
+    # for index in movies_shuffling[:n_movies_for_training]:
+    #     train_data.append(full_data[index])
+    #
+    # valid_data = []
+    # for index in movies_shuffling[n_movies_for_training:n_movies_for_training + n_movies_for_validation]:
+    #     valid_data.append(full_data[index])
 
     StratificationCamembert(data_list=valid_data,
                             description="VALIDATION DATA",
                             n_max_transformations=6,
                             debug_mode=True)
-    test_data = []
-    for index in movies_shuffling[n_movies_for_training + n_movies_for_validation:]:
-        test_data.append(full_data[index])
+    # test_data = []
+    # for index in movies_shuffling[n_movies_for_training + n_movies_for_validation:]:
+    #     test_data.append(full_data[index])
 
     StratificationCamembert(data_list=test_data,
                             description="TEST DATA",
                             n_max_transformations=6,
                             debug_mode=True)
 
-    test_movie_descr = []
-    for movie in movies_shuffling[n_movies_for_training + n_movies_for_validation:]:
-        test_movie_descr.append(movies_descr[movie])
+    # test_movie_descr = []
+    # for movie in movies_shuffling[n_movies_for_training + n_movies_for_validation:]:
+    #     test_movie_descr.append(movies_descr[movie])
 
     n_max_transformations = train_data[0].n_available_augmentation_fct
     strat_process = StratificationDataProcessor(data_list=train_data, n_max_transformations=n_max_transformations,
@@ -2592,7 +2617,7 @@ def train_model():
     pixels_around = 0
     with_augmentation_for_training_data = True
     buffer = None
-    split_values = (0.6, 0.2)
+    split_values = (0.6, 0.2, 0.2)
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
     with_learning_rate_reduction = True
@@ -2604,7 +2629,7 @@ def train_model():
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
-    main_ratio_balance = (0.8, 0, 0.2)
+    main_ratio_balance = (0.7, 0.2, 0.1)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
 
