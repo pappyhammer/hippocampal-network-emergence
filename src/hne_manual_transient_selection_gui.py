@@ -743,6 +743,7 @@ class ManualOnsetFrame(tk.Frame):
                 self.inter_neurons[inter_neuron] = 1
         self.cells_to_remove = np.zeros(self.nb_neurons, dtype="uint8")
         if self.data_and_param.cells_to_remove is not None:
+            # self.data_and_param.cells_to_remove is actually a list of one array with all cells to remove as an int
             for cell_to_remove in self.data_and_param.cells_to_remove:
                 self.cells_to_remove[cell_to_remove] = 1
 
@@ -4544,12 +4545,133 @@ def print_save(text, file, to_write, no_print=False):
     if to_write:
         file.write(text + '\n')
 
+def fusion_gui_selection(path_data):
+    rep_fusion = "for_fusion"
+    file_names = []
+    txt_to_read = None
+
+    # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+    for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(path_data, rep_fusion)):
+        file_names.extend(local_filenames)
+        break
+
+    if len(file_names) == 0:
+        return
+
+    for file_name in file_names:
+       if file_name.endswith(".txt"):
+           txt_to_read = file_name
+
+
+    data_files = []
+    cells_by_file = []
+    n_cells = None
+    n_times = None
+    with open(os.path.join(path_data, rep_fusion, txt_to_read), "r", encoding='UTF-8') as file:
+        for nb_line, line in enumerate(file):
+            line_list = line.split(':')
+            data_file_name = line_list[0]
+            # finding the file
+            for file_name in file_names:
+                if (data_file_name + ".mat").lower() in file_name.lower():
+                    print(f"data_file_name {data_file_name}")
+                    data_file = hdf5storage.loadmat(os.path.join(path_data, rep_fusion, file_name))
+                    data_files.append(data_file)
+                    if n_cells is None:
+                        peak_nums = data_file['LocPeakMatrix_Python'].astype(int)
+                        n_cells = peak_nums.shape[0]
+                        n_times = peak_nums.shape[1]
+
+                    cells_str_split = line_list[1].split()
+                    cells = []
+                    for cells_str in cells_str_split:
+                        if "-" in cells_str:
+                            limits = cells_str.split('-')
+                            cells.extend(list(range(int(limits[0]), int(limits[1]) + 1)))
+                        else:
+                            cells.append(int(cells_str))
+                    cells_by_file.append(cells)
+                    continue
+
+    peak_nums = np.zeros((n_cells, n_times), dtype="int8")
+    spike_nums = np.zeros((n_cells, n_times), dtype="int8")
+    to_agree_peak_nums = np.zeros((n_cells, n_times), dtype="int8")
+    to_agree_spike_nums = np.zeros((n_cells, n_times), dtype="int8")
+    doubtful_frames_nums = np.zeros((n_cells, n_times), dtype="int8")
+    mvt_frames_nums = np.zeros((n_cells, n_times), dtype="int8")
+    inter_neurons = np.zeros(0, dtype="int16")
+    cells_to_remove = np.zeros(0, dtype="int16")
+    cells_fusioned = []
+    for index_data, data_file in enumerate(data_files):
+        if "inter_neurons" in data_file:
+            inter_neurons_data = data_file['inter_neurons'].astype(int)
+            inter_neurons = np.union1d(inter_neurons, inter_neurons_data[0])
+        if "cells_to_remove" in data_file:
+            cells_to_remove_data = data_file['cells_to_remove'].astype(int)
+            cells_to_remove = np.union1d(cells_to_remove, cells_to_remove_data[0])
+
+        peak_nums_data = data_file['LocPeakMatrix_Python'].astype(int)
+        spike_nums_data = data_file['Bin100ms_spikedigital_Python'].astype(int)
+        cells_fusioned.extend(list(cells_by_file[index_data]))
+        for cell in cells_by_file[index_data]:
+            to_agree_peaks = np.where(to_agree_peak_nums[cell])[0]
+            to_agree_onsets = np.where(to_agree_spike_nums[cell])[0]
+
+            if np.sum(peak_nums[cell]) == 0:
+                peak_nums[cell] = peak_nums_data[cell]
+            else:
+                peaks_index_data = np.where(peak_nums_data[cell])[0]
+                peaks_index = np.where(peak_nums[cell])[0]
+                peaks_index_to_agree = np.setxor1d(peaks_index_data, peaks_index, assume_unique=True)
+                peaks_index_agreed = np.intersect1d(peaks_index_data, peaks_index, assume_unique=True)
+                to_agree_peak_nums[cell, peaks_index_to_agree] = 1
+                peak_nums[cell, peaks_index_agreed] = 1
+            if len(to_agree_peaks) > 0:
+                peak_nums[cell][to_agree_peaks] = 0
+
+            if np.sum(spike_nums[cell]) == 0:
+                spike_nums[cell] = spike_nums_data[cell]
+            else:
+                onsets_index_data = np.where(spike_nums_data[cell])[0]
+                onsets_index = np.where(spike_nums[cell])[0]
+                onsets_index_to_agree = np.setxor1d(onsets_index_data, onsets_index, assume_unique=True)
+                onsets_index_agreed = np.intersect1d(onsets_index_data, onsets_index, assume_unique=True)
+                to_agree_spike_nums[cell, onsets_index_to_agree] = 1
+                spike_nums[cell, onsets_index_agreed] = 1
+            if len(to_agree_onsets) > 0:
+                spike_nums[cell][to_agree_onsets] = 0
+
+        if "doubtful_frames_nums" in data_file:
+            doubtful_frames_nums_data = data_file['doubtful_frames_nums'].astype(int)
+            for cell in np.arange(n_cells):
+                if np.sum(doubtful_frames_nums_data[cell]) > 0:
+                    doubtful_frames_nums[cell, doubtful_frames_nums_data[cell] > 0] = 1
+
+        if "mvt_frames_nums" in data_file:
+            mvt_frames_nums_data = data_file['mvt_frames_nums'].astype(int)
+            for cell in np.arange(n_cells):
+                if np.sum(mvt_frames_nums_data[cell]) > 0:
+                    mvt_frames_nums[cell, mvt_frames_nums_data[cell] > 0] = 1
+
+    # now we want to fill the cells that didn't have to be fusionned, using one the data file
+    cells_to_fill = np.setxor1d(np.unique(cells_fusioned), np.arange(n_cells), assume_unique=True)
+    for cell in cells_to_fill:
+        peak_nums_data = data_files[0]['LocPeakMatrix_Python'].astype(int)
+        spike_nums_data = data_files[0]['Bin100ms_spikedigital_Python'].astype(int)
+        peak_nums[cell] = peak_nums_data[cell]
+        spike_nums[cell] = spike_nums_data[cell]
+
+    sio.savemat(os.path.join(path_data, rep_fusion, "fusion.mat"), {'Bin100ms_spikedigital_Python': spike_nums,
+                                                                    'LocPeakMatrix_Python': peak_nums,
+                                                                    'cells_to_remove': cells_to_remove,
+                                                                    'inter_neurons': inter_neurons,
+                                                                    "doubtful_frames_nums": doubtful_frames_nums,
+                                                                    "mvt_frames_nums": mvt_frames_nums,
+                                                                    "to_agree_peak_nums": to_agree_peak_nums,
+                                                                    "to_agree_spike_nums": to_agree_spike_nums})
+
 
 def main_manual():
-    print(f'platform: {platform}')
-    root = Tk()
-    root.title(f"Session selection")
-
     root_path = None
     with open("param_hne.txt", "r", encoding='UTF-8') as file:
         for nb_line, line in enumerate(file):
@@ -4559,6 +4681,17 @@ def main_manual():
         raise Exception("Root path is None")
 
     path_data = root_path + "data/"
+
+    do_fusion_gui_selection = False
+
+    if do_fusion_gui_selection:
+        fusion_gui_selection(path_data=path_data)
+        return
+
+    print(f'platform: {platform}')
+    root = Tk()
+    root.title(f"Session selection")
+
     result_path = root_path + "results_hne"
 
     data_and_param = DataAndParam(path_data=path_data, result_path=result_path)

@@ -700,7 +700,6 @@ def plot_roc_predictions(ground_truth_raster_dur, rnn_predictions, cells,
                          format=f"{save_format}",
                          facecolor=roc_fig.get_facecolor(), edgecolor='none')
 
-
 def main_benchmark():
     root_path = None
     with open("param_hne.txt", "r", encoding='UTF-8') as file:
