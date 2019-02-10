@@ -1854,13 +1854,13 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     elif use_small_sample:
         # ms_to_use = ["p7_171012_a000_ms"]
         # cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 53, 75, 81, 83, 93, 115])}
-        ms_to_use = ["p8_18_10_24_a005_ms"]
-        cell_to_load_by_ms = {"p8_18_10_24_a005_ms": np.array([13, 41, 42])}
+        # ms_to_use = ["p8_18_10_24_a005_ms"]
+        # cell_to_load_by_ms = {"p8_18_10_24_a005_ms": np.array([13, 41, 42])}
         # np.array([3, 52, 53, 75, 81, 83, 93, 115])
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
-        # ms_to_use = ["p12_171110_a000_ms"]
-        # cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 7])}
+        ms_to_use = ["p12_171110_a000_ms"]
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])}
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
@@ -1929,6 +1929,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     if seed_value is not None:
         np.random.seed(seed_value)
     np.random.shuffle(split_order)
+    print(f"split_order {split_order}")
 
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
@@ -2117,28 +2118,29 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
     if dropout_rate > 0:
         vision_model.add(layers.Dropout(dropout_rate))
 
-    video_input = Input(shape=input_shape, name="video_input")
-    # This is our video encoded via the previously trained vision_model (weights are reused)
-    encoded_frame_sequence = TimeDistributed(vision_model)(video_input)  # the output will be a sequence of vectors
-    if without_bidirectional:
-        for lstm_index, lstm_size in enumerate(lstm_layers_size):
-            if lstm_index == 0:
-                encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate,
-                                     recurrent_dropout=dropout_rnn_rate,
-                                     return_sequences=True)(encoded_frame_sequence)
-            else:
-                encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate, recurrent_dropout=dropout_rnn_rate)(
-                    encoded_video)
-    else:
-        # encoded_video = LSTM(256)(encoded_frame_sequence)  # the output will be a vector
-        for lstm_index, lstm_size in enumerate(lstm_layers_size):
-            if lstm_index == 0:
-                encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
-                                                   recurrent_dropout=dropout_rnn_rate,
-                                                   return_sequences=True))(encoded_frame_sequence)
-            else:
-                encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
-                                                   recurrent_dropout=dropout_rnn_rate))(encoded_video)
+    if use_mulimodal_inputs:
+        video_input = Input(shape=input_shape, name="video_input")
+        # This is our video encoded via the previously trained vision_model (weights are reused)
+        encoded_frame_sequence = TimeDistributed(vision_model)(video_input)  # the output will be a sequence of vectors
+        if without_bidirectional:
+            for lstm_index, lstm_size in enumerate(lstm_layers_size):
+                if lstm_index == 0:
+                    encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate,
+                                         recurrent_dropout=dropout_rnn_rate,
+                                         return_sequences=True)(encoded_frame_sequence)
+                else:
+                    encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate, recurrent_dropout=dropout_rnn_rate)(
+                        encoded_video)
+        else:
+            # encoded_video = LSTM(256)(encoded_frame_sequence)  # the output will be a vector
+            for lstm_index, lstm_size in enumerate(lstm_layers_size):
+                if lstm_index == 0:
+                    encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
+                                                       recurrent_dropout=dropout_rnn_rate,
+                                                       return_sequences=True))(encoded_frame_sequence)
+                else:
+                    encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
+                                                       recurrent_dropout=dropout_rnn_rate))(encoded_video)
 
         # TODO: test if GlobalMaxPool1D +/- dropout is useful here ?
         # encoded_video = GlobalMaxPool1D()(encoded_video)
@@ -2193,8 +2195,8 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
         video_model = Model(inputs=[video_input, video_input_masked], outputs=output)
     else:
         # output = TimeDistributed(Dense(1, activation='sigmoid'))(encoded_video)
-        output = Dense(n_frames, activation='sigmoid')(encoded_video)
-        video_model = Model(inputs=video_input, outputs=output)
+        output = Dense(n_frames, activation='sigmoid')(encoded_video_masked)
+        video_model = Model(inputs=video_input_masked, outputs=output)
 
     return video_model
 
@@ -2603,15 +2605,15 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    use_mulimodal_inputs = True
-    n_epochs = 30
+    use_mulimodal_inputs = False
+    n_epochs = 20
     batch_size = 16
     window_len = 50
     max_width = 25
     max_height = 25
     overlap_value = 0.9
-    dropout_value = 0.2
-    dropout_value_rnn = 0.2
+    dropout_value = 0
+    dropout_value_rnn = 0
     with_batch_normalization = True
     max_n_transformations = 6
     pixels_around = 0
@@ -2628,8 +2630,8 @@ def train_model():
     early_stop_patience = 10 # 10
     model_descr = ""
     with_shuffling = True
-    seed_value = 42  # use None to not use seed
-    main_ratio_balance = (0.7, 0.2, 0.1)
+    seed_value = 43  # use None to not use seed
+    main_ratio_balance = (0.6, 0.2, 0.2)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
 
@@ -2689,7 +2691,7 @@ def train_model():
                         with_batch_normalization=with_batch_normalization)
 
     print(model.summary())
-    raise Exception("TOTOOO")
+    # raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(
@@ -2721,7 +2723,7 @@ def train_model():
 
     # Set a learning rate annealer
     # from: https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
-    learning_rate_reduction = ReduceLROnPlateau(monitor='val_sensitivity',
+    learning_rate_reduction = ReduceLROnPlateau(monitor='val_precision',
                                                 patience=learning_rate_reduction_patience,
                                                 verbose=1,
                                                 factor=0.5,
@@ -2735,7 +2737,7 @@ def train_model():
         callbacks_list.append(learning_rate_reduction)
 
     if with_early_stopping:
-        callbacks_list.append(EarlyStopping(monitor="val_sensitivity", min_delta=0,
+        callbacks_list.append(EarlyStopping(monitor="val_acc", min_delta=0,
                                             patience=early_stop_patience, mode="max",
                                             restore_best_weights=True))
 

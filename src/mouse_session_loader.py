@@ -809,6 +809,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if (not for_cell_classifier) and (not for_transient_classifier):
             p12_171110_a000_ms.clean_data_using_cells_to_remove()
 
+        p12_171110_a000_ms.load_caiman_results(path_data="p12/p12_17_11_10_a000/")
+
         ms_str_to_ms_dict["p12_171110_a000_ms"] = p12_171110_a000_ms
 
     if "p12_17_11_10_a002_ms" in ms_str_to_load:

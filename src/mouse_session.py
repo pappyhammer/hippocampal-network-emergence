@@ -12,6 +12,7 @@ from scipy import signal
 import matplotlib.pyplot as plt
 import numpy as np
 import hdf5storage
+import time
 # import copy
 from datetime import datetime
 # import keras
@@ -60,6 +61,11 @@ class MouseSession:
         self.description = f"P{self.age}_{self.session_id}"
         self.spike_struct = HNESpikeStructure(mouse_session=self, spike_nums=spike_nums, spike_nums_dur=spike_nums_dur)
         # spike_nums represents the onsets of the neuron spikes
+        # bin from 25000 frames caiman "onsets"
+        self.caiman_spike_nums = None
+        # raster_dur built upon the 25000 frames caiman "onsets"
+        self.caiman_spike_nums_dur = None
+        self.caiman_active_periods = None
         self.traces = None
         self.raw_traces = None
         self.z_score_traces = None
@@ -182,6 +188,110 @@ class MouseSession:
         # 1, 3 and 4
         # 5: regroup sce before and during events
         self.events_by_twitches_group = SortedDict()
+
+    def load_caiman_results(self, path_data):
+        start_time = time.time()
+        if self.traces is None:
+            return
+
+        file_names = []
+
+        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_data):
+            file_names.extend(local_filenames)
+            break
+        if len(file_names) == 0:
+            return
+
+        caiman_file_name = None
+        for file_name in file_names:
+            file_name_original = file_name
+            file_name = file_name.lower()
+            if self.description.lower() not in file_name:
+                continue
+            if "caiman" not in file_name:
+                continue
+            if "spikenums" not in file_name:
+                continue
+            caiman_file_name = os.path.join(self.param.path_data, path_data, file_name_original)
+
+        if caiman_file_name is None:
+            return
+
+        data_file = hdf5storage.loadmat(caiman_file_name)
+        caiman_spike_nums = data_file["spikenums"].astype(int)
+
+        spike_nums_bin = np.zeros((caiman_spike_nums.shape[0], caiman_spike_nums.shape[1] // 2),
+                                  dtype="int8")
+        for cell in np.arange(spike_nums_bin.shape[0]):
+            binned_cell = caiman_spike_nums[cell].reshape(-1, 2).mean(axis=1)
+            binned_cell[binned_cell > 0] = 1
+            spike_nums_bin[cell] = binned_cell.astype("int")
+
+        self.caiman_spike_nums = spike_nums_bin
+
+        n_cells = self.traces.shape[0]
+        n_times = self.traces.shape[1]
+
+        # copying traces
+        traces = self.traces[:]
+
+        # normalizing it, should be useful only to plot them
+        for i in np.arange(n_cells):
+            traces[i, :] = (traces[i, :] - np.mean(traces[i, :])) / np.std(traces[i, :])
+
+        # based on diff
+        spike_nums_all = np.zeros((n_cells, n_times), dtype="int8")
+        for cell in np.arange(n_cells):
+            onsets = []
+            diff_values = np.diff(traces[cell])
+            for index, value in enumerate(diff_values):
+                if index == (len(diff_values) - 1):
+                    continue
+                if value < 0:
+                    if diff_values[index + 1] >= 0:
+                        onsets.append(index + 1)
+            if len(onsets) > 0:
+                spike_nums_all[cell, np.array(onsets)] = 1
+
+        peak_nums = np.zeros((n_cells, n_times), dtype="int8")
+        for cell in np.arange(n_cells):
+            peaks, properties = signal.find_peaks(x=traces[cell])
+            peak_nums[cell, peaks] = 1
+
+        spike_nums_dur = np.zeros((n_cells, n_times), dtype="int8")
+        for cell in np.arange(n_cells):
+            peaks_index = np.where(peak_nums[cell, :])[0]
+            onsets_index = np.where(spike_nums_all[cell, :])[0]
+
+            for onset_index in onsets_index:
+                peaks_after = np.where(peaks_index > onset_index)[0]
+                if len(peaks_after) == 0:
+                    continue
+                peaks_after = peaks_index[peaks_after]
+                peak_after = peaks_after[0]
+
+                spike_nums_dur[cell, onset_index:peak_after + 1] = 1
+
+        caiman_spike_nums_dur = np.zeros((spike_nums_dur.shape[0], spike_nums_dur.shape[1]), dtype="int8")
+        caiman_active_periods = dict()
+        for cell in np.arange(n_cells):
+            caiman_active_periods[cell] = []
+            periods = get_continous_time_periods(spike_nums_dur[cell])
+            # print(f"{cell}: len(periods) {len(periods)}")
+            for period in periods:
+                if np.sum(self.caiman_spike_nums[cell, period[0]:period[1] + 1]) > 0:
+                    caiman_active_periods[cell].append((period[0], period[1]))
+                    caiman_spike_nums_dur[cell, period[0]:period[1] + 1] = 1
+            # print(f"{cell}: len(caiman_active_periods[cell]) {len(caiman_active_periods[cell])}")
+
+        # raster_dur built upon the 25000 frames caiman "onsets"
+        self.caiman_active_periods = caiman_active_periods
+        self.caiman_spike_nums_dur = caiman_spike_nums_dur
+
+        stop_time = time.time()
+        print(f"Time for loading caiman results {self.description}: "
+              f"{np.round(stop_time - start_time, 3)} s")
 
     def normalize_movie(self):
         do_01_normalization = False

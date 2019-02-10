@@ -504,6 +504,7 @@ class RemoveDoubtfulFramesAction(ManualAction):
         self.session_frame.doubtful_frames_nums[self.neuron, self.removed_times] = 0
         self.session_frame.update_doubtful_frames_periods(cell=self.neuron)
 
+
 class AddMvtFramesAction(ManualAction):
     def __init__(self, x_from, x_to, backup_values, **kwargs):
         super().__init__(**kwargs)
@@ -823,6 +824,15 @@ class ManualOnsetFrame(tk.Frame):
         self.raster_dur_for_a_cell = dict()
         # to print transient predictions stat only once
         self.print_transients_predictions_stat = False
+        self.caiman_active_periods = None
+        self.caiman_spike_nums = None
+        if self.data_and_param.ms.caiman_active_periods is not None:
+            self.caiman_active_periods = self.data_and_param.ms.caiman_active_periods
+            self.caiman_spike_nums = self.data_and_param.ms.caiman_spike_nums
+            # for cell in np.arange(self.nb_neurons):
+            #     self.caiman_active_periods[cell] = \
+            #         get_continous_time_periods(self.data_and_param.ms.caiman_spike_nums_dur[cell, :])
+
         # Three horizontal frames to start
         # -------------- top frame (start) ----------------
         top_frame = Frame(self)
@@ -1109,7 +1119,7 @@ class ManualOnsetFrame(tk.Frame):
                 self.tiff_movie[frame] = np.array(page)
             stop_time = time.time()
             print(f"Time for loading movie: "
-                  f"{np.round(stop_time-start_time, 3)} s")
+                  f"{np.round(stop_time - start_time, 3)} s")
             # will be useful for transient classifier prediction
             self.data_and_param.ms.tiff_movie = self.tiff_movie
             self.data_and_param.ms.avg_cell_map_img = np.mean(self.tiff_movie, axis=0)
@@ -1650,7 +1660,7 @@ class ManualOnsetFrame(tk.Frame):
             self.save_sources_profile_map(key_cmap=event.char)
             stop_time = time.time()
             print(f"Time for producing source profiles map: "
-                  f"{np.round(stop_time-start_time, 3)} s")
+                  f"{np.round(stop_time - start_time, 3)} s")
             if self.display_michou is True:
                 self.display_michou = False
                 self.update_plot_map_img(after_michou=True)
@@ -2345,7 +2355,7 @@ class ManualOnsetFrame(tk.Frame):
                 self.compute_source_and_transients_correlation(main_cell=self.current_neuron)
                 stop_time = time.time()
                 print(f"Time for computing source and transients correlation for cell {self.current_neuron}: "
-                      f"{np.round(stop_time-start_time, 3)} s")
+                      f"{np.round(stop_time - start_time, 3)} s")
                 if self.display_michou is True:
                     self.display_michou = False
                     self.update_plot_map_img(after_michou=True)
@@ -2580,10 +2590,10 @@ class ManualOnsetFrame(tk.Frame):
             left_x_limit, right_x_limit = self.axe_plot.get_xlim()
             bottom_limit, top_limit = self.axe_plot.get_ylim()
             self.last_actions.append(RemoveDoubtfulFramesAction(removed_times=removed_times,
-                                                               session_frame=self,
-                                                               neuron=self.current_neuron, is_saved=self.is_saved,
-                                                               x_limits=(left_x_limit, right_x_limit),
-                                                               y_limits=(bottom_limit, top_limit)))
+                                                                session_frame=self,
+                                                                neuron=self.current_neuron, is_saved=self.is_saved,
+                                                                x_limits=(left_x_limit, right_x_limit),
+                                                                y_limits=(bottom_limit, top_limit)))
             # no more undone_actions
             self.undone_actions = []
             self.redo_button['state'] = DISABLED
@@ -2623,11 +2633,11 @@ class ManualOnsetFrame(tk.Frame):
         left_x_limit, right_x_limit = self.axe_plot.get_xlim()
         bottom_limit, top_limit = self.axe_plot.get_ylim()
         self.last_actions.append(AddDoubtfulFramesAction(x_from=x_from, x_to=x_to,
-                                                        backup_values=backup_values,
-                                                        session_frame=self,
-                                                        neuron=self.current_neuron, is_saved=self.is_saved,
-                                                        x_limits=(left_x_limit, right_x_limit),
-                                                        y_limits=(bottom_limit, top_limit)))
+                                                         backup_values=backup_values,
+                                                         session_frame=self,
+                                                         neuron=self.current_neuron, is_saved=self.is_saved,
+                                                         x_limits=(left_x_limit, right_x_limit),
+                                                         y_limits=(bottom_limit, top_limit)))
         # no more undone_actions
         self.undone_actions = []
         self.redo_button['state'] = DISABLED
@@ -2668,10 +2678,10 @@ class ManualOnsetFrame(tk.Frame):
             left_x_limit, right_x_limit = self.axe_plot.get_xlim()
             bottom_limit, top_limit = self.axe_plot.get_ylim()
             self.last_actions.append(RemoveMvtFramesAction(removed_times=removed_times,
-                                                                session_frame=self,
-                                                                neuron=self.current_neuron, is_saved=self.is_saved,
-                                                                x_limits=(left_x_limit, right_x_limit),
-                                                                y_limits=(bottom_limit, top_limit)))
+                                                           session_frame=self,
+                                                           neuron=self.current_neuron, is_saved=self.is_saved,
+                                                           x_limits=(left_x_limit, right_x_limit),
+                                                           y_limits=(bottom_limit, top_limit)))
             # no more undone_actions
             self.undone_actions = []
             self.redo_button['state'] = DISABLED
@@ -2711,11 +2721,11 @@ class ManualOnsetFrame(tk.Frame):
         left_x_limit, right_x_limit = self.axe_plot.get_xlim()
         bottom_limit, top_limit = self.axe_plot.get_ylim()
         self.last_actions.append(AddMvtFramesAction(x_from=x_from, x_to=x_to,
-                                                         backup_values=backup_values,
-                                                         session_frame=self,
-                                                         neuron=self.current_neuron, is_saved=self.is_saved,
-                                                         x_limits=(left_x_limit, right_x_limit),
-                                                         y_limits=(bottom_limit, top_limit)))
+                                                    backup_values=backup_values,
+                                                    session_frame=self,
+                                                    neuron=self.current_neuron, is_saved=self.is_saved,
+                                                    x_limits=(left_x_limit, right_x_limit),
+                                                    y_limits=(bottom_limit, top_limit)))
         # no more undone_actions
         self.undone_actions = []
         self.redo_button['state'] = DISABLED
@@ -2852,7 +2862,7 @@ class ManualOnsetFrame(tk.Frame):
                     # print(f"self.nb_neurons {self.nb_neurons}")
                     # for cell in np.where(self.cells_to_remove)[0]:
                     #     print(f"fake {cell}")
-                    print(f"Accuracy: {str(np.round(total_right/self.nb_neurons, 2))}")
+                    print(f"Accuracy: {str(np.round(total_right / self.nb_neurons, 2))}")
 
         show_distribution_prediction = True
         if (predictions is not None) and show_distribution_prediction:
@@ -4059,13 +4069,25 @@ class ManualOnsetFrame(tk.Frame):
             for doubtful_frames_period in self.doubtful_frames_periods[self.current_neuron]:
                 self.axe_plot.axvspan(doubtful_frames_period[0], doubtful_frames_period[1], ymax=1,
                                       alpha=0.5, facecolor="black", zorder=15)
-
         if self.raw_traces_binned is not None:
             min_value = min(min_value, np.min(self.raw_traces_binned[self.current_neuron, :]))
         # plotting onsets
         # self.ax1_bottom_scatter = self.axe_plot.scatter(onsets, [0.1] * len(onsets), marker='*', c=self.color_onset, s=20)
         self.axe_plot.vlines(onsets, min_value, max_value, color=self.color_onset, linewidth=1,
                              linestyles="dashed")
+
+        if self.caiman_active_periods is not None:
+            # start_time = time.time()
+            for caiman_period in self.caiman_active_periods[self.current_neuron]:
+                self.axe_plot.hlines(min_value + 0.5, caiman_period[0], caiman_period[1],
+                                     color="black", linewidth=5, zorder=8)
+            self.axe_plot.vlines(np.where(self.caiman_spike_nums[self.current_neuron])[0],
+                                 min_value, min_value + 0.5,
+                                 color="green", linewidth=2, zorder=7)
+            # stop_time = time.time()
+            # print(f"Time for drawing caiman: "
+            #       f"{np.round(stop_time - start_time, 3)} s")
+
 
         size_peak_scatter = 50
         peaks = np.where(self.peak_nums[self.current_neuron, :] > 0)[0]
@@ -4262,9 +4284,9 @@ class ManualOnsetFrame(tk.Frame):
                 (len(self.mvt_frames_periods[self.current_neuron]) > 0):
             for mvt_frames_period in self.mvt_frames_periods[self.current_neuron]:
                 self.axe2_plot.axvspan(mvt_frames_period[0], mvt_frames_period[1], ymax=1,
-                                      alpha=0.5, facecolor="red", zorder=15)
-                self.axe_plot.plot(np.arange(mvt_frames_period[0], mvt_frames_period[1]+1),
-                                   self.traces[self.current_neuron, mvt_frames_period[0]:mvt_frames_period[1]+1],
+                                       alpha=0.5, facecolor="red", zorder=15)
+                self.axe_plot.plot(np.arange(mvt_frames_period[0], mvt_frames_period[1] + 1),
+                                   self.traces[self.current_neuron, mvt_frames_period[0]:mvt_frames_period[1] + 1],
                                    color="red", zorder=11)
 
         # removing first x_axis
