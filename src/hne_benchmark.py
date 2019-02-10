@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import scipy.io as sio
 import scipy.signal as signal
 from pattern_discovery.tools.misc import get_continous_time_periods
+from pattern_discovery.display.raster import plot_spikes_raster
 
 from matplotlib.figure import SubplotParams
 import matplotlib.gridspec as gridspec
@@ -366,6 +367,79 @@ def manually_boost_rnn(title, path_data, raster_dur_file_name, trace_file_name, 
     sio.savemat(path_results + f"{title}boost_rnn_raster_dur.mat", {'spike_nums_dur_predicted': raster_dur_predicted})
 
 
+def get_raster_dur_from_caiman_25000_frames_onsets_new_version(caiman_spike_nums, traces):
+    # we need to bin it, to get 12500 frames
+    spike_nums_bin = np.zeros((caiman_spike_nums.shape[0], caiman_spike_nums.shape[1] // 2),
+                              dtype="int8")
+    for cell in np.arange(spike_nums_bin.shape[0]):
+        binned_cell = caiman_spike_nums[cell].reshape(-1, 2).mean(axis=1)
+        binned_cell[binned_cell > 0] = 1
+        spike_nums_bin[cell] = binned_cell.astype("int")
+    caiman_spike_nums = spike_nums_bin
+
+    n_cells = traces.shape[0]
+    n_times = traces.shape[1]
+
+    for i in np.arange(n_cells):
+        traces[i, :] = (traces[i, :] - np.mean(traces[i, :])) / np.std(traces[i, :])
+
+    spike_nums_all = np.zeros((n_cells, n_times), dtype="int8")
+    for cell in np.arange(n_cells):
+        onsets = []
+        diff_values = np.diff(traces[cell])
+        for index, value in enumerate(diff_values):
+            if index == (len(diff_values) - 1):
+                continue
+            if value < 0:
+                if diff_values[index + 1] >= 0:
+                    onsets.append(index + 1)
+        if len(onsets) > 0:
+            spike_nums_all[cell, np.array(onsets)] = 1
+
+    peak_nums = np.zeros((n_cells, n_times), dtype="int8")
+    for cell in np.arange(n_cells):
+        peaks, properties = signal.find_peaks(x=traces[cell])
+        peak_nums[cell, peaks] = 1
+
+    # for cell in np.arange(n_cells):
+    #     n_onsets = np.sum(spike_nums_all[cell])
+    #     n_peaks = np.sum(peak_nums[cell])
+    #     if n_onsets != n_peaks:
+    #         print(f"n_onsets {n_onsets}, n_peaks {n_peaks}")
+
+    spike_nums_dur = build_spike_nums_dur(spike_nums_all, peak_nums)
+    #
+    # plot_spikes_raster(spike_nums=spike_nums_dur[:20, :],
+    #                    param=None,
+    #                    traces=traces[:20, :],
+    #                    display_traces=True,
+    #                    spike_train_format=False,
+    #                    title="traces raster",
+    #                    file_name=f"traces raster",
+    #                    y_ticks_labels_size=2,
+    #                    save_raster=False,
+    #                    show_raster=True,
+    #                    plot_with_amplitude=False,
+    #                    raster_face_color="white",
+    #                    without_activity_sum=True,
+    #                    span_area_only_on_raster=False,
+    #                    spike_shape_size=1,
+    #                    spike_shape="o",
+    #                    cell_spikes_color='black',
+    #                    display_spike_nums=True,
+    #                    save_formats="pdf")
+
+    # raise Exception("test toto")
+    caiman_spike_nums_dur = np.zeros((spike_nums_dur.shape[0], spike_nums_dur.shape[1]), dtype="int8")
+    for cell in np.arange(n_cells):
+        periods = get_continous_time_periods(spike_nums_dur[cell])
+        for period in periods:
+            if np.sum(caiman_spike_nums[cell, period[0]:period[1]+1]) > 0:
+                caiman_spike_nums_dur[cell, period[0]:period[1]+1] = 1
+
+    return caiman_spike_nums_dur
+
+
 def build_raster_dur_from_caiman_25000_frames_onsets(file_name, var_name, trace_file_name, trace_var_name,
                                                     description, path_results):
     data_onsets = hdf5storage.loadmat(file_name)
@@ -719,18 +793,20 @@ def main_benchmark():
         # "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat" based on best 2 p12 cells predictions
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_01_26.19-22-21.mat"
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_from_5_sessions_2019_02_05.23-37-09.mat"
-        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_06.22-06-13_from_p8_training.mat"
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_06.22-06-13_from_p8_training.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
         data_dict["rnn"]["prediction_threshold"] = 0.15
 
-        # data_dict["caiman_raw"] = dict()
-        # data_dict["caiman_raw"]["path"] = "p12/p12_17_11_10_a000"
-        # data_dict["caiman_raw"]["file_name"] = "p12_17_11_10_a000_RasterDur.mat" -
-        # data_dict["caiman_raw"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Spikenums_caiman.mat"
-        # data_dict["caiman_raw"]["onsets_var_name"] = "spikenums"
-        # data_dict["caiman_raw"]["to_bin"] = True
-        # data_dict["caiman_raw"]["var_name"] = "rasterdur"
+        data_dict["caiman_raw"] = dict()
+        data_dict["caiman_raw"]["path"] = "p12/p12_17_11_10_a000"
+        data_dict["caiman_raw"]["file_name"] = "p12_17_11_10_a000_RasterDur.mat"
+        data_dict["caiman_raw"]["file_name_onsets"] = "robin_28_01_19/p12_17_11_10_a000_Spikenums_caiman.mat"
+        data_dict["caiman_raw"]["onsets_var_name"] = "spikenums"
+        data_dict["caiman_raw"]["to_bin"] = True
+        data_dict["caiman_raw"]["var_name"] = "rasterdur"
+        data_dict["caiman_raw"]["trace_file_name"] = "p12_17_11_10_a000_Traces.mat"
+        data_dict["caiman_raw"]["trace_var_name"] = "C_df"
         # "p12_17_11_10_a000_caiman_raster_dur_JD_version.mat"
 
         # data_dict["caiman_jd"] = dict()
@@ -741,7 +817,7 @@ def main_benchmark():
         data_dict["caiman_filt"] = dict()
         data_dict["caiman_filt"]["path"] = "p12/p12_17_11_10_a000"
         data_dict["caiman_filt"]["file_name"] = "p12_17_11_10_a000_filt_RasterDur_caiman.mat"
-        data_dict["caiman_filt"]["file_name_onsets"] = "Robin_28_01_19/p12_17_11_10_a000_Bin100ms_spikedigital.mat"
+        data_dict["caiman_filt"]["file_name_onsets"] = "robin_28_01_19/p12_17_11_10_a000_Bin100ms_spikedigital.mat"
         data_dict["caiman_filt"]["onsets_var_name"] = "Bin100ms_spikedigital"
         data_dict["caiman_filt"]["var_name"] = "rasterdur"
     elif ms_to_benchmark == "p13_18_10_29_a001_ms":
@@ -782,10 +858,10 @@ def main_benchmark():
         data_dict["rnn"]["path"] = "p7/p7_17_10_12_a000"
         # not of these two better than caiman
         # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_01.15-56-10.mat"
-        # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
+        data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
         # bad results
         # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_06.12-53-02_on_6_cells_overfitting.mat"
-        data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_06.14-58-40_5_sessions_training.mat"
+        # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_06.14-58-40_5_sessions_training.mat"
         # not good
         # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_06.20-48-56_on_2_cells_02_02_19_1_30_26.mat"
         #  P7_17_10_12_a000_predictions_2019_02_06.20-48-56_on_2_cells_02_02_19_1_30_26.mat
@@ -802,11 +878,14 @@ def main_benchmark():
         # data_dict["boost_rnn"]["path"] = "p7/p7_17_10_12_a000"
         # data_dict["boost_rnn"]["file_name"] = "p7_17_10_12_a000boost_rnn_raster_dur.mat"
         # data_dict["boost_rnn"]["var_name"] = "spike_nums_dur_predicted"
-        #
-        # data_dict["caiman_raw"] = dict()
-        # data_dict["caiman_raw"]["path"] = "p7/p7_17_10_12_a000"
-        # data_dict["caiman_raw"]["file_name"] = "Robin_30_01_19/p7_17_10_12_a000_RasterDur.mat"
-        # data_dict["caiman_raw"]["var_name"] = "rasterdur"
+
+        data_dict["caiman_raw"] = dict()
+        data_dict["caiman_raw"]["path"] = "p7/p7_17_10_12_a000"
+        data_dict["caiman_raw"]["file_name_onsets"] = "Robin_30_01_19/p7_17_10_12_a000_spikenums.mat"
+        data_dict["caiman_raw"]["onsets_var_name"] = "spikenums"
+        data_dict["caiman_raw"]["to_bin"] = True
+        data_dict["caiman_raw"]["trace_file_name"] = "p7_17_10_12_a000_Traces.mat"
+        data_dict["caiman_raw"]["trace_var_name"] = "C_df"
 
         data_dict["caiman_filt"] = dict()
         data_dict["caiman_filt"]["path"] = "p7/p7_17_10_12_a000"
@@ -826,13 +905,21 @@ def main_benchmark():
         # train on 2 of the cell of Robin
         # trained on 2 cells of p8
         # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.20-29-38_9_cells_from_Robin.mat"
-        # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.22-18-43_from_p12_training.mat"
+        data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.22-18-43_from_p12_training.mat"
         # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.22-33-03_trained_on_5_sessions.mat"
-        data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_07.13-31-43_train_on_3_cells_p8.mat"
+        # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_07.13-31-43_train_on_3_cells_p8.mat"
 
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
         data_dict["rnn"]["prediction_threshold"] = 0.3
+
+        data_dict["caiman_raw"] = dict()
+        data_dict["caiman_raw"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["caiman_raw"]["file_name_onsets"] = "p8_18_10_24_a005_MCMC.mat"
+        data_dict["caiman_raw"]["onsets_var_name"] = "spikenums"
+        data_dict["caiman_raw"]["to_bin"] = True
+        data_dict["caiman_raw"]["trace_file_name"] = "p8_18_10_24_a005_Traces.mat"
+        data_dict["caiman_raw"]["trace_var_name"] = "C_df"
 
         data_dict["caiman_filt"] = dict()
         data_dict["caiman_filt"]["path"] = "p8/p8_18_10_24_a005"
@@ -895,8 +982,8 @@ def main_benchmark():
     for key, value in data_dict.items():
         if key == "gt":
             continue
-        data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name"]))
         if key == "rnn" and ("prediction_threshold" in value):
+            data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name"]))
             predicted_raster_dur_dict[key] = \
                 build_raster_dur_from_predictions(predictions=data_file[value["predictions"]],
                                                   predictions_threshold=value["prediction_threshold"],
@@ -904,24 +991,30 @@ def main_benchmark():
                                                   n_total_cells=n_cells,
                                                   n_frames=n_frames)
         else:
-            raster_dur = data_file[value['var_name']].astype(int)
-            predicted_raster_dur_dict[key] = raster_dur
-
-            if do_onsets_benchmarks:
+            if "to_bin" in value:
                 # onsets
                 data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name_onsets"]))
-                predicted_spike_nums = data_file[value['onsets_var_name']].astype(int)
-                if "to_bin" in value:
-                    # we need to bin predicted_spike_nums, because there are 50 000 frames
-                    new_predicted_spike_nums = np.zeros((predicted_spike_nums.shape[0], predicted_spike_nums.shape[1] // 2),
-                                                        dtype="int8")
-                    for cell in np.arange(predicted_spike_nums.shape[0]):
-                        binned_cell = predicted_spike_nums[cell].reshape(-1, 2).mean(axis=1)
-                        binned_cell[binned_cell > 0] = 1
-                        new_predicted_spike_nums[cell] = binned_cell.astype("int")
-                    predicted_spike_nums = new_predicted_spike_nums
-                print(f"predicted_spike_nums.shape {predicted_spike_nums.shape}")
-                predicted_spike_nums_dict[key] = predicted_spike_nums
+                caiman_spike_nums = data_file[value['onsets_var_name']].astype(int)
+                data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["trace_file_name"]))
+                traces = data_file[value['trace_var_name']]
+                raster_dur = get_raster_dur_from_caiman_25000_frames_onsets_new_version(caiman_spike_nums, traces)
+                predicted_raster_dur_dict[key] = raster_dur
+
+                # # we need to bin predicted_spike_nums, because there are 50 000 frames
+                # new_predicted_spike_nums = np.zeros(
+                #     (predicted_spike_nums.shape[0], predicted_spike_nums.shape[1] // 2),
+                #     dtype="int8")
+                # for cell in np.arange(predicted_spike_nums.shape[0]):
+                #     binned_cell = predicted_spike_nums[cell].reshape(-1, 2).mean(axis=1)
+                #     binned_cell[binned_cell > 0] = 1
+                #     new_predicted_spike_nums[cell] = binned_cell.astype("int")
+                # predicted_spike_nums = new_predicted_spike_nums
+                # print(f"predicted_spike_nums.shape {predicted_spike_nums.shape}")
+                # predicted_spike_nums_dict[key] = predicted_spike_nums
+            else:
+                data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name"]))
+                raster_dur = data_file[value['var_name']].astype(int)
+                predicted_raster_dur_dict[key] = raster_dur
 
     benchmarks = BenchmarkRasterDur(description=ms_to_benchmark, ground_truth_raster_dur=ground_truth_raster_dur,
                                     predicted_raster_dur_dict=predicted_raster_dur_dict, cells=cells_for_benchmark)
@@ -939,18 +1032,18 @@ def main_benchmark():
                                                  path_results=path_results,
                                                  save_formats="pdf")
 
-    if do_onsets_benchmarks:
-        print("")
-        print("#######################################")
-        print("#######################################")
-        print("#######################################")
-        print("")
-
-        benchmarks_onsets = BenchmarkRasterDur(description=ms_to_benchmark, ground_truth_raster_dur=spike_nums,
-                                               predicted_raster_dur_dict=predicted_spike_nums_dict,
-                                               cells=cells_for_benchmark)
-
-        benchmarks_onsets.compute_stats_on_onsets()
+    # if do_onsets_benchmarks:
+    #     print("")
+    #     print("#######################################")
+    #     print("#######################################")
+    #     print("#######################################")
+    #     print("")
+    #
+    #     benchmarks_onsets = BenchmarkRasterDur(description=ms_to_benchmark, ground_truth_raster_dur=spike_nums,
+    #                                            predicted_raster_dur_dict=predicted_spike_nums_dict,
+    #                                            cells=cells_for_benchmark)
+    #
+    #     benchmarks_onsets.compute_stats_on_onsets()
 
 
 main_benchmark()
