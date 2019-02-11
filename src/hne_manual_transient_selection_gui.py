@@ -447,6 +447,8 @@ class AgreePeakAction(ManualAction):
         self.session_frame.peak_nums[self.neuron, self.agreed_peaks_index] = 0
         if self.agree_onset_action is not None:
             self.agree_onset_action.undo()
+        else:
+            self.session_frame.update_to_agree_label()
 
     def redo(self):
         super().redo()
@@ -454,6 +456,8 @@ class AgreePeakAction(ManualAction):
         self.session_frame.peak_nums[self.neuron, self.agreed_peaks_index] = 1
         if self.agree_onset_action is not None:
             self.agree_onset_action.redo()
+        else:
+            self.session_frame.update_to_agree_label()
 
 
 class DontAgreePeakAction(ManualAction):
@@ -467,12 +471,16 @@ class DontAgreePeakAction(ManualAction):
         self.session_frame.to_agree_peak_nums[self.neuron, self.not_agreed_peaks_index] = 1
         if self.dont_agree_onset_action is not None:
             self.dont_agree_onset_action.undo()
+        else:
+            self.session_frame.update_to_agree_label()
 
     def redo(self):
         super().redo()
         self.session_frame.to_agree_peak_nums[self.neuron, self.not_agreed_peaks_index] = 0
         if self.dont_agree_onset_action is not None:
             self.dont_agree_onset_action.redo()
+        else:
+            self.session_frame.update_to_agree_label()
 
 
 class DontAgreeOnsetAction(ManualAction):
@@ -483,10 +491,12 @@ class DontAgreeOnsetAction(ManualAction):
     def undo(self):
         super().undo()
         self.session_frame.to_agree_spike_nums[self.neuron, self.not_agreed_onsets_index] = 1
+        self.session_frame.update_to_agree_label()
 
     def redo(self):
         super().redo()
         self.session_frame.to_agree_spike_nums[self.neuron, self.not_agreed_onsets_index] = 0
+        self.session_frame.update_to_agree_label()
 
 
 class AgreeOnsetAction(ManualAction):
@@ -499,12 +509,14 @@ class AgreeOnsetAction(ManualAction):
         self.session_frame.to_agree_spike_nums[self.neuron, self.agreed_onsets_index] = 1
         self.session_frame.onset_times[self.neuron, self.agreed_onsets_index] = 0
         self.session_frame.spike_nums[self.neuron, self.agreed_onsets_index] = 0
+        self.session_frame.update_to_agree_label()
 
     def redo(self):
         super().redo()
         self.session_frame.to_agree_spike_nums[self.neuron, self.agreed_onsets_index] = 0
         self.session_frame.onset_times[self.neuron, self.agreed_onsets_index] = 1
         self.session_frame.spike_nums[self.neuron, self.agreed_onsets_index] = 1
+        self.session_frame.update_to_agree_label()
 
 
 class AddOnsetAction(ManualAction):
@@ -1118,6 +1130,15 @@ class ManualOnsetFrame(tk.Frame):
                 self.agree_button["fg"] = 'red'
                 self.agree_button["command"] = self.agree_switch_mode
                 self.agree_button.pack(side=LEFT)
+
+                empty_label = Label(top_frame)
+                empty_label["text"] = "" * 1
+                empty_label.pack(side=LEFT)
+
+                self.to_agree_label = Label(top_frame)
+                self.to_agree_label["text"] = f"{self.numbers_of_onset_to_agree()}/" \
+                    f"{self.numbers_of_peak_to_agree()}"
+                self.to_agree_label.pack(side=LEFT)
 
                 empty_label = Label(top_frame)
                 empty_label["text"] = "" * 1
@@ -1859,6 +1880,16 @@ class ManualOnsetFrame(tk.Frame):
     def numbers_of_peak(self):
         return len(np.where(self.peak_nums[self.current_neuron, :] > 0)[0])
 
+    def numbers_of_onset_to_agree(self):
+        if self.to_agree_spike_nums is None:
+            return 0
+        return len(np.where(self.to_agree_spike_nums[self.current_neuron, :] > 0)[0])
+
+    def numbers_of_peak_to_agree(self):
+        if self.to_agree_peak_nums is None:
+            return 0
+        return len(np.where(self.to_agree_peak_nums[self.current_neuron, :] > 0)[0])
+
     def swith_all_click_actions(self, initiator):
         if (initiator != "remove_onset_switch_mode") and self.remove_onset_mode:
             self.remove_onset_switch_mode(from_remove_onset_button=False)
@@ -2128,9 +2159,18 @@ class ManualOnsetFrame(tk.Frame):
                 # we want to display the source and transient profile of the selected transient
                 # print(f"self.source_mode click release {event.xdata}")
                 transient = None
+                # creating temporary variable so we can add to_agree_onsets & peaks in case it exists
+                if self.to_agree_spike_nums is not None:
+                    tmp_onset_times = np.copy(self.onset_times[self.current_neuron])
+                    tmp_onset_times[self.to_agree_spike_nums[self.current_neuron] > 0] = 1
+                    tmp_peak_nums = np.copy(self.peak_nums[self.current_neuron])
+                    tmp_peak_nums[self.to_agree_peak_nums[self.current_neuron] > 0] = 1
+                else:
+                    tmp_onset_times = self.onset_times[self.current_neuron]
+                    tmp_peak_nums = self.peak_nums[self.current_neuron]
                 # we check if we are between an onset and a peak
-                onsets_frames = np.where(self.onset_times[self.current_neuron, :] > 0)[0]
-                peaks_frames = np.where(self.peak_nums[self.current_neuron, :] > 0)[0]
+                onsets_frames = np.where(tmp_onset_times)[0]
+                peaks_frames = np.where(tmp_peak_nums)[0]
                 # closest onset before the click
                 onsets_before_index = np.where(onsets_frames <= event.xdata)[0]
                 if len(onsets_before_index) == 0:
@@ -2351,6 +2391,7 @@ class ManualOnsetFrame(tk.Frame):
             self.redo_button['state'] = DISABLED
             self.unsaved()
             self.undo_button['state'] = 'normal'
+            self.update_to_agree_label()
         # update to remove the cross of the first click
         self.update_after_onset_change()
 
@@ -2419,6 +2460,7 @@ class ManualOnsetFrame(tk.Frame):
             self.redo_button['state'] = DISABLED
             self.unsaved()
             self.undo_button['state'] = 'normal'
+            self.update_to_agree_label()
         # update to remove the cross of the first click
         self.update_after_onset_change()
 
@@ -4748,11 +4790,14 @@ class ManualOnsetFrame(tk.Frame):
     #         self.current_neuron = content
     #         self.update_plot()
 
+    def update_to_agree_label(self):
+        self.to_agree_label["text"] = f"{self.numbers_of_onset_to_agree()}/{self.numbers_of_peak_to_agree()}"
+
     # if an onset has been removed or added to traces and spike_nums for current_neuron
     def update_after_onset_change(self, new_neuron=-1,
                                   new_x_limit=None, new_y_limit=None):
         """
-        Update the frame is an onset change has been made
+        Update the frame if an onset change has been made
         :param new_neuron: if -1, then the neuron hasn't changed, neuron might change if undo or redo are done.
         :return:
         """
@@ -4818,6 +4863,7 @@ class ManualOnsetFrame(tk.Frame):
         self.clear_and_update_entry_neuron_widget()
         self.onset_numbers_label["text"] = f"{self.numbers_of_onset()}"
         self.peak_numbers_label["text"] = f"{self.numbers_of_peak()}"
+        self.update_to_agree_label()
 
         if (self.current_neuron + 1) == self.nb_neurons:
             self.next_button['state'] = DISABLED

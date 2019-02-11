@@ -1699,7 +1699,6 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0, b
     ImageDraw.Draw(img).polygon(list(scaled_poly_gon.exterior.coords), outline=0, fill=0)
     mask = np.array(img)
 
-
     return mask, (minx, maxx, miny, maxy)
 
 
@@ -1800,8 +1799,9 @@ def cell_encoding(ms, cell):
     # and keep the one that are not real as fake one
     # for that first we need to compute peaks_nums, spike_nums and spike_nums_dur from all onsets
     if cell not in ms.transient_classifier_spike_nums_dur:
+        # threshold_factor used to be 0.6
         ms.transient_classifier_spike_nums_dur[cell] = \
-            find_all_onsets_and_peaks_on_traces(ms=ms, cell=cell, threshold_factor=0.6)
+            find_all_onsets_and_peaks_on_traces(ms=ms, cell=cell, threshold_factor=1)
     tc_dur = ms.transient_classifier_spike_nums_dur[cell]
     all_transient_periods = get_continous_time_periods(tc_dur)
     for transient_period in all_transient_periods:
@@ -2605,7 +2605,7 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    use_mulimodal_inputs = False
+    use_mulimodal_inputs = True
     n_epochs = 20
     batch_size = 16
     window_len = 50
@@ -2618,7 +2618,7 @@ def train_model():
     max_n_transformations = 6
     pixels_around = 0
     with_augmentation_for_training_data = True
-    buffer = None
+    buffer = 1
     split_values = (0.6, 0.2, 0.2)
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
@@ -2630,7 +2630,7 @@ def train_model():
     early_stop_patience = 10 # 10
     model_descr = ""
     with_shuffling = True
-    seed_value = 43  # use None to not use seed
+    seed_value = 42  # use None to not use seed
     main_ratio_balance = (0.6, 0.2, 0.2)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
