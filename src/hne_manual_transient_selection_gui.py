@@ -3446,12 +3446,22 @@ class ManualOnsetFrame(tk.Frame):
         # matlab format
         cells_to_remove = np.where(self.cells_to_remove)[0]
         inter_neurons = np.where(self.inter_neurons)[0]
-        sio.savemat(self.save_path + self.save_file_name, {'Bin100ms_spikedigital_Python': self.spike_nums,
-                                                           'LocPeakMatrix_Python': self.peak_nums,
-                                                           'cells_to_remove': cells_to_remove,
-                                                           'inter_neurons': inter_neurons,
-                                                           "doubtful_frames_nums": self.doubtful_frames_nums,
-                                                           "mvt_frames_nums": self.mvt_frames_nums})
+        if self.to_agree_peak_nums is not None:
+            sio.savemat(self.save_path + self.save_file_name, {'Bin100ms_spikedigital_Python': self.spike_nums,
+                                                               'LocPeakMatrix_Python': self.peak_nums,
+                                                               'cells_to_remove': cells_to_remove,
+                                                               'inter_neurons': inter_neurons,
+                                                               "doubtful_frames_nums": self.doubtful_frames_nums,
+                                                               "mvt_frames_nums": self.mvt_frames_nums,
+                                                               "to_agree_peak_nums": self.to_agree_peak_nums,
+                                                               "to_agree_spike_nums": self.to_agree_spike_nums})
+        else:
+            sio.savemat(self.save_path + self.save_file_name, {'Bin100ms_spikedigital_Python': self.spike_nums,
+                                                               'LocPeakMatrix_Python': self.peak_nums,
+                                                               'cells_to_remove': cells_to_remove,
+                                                               'inter_neurons': inter_neurons,
+                                                               "doubtful_frames_nums": self.doubtful_frames_nums,
+                                                               "mvt_frames_nums": self.mvt_frames_nums})
 
         if and_close:
             self.root.destroy()
