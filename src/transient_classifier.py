@@ -185,7 +185,6 @@ class StratificationCamembert:
         self.full_transient_sorted_amplitude["fake"] = []
         self.full_transient_sorted_amplitude["real"] = []
 
-
         self.n_transient_dict = dict()
         self.n_transient_dict["fake"] = dict()
         self.n_transient_dict["real"] = dict()
@@ -527,7 +526,7 @@ class StratificationCamembert:
             if "n_cropped_fake_transient" in movie_info:
                 movie_data.weight += 5
 
-    def balance_all(self, main_ratio_balance,  first_round):
+    def balance_all(self, main_ratio_balance, first_round):
         # if a ratio is put to one, then the class is untouched, but then the sum of other ratio should be equal to
         # 1 or set to -1 as well
         # main_ratio_balance = (0.6, 0.25, 0.15)
@@ -816,7 +815,8 @@ class StratificationCamembert:
             ratio = non_crop_ratio_balance[0] / non_crop_ratio_balance[1]
             if ((self.n_full_2p_transient[which_ones] > 0) and (self.n_full_1_transient[which_ones] > 0)) and \
                     (np.abs(
-                        (self.n_full_1_transient[which_ones] / self.n_full_2p_transient[which_ones]) - ratio) > tolerance):
+                        (self.n_full_1_transient[which_ones] / self.n_full_2p_transient[
+                            which_ones]) - ratio) > tolerance):
                 # we have a 5% tolerance
                 if (self.n_full_2p_transient[which_ones] * ratio) > self.n_full_1_transient[which_ones]:
                     # to balance real, we augment them, to balance fake: we remove some
@@ -824,10 +824,12 @@ class StratificationCamembert:
                     if which_ones == "real":
                         # it means we don't have enough full 1 transient and need to augment self.n_full_1_transient
                         # first we need to determine the difference
-                        full_1_to_add = (self.n_full_2p_transient[which_ones] * ratio) - self.n_full_1_transient[which_ones]
+                        full_1_to_add = (self.n_full_2p_transient[which_ones] * ratio) - self.n_full_1_transient[
+                            which_ones]
                         if self.debug_mode:
                             print(f"n_full_2p_transient[which_ones] {self.n_full_2p_transient[which_ones]}, "
-                                  f" ratio {ratio}, n_full_1_transient[which_ones] {self.n_full_1_transient[which_ones]}")
+                                  f" ratio {ratio}, n_full_1_transient[which_ones] {self.n_full_1_transient[
+                                      which_ones]}")
                             print(f"diff {full_1_to_add}")
                         augmentation_added = 0
                         movie_index = 0
@@ -1115,7 +1117,7 @@ class StratificationDataProcessor:
         if debug_mode:
             print(f"////////// AFTER balancing sessions //////////////")
         balanced_camembert = StratificationCamembert(data_list=self.data_list,
-                                                     description=description+"_balanced",
+                                                     description=description + "_balanced",
                                                      n_max_transformations=self.n_max_transformations,
                                                      debug_mode=True)
         # setting the weight based on amplitudes and lengths of the transients
@@ -1415,9 +1417,182 @@ def shift_movie(movie, x_shift, y_shift):
     return new_movie
 
 
+class MoviePatchGenerator:
+    """
+    Used to generate movie patches, that will be produce for training data during each mini-batch.
+    This is an abstract classes that need to have heritage.
+    The function generate_movies_from_metadata will be used to produced those movie patches, the number
+    vary depending on the class instantiated
+    """
+
+    def __init__(self, movie_data_list, n_inputs, window_len, max_width, max_height):
+        self.movie_data_list = movie_data_list
+        self.n_inputs = n_inputs
+        self.window_len = window_len
+        self.max_width = max_width
+        self.max_height = max_height
+
+    # self.n_inputs shouldn't be changed
+    def get_nb_inputs(self):
+        return self.n_inputs
+
+    def generate_movies_from_metadata(self, memory_dict):
+        pass
+
+
+class MoviePatchGeneratorMaskedAndGlobal(MoviePatchGenerator):
+    """
+    Will generate one input being the masked cell (the one we focus on) and the second input
+    would be the whole patch with all pixels given
+    """
+
+    def __init__(self, movie_data_list, n_inputs, window_len, max_width, max_height, pixels_around,
+                 buffer):
+        super().__init(movie_data_list=movie_data_list, n_inputs=n_inputs,
+                       window_len=window_len, max_width=max_width, max_height=max_height)
+        self.pixels_around = pixels_around
+        self.buffer = buffer
+
+    def generate_movies_from_metadata(self, memory_dict):
+        source_profiles_dict = memory_dict
+        batch_size = len(self.movie_data_list)
+        data = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
+        data_masked = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
+        labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+
+        # Generate data
+        for index_batch, movie_data in enumerate(self.movie_data_list):
+            ms = movie_data.ms
+            spike_nums_dur = ms.spike_struct.spike_nums_dur
+            cell = movie_data.cell
+            frame_index = movie_data.index_movie
+            augmentation_fct = movie_data.data_augmentation_fct
+
+            # now we generate the source profile of the cell for those frames and retrieve it if it has
+            # already been generated
+            src_profile_key = ms.description + str(cell)
+            if src_profile_key in source_profiles_dict:
+                mask_source_profile, coords = source_profiles_dict[src_profile_key]
+            else:
+                mask_source_profile, coords = \
+                    get_source_profile_param(cell=cell, ms=ms, pixels_around=self.pixels_around,
+                                             buffer=self.buffer,
+                                             max_width=self.max_width, max_height=self.max_height)
+                source_profiles_dict[src_profile_key] = [mask_source_profile, coords]
+
+            frames = np.arange(frame_index, frame_index + self.window_len)
+            # setting labels: active frame or not
+            labels[index_batch] = spike_nums_dur[cell, frames]
+            # now adding the movie of those frames in this sliding_window
+            source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
+            # if i == 0:
+            #     print(f"source_profile_frames.shape {source_profile_frames.shape}")
+            source_profile_frames_masked = np.copy(source_profile_frames)
+            source_profile_frames_masked[:, mask_source_profile] = 0
+
+            # doing augmentation if the function exists
+            if augmentation_fct is not None:
+                source_profile_frames = augmentation_fct(source_profile_frames)
+                source_profile_frames_masked = augmentation_fct(source_profile_frames_masked)
+
+            # then we fit it the frame use by the network, padding the surrounding by zero if necessary
+            profile_fit = np.zeros((len(frames), self.max_height, self.max_width))
+            profile_fit_masked = np.zeros((len(frames), self.max_height, self.max_width))
+            # we center the source profile
+            y_coord = (profile_fit.shape[1] - source_profile_frames.shape[1]) // 2
+            x_coord = (profile_fit.shape[2] - source_profile_frames.shape[2]) // 2
+            profile_fit[:, y_coord:source_profile_frames.shape[1] + y_coord,
+            x_coord:source_profile_frames.shape[2] + x_coord] = \
+                source_profile_frames
+            profile_fit_masked[:, y_coord:source_profile_frames.shape[1] + y_coord,
+            x_coord:source_profile_frames.shape[2] + x_coord] = \
+                source_profile_frames_masked
+
+            profile_fit = profile_fit.reshape((profile_fit.shape[0], profile_fit.shape[1], profile_fit.shape[2], 1))
+            profile_fit_masked = profile_fit_masked.reshape((profile_fit_masked.shape[0], profile_fit_masked.shape[1],
+                                                             profile_fit_masked.shape[2], 1))
+
+            data[index_batch] = profile_fit
+            data_masked[index_batch] = profile_fit_masked
+
+        return {"input_0": data_masked, "input_1": data}, labels
+
+
+class MoviePatchGeneratorMaskedCell(MoviePatchGenerator):
+    """
+    Will generate one input being the masked cell (the one we focus on)
+    """
+
+    def __init__(self, movie_data_list, n_inputs, window_len, max_width, max_height, pixels_around,
+                 buffer):
+        super().__init(movie_data_list=movie_data_list, n_inputs=n_inputs,
+                       window_len=window_len, max_width=max_width, max_height=max_height)
+        self.pixels_around = pixels_around
+        self.buffer = buffer
+
+    def generate_movies_from_metadata(self, memory_dict):
+        source_profiles_dict = memory_dict
+        batch_size = len(self.movie_data_list)
+        data = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
+        data_masked = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
+        labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+
+        # Generate data
+        for index_batch, movie_data in enumerate(self.movie_data_list):
+            ms = movie_data.ms
+            spike_nums_dur = ms.spike_struct.spike_nums_dur
+            cell = movie_data.cell
+            frame_index = movie_data.index_movie
+            augmentation_fct = movie_data.data_augmentation_fct
+
+            # now we generate the source profile of the cell for those frames and retrieve it if it has
+            # already been generated
+            src_profile_key = ms.description + str(cell)
+            if src_profile_key in source_profiles_dict:
+                mask_source_profile, coords = source_profiles_dict[src_profile_key]
+            else:
+                mask_source_profile, coords = \
+                    get_source_profile_param(cell=cell, ms=ms, pixels_around=self.pixels_around,
+                                             buffer=self.buffer,
+                                             max_width=self.max_width, max_height=self.max_height)
+                source_profiles_dict[src_profile_key] = [mask_source_profile, coords]
+
+            frames = np.arange(frame_index, frame_index + self.window_len)
+            # setting labels: active frame or not
+            labels[index_batch] = spike_nums_dur[cell, frames]
+            # now adding the movie of those frames in this sliding_window
+            source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
+            # if i == 0:
+            #     print(f"source_profile_frames.shape {source_profile_frames.shape}")
+            source_profile_frames_masked = source_profile_frames
+            source_profile_frames_masked[:, mask_source_profile] = 0
+
+            # doing augmentation if the function exists
+            if augmentation_fct is not None:
+                source_profile_frames_masked = augmentation_fct(source_profile_frames_masked)
+
+            # then we fit it the frame use by the network, padding the surrounding by zero if necessary
+            profile_fit_masked = np.zeros((len(frames), self.max_height, self.max_width))
+            # we center the source profile
+            y_coord = (profile_fit_masked.shape[1] - source_profile_frames.shape[1]) // 2
+            x_coord = (profile_fit_masked.shape[2] - source_profile_frames.shape[2]) // 2
+
+            profile_fit_masked[:, y_coord:source_profile_frames.shape[1] + y_coord,
+            x_coord:source_profile_frames.shape[2] + x_coord] = \
+                source_profile_frames_masked
+
+            profile_fit_masked = profile_fit_masked.reshape((profile_fit_masked.shape[0], profile_fit_masked.shape[1],
+                                                             profile_fit_masked.shape[2], 1))
+
+            data_masked[index_batch] = profile_fit_masked
+
+        return {"input_0": data_masked}, labels
+
+
 class DataGenerator(keras.utils.Sequence):
     """
     Based on an exemple found in https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
+    Feed to keras to generate data
     """
 
     # 'Generates data for Keras'
@@ -1525,7 +1700,6 @@ class DataGenerator(keras.utils.Sequence):
                                                                   source_profiles_dict=self.source_profiles_dict)
         # print(f"__data_generation data.shape {data.shape}")
         # put more weight to the active frames
-        # TODO: considering to put more weight to fake transient
         # TODO: reshape labels such as shape is (batch_size, window_len, 1) and then use "temporal" mode in compile
         # TODO: otherwise, use the weight in the movie_data in data_list_tmp to apply the corresponding weight
         # sample_weights = np.ones(labels.shape)
@@ -1584,7 +1758,7 @@ def generate_movies_from_metadata(movie_data_list, window_len, max_width, max_he
         else:
             mask_source_profile, coords = \
                 get_source_profile_param(cell=cell, ms=ms, pixels_around=pixels_around, buffer=buffer,
-                                         max_width=max_width, max_height=max_width)
+                                         max_width=max_width, max_height=max_height)
             source_profiles_dict[src_profile_key] = [mask_source_profile, coords]
 
         frames = np.arange(frame_index, frame_index + window_len)
@@ -1621,7 +1795,7 @@ def generate_movies_from_metadata(movie_data_list, window_len, max_width, max_he
 
         data[index_batch] = profile_fit
         data_masked[index_batch] = profile_fit_masked
-
+    # TODO: first argument should be dict that contain data and data_masked, with key being "input_0", "input_1" etc..
     return data, data_masked, labels
 
 
@@ -1867,12 +2041,12 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p11_17_11_24_a000_ms",
                      "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
         #  "p9_18_09_27_a003_ms",
-        cell_to_load_by_ms = {"p7_171012_a000_ms":  np.array([52, 53]), # 75, 81
-                              "p8_18_10_24_a005_ms": np.array([0, 1]), # 9, 10
+        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 53]),  # 75, 81
+                              "p8_18_10_24_a005_ms": np.array([0, 1]),  # 9, 10
                               # "p9_18_09_27_a003_ms": np.array([3, 5]), # 7, 9
-                              "p11_17_11_24_a000_ms": np.array([3, 22]), # 24,29
-                              "p12_171110_a000_ms": np.array([0, 3]), # 3
-                              "p13_18_10_29_a001_ms": np.array([0, 5])} # 12, 13
+                              "p11_17_11_24_a000_ms": np.array([3, 22]),  # 24,29
+                              "p12_171110_a000_ms": np.array([0, 3]),  # 3
+                              "p13_18_10_29_a001_ms": np.array([0, 5])}  # 12, 13
         # max p7: 117, max p9: 30, max p12: 6 .build_spike_nums_dur()
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
@@ -2534,6 +2708,7 @@ def single_class_accuracy_precision(interesting_class_id):
         class_acc_tensor = K.cast(K.equal(class_id_true, class_id_preds), 'int32') * accuracy_mask
         class_acc = K.sum(class_acc_tensor) / K.maximum(K.sum(accuracy_mask), 1)
         return class_acc
+
     return precision
 
 
@@ -2547,6 +2722,7 @@ def single_class_accuracy_recall(interesting_class_id):
         class_acc_tensor = K.cast(K.equal(class_id_true, class_id_preds), 'int32') * accuracy_mask
         class_acc = K.sum(class_acc_tensor) / K.maximum(K.sum(accuracy_mask), 1)
         return class_acc
+
     return recall
 
 
@@ -2626,9 +2802,9 @@ def train_model():
     with_learning_rate_reduction = True
     learning_rate_reduction_patience = 2
     without_bidirectional = False
-    lstm_layers_size = [256, 512] # 128, 256, 512
+    lstm_layers_size = [256, 512]  # 128, 256, 512
     with_early_stopping = True
-    early_stop_patience = 15 # 10
+    early_stop_patience = 15  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
