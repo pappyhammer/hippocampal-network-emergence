@@ -1840,7 +1840,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     # p13_18_10_29_a001_GUI_transients_RD.mat
     """
     print("load_data_for_generator")
-    use_small_sample = True
+    use_small_sample = False
     # used for counting how many cells and transients available
     load_them_all = False
     if load_them_all:
@@ -1871,7 +1871,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                               "p8_18_10_24_a005_ms": np.array([0, 1]), # 9, 10
                               # "p9_18_09_27_a003_ms": np.array([3, 5]), # 7, 9
                               "p11_17_11_24_a000_ms": np.array([3, 22]), # 24,29
-                              "p12_171110_a000_ms": np.array([0, 7]), # 3
+                              "p12_171110_a000_ms": np.array([0, 3]), # 3
                               "p13_18_10_29_a001_ms": np.array([0, 5])} # 12, 13
         # max p7: 117, max p9: 30, max p12: 6 .build_spike_nums_dur()
 
@@ -2201,7 +2201,7 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
     return video_model
 
 
-def get_source_profile_for_prediction(ms, cell, augmentation_functions=None,
+def get_source_profile_for_prediction(ms, cell, augmentation_functions=None, buffer=None,
                                       overlap_value=0, max_width=30, max_height=30, sliding_window_len=100):
     n_frames = ms.tiff_movie_normalized.shape[0]
     n_augmentation_fct = 0
@@ -2236,7 +2236,7 @@ def get_source_profile_for_prediction(ms, cell, augmentation_functions=None,
 
     # start_time = time.time()
     mask_source_profile, (minx, maxx, miny, maxy) = \
-        get_source_profile_param(cell=cell, ms=ms, pixels_around=0, buffer=None, max_width=max_width,
+        get_source_profile_param(cell=cell, ms=ms, pixels_around=0, buffer=buffer, max_width=max_width,
                                  max_height=max_width)
     # stop_time = time.time()
     # print(f"Time to get_source_profile_param: "
@@ -2379,7 +2379,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
 
 
 def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
-                                 use_data_augmentation=True):
+                                 use_data_augmentation=True, buffer=None):
     start_time = time.time()
     n_frames = len(ms.tiff_movie_normalized)
     multi_inputs = (model.layers[0].output_shape == model.layers[1].output_shape)
@@ -2396,7 +2396,8 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
                                                            max_width=max_width,
                                                            max_height=max_height,
                                                            augmentation_functions=augmentation_functions,
-                                                           overlap_value=overlap_value)
+                                                           overlap_value=overlap_value,
+                                                           buffer=buffer)
     data = data.reshape((data.shape[0], data.shape[1], data.shape[2],
                          data.shape[3], 1))
     data_masked = data_masked.reshape((data_masked.shape[0], data_masked.shape[1], data_masked.shape[2],
@@ -2449,7 +2450,7 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
 
 
 def predict_transient_from_saved_model(ms, cell, weights_file, json_file, overlap_value=0.8,
-                                       use_data_augmentation=True):
+                                       use_data_augmentation=True, buffer=None):
     start_time = time.time()
     # Model reconstruction from JSON file
     with open(json_file, 'r') as f:
@@ -2462,7 +2463,7 @@ def predict_transient_from_saved_model(ms, cell, weights_file, json_file, overla
           f"{np.round(stop_time - start_time, 3)} s")
 
     return predict_transient_from_model(ms=ms, cell=cell, model=model, overlap_value=overlap_value,
-                                        use_data_augmentation=use_data_augmentation)
+                                        use_data_augmentation=use_data_augmentation, buffer=buffer)
 
 
 def smooth_curve(points, factor=0.8):
@@ -2606,7 +2607,7 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     use_mulimodal_inputs = True
-    n_epochs = 20
+    n_epochs = 30
     batch_size = 16
     window_len = 50
     max_width = 25
@@ -2627,7 +2628,7 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [256, 512] # 128, 256, 512
     with_early_stopping = True
-    early_stop_patience = 10 # 10
+    early_stop_patience = 15 # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed

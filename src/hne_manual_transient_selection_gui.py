@@ -1149,6 +1149,8 @@ class ManualOnsetFrame(tk.Frame):
                 self.dont_agree_button["fg"] = 'red'
                 self.dont_agree_button["command"] = self.dont_agree_switch_mode
                 self.dont_agree_button.pack(side=LEFT)
+        else:
+            self.to_agree_label = None
 
         # -------------- top frame (end) ----------------
 
@@ -2655,7 +2657,8 @@ class ManualOnsetFrame(tk.Frame):
         predictions = predict_transient_from_saved_model(ms=self.data_and_param.ms, cell=cell,
                                                          weights_file=self.transient_classifier_weights_file,
                                                          json_file=self.transient_classifier_json_file,
-                                                         overlap_value=0.8, use_data_augmentation=False)
+                                                         overlap_value=0.8, use_data_augmentation=False,
+                                                         buffer=0)
         self.transient_prediction[cell] = predictions
         self.transient_prediction_periods[cell] = dict()
 
@@ -4791,7 +4794,8 @@ class ManualOnsetFrame(tk.Frame):
     #         self.update_plot()
 
     def update_to_agree_label(self):
-        self.to_agree_label["text"] = f"{self.numbers_of_onset_to_agree()}/{self.numbers_of_peak_to_agree()}"
+        if self.to_agree_label is not None:
+            self.to_agree_label["text"] = f"{self.numbers_of_onset_to_agree()}/{self.numbers_of_peak_to_agree()}"
 
     # if an onset has been removed or added to traces and spike_nums for current_neuron
     def update_after_onset_change(self, new_neuron=-1,
@@ -4963,10 +4967,12 @@ def fusion_gui_selection(path_data):
     for index_data, data_file in enumerate(data_files):
         if "inter_neurons" in data_file:
             inter_neurons_data = data_file['inter_neurons'].astype(int)
-            inter_neurons = np.union1d(inter_neurons, inter_neurons_data[0])
+            if len(inter_neurons_data) > 0:
+                inter_neurons = np.union1d(inter_neurons, inter_neurons_data[0])
         if "cells_to_remove" in data_file:
             cells_to_remove_data = data_file['cells_to_remove'].astype(int)
-            cells_to_remove = np.union1d(cells_to_remove, cells_to_remove_data[0])
+            if len(cells_to_remove_data) > 0:
+                cells_to_remove = np.union1d(cells_to_remove, cells_to_remove_data[0])
 
         peak_nums_data = data_file['LocPeakMatrix_Python'].astype(int)
         spike_nums_data = data_file['Bin100ms_spikedigital_Python'].astype(int)
