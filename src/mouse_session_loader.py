@@ -773,7 +773,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                  "cells_to_remove": "cells_to_remove",
                                  "inter_neurons_from_gui": "inter_neurons"}
             p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                                                   "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_JDMP.mat",
+                                                   "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_JD.mat",
                                                    variables_mapping=variables_mapping,
                                                    from_gui=True)
             p12_171110_a000_ms.build_spike_nums_dur()

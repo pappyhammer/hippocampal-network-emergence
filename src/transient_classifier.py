@@ -828,8 +828,8 @@ class StratificationCamembert:
                             which_ones]
                         if self.debug_mode:
                             print(f"n_full_2p_transient[which_ones] {self.n_full_2p_transient[which_ones]}, "
-                                  f" ratio {ratio}, n_full_1_transient[which_ones] {self.n_full_1_transient[
-                                      which_ones]}")
+                                  f" ratio {ratio}, n_full_1_transient[which_ones] "
+                                  f"{self.n_full_1_transient[which_ones]}")
                             print(f"diff {full_1_to_add}")
                         augmentation_added = 0
                         movie_index = 0
@@ -1425,9 +1425,7 @@ class MoviePatchGenerator:
     vary depending on the class instantiated
     """
 
-    def __init__(self, movie_data_list, n_inputs, window_len, max_width, max_height):
-        self.movie_data_list = movie_data_list
-        self.n_inputs = n_inputs
+    def __init__(self, window_len, max_width, max_height):
         self.window_len = window_len
         self.max_width = max_width
         self.max_height = max_height
@@ -1446,22 +1444,22 @@ class MoviePatchGeneratorMaskedAndGlobal(MoviePatchGenerator):
     would be the whole patch with all pixels given
     """
 
-    def __init__(self, movie_data_list, n_inputs, window_len, max_width, max_height, pixels_around,
+    def __init__(self, window_len, max_width, max_height, pixels_around,
                  buffer):
-        super().__init(movie_data_list=movie_data_list, n_inputs=n_inputs,
-                       window_len=window_len, max_width=max_width, max_height=max_height)
+        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height)
         self.pixels_around = pixels_around
         self.buffer = buffer
+        self.n_inputs = 2
 
-    def generate_movies_from_metadata(self, memory_dict):
+    def generate_movies_from_metadata(self, movie_data_list, memory_dict):
         source_profiles_dict = memory_dict
-        batch_size = len(self.movie_data_list)
+        batch_size = len(movie_data_list)
         data = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
         data_masked = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
         labels = np.zeros((batch_size, self.window_len), dtype="uint8")
 
         # Generate data
-        for index_batch, movie_data in enumerate(self.movie_data_list):
+        for index_batch, movie_data in enumerate(movie_data_list):
             ms = movie_data.ms
             spike_nums_dur = ms.spike_struct.spike_nums_dur
             cell = movie_data.cell
@@ -1517,28 +1515,150 @@ class MoviePatchGeneratorMaskedAndGlobal(MoviePatchGenerator):
 
         return {"input_0": data_masked, "input_1": data}, labels
 
+    def __str__(self):
+        return f"{self.n_inputs} inputs. Main cell mask + pixels around that contain overlaping cells"
+
+
+class MoviePatchGeneratorEachOverlap(MoviePatchGenerator):
+    """
+    Will generate one input being the masked cell (the one we focus on) and the second input
+    would be the whole patch with all pixels given
+    """
+
+    def __init__(self, window_len, max_width, max_height, pixels_around,
+                 buffer):
+        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height)
+        self.pixels_around = pixels_around
+        self.buffer = buffer
+        self.n_inputs = 7
+
+    def generate_movies_from_metadata(self, movie_data_list, memory_dict):
+        shuffle_overlap_cells = True
+        source_profiles_dict = memory_dict
+        batch_size = len(movie_data_list)
+        labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+
+        # if there are not 6 overlaping cells, we'll give empty frames as inputs (with pixels to zero)
+        inputs_dict = dict()
+        for input_index in np.arange(self.n_inputs):
+            inputs_dict[f"input_{input_index}"] = np.zeros((batch_size, self.window_len, self.max_height,
+                                                            self.max_width, 1))
+
+        # Generate data
+        for index_batch, movie_data in enumerate(movie_data_list):
+            ms = movie_data.ms
+            spike_nums_dur = ms.spike_struct.spike_nums_dur
+            cell = movie_data.cell
+            frame_index = movie_data.index_movie
+            augmentation_fct = movie_data.data_augmentation_fct
+
+            # now we generate the source profile of the cell for those frames and retrieve it if it has
+            # already been generated
+            src_profile_key = ms.description + str(cell)
+            if src_profile_key in source_profiles_dict:
+                mask_source_profiles, coords = source_profiles_dict[src_profile_key]
+            else:
+                mask_source_profiles, coords = \
+                    get_source_profile_param(cell=cell, ms=ms, pixels_around=self.pixels_around,
+                                             buffer=self.buffer,
+                                             max_width=self.max_width, max_height=self.max_height,
+                                             with_all_masks=True)
+                source_profiles_dict[src_profile_key] = [mask_source_profiles, coords]
+
+            frames = np.arange(frame_index, frame_index + self.window_len)
+            # setting labels: active frame or not
+            labels[index_batch] = spike_nums_dur[cell, frames]
+            # now adding the movie of those frames in this sliding_window
+            source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
+
+            input_index = 1
+
+            use_the_whole_frame = False
+            if use_the_whole_frame:
+                # doing augmentation if the function exists
+                if augmentation_fct is not None:
+                    source_profile_frames = augmentation_fct(source_profile_frames)
+                # then we fit it the frame use by the network, padding the surrounding by zero if necessary
+                profile_fit = np.zeros((len(frames), self.max_height, self.max_width))
+                # we center the source profile
+                y_coord = (profile_fit.shape[1] - source_profile_frames.shape[1]) // 2
+                x_coord = (profile_fit.shape[2] - source_profile_frames.shape[2]) // 2
+                profile_fit[:, y_coord:source_profile_frames.shape[1] + y_coord,
+                x_coord:source_profile_frames.shape[2] + x_coord] = \
+                    source_profile_frames
+
+                profile_fit = profile_fit.reshape((profile_fit.shape[0], profile_fit.shape[1], profile_fit.shape[2], 1))
+                data = inputs_dict[f"input_{input_index}"]
+                data[index_batch] = profile_fit
+                input_index += 1
+
+            # then we compute the frame with just the mask of each cell (the main one (with input_0 index) and the ones
+            # that overlaps)
+            mask_source_profiles_keys = np.array(list(mask_source_profiles.keys()))
+            if shuffle_overlap_cells:
+                np.random.seed(None)
+                np.random.shuffle(mask_source_profiles_keys)
+            for key_index in np.arange(len(mask_source_profiles_keys)):
+                cell_index = mask_source_profiles_keys[key_index]
+                mask_source_profile = mask_source_profiles[cell_index]
+                if (input_index == (self.n_inputs - 1)) and (cell_index != cell):
+                    continue
+
+                source_profile_frames_masked = np.copy(source_profile_frames)
+                source_profile_frames_masked[:, mask_source_profile] = 0
+
+                # doing augmentation if the function exists
+                if augmentation_fct is not None:
+                    source_profile_frames_masked = augmentation_fct(source_profile_frames_masked)
+
+                # then we fit it the frame use by the network, padding the surrounding by zero if necessary
+                profile_fit_masked = np.zeros((len(frames), self.max_height, self.max_width))
+                # we center the source profile
+                y_coord = (profile_fit_masked.shape[1] - source_profile_frames.shape[1]) // 2
+                x_coord = (profile_fit_masked.shape[2] - source_profile_frames.shape[2]) // 2
+                profile_fit_masked[:, y_coord:source_profile_frames.shape[1] + y_coord,
+                x_coord:source_profile_frames.shape[2] + x_coord] = \
+                    source_profile_frames_masked
+
+                profile_fit_masked = profile_fit_masked.reshape((profile_fit_masked.shape[0],
+                                                                 profile_fit_masked.shape[1],
+                                                                 profile_fit_masked.shape[2], 1))
+                if cell_index == cell:
+                    data = inputs_dict["input_0"]
+                else:
+                    data = inputs_dict[f"input_{input_index}"]
+                    input_index += 1
+                data[index_batch] = profile_fit_masked
+
+        return inputs_dict, labels
+
+    def __str__(self):
+        return f"{self.n_inputs} inputs. Main cell mask + each overlapping cell mask. "
+
 
 class MoviePatchGeneratorMaskedCell(MoviePatchGenerator):
     """
     Will generate one input being the masked cell (the one we focus on)
     """
 
-    def __init__(self, movie_data_list, n_inputs, window_len, max_width, max_height, pixels_around,
+    def __init__(self, window_len, max_width, max_height, pixels_around,
                  buffer):
-        super().__init(movie_data_list=movie_data_list, n_inputs=n_inputs,
-                       window_len=window_len, max_width=max_width, max_height=max_height)
+        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height)
         self.pixels_around = pixels_around
         self.buffer = buffer
+        self.n_inputs = 1
 
-    def generate_movies_from_metadata(self, memory_dict):
+    def __str__(self):
+        return f"{self.n_inputs} inputs. Main cell mask."
+
+    def generate_movies_from_metadata(self, movie_data_list, memory_dict):
         source_profiles_dict = memory_dict
-        batch_size = len(self.movie_data_list)
-        data = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
+        batch_size = len(movie_data_list)
         data_masked = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
         labels = np.zeros((batch_size, self.window_len), dtype="uint8")
 
         # Generate data
-        for index_batch, movie_data in enumerate(self.movie_data_list):
+        for index_batch, movie_data in enumerate(movie_data_list):
             ms = movie_data.ms
             spike_nums_dur = ms.spike_struct.spike_nums_dur
             cell = movie_data.cell
@@ -1596,9 +1716,10 @@ class DataGenerator(keras.utils.Sequence):
     """
 
     # 'Generates data for Keras'
-    def __init__(self, data_list, batch_size=32, window_len=100, with_augmentation=False,
-                 pixels_around=3, buffer=None,
-                 is_shuffle=True, max_width=30, max_height=30):
+    def __init__(self, data_list, movie_patch_generator,
+                 batch_size, window_len, with_augmentation,
+                 pixels_around, buffer, max_width, max_height,
+                 is_shuffle=True):
         """
 
         :param data_list: a list containing the information to get the data. Each element
@@ -1620,6 +1741,7 @@ class DataGenerator(keras.utils.Sequence):
         self.batch_size = batch_size
         self.data_list = data_list
         self.with_augmentation = with_augmentation
+        self.movie_patch_generator = movie_patch_generator
         # to improve performance, keep in memory the mask_profile of a cell and the coords of the frame surrounding the
         # the cell, the key is a string ms.description + cell
         self.source_profiles_dict = dict()
@@ -1691,13 +1813,15 @@ class DataGenerator(keras.utils.Sequence):
         # 'Generates data containing batch_size samples' # data : (self.batch_size, *dim, n_channels)
         # Initialization
 
-        data, data_masked, labels = generate_movies_from_metadata(movie_data_list=data_list_tmp,
-                                                                  window_len=self.window_len,
-                                                                  max_width=self.max_width,
-                                                                  max_height=self.max_height,
-                                                                  pixels_around=self.pixels_around,
-                                                                  buffer=self.buffer,
-                                                                  source_profiles_dict=self.source_profiles_dict)
+        # data, data_masked, labels = generate_movies_from_metadata(movie_data_list=data_list_tmp,
+        #                                                           window_len=self.window_len,
+        #                                                           max_width=self.max_width,
+        #                                                           max_height=self.max_height,
+        #                                                           pixels_around=self.pixels_around,
+        #                                                           buffer=self.buffer,
+        #                                                           source_profiles_dict=self.source_profiles_dict)
+        data_dict, labels = self.movie_patch_generator.generate_movies_from_metadata(movie_data_list=data_list_tmp,
+                                                            memory_dict=self.source_profiles_dict)
         # print(f"__data_generation data.shape {data.shape}")
         # put more weight to the active frames
         # TODO: reshape labels such as shape is (batch_size, window_len, 1) and then use "temporal" mode in compile
@@ -1708,7 +1832,7 @@ class DataGenerator(keras.utils.Sequence):
         for index_batch, movie_data in enumerate(data_list_tmp):
             sample_weights[index_batch] = movie_data.weight
 
-        return {'video_input': data, 'video_input_masked': data_masked}, labels, sample_weights
+        return data_dict, labels, sample_weights
 
 
 # ------------------------------------------------------------
@@ -1826,7 +1950,19 @@ def scale_polygon_to_source(poly_gon, minx, miny):
     return geometry.Polygon(scaled_coords)
 
 
-def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0, buffer=None):
+def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0, buffer=None, with_all_masks=False):
+    """
+
+    :param cell:
+    :param ms:
+    :param max_width:
+    :param max_height:
+    :param pixels_around:
+    :param buffer: How much pixels to scale the cell contour in the mask
+    :param with_all_masks: Return a dict with all overlaps cells masks + the main cell mask. The key is an int.
+    The mask consist on a binary array of with 0 for all pixels in the cell, 1 otherwise
+    :return:
+    """
     len_frame_x = ms.tiff_movie_normalized[0].shape[1]
     len_frame_y = ms.tiff_movie_normalized[0].shape[0]
 
@@ -1834,7 +1970,6 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0, b
     overlapping_cells = ms.coord_obj.intersect_cells[cell]
     cells_to_display = [cell]
     cells_to_display.extend(overlapping_cells)
-    poly_gon = ms.coord_obj.cells_polygon[cell]
 
     # calculating the bound that will surround all the cells
     minx = None
@@ -1864,16 +1999,25 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0, b
     len_x = maxx - minx + 1
     len_y = maxy - miny + 1
 
-    # mask used in order to keep only the cells pixel
-    # the mask put all pixels in the polygon, including the pixels on the exterior line to zero
-    scaled_poly_gon = scale_polygon_to_source(poly_gon=poly_gon, minx=minx, miny=miny)
-    img = PIL.Image.new('1', (len_x, len_y), 1)
-    if buffer is not None:
-        scaled_poly_gon = scaled_poly_gon.buffer(buffer)
-    ImageDraw.Draw(img).polygon(list(scaled_poly_gon.exterior.coords), outline=0, fill=0)
-    mask = np.array(img)
+    mask_dict = dict()
 
-    return mask, (minx, maxx, miny, maxy)
+    for cell_to_display in cells_to_display:
+        if (not with_all_masks) and (cell_to_display != cell):
+            continue
+        poly_gon = ms.coord_obj.cells_polygon[cell_to_display]
+        # mask used in order to keep only the cells pixel
+        # the mask put all pixels in the polygon, including the pixels on the exterior line to zero
+        scaled_poly_gon = scale_polygon_to_source(poly_gon=poly_gon, minx=minx, miny=miny)
+        img = PIL.Image.new('1', (len_x, len_y), 1)
+        if buffer is not None:
+            scaled_poly_gon = scaled_poly_gon.buffer(buffer)
+        ImageDraw.Draw(img).polygon(list(scaled_poly_gon.exterior.coords), outline=0, fill=0)
+        mask_dict[cell_to_display] = np.array(img)
+
+    if with_all_masks:
+        return mask_dict, (minx, maxx, miny, maxy)
+    else:
+        return mask_dict[cell], (minx, maxx, miny, maxy)
 
 
 def get_source_profile_frames(ms, frames, coords):
@@ -2014,7 +2158,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     # p13_18_10_29_a001_GUI_transients_RD.mat
     """
     print("load_data_for_generator")
-    use_small_sample = False
+    use_small_sample = True
     # used for counting how many cells and transients available
     load_them_all = False
     if load_them_all:
@@ -2034,7 +2178,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
         ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])}
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0])}
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
@@ -2244,12 +2388,18 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     return train_data, valid_data, test_data, test_movie_descr, cell_to_load_by_ms
 
 
-def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimodal_inputs=False, dropout_rate=0,
+def build_model(input_shape, lstm_layers_size, n_inputs, activation_fct="relu",
+                dropout_rate=0,
                 dropout_rnn_rate=0,
                 without_bidirectional=False, with_batch_normalization=False):
     n_frames = input_shape[0]
+
+    ##########################################################################
+    #######################" VISION MODEL ####################################
+    ##########################################################################
     # First, let's define a vision model using a Sequential model.
     # This model will encode an image into a vector.
+    # TODO: Try dilated CNN
     vision_model = Sequential()
     get_custom_objects().update({'swish': Swish(swish)})
     # to choose between swish and relu
@@ -2292,8 +2442,21 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
     if dropout_rate > 0:
         vision_model.add(layers.Dropout(dropout_rate))
 
-    if use_mulimodal_inputs:
-        video_input = Input(shape=input_shape, name="video_input")
+    ##########################################################################
+    #######################" END VISION MODEL ################################
+    ##########################################################################
+
+    ##########################################################################
+    ############################### BD LSTM ##################################
+    ##########################################################################
+    # inputs are the original movie patches
+    inputs = []
+    # encoded inputs are the outputs of each encoded inputs after BD LSTM
+    encoded_inputs = []
+
+    for input_index in np.arange(n_inputs):
+        video_input = Input(shape=input_shape, name=f"input_{input_index}")
+        inputs.append(video_input)
         # This is our video encoded via the previously trained vision_model (weights are reused)
         encoded_frame_sequence = TimeDistributed(vision_model)(video_input)  # the output will be a sequence of vectors
         if without_bidirectional:
@@ -2323,54 +2486,112 @@ def build_model(input_shape, lstm_layers_size, activation_fct="relu", use_mulimo
         # if we put input_shape in Bidirectional, it crashes
         # encoded_video = Bidirectional(LSTM(128, return_sequences=True),
         #                               input_shape=(n_frames, 128))(encoded_frame_sequence)
+        encoded_inputs.append(encoded_video)
 
-    video_input_masked = Input(shape=input_shape, name="video_input_masked")
-    # This is our video encoded via the previously trained vision_model (weights are reused)
-    encoded_frame_sequence_masked = TimeDistributed(vision_model)(
-        video_input_masked)  # the output will be a sequence of vectors
-    # encoded_video_masked = LSTM(256)(encoded_frame_sequence_masked)  # the output will be a vector
-    if without_bidirectional:
-        for lstm_index, lstm_size in enumerate(lstm_layers_size):
-            if lstm_index == 0:
-                encoded_video_masked = LSTM(lstm_size, dropout=dropout_rnn_rate, recurrent_dropout=dropout_rnn_rate,
-                                            return_sequences=True)(encoded_frame_sequence_masked)
-            else:
-                encoded_video_masked = LSTM(lstm_size, dropout=dropout_rnn_rate,
-                                            recurrent_dropout=dropout_rnn_rate)(encoded_video_masked)
-    else:
-        for lstm_index, lstm_size in enumerate(lstm_layers_size):
-            if lstm_index == 0:
-                encoded_video_masked = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
-                                                          recurrent_dropout=dropout_rnn_rate, return_sequences=True))(
-                    encoded_frame_sequence_masked)
-            else:
-                encoded_video_masked = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
-                                                          recurrent_dropout=dropout_rnn_rate
-                                                          ))(encoded_video_masked)
+    # if use_mulimodal_inputs:
+    #     video_input = Input(shape=input_shape, name="video_input")
+    #     # This is our video encoded via the previously trained vision_model (weights are reused)
+    #     encoded_frame_sequence = TimeDistributed(vision_model)(video_input)  # the output will be a sequence of vectors
+    #     if without_bidirectional:
+    #         for lstm_index, lstm_size in enumerate(lstm_layers_size):
+    #             if lstm_index == 0:
+    #                 encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate,
+    #                                      recurrent_dropout=dropout_rnn_rate,
+    #                                      return_sequences=True)(encoded_frame_sequence)
+    #             else:
+    #                 encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate, recurrent_dropout=dropout_rnn_rate)(
+    #                     encoded_video)
+    #     else:
+    #         # encoded_video = LSTM(256)(encoded_frame_sequence)  # the output will be a vector
+    #         for lstm_index, lstm_size in enumerate(lstm_layers_size):
+    #             if lstm_index == 0:
+    #                 encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
+    #                                                    recurrent_dropout=dropout_rnn_rate,
+    #                                                    return_sequences=True))(encoded_frame_sequence)
+    #             else:
+    #                 encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
+    #                                                    recurrent_dropout=dropout_rnn_rate))(encoded_video)
+    #
+    #     # TODO: test if GlobalMaxPool1D +/- dropout is useful here ?
+    #     # encoded_video = GlobalMaxPool1D()(encoded_video)
+    #     # encoded_video = Dropout(0.25)(encoded_video)
+    #
+    #     # if we put input_shape in Bidirectional, it crashes
+    #     # encoded_video = Bidirectional(LSTM(128, return_sequences=True),
+    #     #                               input_shape=(n_frames, 128))(encoded_frame_sequence)
+    #
+    # video_input_masked = Input(shape=input_shape, name="video_input_masked")
+    # # This is our video encoded via the previously trained vision_model (weights are reused)
+    # encoded_frame_sequence_masked = TimeDistributed(vision_model)(
+    #     video_input_masked)  # the output will be a sequence of vectors
+    # # encoded_video_masked = LSTM(256)(encoded_frame_sequence_masked)  # the output will be a vector
+    # if without_bidirectional:
+    #     for lstm_index, lstm_size in enumerate(lstm_layers_size):
+    #         if lstm_index == 0:
+    #             encoded_video_masked = LSTM(lstm_size, dropout=dropout_rnn_rate, recurrent_dropout=dropout_rnn_rate,
+    #                                         return_sequences=True)(encoded_frame_sequence_masked)
+    #         else:
+    #             encoded_video_masked = LSTM(lstm_size, dropout=dropout_rnn_rate,
+    #                                         recurrent_dropout=dropout_rnn_rate)(encoded_video_masked)
+    # else:
+    #     for lstm_index, lstm_size in enumerate(lstm_layers_size):
+    #         if lstm_index == 0:
+    #             encoded_video_masked = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
+    #                                                       recurrent_dropout=dropout_rnn_rate, return_sequences=True))(
+    #                 encoded_frame_sequence_masked)
+    #         else:
+    #             encoded_video_masked = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
+    #                                                       recurrent_dropout=dropout_rnn_rate
+    #                                                       ))(encoded_video_masked)
 
     # in case we want 2 videos, one with masked, and one with the cell centered
-    if use_mulimodal_inputs:
-        merged = layers.concatenate([encoded_video, encoded_video_masked])
-        if with_batch_normalization:
-            merged = BatchNormalization()(merged)
-        if dropout_rate > 0:
-            merged = layers.Dropout(dropout_rate)(merged)
-        # TODO: test those 7 lines (https://www.kaggle.com/amansrivastava/exploration-bi-lstm-model)
-        # number_dense_units = 1000
-        # merged = Dense(number_dense_units, activation=activation_function)(merged)
-        # merged = Activation(activation_fct)(merged)
-        # if with_batch_normalization:
-        #     merged = BatchNormalization()(merged)
-        # if dropout_rate > 0:
-        #     merged = (layers.Dropout(dropout_rate)(merged)
+    # if use_mulimodal_inputs:
+    #     merged = layers.concatenate([encoded_video, encoded_video_masked])
+    #     if with_batch_normalization:
+    #         merged = BatchNormalization()(merged)
+    #     if dropout_rate > 0:
+    #         merged = layers.Dropout(dropout_rate)(merged)
+    #     # TODO: test those 7 lines (https://www.kaggle.com/amansrivastava/exploration-bi-lstm-model)
+    #     # number_dense_units = 1000
+    #     # merged = Dense(number_dense_units, activation=activation_function)(merged)
+    #     # merged = Activation(activation_fct)(merged)
+    #     # if with_batch_normalization:
+    #     #     merged = BatchNormalization()(merged)
+    #     # if dropout_rate > 0:
+    #     #     merged = (layers.Dropout(dropout_rate)(merged)
+    #
+    #     # output = TimeDistributed(Dense(1, activation='sigmoid')))(merged)
+    #     output = Dense(n_frames, activation='sigmoid')(merged)
+    #     video_model = Model(inputs=[video_input, video_input_masked], outputs=output)
+    # else:
+    #     # output = TimeDistributed(Dense(1, activation='sigmoid'))(encoded_video)
+    #     output = Dense(n_frames, activation='sigmoid')(encoded_video_masked)
+    #     video_model = Model(inputs=video_input_masked, outputs=output)
 
-        # output = TimeDistributed(Dense(1, activation='sigmoid')))(merged)
-        output = Dense(n_frames, activation='sigmoid')(merged)
-        video_model = Model(inputs=[video_input, video_input_masked], outputs=output)
+
+    if len(encoded_inputs) == 1:
+        merged = encoded_inputs[0]
     else:
-        # output = TimeDistributed(Dense(1, activation='sigmoid'))(encoded_video)
-        output = Dense(n_frames, activation='sigmoid')(encoded_video_masked)
-        video_model = Model(inputs=video_input_masked, outputs=output)
+        merged = layers.concatenate(encoded_inputs)
+
+    if with_batch_normalization:
+        merged = BatchNormalization()(merged)
+    if dropout_rate > 0:
+        merged = layers.Dropout(dropout_rate)(merged)
+    # TODO: test those 7 lines (https://www.kaggle.com/amansrivastava/exploration-bi-lstm-model)
+    # number_dense_units = 1000
+    # merged = Dense(number_dense_units, activation=activation_function)(merged)
+    # merged = Activation(activation_fct)(merged)
+    # if with_batch_normalization:
+    #     merged = BatchNormalization()(merged)
+    # if dropout_rate > 0:
+    #     merged = (layers.Dropout(dropout_rate)(merged)
+
+    # output = TimeDistributed(Dense(1, activation='sigmoid')))(merged)
+    outputs = Dense(n_frames, activation='sigmoid')(merged)
+    if len(inputs) == 1:
+        inputs = inputs[0]
+    video_model = Model(inputs=inputs, outputs=outputs)
 
     return video_model
 
@@ -2660,10 +2881,10 @@ def plot_training_and_validation_values(history, key_name, result_path, param):
                             gridspec_kw={'height_ratios': [1],
                                          'width_ratios': [1]},
                             figsize=(5, 5))
-    # ax1.plot(epochs, smooth_curve(train_values), 'bo', label=f'Training {key_name}')
-    # ax1.plot(epochs, smooth_curve(val_values), 'b', label=f'Validation {key_name}')
-    ax1.plot(epochs, train_values, 'bo', label=f'Training {key_name}')
-    ax1.plot(epochs, val_values, 'b', label=f'Validation {key_name}')
+    ax1.plot(epochs, smooth_curve(train_values), 'bo', label=f'Training {key_name}')
+    ax1.plot(epochs, smooth_curve(val_values), 'b', label=f'Validation {key_name}')
+    # ax1.plot(epochs, train_values, 'bo', label=f'Training {key_name}')
+    # ax1.plot(epochs, val_values, 'b', label=f'Validation {key_name}')
     plt.title(f'Training and validation {key_name}')
     plt.xlabel('Epochs')
     plt.ylabel(f'{key_name}')
@@ -2765,7 +2986,6 @@ def train_model():
 
     """
     Best so far:
-    use_mulimodal_inputs = True
     batch_size = 16 (different not tried)
     window_len = 50 (just tried 100 otherwise)
     max_width = 25
@@ -2782,8 +3002,8 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    use_mulimodal_inputs = True
-    n_epochs = 30
+
+    n_epochs = 1
     batch_size = 16
     window_len = 50
     max_width = 25
@@ -2795,15 +3015,15 @@ def train_model():
     max_n_transformations = 6
     pixels_around = 0
     with_augmentation_for_training_data = True
-    buffer = 1
+    buffer = 0
     split_values = (0.6, 0.2, 0.2)
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
     with_learning_rate_reduction = True
     learning_rate_reduction_patience = 2
     without_bidirectional = False
-    lstm_layers_size = [256, 512]  # 128, 256, 512
-    with_early_stopping = True
+    lstm_layers_size = [128]  # 128, 256, 512
+    with_early_stopping = False
     early_stop_patience = 15  # 10
     model_descr = ""
     with_shuffling = True
@@ -2811,6 +3031,19 @@ def train_model():
     main_ratio_balance = (0.6, 0.2, 0.2)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
+
+    movie_patch_generator_choices = dict()
+    movie_patch_generator_choices["MaskedAndGlobal"] = \
+        MoviePatchGeneratorMaskedAndGlobal(window_len=window_len, max_width=max_width, max_height=max_height,
+                                           pixels_around=pixels_around, buffer=buffer)
+    movie_patch_generator_choices["EachOverlap"] = \
+        MoviePatchGeneratorEachOverlap(window_len=window_len, max_width=max_width, max_height=max_height,
+                                           pixels_around=pixels_around, buffer=buffer)
+    movie_patch_generator_choices["MaskedCell"] = \
+        MoviePatchGeneratorMaskedCell(window_len=window_len, max_width=max_width, max_height=max_height,
+                                       pixels_around=pixels_around, buffer=buffer)
+
+    movie_patch_generator = movie_patch_generator_choices["EachOverlap"]
 
     params_generator = {
         'batch_size': batch_size,
@@ -2844,8 +3077,10 @@ def train_model():
     # Generators
     start_time = time.time()
     training_generator = DataGenerator(train_data_list, with_augmentation=with_augmentation_for_training_data,
+                                       movie_patch_generator=movie_patch_generator,
                                        **params_generator)
-    validation_generator = DataGenerator(valid_data_list, with_augmentation=False, **params_generator)
+    validation_generator = DataGenerator(valid_data_list, with_augmentation=False,
+                                         movie_patch_generator=movie_patch_generator, **params_generator)
     stop_time = time.time()
     print(f"Time to create generator: "
           f"{np.round(stop_time - start_time, 3)} s")
@@ -2861,14 +3096,15 @@ def train_model():
     # return
     # building the model
     start_time = time.time()
-    model = build_model(input_shape, activation_fct=activation_fct, dropout_rate=dropout_value,
-                        dropout_rnn_rate=dropout_value_rnn,
-                        use_mulimodal_inputs=use_mulimodal_inputs, without_bidirectional=without_bidirectional,
+    model = build_model(input_shape=input_shape, n_inputs=movie_patch_generator.n_inputs,
+                        activation_fct=activation_fct,
+                        dropout_rate=dropout_value,
+                        dropout_rnn_rate=dropout_value_rnn, without_bidirectional=without_bidirectional,
                         lstm_layers_size=lstm_layers_size,
                         with_batch_normalization=with_batch_normalization)
 
     print(model.summary())
-    # raise Exception("TOTOOO")
+    raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(
@@ -2973,7 +3209,7 @@ def train_model():
         file.write(f"seed_value: {seed_value}" + '\n')
         file.write(f"with_learning_rate_reduction: {with_learning_rate_reduction}" + '\n')
         file.write(f"without_bidirectional: {without_bidirectional}" + '\n')
-        file.write(f"use_mulimodal_inputs: {use_mulimodal_inputs}" + '\n')
+        file.write(f"movie_patch_generator: {str(movie_patch_generator)}" + '\n')
         file.write(f"lstm_layers_size: {lstm_layers_size}" + '\n')
         file.write(f"window_len: {window_len}" + '\n')
         file.write(f"max_width: {max_width}" + '\n')
@@ -3022,17 +3258,12 @@ def train_model():
 
     start_time = time.time()
     source_profiles_dict = dict()
-    test_data, test_data_masked, test_labels = generate_movies_from_metadata(movie_data_list=test_data_list,
-                                                                             window_len=window_len,
-                                                                             max_width=max_width,
-                                                                             max_height=max_height,
-                                                                             pixels_around=pixels_around,
-                                                                             buffer=buffer,
-                                                                             source_profiles_dict=source_profiles_dict)
+    test_data_dict, test_labels = \
+        movie_patch_generator.generate_movies_from_metadata(movie_data_list=test_data_list,
+                                                            source_profiles_dict=source_profiles_dict)
     stop_time = time.time()
     print(f"Time for generating test data: "
           f"{np.round(stop_time - start_time, 3)} s")
-    print(f"test_data.shape {test_data.shape}")
     # calculating default accuracy by putting all predictions to zero
 
     # test_labels
@@ -3044,14 +3275,10 @@ def train_model():
     print(f"Default test accuracy {str(np.round(n_rights / n_test_frames, 3))}")
 
     start_time = time.time()
-    if use_mulimodal_inputs:
-        test_loss, test_acc, test_sensitivity, test_specificity, test_precision = \
-            model.evaluate({'video_input': test_data,
-                            'video_input_masked': test_data_masked},
+
+    test_loss, test_acc, test_sensitivity, test_specificity, test_precision = \
+        model.evaluate(test_data_dict,
                            test_labels, verbose=2)
-    else:
-        test_loss, test_acc, test_sensitivity, test_specificity, test_precision = \
-            model.evaluate(test_data_masked, test_labels)
 
     print(f"test_acc {test_acc}, test_sensitivity {test_sensitivity}, test_specificity {test_specificity}, "
           f"test_precision {test_precision}")
