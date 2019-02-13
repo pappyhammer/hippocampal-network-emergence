@@ -767,10 +767,10 @@ def main_benchmark():
         return
 
     # ########### options ###################
-    # ms_to_benchmark = "p12_17_11_10_a000"
+    ms_to_benchmark = "p12_17_11_10_a000"
     # ms_to_benchmark = "p7_17_10_12_a000"
     # ms_to_benchmark = "p13_18_10_29_a001_ms"
-    ms_to_benchmark = "p8_18_10_24_a005_ms"
+    # ms_to_benchmark = "p8_18_10_24_a005_ms"
     do_onsets_benchmarks = False
     do_plot_roc_predictions = False
     # ########### end options ###################
@@ -780,7 +780,7 @@ def main_benchmark():
         # gt as ground_truth
         data_dict["gt"] = dict()
         data_dict["gt"]["path"] = "p12/p12_17_11_10_a000"
-        data_dict["gt"]["gui_file"] = "p12_17_11_10_a000_GUI_JDMP.mat"
+        data_dict["gt"]["gui_file"] = "p12_17_11_10_a000_GUI_JD.mat"
         data_dict["gt"]["gt_file"] = "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt"
         data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P12_17_11_10_a000.txt"
         data_dict["gt"]["cnn_threshold"] = 0.5
@@ -788,14 +788,16 @@ def main_benchmark():
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
-        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
         # "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat" based on best 2 p12 cells predictions
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_01_26.19-22-21.mat"
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_from_5_sessions_2019_02_05.23-37-09.mat"
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_06.22-06-13_from_p8_training.mat"
+        # trained on 0 & 3 cell, with just the cell mask, on 50 epochs. trained on 13/02/2019 19:39:49
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_13.21-40-46.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.15
+        data_dict["rnn"]["prediction_threshold"] = 0.3
 
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p12/p12_17_11_10_a000"

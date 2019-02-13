@@ -1434,7 +1434,7 @@ class MoviePatchGenerator:
     def get_nb_inputs(self):
         return self.n_inputs
 
-    def generate_movies_from_metadata(self, memory_dict):
+    def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
         pass
 
 
@@ -1451,17 +1451,17 @@ class MoviePatchGeneratorMaskedAndGlobal(MoviePatchGenerator):
         self.buffer = buffer
         self.n_inputs = 2
 
-    def generate_movies_from_metadata(self, movie_data_list, memory_dict):
+    def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
         source_profiles_dict = memory_dict
         batch_size = len(movie_data_list)
         data = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
         data_masked = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
-        labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+        if with_labels:
+            labels = np.zeros((batch_size, self.window_len), dtype="uint8")
 
         # Generate data
         for index_batch, movie_data in enumerate(movie_data_list):
             ms = movie_data.ms
-            spike_nums_dur = ms.spike_struct.spike_nums_dur
             cell = movie_data.cell
             frame_index = movie_data.index_movie
             augmentation_fct = movie_data.data_augmentation_fct
@@ -1479,8 +1479,10 @@ class MoviePatchGeneratorMaskedAndGlobal(MoviePatchGenerator):
                 source_profiles_dict[src_profile_key] = [mask_source_profile, coords]
 
             frames = np.arange(frame_index, frame_index + self.window_len)
-            # setting labels: active frame or not
-            labels[index_batch] = spike_nums_dur[cell, frames]
+            if with_labels:
+                spike_nums_dur = ms.spike_struct.spike_nums_dur
+                # setting labels: active frame or not
+                labels[index_batch] = spike_nums_dur[cell, frames]
             # now adding the movie of those frames in this sliding_window
             source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
             # if i == 0:
@@ -1513,7 +1515,10 @@ class MoviePatchGeneratorMaskedAndGlobal(MoviePatchGenerator):
             data[index_batch] = profile_fit
             data_masked[index_batch] = profile_fit_masked
 
-        return {"input_0": data_masked, "input_1": data}, labels
+        if with_labels:
+            return {"input_0": data_masked, "input_1": data}, labels
+        else:
+            return {"input_0": data_masked, "input_1": data}
 
     def __str__(self):
         return f"{self.n_inputs} inputs. Main cell mask + pixels around that contain overlaping cells"
@@ -1530,13 +1535,14 @@ class MoviePatchGeneratorEachOverlap(MoviePatchGenerator):
         super().__init__(window_len=window_len, max_width=max_width, max_height=max_height)
         self.pixels_around = pixels_around
         self.buffer = buffer
-        self.n_inputs = 7
+        self.n_inputs = 6
 
-    def generate_movies_from_metadata(self, movie_data_list, memory_dict):
+    def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
         shuffle_overlap_cells = True
         source_profiles_dict = memory_dict
         batch_size = len(movie_data_list)
-        labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+        if with_labels:
+            labels = np.zeros((batch_size, self.window_len), dtype="uint8")
 
         # if there are not 6 overlaping cells, we'll give empty frames as inputs (with pixels to zero)
         inputs_dict = dict()
@@ -1547,7 +1553,6 @@ class MoviePatchGeneratorEachOverlap(MoviePatchGenerator):
         # Generate data
         for index_batch, movie_data in enumerate(movie_data_list):
             ms = movie_data.ms
-            spike_nums_dur = ms.spike_struct.spike_nums_dur
             cell = movie_data.cell
             frame_index = movie_data.index_movie
             augmentation_fct = movie_data.data_augmentation_fct
@@ -1566,8 +1571,10 @@ class MoviePatchGeneratorEachOverlap(MoviePatchGenerator):
                 source_profiles_dict[src_profile_key] = [mask_source_profiles, coords]
 
             frames = np.arange(frame_index, frame_index + self.window_len)
-            # setting labels: active frame or not
-            labels[index_batch] = spike_nums_dur[cell, frames]
+            if with_labels:
+                spike_nums_dur = ms.spike_struct.spike_nums_dur
+                # setting labels: active frame or not
+                labels[index_batch] = spike_nums_dur[cell, frames]
             # now adding the movie of those frames in this sliding_window
             source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
 
@@ -1629,8 +1636,10 @@ class MoviePatchGeneratorEachOverlap(MoviePatchGenerator):
                     data = inputs_dict[f"input_{input_index}"]
                     input_index += 1
                 data[index_batch] = profile_fit_masked
-
-        return inputs_dict, labels
+        if with_labels:
+            return inputs_dict, labels
+        else:
+            return inputs_dict
 
     def __str__(self):
         return f"{self.n_inputs} inputs. Main cell mask + each overlapping cell mask. "
@@ -1651,16 +1660,16 @@ class MoviePatchGeneratorMaskedCell(MoviePatchGenerator):
     def __str__(self):
         return f"{self.n_inputs} inputs. Main cell mask."
 
-    def generate_movies_from_metadata(self, movie_data_list, memory_dict):
+    def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
         source_profiles_dict = memory_dict
         batch_size = len(movie_data_list)
         data_masked = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
-        labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+        if with_labels:
+            labels = np.zeros((batch_size, self.window_len), dtype="uint8")
 
         # Generate data
         for index_batch, movie_data in enumerate(movie_data_list):
             ms = movie_data.ms
-            spike_nums_dur = ms.spike_struct.spike_nums_dur
             cell = movie_data.cell
             frame_index = movie_data.index_movie
             augmentation_fct = movie_data.data_augmentation_fct
@@ -1678,8 +1687,10 @@ class MoviePatchGeneratorMaskedCell(MoviePatchGenerator):
                 source_profiles_dict[src_profile_key] = [mask_source_profile, coords]
 
             frames = np.arange(frame_index, frame_index + self.window_len)
-            # setting labels: active frame or not
-            labels[index_batch] = spike_nums_dur[cell, frames]
+            if with_labels:
+                # setting labels: active frame or not
+                spike_nums_dur = ms.spike_struct.spike_nums_dur
+                labels[index_batch] = spike_nums_dur[cell, frames]
             # now adding the movie of those frames in this sliding_window
             source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
             # if i == 0:
@@ -1705,8 +1716,10 @@ class MoviePatchGeneratorMaskedCell(MoviePatchGenerator):
                                                              profile_fit_masked.shape[2], 1))
 
             data_masked[index_batch] = profile_fit_masked
-
-        return {"input_0": data_masked}, labels
+        if with_labels:
+            return {"input_0": data_masked}, labels
+        else:
+            return {"input_0": data_masked}
 
 
 class DataGenerator(keras.utils.Sequence):
@@ -2136,6 +2149,52 @@ def cell_encoding(ms, cell):
     return encoded_frames, decoding_frame_dict
 
 
+def load_data_for_prediction(ms, cell, sliding_window_len, overlap_value, augmentation_functions):
+    # we suppose that the movie is already loaded and normalized
+    movie_patch_data = []
+    data_frame_indices = []
+
+    n_frames = ms.tiff_movie_normalized.shape[0]
+    frames_step = int(np.ceil(sliding_window_len * (1 - overlap_value)))
+    # number of indices to remove so index + sliding_window_len won't be superior to number of frames
+    n_step_to_remove = 0 if (overlap_value == 0) else int(1 / (1 - overlap_value))
+    frame_indices_for_movies = np.arange(0, n_frames, frames_step)
+    if n_step_to_remove > 0:
+        frame_indices_for_movies = frame_indices_for_movies[:-n_step_to_remove + 1]
+    # in case the n_frames wouldn't be divisible by frames_step
+    if frame_indices_for_movies[-1] + frames_step > n_frames:
+        frame_indices_for_movies[-1] = n_frames - sliding_window_len
+
+    for i, index_movie in enumerate(frame_indices_for_movies):
+        break_it = False
+        first_frame = index_movie
+        if (index_movie + sliding_window_len) == n_frames:
+            break_it = True
+        elif (index_movie + sliding_window_len) > n_frames:
+            # in case the number of frames is not divisible by sliding_window_len
+            first_frame = n_frames - sliding_window_len
+            break_it = True
+        movie_data = MoviePatchData(ms=ms, cell=cell, index_movie=first_frame,
+                                    window_len=sliding_window_len,
+                                    max_n_transformations=3,
+                                    with_info=False, encoded_frames=None,
+                                    decoding_frame_dict=None)
+
+        movie_patch_data.append(movie_data)
+        data_frame_indices.append(first_frame)
+        if augmentation_functions is not None:
+            for augmentation_fct in augmentation_functions:
+                new_movie = movie_data.copy()
+                new_movie.data_augmentation_fct = augmentation_fct
+                movie_patch_data.append(new_movie)
+                data_frame_indices.append(first_frame)
+
+        if break_it:
+            break
+
+    return movie_patch_data, data_frame_indices
+
+
 def load_data_for_generator(param, split_values, sliding_window_len, overlap_value,
                             max_n_transformations,
                             movies_shuffling=None, with_shuffling=False, main_ratio_balance=(0.6, 0.25, 0.15),
@@ -2178,7 +2237,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
         ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0])}
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])}
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
@@ -2459,25 +2518,22 @@ def build_model(input_shape, lstm_layers_size, n_inputs, activation_fct="relu",
         inputs.append(video_input)
         # This is our video encoded via the previously trained vision_model (weights are reused)
         encoded_frame_sequence = TimeDistributed(vision_model)(video_input)  # the output will be a sequence of vectors
-        if without_bidirectional:
-            for lstm_index, lstm_size in enumerate(lstm_layers_size):
-                if lstm_index == 0:
-                    encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate,
-                                         recurrent_dropout=dropout_rnn_rate,
-                                         return_sequences=True)(encoded_frame_sequence)
-                else:
-                    encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate, recurrent_dropout=dropout_rnn_rate)(
-                        encoded_video)
-        else:
-            # encoded_video = LSTM(256)(encoded_frame_sequence)  # the output will be a vector
-            for lstm_index, lstm_size in enumerate(lstm_layers_size):
-                if lstm_index == 0:
-                    encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
-                                                       recurrent_dropout=dropout_rnn_rate,
-                                                       return_sequences=True))(encoded_frame_sequence)
-                else:
-                    encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
-                                                       recurrent_dropout=dropout_rnn_rate))(encoded_video)
+
+        for lstm_index, lstm_size in enumerate(lstm_layers_size):
+            if lstm_index == 0:
+                rnn_input = encoded_frame_sequence
+            else:
+                rnn_input = encoded_video
+            return_sequences = (lstm_index < (len(lstm_layers_size) - 1))
+            if without_bidirectional:
+                encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate,
+                                     recurrent_dropout=dropout_rnn_rate,
+                                     return_sequences=return_sequences)(rnn_input)
+            else:
+                encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
+                                                   recurrent_dropout=return_sequences,
+                                                   return_sequences=return_sequences))(rnn_input)
+
 
         # TODO: test if GlobalMaxPool1D +/- dropout is useful here ?
         # encoded_video = GlobalMaxPool1D()(encoded_video)
@@ -2567,7 +2623,6 @@ def build_model(input_shape, lstm_layers_size, n_inputs, activation_fct="relu",
     #     # output = TimeDistributed(Dense(1, activation='sigmoid'))(encoded_video)
     #     output = Dense(n_frames, activation='sigmoid')(encoded_video_masked)
     #     video_model = Model(inputs=video_input_masked, outputs=output)
-
 
     if len(encoded_inputs) == 1:
         merged = encoded_inputs[0]
@@ -2777,36 +2832,61 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
                                  use_data_augmentation=True, buffer=None):
     start_time = time.time()
     n_frames = len(ms.tiff_movie_normalized)
-    multi_inputs = (model.layers[0].output_shape == model.layers[1].output_shape)
-    sliding_window_len = model.layers[0].output_shape[1]
+    # multi_inputs = (model.layers[0].output_shape == model.layers[1].output_shape)
+    window_len = model.layers[0].output_shape[1]
     max_height = model.layers[0].output_shape[2]
     max_width = model.layers[0].output_shape[3]
     if use_data_augmentation:
         augmentation_functions = [horizontal_flip, vertical_flip, v_h_flip]
     else:
         augmentation_functions = None
-    data, data_masked, \
-    data_frame_indices = get_source_profile_for_prediction(ms=ms, cell=cell,
-                                                           sliding_window_len=sliding_window_len,
-                                                           max_width=max_width,
-                                                           max_height=max_height,
-                                                           augmentation_functions=augmentation_functions,
-                                                           overlap_value=overlap_value,
-                                                           buffer=buffer)
-    data = data.reshape((data.shape[0], data.shape[1], data.shape[2],
-                         data.shape[3], 1))
-    data_masked = data_masked.reshape((data_masked.shape[0], data_masked.shape[1], data_masked.shape[2],
-                                       data_masked.shape[3], 1))
+
+    movie_patch_data, data_frame_indices = load_data_for_prediction(ms=ms, cell=cell,
+                                                                    sliding_window_len=window_len,
+                                                                    overlap_value=overlap_value,
+                                                                    augmentation_functions=augmentation_functions)
+    # TODO: Read the txt saved after model training to choose generator, pixels_around and buffer values.
+    pixels_around = 0
+    movie_patch_generator_choices = dict()
+    movie_patch_generator_choices["MaskedAndGlobal"] = \
+        MoviePatchGeneratorMaskedAndGlobal(window_len=window_len, max_width=max_width, max_height=max_height,
+                                           pixels_around=pixels_around, buffer=buffer)
+    movie_patch_generator_choices["EachOverlap"] = \
+        MoviePatchGeneratorEachOverlap(window_len=window_len, max_width=max_width, max_height=max_height,
+                                       pixels_around=pixels_around, buffer=buffer)
+    movie_patch_generator_choices["MaskedCell"] = \
+        MoviePatchGeneratorMaskedCell(window_len=window_len, max_width=max_width, max_height=max_height,
+                                      pixels_around=pixels_around, buffer=buffer)
+
+    movie_patch_generator = movie_patch_generator_choices["MaskedCell"]
+
+    # source_dict not useful in that case, but necessary for the function to work properly, to change later
+    source_dict = dict()
+    data_dict = movie_patch_generator.generate_movies_from_metadata(movie_data_list=movie_patch_data,
+                                                                    memory_dict=source_dict,
+                                                                    with_labels=False)
+
+
+    # data, data_masked, \
+    # data_frame_indices = get_source_profile_for_prediction(ms=ms, cell=cell,
+    #                                                        sliding_window_len=sliding_window_len,
+    #                                                        max_width=max_width,
+    #                                                        max_height=max_height,
+    #                                                        augmentation_functions=augmentation_functions,
+    #                                                        overlap_value=overlap_value,
+    #                                                        buffer=buffer)
+    # data = data.reshape((data.shape[0], data.shape[1], data.shape[2],
+    #                      data.shape[3], 1))
+    # data_masked = data_masked.reshape((data_masked.shape[0], data_masked.shape[1], data_masked.shape[2],
+    #                                    data_masked.shape[3], 1))
     stop_time = time.time()
     print(f"Time to get the data: "
           f"{np.round(stop_time - start_time, 3)} s")
 
     start_time = time.time()
-    if multi_inputs:
-        predictions = model.predict({'video_input': data,
-                                     'video_input_masked': data_masked})
-    else:
-        predictions = model.predict(data_masked)
+
+    predictions = model.predict(data_dict)
+
     stop_time = time.time()
     print(f"Time to get predictions for cell {cell}: "
           f"{np.round(stop_time - start_time, 3)} s")
@@ -2816,7 +2896,7 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
         frames_predictions = dict()
         # print(f"predictions.shape {predictions.shape}, data_frame_indices.shape {data_frame_indices.shape}")
         for i, data_frame_index in enumerate(data_frame_indices):
-            frames_index = np.arange(data_frame_index, data_frame_index + sliding_window_len)
+            frames_index = np.arange(data_frame_index, data_frame_index + window_len)
             predictions_for_frames = predictions[i]
             for j, frame_index in enumerate(frames_index):
                 if frame_index not in frames_predictions:
@@ -2830,12 +2910,12 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
         predictions = np.ndarray.flatten(predictions)
 
         # now we remove the extra prediction in case the number of frames was not divisible by the window length
-        if (n_frames % sliding_window_len) != 0:
+        if (n_frames % window_len) != 0:
             real_predictions = np.zeros(n_frames)
-            modulo = n_frames % sliding_window_len
-            real_predictions[:len(predictions) - sliding_window_len] = predictions[
-                                                                       :len(predictions) - sliding_window_len]
-            real_predictions[len(predictions) - sliding_window_len:] = predictions[-modulo:]
+            modulo = n_frames % window_len
+            real_predictions[:len(predictions) - window_len] = predictions[
+                                                                       :len(predictions) - window_len]
+            real_predictions[len(predictions) - window_len:] = predictions[-modulo:]
             predictions = real_predictions
 
     if len(predictions) != n_frames:
@@ -2967,9 +3047,9 @@ def train_model():
     go_predict_from_movie = False
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p8_18_10_24_a005_ms"], param=param, overlap_value=0.8,
+        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
                                          use_data_augmentation=True,
-                                         cells_to_predict=np.array([9, 10, 13, 28, 41, 42, 207, 321, 110]))
+                                         cells_to_predict=np.arange(10))
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
@@ -3003,8 +3083,8 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
 
-    n_epochs = 1
-    batch_size = 16
+    n_epochs = 25
+    batch_size = 8
     window_len = 50
     max_width = 25
     max_height = 25
@@ -3016,15 +3096,15 @@ def train_model():
     pixels_around = 0
     with_augmentation_for_training_data = True
     buffer = 0
-    split_values = (0.6, 0.2, 0.2)
+    split_values = (0.7, 0.2, 0.1)
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
     with_learning_rate_reduction = True
-    learning_rate_reduction_patience = 2
-    without_bidirectional = False
-    lstm_layers_size = [128]  # 128, 256, 512
-    with_early_stopping = False
-    early_stop_patience = 15  # 10
+    learning_rate_reduction_patience = 3
+    without_bidirectional = True
+    lstm_layers_size = [256]  # 128, 256, 512
+    with_early_stopping = True
+    early_stop_patience = 18  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
@@ -3043,7 +3123,9 @@ def train_model():
         MoviePatchGeneratorMaskedCell(window_len=window_len, max_width=max_width, max_height=max_height,
                                        pixels_around=pixels_around, buffer=buffer)
 
-    movie_patch_generator = movie_patch_generator_choices["EachOverlap"]
+    movie_patch_generator_for_training = movie_patch_generator_choices["EachOverlap"]
+    movie_patch_generator_for_validation = movie_patch_generator_choices["EachOverlap"]
+    movie_patch_generator_for_test = movie_patch_generator_choices["EachOverlap"]
 
     params_generator = {
         'batch_size': batch_size,
@@ -3077,10 +3159,10 @@ def train_model():
     # Generators
     start_time = time.time()
     training_generator = DataGenerator(train_data_list, with_augmentation=with_augmentation_for_training_data,
-                                       movie_patch_generator=movie_patch_generator,
+                                       movie_patch_generator=movie_patch_generator_for_training,
                                        **params_generator)
     validation_generator = DataGenerator(valid_data_list, with_augmentation=False,
-                                         movie_patch_generator=movie_patch_generator, **params_generator)
+                                         movie_patch_generator=movie_patch_generator_for_validation, **params_generator)
     stop_time = time.time()
     print(f"Time to create generator: "
           f"{np.round(stop_time - start_time, 3)} s")
@@ -3096,7 +3178,7 @@ def train_model():
     # return
     # building the model
     start_time = time.time()
-    model = build_model(input_shape=input_shape, n_inputs=movie_patch_generator.n_inputs,
+    model = build_model(input_shape=input_shape, n_inputs=movie_patch_generator_for_training.n_inputs,
                         activation_fct=activation_fct,
                         dropout_rate=dropout_value,
                         dropout_rnn_rate=dropout_value_rnn, without_bidirectional=without_bidirectional,
@@ -3104,7 +3186,7 @@ def train_model():
                         with_batch_normalization=with_batch_normalization)
 
     print(model.summary())
-    raise Exception("TOTOOO")
+    # raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(
@@ -3209,7 +3291,7 @@ def train_model():
         file.write(f"seed_value: {seed_value}" + '\n')
         file.write(f"with_learning_rate_reduction: {with_learning_rate_reduction}" + '\n')
         file.write(f"without_bidirectional: {without_bidirectional}" + '\n')
-        file.write(f"movie_patch_generator: {str(movie_patch_generator)}" + '\n')
+        file.write(f"movie_patch_generator: {str(movie_patch_generator_for_training)}" + '\n')
         file.write(f"lstm_layers_size: {lstm_layers_size}" + '\n')
         file.write(f"window_len: {window_len}" + '\n')
         file.write(f"max_width: {max_width}" + '\n')
@@ -3259,8 +3341,8 @@ def train_model():
     start_time = time.time()
     source_profiles_dict = dict()
     test_data_dict, test_labels = \
-        movie_patch_generator.generate_movies_from_metadata(movie_data_list=test_data_list,
-                                                            source_profiles_dict=source_profiles_dict)
+        movie_patch_generator_for_test.generate_movies_from_metadata(movie_data_list=test_data_list,
+                                                            memory_dict=source_profiles_dict)
     stop_time = time.time()
     print(f"Time for generating test data: "
           f"{np.round(stop_time - start_time, 3)} s")
