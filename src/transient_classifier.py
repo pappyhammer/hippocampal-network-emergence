@@ -2430,10 +2430,10 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p11_17_11_24_a000_ms",
                      "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
         #  "p9_18_09_27_a003_ms",
-        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 53]),  # 75, 81
+        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 53, 75]),  # 75, 81
                               "p8_18_10_24_a005_ms": np.array([0, 1]),  # 9, 10
                               # "p9_18_09_27_a003_ms": np.array([3, 5]), # 7, 9
-                              "p11_17_11_24_a000_ms": np.array([3, 22]),  # 24,29
+                              "p11_17_11_24_a000_ms": np.array([3, 22, 24, 29]),  # 24,29
                               "p12_171110_a000_ms": np.array([0, 3, 7]),  # 3
                               "p13_18_10_29_a001_ms": np.array([0, 5])}  # 12, 13
         # max p7: 117, max p9: 30, max p12: 6 .build_spike_nums_dur()
@@ -3375,7 +3375,7 @@ def train_model():
                         with_batch_normalization=with_batch_normalization)
 
     print(model.summary())
-    raise Exception("TOTOOO")
+    # raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(
