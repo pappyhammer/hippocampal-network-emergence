@@ -17,6 +17,7 @@ from pattern_discovery.tools.signal import smooth_convolve
 
 class BenchmarkRasterDur:
     def __init__(self, description, ground_truth_raster_dur, predicted_raster_dur_dict, cells,
+                 traces,
                  debug_mode=True):
         self.description = description
         self.ground_truth_raster_dur = ground_truth_raster_dur
@@ -31,6 +32,7 @@ class BenchmarkRasterDur:
         # same keys as raster_dur_dict, value will be a list of dict with results from benchmarks
         self.results_dict_global = dict()
         self.debug_mode = debug_mode
+        self.traces = traces
 
     def compute_stats_on_onsets(self):
         if self.debug_mode:
@@ -76,7 +78,12 @@ class BenchmarkRasterDur:
             for key, raster_dur in self.predicted_raster_dur_dict.items():
                 gt_rd = self.ground_truth_raster_dur[cell]
                 p_rd = raster_dur[cell]
-                frames_stat, transients_stat = cs.compute_stats(gt_rd, p_rd)
+                if self.traces is not None:
+                    traces = self.traces[cell]
+                else:
+                    traces=None
+                frames_stat, transients_stat = cs.compute_stats(gt_rd, p_rd,
+                                                                traces=traces)
                 self.results_frames_dict_by_cell[cell][key] = frames_stat
                 self.results_transients_dict_by_cell[cell][key] = transients_stat
                 if self.debug_mode:
@@ -100,7 +107,12 @@ class BenchmarkRasterDur:
         for key, raster_dur in self.predicted_raster_dur_dict.items():
             gt_rd = self.ground_truth_raster_dur[self.cells]
             p_rd = raster_dur[self.cells]
-            frames_stat, transients_stat = cs.compute_stats(gt_rd, p_rd)
+            if self.traces is not None:
+                traces = self.traces[self.cells]
+            else:
+                traces = None
+            frames_stat, transients_stat = cs.compute_stats(gt_rd, p_rd,
+                                                            traces=traces)
             # frames stats
             if self.debug_mode:
                 print(f"raster {key}")
@@ -114,9 +126,12 @@ class BenchmarkRasterDur:
                     print(f"{k}: {str(np.round(value, 4))}")
                 print("")
 
-    def plot_boxplots_for_frames_stat(self, path_results, description, time_str, save_formats="pdf"):
+    def plot_boxplots_full_stat(self, path_results, description, time_str, for_frames=True, save_formats="pdf"):
+        result_dict_to_use = self.results_frames_dict_by_cell
+        if not for_frames:
+            result_dict_to_use = self.results_transients_dict_by_cell
         stats_to_show = ["sensitivity", "specificity", "PPV", "NPV"]
-        colors = ["cornflowerblue", "blue", "steelblue", "skyblue"]
+        colors = ["cornflowerblue", "blue", "steelblue", "red", "orange"]
 
         stat_fig, axes = plt.subplots(nrows=2, ncols=2, squeeze=True,
                                       gridspec_kw={'height_ratios': [0.5, 0.5],
@@ -151,14 +166,14 @@ class BenchmarkRasterDur:
             n_box_plots = None
             labels = None
             values_by_prediction = None
-            for cell_index, cell_to_display in enumerate(self.results_frames_dict_by_cell.keys()):
+            for cell_index, cell_to_display in enumerate(result_dict_to_use.keys()):
                 if n_box_plots is None:
-                    n_box_plots = len(self.results_frames_dict_by_cell[cell_to_display])
-                    labels = list(self.results_frames_dict_by_cell[cell_to_display].keys())
+                    n_box_plots = len(result_dict_to_use[cell_to_display])
+                    labels = list(result_dict_to_use[cell_to_display].keys())
                     values_by_prediction = [[] for n in np.arange(n_box_plots)]
                 for label_index, label in enumerate(labels):
                     values_by_prediction[label_index]. \
-                        append(self.results_frames_dict_by_cell[cell_to_display][label][stat_name])
+                        append(result_dict_to_use[cell_to_display][label][stat_name])
 
             colorfull = True
 
@@ -185,18 +200,21 @@ class BenchmarkRasterDur:
 
             ax.set_title(stat_name, color=title_color, pad=20)
 
+        str_details = "frames"
+        if not for_frames:
+            str_details = "transients"
         if isinstance(save_formats, str):
             save_formats = [save_formats]
         for save_format in save_formats:
             stat_fig.savefig(f'{path_results}/'
-                             f'{description}_box_plots_predictions_frames_on_{n_cells}_cells'
+                             f'{description}_box_plots_predictions_{str_details}_on_{n_cells}_cells'
                              f'_{time_str}.{save_format}',
                              format=f"{save_format}",
                              facecolor=stat_fig.get_facecolor(), edgecolor='none')
 
     def plot_boxplots_for_transients_stat(self, path_results, description, time_str, save_formats="pdf"):
         stats_to_show = ["sensitivity"]
-        colors = ["cornflowerblue", "blue", "steelblue", "skyblue"]
+        colors = ["cornflowerblue", "blue", "steelblue", "red", "orange"]
 
         stat_fig, axes = plt.subplots(nrows=1, ncols=1, squeeze=True,
                                       gridspec_kw={'height_ratios': [1],
@@ -434,14 +452,51 @@ def get_raster_dur_from_caiman_25000_frames_onsets_new_version(caiman_spike_nums
     for cell in np.arange(n_cells):
         periods = get_continous_time_periods(spike_nums_dur[cell])
         for period in periods:
-            if np.sum(caiman_spike_nums[cell, period[0]:period[1]+1]) > 0:
-                caiman_spike_nums_dur[cell, period[0]:period[1]+1] = 1
+            if np.sum(caiman_spike_nums[cell, period[0]:period[1] + 1]) > 0:
+                caiman_spike_nums_dur[cell, period[0]:period[1] + 1] = 1
 
     return caiman_spike_nums_dur
 
 
+def get_boost_rnn_raster_dur(rnn_raster_dur, traces):
+    n_cells = traces.shape[0]
+    n_times = traces.shape[1]
+
+    for i in np.arange(n_cells):
+        traces[i, :] = (traces[i, :] - np.mean(traces[i, :])) / np.std(traces[i, :])
+
+    spike_nums_all = np.zeros((n_cells, n_times), dtype="int8")
+    for cell in np.arange(n_cells):
+        onsets = []
+        diff_values = np.diff(traces[cell])
+        for index, value in enumerate(diff_values):
+            if index == (len(diff_values) - 1):
+                continue
+            if value < 0:
+                if diff_values[index + 1] >= 0:
+                    onsets.append(index + 1)
+        if len(onsets) > 0:
+            spike_nums_all[cell, np.array(onsets)] = 1
+
+    peak_nums = np.zeros((n_cells, n_times), dtype="int8")
+    for cell in np.arange(n_cells):
+        peaks, properties = signal.find_peaks(x=traces[cell])
+        peak_nums[cell, peaks] = 1
+
+    spike_nums_dur = build_spike_nums_dur(spike_nums_all, peak_nums)
+
+    new_rnn_raster_dur = np.copy(rnn_raster_dur)
+    for cell in np.arange(n_cells):
+        periods = get_continous_time_periods(spike_nums_dur[cell])
+        for period in periods:
+            if np.sum(rnn_raster_dur[cell, period[0]:period[1] + 1]) > 0:
+                new_rnn_raster_dur[cell, period[0]:period[1] + 1] = 1
+
+    return new_rnn_raster_dur
+
+
 def build_raster_dur_from_caiman_25000_frames_onsets(file_name, var_name, trace_file_name, trace_var_name,
-                                                    description, path_results):
+                                                     description, path_results):
     data_onsets = hdf5storage.loadmat(file_name)
     # print(f"data_onsets {list(data_onsets.keys())}")
     # return
@@ -618,7 +673,6 @@ def build_raster_dur_from_predictions(predictions, predictions_threshold, cells,
 def plot_roc_predictions(ground_truth_raster_dur, rnn_predictions, cells,
                          path_results, description, time_str,
                          save_formats):
-
     n_frames = ground_truth_raster_dur.shape[1]
     n_cells = ground_truth_raster_dur.shape[0]
     sensitivity_values = []
@@ -649,9 +703,9 @@ def plot_roc_predictions(ground_truth_raster_dur, rnn_predictions, cells,
     specificity_values = np.array(specificity_values)
 
     roc_fig, ax = plt.subplots(nrows=1, ncols=1, squeeze=True,
-                                  gridspec_kw={'height_ratios': [1],
-                                               'width_ratios': [1]},
-                                  figsize=(8, 8))
+                               gridspec_kw={'height_ratios': [1],
+                                            'width_ratios': [1]},
+                               figsize=(8, 8))
 
     roc_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
     # axes = np.ndarray.flatten(axes)
@@ -695,10 +749,11 @@ def plot_roc_predictions(ground_truth_raster_dur, rnn_predictions, cells,
         save_formats = [save_formats]
     for save_format in save_formats:
         roc_fig.savefig(f'{path_results}/'
-                         f'{description}_ROC_threshold_predictions_on_{len(cells)}_cells'
-                         f'_{time_str}.{save_format}',
-                         format=f"{save_format}",
-                         facecolor=roc_fig.get_facecolor(), edgecolor='none')
+                        f'{description}_ROC_threshold_predictions_on_{len(cells)}_cells'
+                        f'_{time_str}.{save_format}',
+                        format=f"{save_format}",
+                        facecolor=roc_fig.get_facecolor(), edgecolor='none')
+
 
 def main_benchmark():
     root_path = None
@@ -715,7 +770,6 @@ def main_benchmark():
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     path_results = path_results_raw + f"{time_str}"
     os.mkdir(path_results)
-
 
     do_build_raster_dur_on_25000 = False
     if do_build_raster_dur_on_25000:
@@ -788,16 +842,43 @@ def main_benchmark():
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
+        # if traces is given, then rnn will be boosted
+        data_dict["rnn"]["trace_file_name"] = "p12_17_11_10_a000_Traces.mat"
+        data_dict["rnn"]["trace_var_name"] = "C_df"
+        data_dict["rnn"]["boost_rnn"] = False
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
         # "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat" based on best 2 p12 cells predictions
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_01_26.19-22-21.mat"
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_from_5_sessions_2019_02_05.23-37-09.mat"
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_06.22-06-13_from_p8_training.mat"
         # trained on 0 & 3 cell, with just the cell mask, on 50 epochs. trained on 13/02/2019 19:39:49
-        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_13.21-40-46.mat"
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_13.21-40-46.mat"
+        # trained on 0,3 cell, with 2 inputs (cell masked + all), on 20 epochs. trained on 13/02/2019 12:24:23
+        # BO so far
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_14.19-07-26.mat"
+        # trained on 0,3 cell, with 2 inputs (cell masked + all), on 34 epochs. trained on 13/02/2019 14:34:45
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_14.19-19-05.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.3
+        data_dict["rnn"]["prediction_threshold"] = 0.7
+
+
+        # data_dict["ex_rnn"] = dict()
+        # data_dict["ex_rnn"]["path"] = "p12/p12_17_11_10_a000"
+        # # trained on 0,3 cell, with 2 inputs (cell masked + all), on 20 epochs. trained on 13/02/2019 12:24:23
+        # # BO so far
+        # data_dict["ex_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_14.19-07-26.mat"
+        # data_dict["ex_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        # data_dict["ex_rnn"]["predictions"] = "predictions"
+        # data_dict["ex_rnn"]["prediction_threshold"] = 0.6
+
+        data_dict["old_rnn"] = dict()
+        data_dict["old_rnn"]["path"] = "p12/p12_17_11_10_a000"
+        data_dict["old_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
+        # "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat" based on best 2 p12 cells predictions
+        data_dict["old_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["old_rnn"]["predictions"] = "predictions"
+        data_dict["old_rnn"]["prediction_threshold"] = 0.4
 
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p12/p12_17_11_10_a000"
@@ -909,10 +990,18 @@ def main_benchmark():
         data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.22-18-43_from_p12_training.mat"
         # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.22-33-03_trained_on_5_sessions.mat"
         # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_07.13-31-43_train_on_3_cells_p8.mat"
-
+        # trained on p12 0,3 cell, with 2 inputs (cell masked + all), on 20 epochs. trained on 13/02/2019 12:24:23
+        data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_14.20-10-56_from_new_p12_training.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.3
+        data_dict["rnn"]["prediction_threshold"] = 0.5
+
+        data_dict["old_rnn"] = dict()
+        data_dict["old_rnn"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["old_rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.22-18-43_from_p12_training.mat"
+        data_dict["old_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["old_rnn"]["predictions"] = "predictions"
+        data_dict["old_rnn"]["prediction_threshold"] = 0.3
 
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p8/p8_18_10_24_a005"
@@ -979,11 +1068,28 @@ def main_benchmark():
 
     predicted_raster_dur_dict = dict()
     predicted_spike_nums_dict = dict()
+    traces = None
     # value is a dict
     for key, value in data_dict.items():
         if key == "gt":
             continue
         if key == "rnn" and ("prediction_threshold" in value):
+            data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name"]))
+            rnn_raster_dur = \
+                build_raster_dur_from_predictions(predictions=data_file[value["predictions"]],
+                                                  predictions_threshold=value["prediction_threshold"],
+                                                  cells=cells_for_benchmark,
+                                                  n_total_cells=n_cells,
+                                                  n_frames=n_frames)
+            if "trace_file_name" in value:
+                data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["trace_file_name"]))
+                traces = data_file[value['trace_var_name']]
+            if ("boost_rnn" in value) and value["boost_rnn"]:
+                rnn_raster_dur = get_boost_rnn_raster_dur(rnn_raster_dur, traces)
+                predicted_raster_dur_dict["rnn_boost"] = rnn_raster_dur
+            else:
+                predicted_raster_dur_dict[key] = rnn_raster_dur
+        elif ("rnn" in key) and ("prediction_threshold" in value):
             data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name"]))
             predicted_raster_dur_dict[key] = \
                 build_raster_dur_from_predictions(predictions=data_file[value["predictions"]],
@@ -1018,7 +1124,8 @@ def main_benchmark():
                 predicted_raster_dur_dict[key] = raster_dur
 
     benchmarks = BenchmarkRasterDur(description=ms_to_benchmark, ground_truth_raster_dur=ground_truth_raster_dur,
-                                    predicted_raster_dur_dict=predicted_raster_dur_dict, cells=cells_for_benchmark)
+                                    predicted_raster_dur_dict=predicted_raster_dur_dict, cells=cells_for_benchmark,
+                                    traces=traces)
 
     benchmarks.compute_stats()
 
@@ -1027,11 +1134,13 @@ def main_benchmark():
         threshold_value = data_dict["rnn"]["prediction_threshold"]
         description += f"_thr_{threshold_value}_"
 
-    benchmarks.plot_boxplots_for_frames_stat(description=description, time_str=time_str, path_results=path_results,
-                                             save_formats="pdf")
-    benchmarks.plot_boxplots_for_transients_stat(description=description, time_str=time_str,
-                                                 path_results=path_results,
-                                                 save_formats="pdf")
+    benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
+                                       for_frames=True, save_formats="pdf")
+    benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
+                                       for_frames=False, save_formats="pdf")
+    # benchmarks.plot_boxplots_for_transients_stat(description=description, time_str=time_str,
+    #                                              path_results=path_results,
+    #                                              save_formats="pdf")
 
     # if do_onsets_benchmarks:
     #     print("")
