@@ -1524,6 +1524,192 @@ class MoviePatchGeneratorMaskedAndGlobal(MoviePatchGenerator):
         return f"{self.n_inputs} inputs. Main cell mask + pixels around that contain overlaping cells"
 
 
+class MoviePatchGeneratorMaskedVersions(MoviePatchGenerator):
+    """
+    Will generate one input being the masked cell (the one we focus on), the second input
+    would be the whole patch without neuorpil and the main cell, the last inpu if with_neuropil_mask is True
+    would be just the neuropil without the pixels in the cells
+    """
+
+    def __init__(self, window_len, max_width, max_height, pixels_around,
+                 buffer, with_neuropil_mask):
+        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height)
+        self.pixels_around = pixels_around
+        self.buffer = buffer
+        self.with_neuropil_mask = with_neuropil_mask
+        self.n_inputs = 2
+        if with_neuropil_mask:
+            self.n_inputs += 1
+
+    def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
+        source_profiles_dict = memory_dict
+        batch_size = len(movie_data_list)
+        if with_labels:
+            labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+
+        # if there are not 6 overlaping cells, we'll give empty frames as inputs (with pixels to zero)
+        inputs_dict = dict()
+        for input_index in np.arange(self.n_inputs):
+            inputs_dict[f"input_{input_index}"] = np.zeros((batch_size, self.window_len, self.max_height,
+                                                            self.max_width, 1))
+
+        # Generate data
+        for index_batch, movie_data in enumerate(movie_data_list):
+            ms = movie_data.ms
+            cell = movie_data.cell
+            frame_index = movie_data.index_movie
+            augmentation_fct = movie_data.data_augmentation_fct
+
+            # now we generate the source profile of the cells for those frames and retrieve it if it has
+            # already been generated
+            src_profile_key = ms.description + str(cell)
+            if src_profile_key in source_profiles_dict:
+                mask_source_profiles, coords = source_profiles_dict[src_profile_key]
+            else:
+                mask_source_profiles, coords = \
+                    get_source_profile_param(cell=cell, ms=ms, pixels_around=self.pixels_around,
+                                             buffer=self.buffer,
+                                             max_width=self.max_width, max_height=self.max_height,
+                                             with_all_masks=True)
+                source_profiles_dict[src_profile_key] = [mask_source_profiles, coords]
+
+            frames = np.arange(frame_index, frame_index + self.window_len)
+            if with_labels:
+                spike_nums_dur = ms.spike_struct.spike_nums_dur
+                # setting labels: active frame or not
+                labels[index_batch] = spike_nums_dur[cell, frames]
+            # now adding the movie of those frames in this sliding_window
+            source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
+
+            input_index = 1
+
+            use_the_whole_frame = False
+            if use_the_whole_frame:
+                # doing augmentation if the function exists
+                if augmentation_fct is not None:
+                    source_profile_frames = augmentation_fct(source_profile_frames)
+                # then we fit it the frame use by the network, padding the surrounding by zero if necessary
+                profile_fit = np.zeros((len(frames), self.max_height, self.max_width))
+                # we center the source profile
+                y_coord = (profile_fit.shape[1] - source_profile_frames.shape[1]) // 2
+                x_coord = (profile_fit.shape[2] - source_profile_frames.shape[2]) // 2
+                profile_fit[:, y_coord:source_profile_frames.shape[1] + y_coord,
+                x_coord:source_profile_frames.shape[2] + x_coord] = \
+                    source_profile_frames
+
+                profile_fit = profile_fit.reshape((profile_fit.shape[0], profile_fit.shape[1], profile_fit.shape[2], 1))
+                data = inputs_dict[f"input_{input_index}"]
+                data[index_batch] = profile_fit
+                input_index += 1
+
+            # then we compute the frame with just the mask of each cell (the main one (with input_0 index) and the ones
+            # that overlaps)
+            mask_source_profiles_keys = np.array(list(mask_source_profiles.keys()))
+
+            mask_for_all_cells = np.zeros((source_profile_frames.shape[1], source_profile_frames.shape[2]),
+                                           dtype="int8")
+            if self.with_neuropil_mask:
+                neuropil_mask = np.zeros((source_profile_frames.shape[1], source_profile_frames.shape[2]),
+                                               dtype="int8")
+            for cell_index, mask_source_profile in mask_source_profiles.items():
+                if cell_index == cell:
+                    source_profile_frames_masked = np.copy(source_profile_frames)
+                    source_profile_frames_masked[:, mask_source_profile] = 0
+                    if self.with_neuropil_mask:
+                        neuropil_mask[1 - mask_source_profile] = 1
+
+                    # doing augmentation if the function exists
+                    if augmentation_fct is not None:
+                        source_profile_frames_masked = augmentation_fct(source_profile_frames_masked)
+
+                    # then we fit it the frame use by the network, padding the surrounding by zero if necessary
+                    profile_fit_masked = np.zeros((len(frames), self.max_height, self.max_width))
+                    # we center the source profile
+                    y_coord = (profile_fit_masked.shape[1] - source_profile_frames.shape[1]) // 2
+                    x_coord = (profile_fit_masked.shape[2] - source_profile_frames.shape[2]) // 2
+                    profile_fit_masked[:, y_coord:source_profile_frames.shape[1] + y_coord,
+                    x_coord:source_profile_frames.shape[2] + x_coord] = \
+                        source_profile_frames_masked
+
+                    profile_fit_masked = profile_fit_masked.reshape((profile_fit_masked.shape[0],
+                                                                     profile_fit_masked.shape[1],
+                                                                     profile_fit_masked.shape[2], 1))
+
+                    inputs_dict["input_0"][index_batch] = profile_fit_masked
+                    continue
+                else:
+                    # mask_source_profile worth zero for the pixels in the cell
+                    mask_for_all_cells[1-mask_source_profile] = 1
+                    if self.with_neuropil_mask:
+                        neuropil_mask[1 - mask_source_profile] = 1
+
+            if len(mask_source_profiles) > 0:
+                source_profile_frames_masked = np.copy(source_profile_frames)
+                source_profile_frames_masked[:, 1-mask_for_all_cells] = 0
+
+                # doing augmentation if the function exists
+                if augmentation_fct is not None:
+                    source_profile_frames_masked = augmentation_fct(source_profile_frames_masked)
+
+                # then we fit it the frame use by the network, padding the surrounding by zero if necessary
+                profile_fit_masked = np.zeros((len(frames), self.max_height, self.max_width))
+                # we center the source profile
+                y_coord = (profile_fit_masked.shape[1] - source_profile_frames.shape[1]) // 2
+                x_coord = (profile_fit_masked.shape[2] - source_profile_frames.shape[2]) // 2
+                profile_fit_masked[:, y_coord:source_profile_frames.shape[1] + y_coord,
+                x_coord:source_profile_frames.shape[2] + x_coord] = \
+                    source_profile_frames_masked
+
+                profile_fit_masked = profile_fit_masked.reshape((profile_fit_masked.shape[0],
+                                                                 profile_fit_masked.shape[1],
+                                                                 profile_fit_masked.shape[2], 1))
+
+                inputs_dict["input_1"][index_batch] = profile_fit_masked
+            else:
+                # empty frame if there is not overlaping cell
+                profile_fit_masked = np.zeros((len(frames), self.max_height, self.max_width))
+                profile_fit_masked = profile_fit_masked.reshape((profile_fit_masked.shape[0],
+                                                                 profile_fit_masked.shape[1],
+                                                                 profile_fit_masked.shape[2], 1))
+
+                inputs_dict["input_1"][index_batch] = profile_fit_masked
+
+            if self.with_neuropil_mask:
+                source_profile_frames_masked = np.copy(source_profile_frames)
+                # "deleting" the cells
+                source_profile_frames_masked[:, neuropil_mask] = 0
+
+                # doing augmentation if the function exists
+                if augmentation_fct is not None:
+                    source_profile_frames_masked = augmentation_fct(source_profile_frames_masked)
+
+                # then we fit it the frame use by the network, padding the surrounding by zero if necessary
+                profile_fit_masked = np.zeros((len(frames), self.max_height, self.max_width))
+                # we center the source profile
+                y_coord = (profile_fit_masked.shape[1] - source_profile_frames.shape[1]) // 2
+                x_coord = (profile_fit_masked.shape[2] - source_profile_frames.shape[2]) // 2
+                profile_fit_masked[:, y_coord:source_profile_frames.shape[1] + y_coord,
+                x_coord:source_profile_frames.shape[2] + x_coord] = \
+                    source_profile_frames_masked
+
+                profile_fit_masked = profile_fit_masked.reshape((profile_fit_masked.shape[0],
+                                                                 profile_fit_masked.shape[1],
+                                                                 profile_fit_masked.shape[2], 1))
+
+                inputs_dict["input_2"][index_batch] = profile_fit_masked
+
+        if with_labels:
+            return inputs_dict, labels
+        else:
+            return inputs_dict
+
+    def __str__(self):
+        bonus_str = ""
+        if self.with_neuropil_mask:
+            bonus_str = " + one with neuropil mask"
+        return f"{self.n_inputs} inputs. Main cell mask + one with all overlaping cells mask{bonus_str}"
+
+
 class MoviePatchGeneratorEachOverlap(MoviePatchGenerator):
     """
     Will generate one input being the masked cell (the one we focus on) and the second input
@@ -2217,7 +2403,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     # p13_18_10_29_a001_GUI_transients_RD.mat
     """
     print("load_data_for_generator")
-    use_small_sample = True
+    use_small_sample = False
     # used for counting how many cells and transients available
     load_them_all = False
     if load_them_all:
@@ -2237,7 +2423,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
         ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])}
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0])}
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
@@ -2248,7 +2434,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                               "p8_18_10_24_a005_ms": np.array([0, 1]),  # 9, 10
                               # "p9_18_09_27_a003_ms": np.array([3, 5]), # 7, 9
                               "p11_17_11_24_a000_ms": np.array([3, 22]),  # 24,29
-                              "p12_171110_a000_ms": np.array([0, 3]),  # 3
+                              "p12_171110_a000_ms": np.array([0, 3, 7]),  # 3
                               "p13_18_10_29_a001_ms": np.array([0, 5])}  # 12, 13
         # max p7: 117, max p9: 30, max p12: 6 .build_spike_nums_dur()
 
@@ -2858,7 +3044,7 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
         MoviePatchGeneratorMaskedCell(window_len=window_len, max_width=max_width, max_height=max_height,
                                       pixels_around=pixels_around, buffer=buffer)
 
-    movie_patch_generator = movie_patch_generator_choices["MaskedCell"]
+    movie_patch_generator = movie_patch_generator_choices["MaskedAndGlobal"]
 
     # source_dict not useful in that case, but necessary for the function to work properly, to change later
     source_dict = dict()
@@ -3047,9 +3233,9 @@ def train_model():
     go_predict_from_movie = False
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
+        transients_prediction_from_movie(ms_to_use=["p8_18_10_24_a005_ms"], param=param, overlap_value=0.8,
                                          use_data_augmentation=True,
-                                         cells_to_predict=np.arange(10))
+                                         cells_to_predict=np.array([9, 10, 13, 28, 41, 42, 207, 321, 110]))
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
@@ -3083,28 +3269,28 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
 
-    n_epochs = 25
-    batch_size = 8
+    n_epochs = 40
+    batch_size = 16
     window_len = 50
     max_width = 25
     max_height = 25
     overlap_value = 0.9
-    dropout_value = 0
-    dropout_value_rnn = 0
-    with_batch_normalization = True
+    dropout_value = 0.2
+    dropout_value_rnn = 0.2
+    with_batch_normalization = False
     max_n_transformations = 6
     pixels_around = 0
     with_augmentation_for_training_data = True
-    buffer = 0
+    buffer = 1
     split_values = (0.7, 0.2, 0.1)
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
     with_learning_rate_reduction = True
     learning_rate_reduction_patience = 3
-    without_bidirectional = True
-    lstm_layers_size = [256]  # 128, 256, 512
+    without_bidirectional = False
+    lstm_layers_size = [256, 512]  # 128, 256, 512
     with_early_stopping = True
-    early_stop_patience = 18  # 10
+    early_stop_patience = 15  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
@@ -3122,10 +3308,13 @@ def train_model():
     movie_patch_generator_choices["MaskedCell"] = \
         MoviePatchGeneratorMaskedCell(window_len=window_len, max_width=max_width, max_height=max_height,
                                        pixels_around=pixels_around, buffer=buffer)
+    movie_patch_generator_choices["MaskedVersions"] = \
+        MoviePatchGeneratorMaskedVersions(window_len=window_len, max_width=max_width, max_height=max_height,
+                                       pixels_around=pixels_around, buffer=buffer, with_neuropil_mask=True)
 
-    movie_patch_generator_for_training = movie_patch_generator_choices["EachOverlap"]
-    movie_patch_generator_for_validation = movie_patch_generator_choices["EachOverlap"]
-    movie_patch_generator_for_test = movie_patch_generator_choices["EachOverlap"]
+    movie_patch_generator_for_training = movie_patch_generator_choices["MaskedVersions"]
+    movie_patch_generator_for_validation = movie_patch_generator_choices["MaskedVersions"]
+    movie_patch_generator_for_test = movie_patch_generator_choices["MaskedVersions"]
 
     params_generator = {
         'batch_size': batch_size,
@@ -3186,7 +3375,7 @@ def train_model():
                         with_batch_normalization=with_batch_normalization)
 
     print(model.summary())
-    # raise Exception("TOTOOO")
+    raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(
@@ -3223,7 +3412,7 @@ def train_model():
                                                 verbose=1,
                                                 factor=0.5,
                                                 mode='max',
-                                                min_lr=0.00001)  # used to be: 0.00001
+                                                min_lr=0.0001)  # used to be: 0.00001
 
     # callbacks to be execute during training
     # A callback is a set of functions to be applied at given stages of the training procedure.
