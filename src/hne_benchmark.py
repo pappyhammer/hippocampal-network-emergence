@@ -17,7 +17,7 @@ from pattern_discovery.tools.signal import smooth_convolve
 
 class BenchmarkRasterDur:
     def __init__(self, description, ground_truth_raster_dur, predicted_raster_dur_dict, cells,
-                 traces,
+                 predict_transient_from_saved_model,
                  debug_mode=True):
         self.description = description
         self.ground_truth_raster_dur = ground_truth_raster_dur
@@ -688,7 +688,7 @@ def plot_roc_predictions(ground_truth_raster_dur, rnn_predictions, cells,
 
         raster_dict = {"raster_dur": predicted_raster_dur_dict}
         benchmarks = BenchmarkRasterDur(description=description, ground_truth_raster_dur=ground_truth_raster_dur,
-                                        predicted_raster_dur_dict=raster_dict, cells=cells,
+                                        predicted_raster_dur_dict=raster_dict, cells=cells, traces=None,
                                         debug_mode=False)
 
         benchmarks.compute_stats()
@@ -838,7 +838,8 @@ def main_benchmark():
         data_dict["gt"]["gt_file"] = "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt"
         data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P12_17_11_10_a000.txt"
         data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.arange(10)
+        # TODO: with cell 10, we need to re-make the prediction
+        data_dict["gt"]["cells"] = np.arange(11)
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
@@ -847,38 +848,63 @@ def main_benchmark():
         data_dict["rnn"]["trace_var_name"] = "C_df"
         data_dict["rnn"]["boost_rnn"] = False
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
+
         # "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat" based on best 2 p12 cells predictions
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_01_26.19-22-21.mat"
+
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_from_5_sessions_2019_02_05.23-37-09.mat"
+
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_06.22-06-13_from_p8_training.mat"
+
         # trained on 0 & 3 cell, with just the cell mask, on 50 epochs. trained on 13/02/2019 19:39:49
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_13.21-40-46.mat"
-        # trained on 0,3 cell, with 2 inputs (cell masked + all), on 20 epochs. trained on 13/02/2019 12:24:23
+
+        # ## trained on 0,3 cell, with 2 inputs (cell masked + all), on 20 epochs. trained on 13/02/2019 12:24:23
         # BO so far
-        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_14.19-07-26.mat"
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_14.19-07-26.mat"
         # trained on 0,3 cell, with 2 inputs (cell masked + all), on 34 epochs. trained on 13/02/2019 14:34:45
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_14.19-19-05.mat"
+
+        # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 16/02/2019 11:21:11 BO equality
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_16.14-57-49.mat"
+
+        # trained on 5 sessions and 15 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 15/02/2019 00:01:55, on epoch 13 with overlap at 0.8
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_16.15-17-17.mat"
+
+        # trained on 5 sessions and 15 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 15/02/2019 00:01:55, on epoch 13 with overlap at 0.5
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_16.16-38-24.mat"
+
+        # trained on 5 sessions and 15 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 15/02/2019 00:01:55, on epoch 13 with overlap at 0.9
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_16.16-38-24.mat"
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_16.16-46-58.mat"
+
+        # trained from 2019_02_16.18-23-24_p12_0_3_2_inputs_buffer_1_dropout
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_16.21-39-50.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.7
+        data_dict["rnn"]["prediction_threshold"] = 0.75
 
 
-        # data_dict["ex_rnn"] = dict()
-        # data_dict["ex_rnn"]["path"] = "p12/p12_17_11_10_a000"
-        # # trained on 0,3 cell, with 2 inputs (cell masked + all), on 20 epochs. trained on 13/02/2019 12:24:23
-        # # BO so far
-        # data_dict["ex_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_14.19-07-26.mat"
-        # data_dict["ex_rnn"]["var_name"] = "spike_nums_dur_predicted"
-        # data_dict["ex_rnn"]["predictions"] = "predictions"
-        # data_dict["ex_rnn"]["prediction_threshold"] = 0.6
+        data_dict["last_rnn"] = dict()
+        data_dict["last_rnn"]["path"] = "p12/p12_17_11_10_a000"
+        # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 16/02/2019 11:21:11 BO equality
+        data_dict["last_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_16.14-57-49.mat"
+        data_dict["last_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["last_rnn"]["predictions"] = "predictions"
+        data_dict["last_rnn"]["prediction_threshold"] = 0.6
 
-        data_dict["old_rnn"] = dict()
-        data_dict["old_rnn"]["path"] = "p12/p12_17_11_10_a000"
-        data_dict["old_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
-        # "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat" based on best 2 p12 cells predictions
-        data_dict["old_rnn"]["var_name"] = "spike_nums_dur_predicted"
-        data_dict["old_rnn"]["predictions"] = "predictions"
-        data_dict["old_rnn"]["prediction_threshold"] = 0.4
+        # data_dict["old_rnn"] = dict()
+        # data_dict["old_rnn"]["path"] = "p12/p12_17_11_10_a000"
+        # data_dict["old_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
+        # # "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat" based on best 2 p12 cells predictions
+        # data_dict["old_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        # data_dict["old_rnn"]["predictions"] = "predictions"
+        # data_dict["old_rnn"]["prediction_threshold"] = 0.4
 
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p12/p12_17_11_10_a000"
@@ -933,13 +959,17 @@ def main_benchmark():
         data_dict["gt"]["gt_file"] = "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt"
         data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P7_17_10_12_a000.txt"
         data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.arange(118)
-        data_dict["gt"]["cells_to_remove"] = np.array([52, 75])
+        data_dict["gt"]["cells"] = np.arange(30)
+        # data_dict["gt"]["cells_to_remove"] = np.array([52, 75])
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p7/p7_17_10_12_a000"
+        data_dict["rnn"]["trace_file_name"] = "p7_17_10_12_a000_Traces.mat"
+        data_dict["rnn"]["trace_var_name"] = "C_df"
+        data_dict["rnn"]["boost_rnn"] = True
         # not of these two better than caiman
         # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_01.15-56-10.mat"
+        # BO ?
         data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
         # bad results
         # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_06.12-53-02_on_6_cells_overfitting.mat"
@@ -947,19 +977,26 @@ def main_benchmark():
         # not good
         # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_06.20-48-56_on_2_cells_02_02_19_1_30_26.mat"
         #  P7_17_10_12_a000_predictions_2019_02_06.20-48-56_on_2_cells_02_02_19_1_30_26.mat
+        # trained on 5 sessions and 15 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 15/02/2019 00:01:55, on epoch 13 with overlap at 0.8
+        data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_16.17-29-37.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.4
+        data_dict["rnn"]["prediction_threshold"] = 0.45
+
+        data_dict["last_rnn"] = dict()
+        data_dict["last_rnn"]["path"] = "p7/p7_17_10_12_a000"
+        # BO before
+        data_dict["last_rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
+        data_dict["last_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["last_rnn"]["predictions"] = "predictions"
+        data_dict["last_rnn"]["prediction_threshold"] = 0.4
 
         # data_dict["caiman_jd"] = dict()
         # data_dict["caiman_jd"]["path"] = "p7/p7_17_10_12_a000"
         # data_dict["caiman_jd"]["file_name"] = "p7_17_10_12_a000_caiman_raster_dur_JD_version.mat"
         # data_dict["caiman_jd"]["var_name"] = "rasterdur"
 
-        # data_dict["boost_rnn"] = dict()
-        # data_dict["boost_rnn"]["path"] = "p7/p7_17_10_12_a000"
-        # data_dict["boost_rnn"]["file_name"] = "p7_17_10_12_a000boost_rnn_raster_dur.mat"
-        # data_dict["boost_rnn"]["var_name"] = "spike_nums_dur_predicted"
 
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p7/p7_17_10_12_a000"
@@ -984,24 +1021,35 @@ def main_benchmark():
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["rnn"]["trace_file_name"] = "p8_18_10_24_a005_Traces.mat"
+        data_dict["rnn"]["trace_var_name"] = "C_df"
+        data_dict["rnn"]["boost_rnn"] = True
         # train on 2 of the cell of Robin
         # trained on 2 cells of p8
         # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.20-29-38_9_cells_from_Robin.mat"
-        data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.22-18-43_from_p12_training.mat"
+        # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.22-18-43_from_p12_training.mat"
         # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.22-33-03_trained_on_5_sessions.mat"
         # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_07.13-31-43_train_on_3_cells_p8.mat"
         # trained on p12 0,3 cell, with 2 inputs (cell masked + all), on 20 epochs. trained on 13/02/2019 12:24:23
-        data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_14.20-10-56_from_new_p12_training.mat"
+        # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_14.20-10-56_from_new_p12_training.mat"
+        # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 16/02/2019 11:21:11
+        # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_16.15-43-26.mat"
+        # trained on 5 sessions and 15 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 15/02/2019 00:01:55, on epoch 13
+        data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_16.16-06-00.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.5
+        data_dict["rnn"]["prediction_threshold"] = 0.55
 
         data_dict["old_rnn"] = dict()
         data_dict["old_rnn"]["path"] = "p8/p8_18_10_24_a005"
-        data_dict["old_rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.22-18-43_from_p12_training.mat"
+        # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 16/02/2019 11:21:11
+        data_dict["old_rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_16.15-43-26.mat"
         data_dict["old_rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["old_rnn"]["predictions"] = "predictions"
-        data_dict["old_rnn"]["prediction_threshold"] = 0.3
+        data_dict["old_rnn"]["prediction_threshold"] = 0.5
 
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p8/p8_18_10_24_a005"

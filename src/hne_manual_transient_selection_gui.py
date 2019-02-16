@@ -2658,7 +2658,7 @@ class ManualOnsetFrame(tk.Frame):
                                                          weights_file=self.transient_classifier_weights_file,
                                                          json_file=self.transient_classifier_json_file,
                                                          overlap_value=0.8, use_data_augmentation=False,
-                                                         buffer=0)
+                                                         buffer=1)
         self.transient_prediction[cell] = predictions
         self.transient_prediction_periods[cell] = dict()
 
@@ -4353,7 +4353,8 @@ class ManualOnsetFrame(tk.Frame):
 
                     predicted_raster_dur = np.zeros(self.nb_times_traces, dtype="int8")
                     predicted_raster_dur[predictions >= threshold_tc] = 1
-                    frames_stat, transients_stat = classification_stat.compute_stats(raster_dur, predicted_raster_dur)
+                    frames_stat, transients_stat = classification_stat.compute_stats(raster_dur, predicted_raster_dur,
+                                                                                     self.traces[self.current_neuron])
 
                     # frames stats
                     print(f"Cell {self.current_neuron} with threshold {threshold_tc}")

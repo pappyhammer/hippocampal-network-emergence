@@ -82,7 +82,7 @@ class MovieEvent:
 
 
 class NeuropilEvent(MovieEvent):
-
+    # it includes neuropil, but also decay of transient, everything that is not real or fake transient
     def __init__(self, frame_index):
         super().__init__()
         self.neuropil = True
@@ -1266,6 +1266,31 @@ class MoviePatchData:
             if is_only_neuropil:
                 self.movie_info["only_neuropil"] = True
 
+    def get_labels(self, using_multi_class):
+        frames = np.arange(self.index_movie, self.last_index_movie+1)
+        if using_multi_class <= 1:
+            spike_nums_dur = self.ms.spike_struct.spike_nums_dur
+            return spike_nums_dur[self.cell, frames]
+        else:
+
+            if using_multi_class == 3:
+                unique_codes = np.unique(self.encoded_frames[frames])
+                labels = np.zeros((self.window_len, using_multi_class), dtype="uint8")
+                # class 0: real transient
+                # class 1: fake transient
+                # class 2 is "unclassifierd" or "noise" that includes decay and neuropil
+                for code in unique_codes:
+                    movie_event = self.decoding_frame_dict[code]
+                    if movie_event.real_transient:
+                        labels[self.encoded_frames[frames] == code, 0] = 1
+                    elif movie_event.fake_transient:
+                        labels[self.encoded_frames[frames] == code, 1] = 1
+                    else:
+                        labels[self.encoded_frames[frames] == code, 2] = 1
+                return labels
+            else:
+                raise Exception(f"using_multi_class {using_multi_class} not implemented yet")
+
     def __eq__(self, other):
         if self.ms.description != other.ms.description:
             return False
@@ -1434,7 +1459,7 @@ class MoviePatchGenerator:
     def get_nb_inputs(self):
         return self.n_inputs
 
-    def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
+    def generate_movies_from_metadata(self, movie_data_list, memory_dict, using_multi_class, with_labels=True):
         pass
 
 
@@ -1445,11 +1470,12 @@ class MoviePatchGeneratorMaskedAndGlobal(MoviePatchGenerator):
     """
 
     def __init__(self, window_len, max_width, max_height, pixels_around,
-                 buffer):
+                 buffer, using_multi_class):
         super().__init__(window_len=window_len, max_width=max_width, max_height=max_height)
         self.pixels_around = pixels_around
         self.buffer = buffer
         self.n_inputs = 2
+        self.using_multi_class = using_multi_class
 
     def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
         source_profiles_dict = memory_dict
@@ -1457,8 +1483,10 @@ class MoviePatchGeneratorMaskedAndGlobal(MoviePatchGenerator):
         data = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
         data_masked = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
         if with_labels:
-            labels = np.zeros((batch_size, self.window_len), dtype="uint8")
-
+            if self.using_multi_class <= 1:
+                labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+            else:
+                labels = np.zeros((batch_size, self.window_len, self.using_multi_class), dtype="uint8")
         # Generate data
         for index_batch, movie_data in enumerate(movie_data_list):
             ms = movie_data.ms
@@ -1480,9 +1508,7 @@ class MoviePatchGeneratorMaskedAndGlobal(MoviePatchGenerator):
 
             frames = np.arange(frame_index, frame_index + self.window_len)
             if with_labels:
-                spike_nums_dur = ms.spike_struct.spike_nums_dur
-                # setting labels: active frame or not
-                labels[index_batch] = spike_nums_dur[cell, frames]
+                labels[index_batch] = movie_data.get_labels(using_multi_class=self.using_multi_class)
             # now adding the movie of those frames in this sliding_window
             source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
             # if i == 0:
@@ -1532,11 +1558,12 @@ class MoviePatchGeneratorMaskedVersions(MoviePatchGenerator):
     """
 
     def __init__(self, window_len, max_width, max_height, pixels_around,
-                 buffer, with_neuropil_mask):
+                 buffer, with_neuropil_mask, using_multi_class):
         super().__init__(window_len=window_len, max_width=max_width, max_height=max_height)
         self.pixels_around = pixels_around
         self.buffer = buffer
         self.with_neuropil_mask = with_neuropil_mask
+        self.using_multi_class = using_multi_class
         self.n_inputs = 2
         if with_neuropil_mask:
             self.n_inputs += 1
@@ -1545,7 +1572,10 @@ class MoviePatchGeneratorMaskedVersions(MoviePatchGenerator):
         source_profiles_dict = memory_dict
         batch_size = len(movie_data_list)
         if with_labels:
-            labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+            if self.using_multi_class <= 1:
+                labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+            else:
+                labels = np.zeros((batch_size, self.window_len, self.using_multi_class), dtype="uint8")
 
         # if there are not 6 overlaping cells, we'll give empty frames as inputs (with pixels to zero)
         inputs_dict = dict()
@@ -1575,9 +1605,7 @@ class MoviePatchGeneratorMaskedVersions(MoviePatchGenerator):
 
             frames = np.arange(frame_index, frame_index + self.window_len)
             if with_labels:
-                spike_nums_dur = ms.spike_struct.spike_nums_dur
-                # setting labels: active frame or not
-                labels[index_batch] = spike_nums_dur[cell, frames]
+                labels[index_batch] = movie_data.get_labels(using_multi_class=self.using_multi_class)
             # now adding the movie of those frames in this sliding_window
             source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
 
@@ -1717,10 +1745,11 @@ class MoviePatchGeneratorEachOverlap(MoviePatchGenerator):
     """
 
     def __init__(self, window_len, max_width, max_height, pixels_around,
-                 buffer):
+                 buffer, using_multi_class):
         super().__init__(window_len=window_len, max_width=max_width, max_height=max_height)
         self.pixels_around = pixels_around
         self.buffer = buffer
+        self.using_multi_class = using_multi_class
         self.n_inputs = 6
 
     def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
@@ -1728,7 +1757,10 @@ class MoviePatchGeneratorEachOverlap(MoviePatchGenerator):
         source_profiles_dict = memory_dict
         batch_size = len(movie_data_list)
         if with_labels:
-            labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+            if self.using_multi_class <= 1:
+                labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+            else:
+                labels = np.zeros((batch_size, self.window_len, self.using_multi_class), dtype="uint8")
 
         # if there are not 6 overlaping cells, we'll give empty frames as inputs (with pixels to zero)
         inputs_dict = dict()
@@ -1758,9 +1790,7 @@ class MoviePatchGeneratorEachOverlap(MoviePatchGenerator):
 
             frames = np.arange(frame_index, frame_index + self.window_len)
             if with_labels:
-                spike_nums_dur = ms.spike_struct.spike_nums_dur
-                # setting labels: active frame or not
-                labels[index_batch] = spike_nums_dur[cell, frames]
+                labels[index_batch] = movie_data.get_labels(using_multi_class=self.using_multi_class)
             # now adding the movie of those frames in this sliding_window
             source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
 
@@ -1837,10 +1867,11 @@ class MoviePatchGeneratorMaskedCell(MoviePatchGenerator):
     """
 
     def __init__(self, window_len, max_width, max_height, pixels_around,
-                 buffer):
+                 buffer, using_multi_class):
         super().__init__(window_len=window_len, max_width=max_width, max_height=max_height)
         self.pixels_around = pixels_around
         self.buffer = buffer
+        self.using_multi_class = using_multi_class
         self.n_inputs = 1
 
     def __str__(self):
@@ -1851,7 +1882,10 @@ class MoviePatchGeneratorMaskedCell(MoviePatchGenerator):
         batch_size = len(movie_data_list)
         data_masked = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
         if with_labels:
-            labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+            if self.using_multi_class <= 1:
+                labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+            else:
+                labels = np.zeros((batch_size, self.window_len, self.using_multi_class), dtype="uint8")
 
         # Generate data
         for index_batch, movie_data in enumerate(movie_data_list):
@@ -1874,9 +1908,7 @@ class MoviePatchGeneratorMaskedCell(MoviePatchGenerator):
 
             frames = np.arange(frame_index, frame_index + self.window_len)
             if with_labels:
-                # setting labels: active frame or not
-                spike_nums_dur = ms.spike_struct.spike_nums_dur
-                labels[index_batch] = spike_nums_dur[cell, frames]
+                labels[index_batch] = movie_data.get_labels(using_multi_class=self.using_multi_class)
             # now adding the movie of those frames in this sliding_window
             source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
             # if i == 0:
@@ -2317,6 +2349,7 @@ def cell_encoding(ms, cell):
     # for that first we need to compute peaks_nums, spike_nums and spike_nums_dur from all onsets
     if cell not in ms.transient_classifier_spike_nums_dur:
         # threshold_factor used to be 0.6
+        # if we put it to 0, then we select all transients
         ms.transient_classifier_spike_nums_dur[cell] = \
             find_all_onsets_and_peaks_on_traces(ms=ms, cell=cell, threshold_factor=1)
     tc_dur = ms.transient_classifier_spike_nums_dur[cell]
@@ -2430,10 +2463,10 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p11_17_11_24_a000_ms",
                      "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
         #  "p9_18_09_27_a003_ms",
-        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 53, 75]),  # 75, 81
-                              "p8_18_10_24_a005_ms": np.array([0, 1]),  # 9, 10
+        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 53, 75, 81]),  #
+                              "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10]),  #
                               # "p9_18_09_27_a003_ms": np.array([3, 5]), # 7, 9
-                              "p11_17_11_24_a000_ms": np.array([3, 22, 24, 29]),  # 24,29
+                              "p11_17_11_24_a000_ms": np.array([3, 22, 24, 29]),  #
                               "p12_171110_a000_ms": np.array([0, 3, 7]),  # 3
                               "p13_18_10_29_a001_ms": np.array([0, 5])}  # 12, 13
         # max p7: 117, max p9: 30, max p12: 6 .build_spike_nums_dur()
@@ -2633,9 +2666,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     return train_data, valid_data, test_data, test_movie_descr, cell_to_load_by_ms
 
 
-def build_model(input_shape, lstm_layers_size, n_inputs, activation_fct="relu",
-                dropout_rate=0,
-                dropout_rnn_rate=0,
+def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, activation_fct="relu",
+                dropout_rate=0, dropout_rnn_rate=0,
                 without_bidirectional=False, with_batch_normalization=False):
     n_frames = input_shape[0]
 
@@ -2645,10 +2677,13 @@ def build_model(input_shape, lstm_layers_size, n_inputs, activation_fct="relu",
     # First, let's define a vision model using a Sequential model.
     # This model will encode an image into a vector.
     # TODO: Try dilated CNN
+    # VGG-like convnet model
     vision_model = Sequential()
     get_custom_objects().update({'swish': Swish(swish)})
     # to choose between swish and relu
 
+    # TODO: Try dilation_rate=2 argument for Conv2D
+    # TODO: Try changing the number of filters like 32 and then 64 (instead of 64 -> 128)
     vision_model.add(Conv2D(64, (3, 3), padding='same', input_shape=input_shape[1:]))
     if activation_fct != "swish":
         vision_model.add(Activation(activation_fct))
@@ -2663,6 +2698,7 @@ def build_model(input_shape, lstm_layers_size, n_inputs, activation_fct="relu",
         vision_model.add(Lambda(swish))
     if with_batch_normalization:
         vision_model.add(BatchNormalization())
+    # TODO: trying AveragePooling
     vision_model.add(MaxPooling2D((2, 2)))
 
     vision_model.add(Conv2D(128, (3, 3), padding='same'))
@@ -2683,7 +2719,20 @@ def build_model(input_shape, lstm_layers_size, n_inputs, activation_fct="relu",
     # vision_model.add(Conv2D(256, (3, 3), activation=activation_fct))
     # vision_model.add(Conv2D(256, (3, 3), activation=activation_fct))
     # vision_model.add(MaxPooling2D((2, 2)))
+    # TODO: see to add Dense layer with Activation
     vision_model.add(Flatten())
+    # size 2048
+    # vision_model.add(Dense(2048))
+    # if activation_fct != "swish":
+    #     vision_model.add(Activation(activation_fct))
+    # else:
+    #     vision_model.add(Lambda(swish))
+    # vision_model.add(Dense(2048))
+    # if activation_fct != "swish":
+    #     vision_model.add(Activation(activation_fct))
+    # else:
+    #     vision_model.add(Lambda(swish))
+
     if dropout_rate > 0:
         vision_model.add(layers.Dropout(dropout_rate))
 
@@ -2710,7 +2759,10 @@ def build_model(input_shape, lstm_layers_size, n_inputs, activation_fct="relu",
                 rnn_input = encoded_frame_sequence
             else:
                 rnn_input = encoded_video
-            return_sequences = (lstm_index < (len(lstm_layers_size) - 1))
+            if using_multi_class <= 1:
+                return_sequences = (lstm_index < (len(lstm_layers_size) - 1))
+            else:
+                return_sequences = True
             if without_bidirectional:
                 encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate,
                                      recurrent_dropout=dropout_rnn_rate,
@@ -2730,89 +2782,10 @@ def build_model(input_shape, lstm_layers_size, n_inputs, activation_fct="relu",
         #                               input_shape=(n_frames, 128))(encoded_frame_sequence)
         encoded_inputs.append(encoded_video)
 
-    # if use_mulimodal_inputs:
-    #     video_input = Input(shape=input_shape, name="video_input")
-    #     # This is our video encoded via the previously trained vision_model (weights are reused)
-    #     encoded_frame_sequence = TimeDistributed(vision_model)(video_input)  # the output will be a sequence of vectors
-    #     if without_bidirectional:
-    #         for lstm_index, lstm_size in enumerate(lstm_layers_size):
-    #             if lstm_index == 0:
-    #                 encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate,
-    #                                      recurrent_dropout=dropout_rnn_rate,
-    #                                      return_sequences=True)(encoded_frame_sequence)
-    #             else:
-    #                 encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate, recurrent_dropout=dropout_rnn_rate)(
-    #                     encoded_video)
-    #     else:
-    #         # encoded_video = LSTM(256)(encoded_frame_sequence)  # the output will be a vector
-    #         for lstm_index, lstm_size in enumerate(lstm_layers_size):
-    #             if lstm_index == 0:
-    #                 encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
-    #                                                    recurrent_dropout=dropout_rnn_rate,
-    #                                                    return_sequences=True))(encoded_frame_sequence)
-    #             else:
-    #                 encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
-    #                                                    recurrent_dropout=dropout_rnn_rate))(encoded_video)
-    #
-    #     # TODO: test if GlobalMaxPool1D +/- dropout is useful here ?
-    #     # encoded_video = GlobalMaxPool1D()(encoded_video)
-    #     # encoded_video = Dropout(0.25)(encoded_video)
-    #
-    #     # if we put input_shape in Bidirectional, it crashes
-    #     # encoded_video = Bidirectional(LSTM(128, return_sequences=True),
-    #     #                               input_shape=(n_frames, 128))(encoded_frame_sequence)
-    #
-    # video_input_masked = Input(shape=input_shape, name="video_input_masked")
-    # # This is our video encoded via the previously trained vision_model (weights are reused)
-    # encoded_frame_sequence_masked = TimeDistributed(vision_model)(
-    #     video_input_masked)  # the output will be a sequence of vectors
-    # # encoded_video_masked = LSTM(256)(encoded_frame_sequence_masked)  # the output will be a vector
-    # if without_bidirectional:
-    #     for lstm_index, lstm_size in enumerate(lstm_layers_size):
-    #         if lstm_index == 0:
-    #             encoded_video_masked = LSTM(lstm_size, dropout=dropout_rnn_rate, recurrent_dropout=dropout_rnn_rate,
-    #                                         return_sequences=True)(encoded_frame_sequence_masked)
-    #         else:
-    #             encoded_video_masked = LSTM(lstm_size, dropout=dropout_rnn_rate,
-    #                                         recurrent_dropout=dropout_rnn_rate)(encoded_video_masked)
-    # else:
-    #     for lstm_index, lstm_size in enumerate(lstm_layers_size):
-    #         if lstm_index == 0:
-    #             encoded_video_masked = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
-    #                                                       recurrent_dropout=dropout_rnn_rate, return_sequences=True))(
-    #                 encoded_frame_sequence_masked)
-    #         else:
-    #             encoded_video_masked = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
-    #                                                       recurrent_dropout=dropout_rnn_rate
-    #                                                       ))(encoded_video_masked)
-
-    # in case we want 2 videos, one with masked, and one with the cell centered
-    # if use_mulimodal_inputs:
-    #     merged = layers.concatenate([encoded_video, encoded_video_masked])
-    #     if with_batch_normalization:
-    #         merged = BatchNormalization()(merged)
-    #     if dropout_rate > 0:
-    #         merged = layers.Dropout(dropout_rate)(merged)
-    #     # TODO: test those 7 lines (https://www.kaggle.com/amansrivastava/exploration-bi-lstm-model)
-    #     # number_dense_units = 1000
-    #     # merged = Dense(number_dense_units, activation=activation_function)(merged)
-    #     # merged = Activation(activation_fct)(merged)
-    #     # if with_batch_normalization:
-    #     #     merged = BatchNormalization()(merged)
-    #     # if dropout_rate > 0:
-    #     #     merged = (layers.Dropout(dropout_rate)(merged)
-    #
-    #     # output = TimeDistributed(Dense(1, activation='sigmoid')))(merged)
-    #     output = Dense(n_frames, activation='sigmoid')(merged)
-    #     video_model = Model(inputs=[video_input, video_input_masked], outputs=output)
-    # else:
-    #     # output = TimeDistributed(Dense(1, activation='sigmoid'))(encoded_video)
-    #     output = Dense(n_frames, activation='sigmoid')(encoded_video_masked)
-    #     video_model = Model(inputs=video_input_masked, outputs=output)
-
     if len(encoded_inputs) == 1:
         merged = encoded_inputs[0]
     else:
+        # TODO: try layers.Average instead of concatenate
         merged = layers.concatenate(encoded_inputs)
 
     if with_batch_normalization:
@@ -2828,8 +2801,12 @@ def build_model(input_shape, lstm_layers_size, n_inputs, activation_fct="relu",
     # if dropout_rate > 0:
     #     merged = (layers.Dropout(dropout_rate)(merged)
 
-    # output = TimeDistributed(Dense(1, activation='sigmoid')))(merged)
-    outputs = Dense(n_frames, activation='sigmoid')(merged)
+    # if we use TimeDistributed then we need to return_sequences during the last LSTM
+    if using_multi_class <= 1:
+        # output = TimeDistributed(Dense(1, activation='sigmoid')))(merged)
+        outputs = Dense(n_frames, activation='sigmoid')(merged)
+    else:
+        outputs = TimeDistributed(Dense(using_multi_class, activation='softmax'))(merged)
     if len(inputs) == 1:
         inputs = inputs[0]
     video_model = Model(inputs=inputs, outputs=outputs)
@@ -3033,18 +3010,24 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
                                                                     augmentation_functions=augmentation_functions)
     # TODO: Read the txt saved after model training to choose generator, pixels_around and buffer values.
     pixels_around = 0
+    using_multi_class = 1
     movie_patch_generator_choices = dict()
     movie_patch_generator_choices["MaskedAndGlobal"] = \
         MoviePatchGeneratorMaskedAndGlobal(window_len=window_len, max_width=max_width, max_height=max_height,
-                                           pixels_around=pixels_around, buffer=buffer)
+                                           pixels_around=pixels_around, buffer=buffer,
+                                           using_multi_class=using_multi_class)
     movie_patch_generator_choices["EachOverlap"] = \
         MoviePatchGeneratorEachOverlap(window_len=window_len, max_width=max_width, max_height=max_height,
-                                       pixels_around=pixels_around, buffer=buffer)
+                                       pixels_around=pixels_around, buffer=buffer, using_multi_class=using_multi_class)
     movie_patch_generator_choices["MaskedCell"] = \
         MoviePatchGeneratorMaskedCell(window_len=window_len, max_width=max_width, max_height=max_height,
-                                      pixels_around=pixels_around, buffer=buffer)
+                                      pixels_around=pixels_around, buffer=buffer, using_multi_class=using_multi_class)
+    movie_patch_generator_choices["MaskedVersions"] = \
+        MoviePatchGeneratorMaskedVersions(window_len=window_len, max_width=max_width, max_height=max_height,
+                                          pixels_around=pixels_around, buffer=buffer, with_neuropil_mask=True,
+                                          using_multi_class=using_multi_class)
 
-    movie_patch_generator = movie_patch_generator_choices["MaskedAndGlobal"]
+    movie_patch_generator = movie_patch_generator_choices["MaskedVersions"]
 
     # source_dict not useful in that case, but necessary for the function to work properly, to change later
     source_dict = dict()
@@ -3233,9 +3216,9 @@ def train_model():
     go_predict_from_movie = False
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p8_18_10_24_a005_ms"], param=param, overlap_value=0.8,
+        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
                                          use_data_augmentation=True,
-                                         cells_to_predict=np.array([9, 10, 13, 28, 41, 42, 207, 321, 110]))
+                                         cells_to_predict=np.arange(11))
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
@@ -3268,15 +3251,15 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-
+    using_multi_class = 1 # 1 or 3 so far
     n_epochs = 40
     batch_size = 16
     window_len = 50
     max_width = 25
     max_height = 25
     overlap_value = 0.9
-    dropout_value = 0.2
-    dropout_value_rnn = 0.2
+    dropout_value = 0.5
+    dropout_value_rnn = 0.5
     with_batch_normalization = False
     max_n_transformations = 6
     pixels_around = 0
@@ -3285,10 +3268,15 @@ def train_model():
     split_values = (0.7, 0.2, 0.1)
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
+    if using_multi_class > 1:
+        loss_fct = 'categorical_crossentropy'
+    else:
+        loss_fct = 'binary_crossentropy'
     with_learning_rate_reduction = True
     learning_rate_reduction_patience = 3
     without_bidirectional = False
-    lstm_layers_size = [256, 512]  # 128, 256, 512
+    # TODO: try 256, 256, 256
+    lstm_layers_size = [128, 256, 512]  # 128, 256, 512
     with_early_stopping = True
     early_stop_patience = 15  # 10
     model_descr = ""
@@ -3301,16 +3289,20 @@ def train_model():
     movie_patch_generator_choices = dict()
     movie_patch_generator_choices["MaskedAndGlobal"] = \
         MoviePatchGeneratorMaskedAndGlobal(window_len=window_len, max_width=max_width, max_height=max_height,
-                                           pixels_around=pixels_around, buffer=buffer)
+                                           pixels_around=pixels_around, buffer=buffer,
+                                           using_multi_class=using_multi_class)
     movie_patch_generator_choices["EachOverlap"] = \
         MoviePatchGeneratorEachOverlap(window_len=window_len, max_width=max_width, max_height=max_height,
-                                           pixels_around=pixels_around, buffer=buffer)
+                                       pixels_around=pixels_around, buffer=buffer,
+                                       using_multi_class=using_multi_class)
     movie_patch_generator_choices["MaskedCell"] = \
         MoviePatchGeneratorMaskedCell(window_len=window_len, max_width=max_width, max_height=max_height,
-                                       pixels_around=pixels_around, buffer=buffer)
+                                      pixels_around=pixels_around, buffer=buffer,
+                                      using_multi_class=using_multi_class)
     movie_patch_generator_choices["MaskedVersions"] = \
         MoviePatchGeneratorMaskedVersions(window_len=window_len, max_width=max_width, max_height=max_height,
-                                       pixels_around=pixels_around, buffer=buffer, with_neuropil_mask=True)
+                                          pixels_around=pixels_around, buffer=buffer, with_neuropil_mask=True,
+                                          using_multi_class=using_multi_class)
 
     movie_patch_generator_for_training = movie_patch_generator_choices["MaskedVersions"]
     movie_patch_generator_for_validation = movie_patch_generator_choices["MaskedVersions"]
@@ -3372,7 +3364,8 @@ def train_model():
                         dropout_rate=dropout_value,
                         dropout_rnn_rate=dropout_value_rnn, without_bidirectional=without_bidirectional,
                         lstm_layers_size=lstm_layers_size,
-                        with_batch_normalization=with_batch_normalization)
+                        with_batch_normalization=with_batch_normalization,
+                        using_multi_class=using_multi_class)
 
     print(model.summary())
     # raise Exception("TOTOOO")
@@ -3401,13 +3394,13 @@ def train_model():
     # precision = PPV and recall = sensitiviy but in our case just concerning the active frames
     # the sensitivity and specificity otherwise refers to non-active and active frames classifier
     model.compile(optimizer=optimizer,
-                  loss='binary_crossentropy',
+                  loss=loss_fct,
                   metrics=['accuracy', sensitivity, specificity, precision])
     # sample_weight_mode="temporal",
 
     # Set a learning rate annealer
     # from: https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
-    learning_rate_reduction = ReduceLROnPlateau(monitor='val_precision',
+    learning_rate_reduction = ReduceLROnPlateau(monitor='val_acc',
                                                 patience=learning_rate_reduction_patience,
                                                 verbose=1,
                                                 factor=0.5,
@@ -3473,6 +3466,9 @@ def train_model():
     round_factor = 1
 
     with open(file_name_txt, "w", encoding='UTF-8') as file:
+
+        file.write(f"using_multi_class: {using_multi_class}" + '\n')
+        file.write(f"loss_fct: {loss_fct}" + '\n')
         file.write(f"n epochs: {n_epochs}" + '\n')
         file.write(f"with_augmentation_for_training_data {with_augmentation_for_training_data}" + '\n')
         file.write(f"batch_size: {batch_size}" + '\n')
