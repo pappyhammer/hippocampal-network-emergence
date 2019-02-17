@@ -2,7 +2,8 @@ import numpy as np
 import hdf5storage
 import keras
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Bidirectional, BatchNormalization
-from keras.layers import Input, LSTM, Embedding, Dense, TimeDistributed, Activation, Lambda
+from keras.layers import Input, LSTM, Embedding, Dense, TimeDistributed, Activation, Lambda, Permute, Reshape, \
+    RepeatVector, Multiply
 from keras.models import Model, Sequential
 from keras.models import model_from_json
 from keras.optimizers import RMSprop, adam, SGD
@@ -404,9 +405,9 @@ class StratificationCamembert:
                                                            self.n_full_transient_total[which_ones]) * 100
                 if self.debug_mode:
                     print(perc_color + f"1 full {which_ones} transient perc: "
-                    f"{str(np.round(self.full_1_transient_perc[which_ones], 2))} %" + reset_color)
+                                       f"{str(np.round(self.full_1_transient_perc[which_ones], 2))} %" + reset_color)
                     print(perc_color + f"2+ full {which_ones} transient perc: "
-                    f"{str(np.round(self.full_2p_transient_perc[which_ones], 2))} %" + reset_color)
+                                       f"{str(np.round(self.full_2p_transient_perc[which_ones], 2))} %" + reset_color)
             if self.debug_mode:
                 print(f"{which_ones}: n_cropped_transient_dict {self.n_cropped_transient_dict[which_ones]}")
             self.n_cropped_transient_total[which_ones] = 0
@@ -424,9 +425,9 @@ class StratificationCamembert:
                                                            self.n_transient_total[which_ones]) * 100
                 if self.debug_mode:
                     print(perc_color + f"Full {which_ones}: "
-                    f"{str(np.round(self.full_transient_perc[which_ones], 2))} %" + reset_color)
+                                       f"{str(np.round(self.full_transient_perc[which_ones], 2))} %" + reset_color)
                     print(perc_color + f"Cropped {which_ones}: "
-                    f"{str(np.round(self.cropped_transient_perc[which_ones], 2))} %" + reset_color)
+                                       f"{str(np.round(self.cropped_transient_perc[which_ones], 2))} %" + reset_color)
             if self.debug_mode and (len(self.transient_lengths[which_ones]) > 0):
                 print(f"{which_ones}: transient_lengths n {len(self.transient_lengths[which_ones])} / "
                       f"min-max {np.min(self.transient_lengths[which_ones])} - "
@@ -438,9 +439,9 @@ class StratificationCamembert:
         if self.debug_mode:
             for which_ones in ["real", "fake"]:
                 print(perc_color + f"Total movie with {which_ones} transients {self.n_transient_total[which_ones]}: "
-                f"{str(np.round(self.total_transient_perc[which_ones], 2))} %" + reset_color)
+                                   f"{str(np.round(self.total_transient_perc[which_ones], 2))} %" + reset_color)
             print(perc_color + f"n_only_neuropil {self.n_only_neuropil}: "
-            f"{str(np.round(self.only_neuropil_perc, 2))} %" + reset_color)
+                               f"{str(np.round(self.only_neuropil_perc, 2))} %" + reset_color)
             print("")
             print("")
 
@@ -1267,7 +1268,7 @@ class MoviePatchData:
                 self.movie_info["only_neuropil"] = True
 
     def get_labels(self, using_multi_class):
-        frames = np.arange(self.index_movie, self.last_index_movie+1)
+        frames = np.arange(self.index_movie, self.last_index_movie + 1)
         if using_multi_class <= 1:
             spike_nums_dur = self.ms.spike_struct.spike_nums_dur
             return spike_nums_dur[self.cell, frames]
@@ -1635,10 +1636,10 @@ class MoviePatchGeneratorMaskedVersions(MoviePatchGenerator):
             mask_source_profiles_keys = np.array(list(mask_source_profiles.keys()))
 
             mask_for_all_cells = np.zeros((source_profile_frames.shape[1], source_profile_frames.shape[2]),
-                                           dtype="int8")
+                                          dtype="int8")
             if self.with_neuropil_mask:
                 neuropil_mask = np.zeros((source_profile_frames.shape[1], source_profile_frames.shape[2]),
-                                               dtype="int8")
+                                         dtype="int8")
             for cell_index, mask_source_profile in mask_source_profiles.items():
                 if cell_index == cell:
                     source_profile_frames_masked = np.copy(source_profile_frames)
@@ -1667,13 +1668,13 @@ class MoviePatchGeneratorMaskedVersions(MoviePatchGenerator):
                     continue
                 else:
                     # mask_source_profile worth zero for the pixels in the cell
-                    mask_for_all_cells[1-mask_source_profile] = 1
+                    mask_for_all_cells[1 - mask_source_profile] = 1
                     if self.with_neuropil_mask:
                         neuropil_mask[1 - mask_source_profile] = 1
 
             if len(mask_source_profiles) > 0:
                 source_profile_frames_masked = np.copy(source_profile_frames)
-                source_profile_frames_masked[:, 1-mask_for_all_cells] = 0
+                source_profile_frames_masked[:, 1 - mask_for_all_cells] = 0
 
                 # doing augmentation if the function exists
                 if augmentation_fct is not None:
@@ -2052,7 +2053,7 @@ class DataGenerator(keras.utils.Sequence):
         #                                                           buffer=self.buffer,
         #                                                           source_profiles_dict=self.source_profiles_dict)
         data_dict, labels = self.movie_patch_generator.generate_movies_from_metadata(movie_data_list=data_list_tmp,
-                                                            memory_dict=self.source_profiles_dict)
+                                                                                     memory_dict=self.source_profiles_dict)
         # print(f"__data_generation data.shape {data.shape}")
         # put more weight to the active frames
         # TODO: reshape labels such as shape is (batch_size, window_len, 1) and then use "temporal" mode in compile
@@ -2436,7 +2437,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     # p13_18_10_29_a001_GUI_transients_RD.mat
     """
     print("load_data_for_generator")
-    use_small_sample = False
+    use_small_sample = True
     # used for counting how many cells and transients available
     load_them_all = False
     if load_them_all:
@@ -2666,9 +2667,32 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     return train_data, valid_data, test_data, test_movie_descr, cell_to_load_by_ms
 
 
+def attention_3d_block(inputs, time_steps, use_single_attention_vector=False):
+    """
+    from: https://github.com/philipperemy/keras-attention-mechanism
+    :param inputs:
+    :param use_single_attention_vector:  if True, the attention vector is shared across
+    the input_dimensions where the attention is applied.
+    :return:
+    """
+    # inputs.shape = (batch_size, time_steps, input_dim)
+    input_dim = int(inputs.shape[2])
+    a = Permute((2, 1))(inputs)
+    # a = Reshape((input_dim, time_steps))(a)  # this line is not useful. It's just to know which dimension is what.
+    a = Dense(time_steps, activation='softmax')(a)
+    if use_single_attention_vector:
+        a = Lambda(lambda x: K.mean(x, axis=1), name='dim_reduction')(a)
+        a = RepeatVector(input_dim)(a)
+    a_probs = Permute((2, 1), name='attention_vec')(a)
+    output_attention_mul = Multiply([inputs, a_probs])
+    return output_attention_mul
+
+
 def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, activation_fct="relu",
-                dropout_rate=0, dropout_rnn_rate=0,
-                without_bidirectional=False, with_batch_normalization=False):
+                dropout_rate=0, dropout_rnn_rate=0, without_bidirectional=False,
+                with_batch_normalization=False, apply_attention=False, apply_attention_before_lstm=True,
+                use_single_attention_vector=False, use_bin_at_al_version=False):
+    # n_frames represent the time-steps
     n_frames = input_shape[0]
 
     ##########################################################################
@@ -2737,11 +2761,11 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, acti
         vision_model.add(layers.Dropout(dropout_rate))
 
     ##########################################################################
-    #######################" END VISION MODEL ################################
+    # ######################" END VISION MODEL ################################
     ##########################################################################
 
     ##########################################################################
-    ############################### BD LSTM ##################################
+    # ############################## BD LSTM ##################################
     ##########################################################################
     # inputs are the original movie patches
     inputs = []
@@ -2754,12 +2778,20 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, acti
         # This is our video encoded via the previously trained vision_model (weights are reused)
         encoded_frame_sequence = TimeDistributed(vision_model)(video_input)  # the output will be a sequence of vectors
 
+        if apply_attention and apply_attention_before_lstm:
+            # adding attention mechanism
+            encoded_frame_sequence = attention_3d_block(inputs=encoded_frame_sequence, time_steps=n_frames,
+                                                        use_single_attention_vector=use_single_attention_vector)
+
         for lstm_index, lstm_size in enumerate(lstm_layers_size):
             if lstm_index == 0:
                 rnn_input = encoded_frame_sequence
             else:
                 rnn_input = encoded_video
-            if using_multi_class <= 1:
+
+            if apply_attention and (not apply_attention_before_lstm):
+                return_sequences = True
+            elif using_multi_class <= 1:
                 return_sequences = (lstm_index < (len(lstm_layers_size) - 1))
             else:
                 return_sequences = True
@@ -2767,19 +2799,28 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, acti
                 encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate,
                                      recurrent_dropout=dropout_rnn_rate,
                                      return_sequences=return_sequences)(rnn_input)
+                # From Bin et al. test adding merging LSTM results + CNN representation then attention
+                if use_bin_at_al_version:
+                    encoded_video = layers.concatenate([encoded_video, encoded_frame_sequence])
             else:
                 encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
                                                    recurrent_dropout=return_sequences,
-                                                   return_sequences=return_sequences))(rnn_input)
+                                                   return_sequences=return_sequences), merge_mode='concat',)(rnn_input)
+                # From Bin et al. test adding merging LSTM results + CNN represnetation then attention
+                if use_bin_at_al_version:
+                    encoded_video = layers.concatenate([encoded_video, encoded_frame_sequence])
 
-
-        # TODO: test if GlobalMaxPool1D +/- dropout is useful here ?
+                # TODO: test if GlobalMaxPool1D +/- dropout is useful here ?
         # encoded_video = GlobalMaxPool1D()(encoded_video)
         # encoded_video = Dropout(0.25)(encoded_video)
-
-        # if we put input_shape in Bidirectional, it crashes
-        # encoded_video = Bidirectional(LSTM(128, return_sequences=True),
-        #                               input_shape=(n_frames, 128))(encoded_frame_sequence)
+        # We can either apply attention a the end of each LSTM, or do it after the concatenation of all of them
+        # it's the same if there is only one encoded_input
+        # if apply_attention and (not apply_attention_before_lstm):
+        #     # adding attention mechanism
+        #     encoded_video = attention_3d_block(inputs=encoded_video, time_steps=n_frames,
+        #                                        use_single_attention_vector=use_single_attention_vector)
+        #     if using_multi_class <= 1:
+        #         encoded_video = Flatten()(encoded_video)
         encoded_inputs.append(encoded_video)
 
     if len(encoded_inputs) == 1:
@@ -2787,6 +2828,18 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, acti
     else:
         # TODO: try layers.Average instead of concatenate
         merged = layers.concatenate(encoded_inputs)
+    # TODO: From Bin et al. test adding a LSTM here that will take merged as inputs + CNN represnetation (as attention)
+    # Return sequences will have to be True and activate the CNN representation
+    if use_bin_at_al_version:
+        merged = LSTM(256, dropout=dropout_rnn_rate,
+                      recurrent_dropout=dropout_rnn_rate,
+                      return_sequences=True)(merged)
+        if apply_attention and (not apply_attention_before_lstm):
+            # adding attention mechanism
+            merged = attention_3d_block(inputs=merged, time_steps=n_frames,
+                                               use_single_attention_vector=use_single_attention_vector)
+            if using_multi_class <= 1:
+                merged = Flatten()(merged)
 
     if with_batch_normalization:
         merged = BatchNormalization()(merged)
@@ -2803,7 +2856,7 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, acti
 
     # if we use TimeDistributed then we need to return_sequences during the last LSTM
     if using_multi_class <= 1:
-        # output = TimeDistributed(Dense(1, activation='sigmoid')))(merged)
+        # outputs = TimeDistributed(Dense(1, activation='sigmoid')))(merged)
         outputs = Dense(n_frames, activation='sigmoid')(merged)
     else:
         outputs = TimeDistributed(Dense(using_multi_class, activation='softmax'))(merged)
@@ -3035,7 +3088,6 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
                                                                     memory_dict=source_dict,
                                                                     with_labels=False)
 
-
     # data, data_masked, \
     # data_frame_indices = get_source_profile_for_prediction(ms=ms, cell=cell,
     #                                                        sliding_window_len=sliding_window_len,
@@ -3083,7 +3135,7 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
             real_predictions = np.zeros(n_frames)
             modulo = n_frames % window_len
             real_predictions[:len(predictions) - window_len] = predictions[
-                                                                       :len(predictions) - window_len]
+                                                               :len(predictions) - window_len]
             real_predictions[len(predictions) - window_len:] = predictions[-modulo:]
             predictions = real_predictions
 
@@ -3251,7 +3303,7 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    using_multi_class = 1 # 1 or 3 so far
+    using_multi_class = 1  # 1 or 3 so far
     n_epochs = 40
     batch_size = 16
     window_len = 50
@@ -3368,7 +3420,7 @@ def train_model():
                         using_multi_class=using_multi_class)
 
     print(model.summary())
-    # raise Exception("TOTOOO")
+    raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(
@@ -3527,7 +3579,7 @@ def train_model():
     source_profiles_dict = dict()
     test_data_dict, test_labels = \
         movie_patch_generator_for_test.generate_movies_from_metadata(movie_data_list=test_data_list,
-                                                            memory_dict=source_profiles_dict)
+                                                                     memory_dict=source_profiles_dict)
     stop_time = time.time()
     print(f"Time for generating test data: "
           f"{np.round(stop_time - start_time, 3)} s")
@@ -3545,7 +3597,7 @@ def train_model():
 
     test_loss, test_acc, test_sensitivity, test_specificity, test_precision = \
         model.evaluate(test_data_dict,
-                           test_labels, verbose=2)
+                       test_labels, verbose=2)
 
     print(f"test_acc {test_acc}, test_sensitivity {test_sensitivity}, test_specificity {test_specificity}, "
           f"test_precision {test_precision}")
