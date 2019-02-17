@@ -1451,16 +1451,17 @@ class MoviePatchGenerator:
     vary depending on the class instantiated
     """
 
-    def __init__(self, window_len, max_width, max_height):
+    def __init__(self, window_len, max_width, max_height, using_multi_class):
         self.window_len = window_len
         self.max_width = max_width
         self.max_height = max_height
+        self.using_multi_class = using_multi_class
 
     # self.n_inputs shouldn't be changed
     def get_nb_inputs(self):
         return self.n_inputs
 
-    def generate_movies_from_metadata(self, movie_data_list, memory_dict, using_multi_class, with_labels=True):
+    def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
         pass
 
 
@@ -1472,11 +1473,11 @@ class MoviePatchGeneratorMaskedAndGlobal(MoviePatchGenerator):
 
     def __init__(self, window_len, max_width, max_height, pixels_around,
                  buffer, using_multi_class):
-        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height)
+        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height,
+                         using_multi_class=using_multi_class)
         self.pixels_around = pixels_around
         self.buffer = buffer
         self.n_inputs = 2
-        self.using_multi_class = using_multi_class
 
     def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
         source_profiles_dict = memory_dict
@@ -1551,6 +1552,79 @@ class MoviePatchGeneratorMaskedAndGlobal(MoviePatchGenerator):
         return f"{self.n_inputs} inputs. Main cell mask + pixels around that contain overlaping cells"
 
 
+class MoviePatchGeneratorGlobal(MoviePatchGenerator):
+    """
+    Will generate one input being the masked cell (the one we focus on) and the second input
+    would be the whole patch with all pixels given
+    """
+
+    def __init__(self, window_len, max_width, max_height, pixels_around,
+                 buffer, using_multi_class):
+        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height,
+                         using_multi_class=using_multi_class)
+        self.pixels_around = pixels_around
+        self.buffer = buffer
+        self.n_inputs = 2
+
+    def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
+        source_profiles_dict = memory_dict
+        batch_size = len(movie_data_list)
+        data = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
+        if with_labels:
+            if self.using_multi_class <= 1:
+                labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+            else:
+                labels = np.zeros((batch_size, self.window_len, self.using_multi_class), dtype="uint8")
+        # Generate data
+        for index_batch, movie_data in enumerate(movie_data_list):
+            ms = movie_data.ms
+            cell = movie_data.cell
+            frame_index = movie_data.index_movie
+            augmentation_fct = movie_data.data_augmentation_fct
+
+            # now we generate the source profile of the cell for those frames and retrieve it if it has
+            # already been generated
+            src_profile_key = ms.description + str(cell)
+            if src_profile_key in source_profiles_dict:
+                mask_source_profile, coords = source_profiles_dict[src_profile_key]
+            else:
+                mask_source_profile, coords = \
+                    get_source_profile_param(cell=cell, ms=ms, pixels_around=self.pixels_around,
+                                             buffer=self.buffer,
+                                             max_width=self.max_width, max_height=self.max_height)
+                source_profiles_dict[src_profile_key] = [mask_source_profile, coords]
+
+            frames = np.arange(frame_index, frame_index + self.window_len)
+            if with_labels:
+                labels[index_batch] = movie_data.get_labels(using_multi_class=self.using_multi_class)
+            # now adding the movie of those frames in this sliding_window
+            source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
+
+            # doing augmentation if the function exists
+            if augmentation_fct is not None:
+                source_profile_frames = augmentation_fct(source_profile_frames)
+
+            # then we fit it the frame use by the network, padding the surrounding by zero if necessary
+            profile_fit = np.zeros((len(frames), self.max_height, self.max_width))
+            # we center the source profile
+            y_coord = (profile_fit.shape[1] - source_profile_frames.shape[1]) // 2
+            x_coord = (profile_fit.shape[2] - source_profile_frames.shape[2]) // 2
+            profile_fit[:, y_coord:source_profile_frames.shape[1] + y_coord,
+            x_coord:source_profile_frames.shape[2] + x_coord] = \
+                source_profile_frames
+
+            profile_fit = profile_fit.reshape((profile_fit.shape[0], profile_fit.shape[1], profile_fit.shape[2], 1))
+
+            data[index_batch] = profile_fit
+
+        if with_labels:
+            return {"input_0": data}, labels
+        else:
+            return {"input_0": data}
+
+    def __str__(self):
+        return f"{self.n_inputs} inputs. Main cell mask + pixels around that contain overlaping cells"
+
 class MoviePatchGeneratorMaskedVersions(MoviePatchGenerator):
     """
     Will generate one input being the masked cell (the one we focus on), the second input
@@ -1560,11 +1634,11 @@ class MoviePatchGeneratorMaskedVersions(MoviePatchGenerator):
 
     def __init__(self, window_len, max_width, max_height, pixels_around,
                  buffer, with_neuropil_mask, using_multi_class):
-        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height)
+        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height,
+                         using_multi_class=using_multi_class)
         self.pixels_around = pixels_around
         self.buffer = buffer
         self.with_neuropil_mask = with_neuropil_mask
-        self.using_multi_class = using_multi_class
         self.n_inputs = 2
         if with_neuropil_mask:
             self.n_inputs += 1
@@ -1747,10 +1821,10 @@ class MoviePatchGeneratorEachOverlap(MoviePatchGenerator):
 
     def __init__(self, window_len, max_width, max_height, pixels_around,
                  buffer, using_multi_class):
-        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height)
+        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height,
+                         using_multi_class=using_multi_class)
         self.pixels_around = pixels_around
         self.buffer = buffer
-        self.using_multi_class = using_multi_class
         self.n_inputs = 6
 
     def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
@@ -1869,10 +1943,10 @@ class MoviePatchGeneratorMaskedCell(MoviePatchGenerator):
 
     def __init__(self, window_len, max_width, max_height, pixels_around,
                  buffer, using_multi_class):
-        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height)
+        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height,
+                         using_multi_class=using_multi_class)
         self.pixels_around = pixels_around
         self.buffer = buffer
-        self.using_multi_class = using_multi_class
         self.n_inputs = 1
 
     def __str__(self):
