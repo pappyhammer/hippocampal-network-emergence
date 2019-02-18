@@ -2506,7 +2506,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     (with transients 9 (25), 10 (43), 13(83), 28(53), 41(55), 42(63),, 207(16), 321(36), 110(27)): best 13 & 42
     p9_18_09_27_a003_ms: up to cell 31 included
     p11_17_11_24_a000: 0 to 25 + 29
-    p12_171110_a000_ms: up to cell 9 included (10 soon)
+    p12_171110_a000_ms: up to cell 10 included + cell 14
     p13_18_10_29_a001: 0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117
 
     # p13_18_10_29_a001_GUI_transients_RD.mat
@@ -2532,7 +2532,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
         ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 6])}
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0])} # 3, 6
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
@@ -2765,8 +2765,8 @@ def attention_3d_block(inputs, time_steps, use_single_attention_vector=False):
 
 def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, activation_fct="relu",
                 dropout_rate=0, dropout_rnn_rate=0, without_bidirectional=False,
-                with_batch_normalization=False, apply_attention=False, apply_attention_before_lstm=True,
-                use_single_attention_vector=False, use_bin_at_al_version=False):
+                with_batch_normalization=False, apply_attention=False, apply_attention_before_lstm=False,
+                use_single_attention_vector=False, use_bin_at_al_version=True):
     # n_frames represent the time-steps
     n_frames = input_shape[0]
 
@@ -2866,6 +2866,8 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, acti
 
             if apply_attention and (not apply_attention_before_lstm):
                 return_sequences = True
+            elif use_bin_at_al_version:
+                return_sequences = True
             elif using_multi_class <= 1:
                 return_sequences = (lstm_index < (len(lstm_layers_size) - 1))
             else:
@@ -2913,8 +2915,8 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, acti
             # adding attention mechanism
             merged = attention_3d_block(inputs=merged, time_steps=n_frames,
                                                use_single_attention_vector=use_single_attention_vector)
-            if using_multi_class <= 1:
-                merged = Flatten()(merged)
+            # if using_multi_class <= 1:
+            #     merged = Flatten()(merged)
 
     if with_batch_normalization:
         merged = BatchNormalization()(merged)
@@ -3399,8 +3401,8 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    using_multi_class = 3  # 1 or 3 so far
-    n_epochs = 20
+    using_multi_class = 1  # 1 or 3 so far
+    n_epochs = 1
     batch_size = 16
     window_len = 50
     max_width = 25
@@ -3413,7 +3415,7 @@ def train_model():
     pixels_around = 0
     with_augmentation_for_training_data = True
     buffer = 1
-    split_values = (0.7, 0.2, 0.1)
+    split_values = (0.6, 0.2, 0.2)
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
     if using_multi_class > 1:
@@ -3424,14 +3426,14 @@ def train_model():
     learning_rate_reduction_patience = 3
     without_bidirectional = False
     # TODO: try 256, 256, 256
-    lstm_layers_size = [256, 512]  # 128, 256, 512
+    lstm_layers_size = [128]  # 128, 256, 512
     with_early_stopping = True
     early_stop_patience = 5  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
     # main_ratio_balance = (0.6, 0.2, 0.2)
-    main_ratio_balance = (0.4, 0.3, 0.3)
+    main_ratio_balance = (0.6, 0.3, 0.1)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
 
@@ -3453,9 +3455,9 @@ def train_model():
                                           pixels_around=pixels_around, buffer=buffer, with_neuropil_mask=True,
                                           using_multi_class=using_multi_class)
 
-    movie_patch_generator_for_training = movie_patch_generator_choices["MaskedAndGlobal"]
-    movie_patch_generator_for_validation = movie_patch_generator_choices["MaskedAndGlobal"]
-    movie_patch_generator_for_test = movie_patch_generator_choices["MaskedAndGlobal"]
+    movie_patch_generator_for_training = movie_patch_generator_choices["MaskedVersions"]
+    movie_patch_generator_for_validation = movie_patch_generator_choices["MaskedVersions"]
+    movie_patch_generator_for_test = movie_patch_generator_choices["MaskedVersions"]
 
     params_generator = {
         'batch_size': batch_size,
@@ -3685,10 +3687,18 @@ def train_model():
     # test_labels
     n_test_frames = 0
     n_rights = 0
+
     for batch_labels in test_labels:
-        n_rights += len(batch_labels) - np.sum(batch_labels)
-        n_test_frames += len(batch_labels)
-    print(f"Default test accuracy {str(np.round(n_rights / n_test_frames, 3))}")
+        if len(batch_labels.shape) == 1:
+            n_rights += len(batch_labels) - np.sum(batch_labels)
+            n_test_frames += len(batch_labels)
+        else:
+            n_rights += len(batch_labels) - np.sum(batch_labels[:, 0])
+            n_test_frames += len(batch_labels)
+
+    if n_test_frames > 0:
+        print(f"Default test accuracy {str(np.round(n_rights / n_test_frames, 3))}")
+
 
     start_time = time.time()
 

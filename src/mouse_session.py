@@ -2698,6 +2698,7 @@ class MouseSession:
                 beg = (window_length - 1) // 2
                 self.smooth_traces[i] = smooth_signal[beg:-beg]
         if "coord" in variables_mapping:
+            # coming from matlab
             self.coord = data[variables_mapping["coord"]][0]
             self.coord_obj = CoordClass(coord=self.coord, nb_col=200,
                                         nb_lines=200)
