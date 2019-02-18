@@ -2334,7 +2334,8 @@ def get_source_profile_frames(ms, frames, coords):
 
 
 def find_all_onsets_and_peaks_on_traces(ms, cell, threshold_factor=0.5):
-    trace = ms.traces[cell]
+    # trace = ms.traces[cell]
+    trace = ms.smooth_traces[cell]
     n_frames = trace.shape[0]
     peak_nums = np.zeros(n_frames, dtype="int8")
     peaks, properties = signal.find_peaks(x=trace, distance=2)
@@ -2392,13 +2393,13 @@ def find_all_onsets_and_peaks_on_traces(ms, cell, threshold_factor=0.5):
 
 def cell_encoding(ms, cell):
     # so far we need ms.traces
-    n_frames = ms.traces.shape[1]
+    n_frames = ms.smooth_traces.shape[1]
     encoded_frames = np.zeros(n_frames, dtype="int16")
     decoding_frame_dict = dict()
     # zero will be the Neuropil
     decoding_frame_dict[0] = NeuropilEvent(frame_index=None)
     next_code = 1
-    if ms.z_score_traces is None:
+    if ms.z_score_smooth_traces is None:
         # creatin the z_score traces
         ms.normalize_traces()
 
@@ -2531,7 +2532,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
         ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0])}
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 6])}
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
@@ -3126,6 +3127,14 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
     window_len = model.layers[0].output_shape[1]
     max_height = model.layers[0].output_shape[2]
     max_width = model.layers[0].output_shape[3]
+
+    # Determining how many classes were used
+    if len(model.layers[-1].output_shape) == 2:
+        using_multi_class = 1
+    else:
+        using_multi_class = model.layers[-1].output_shape[2]
+        # print(f"predict_transient_from_model using_multi_class {using_multi_class}")
+
     if use_data_augmentation:
         augmentation_functions = [horizontal_flip, vertical_flip, v_h_flip]
     else:
@@ -3137,7 +3146,6 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
                                                                     augmentation_functions=augmentation_functions)
     # TODO: Read the txt saved after model training to choose generator, pixels_around and buffer values.
     pixels_around = 0
-    using_multi_class = 1
     movie_patch_generator_choices = dict()
     movie_patch_generator_choices["MaskedAndGlobal"] = \
         MoviePatchGeneratorMaskedAndGlobal(window_len=window_len, max_width=max_width, max_height=max_height,
@@ -3182,6 +3190,8 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
 
     predictions = model.predict(data_dict)
 
+    # print(f"predict_transient_from_model predictions.shape {predictions.shape}")
+
     stop_time = time.time()
     print(f"Time to get predictions for cell {cell}: "
           f"{np.round(stop_time - start_time, 3)} s")
@@ -3195,18 +3205,30 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
             predictions_for_frames = predictions[i]
             for j, frame_index in enumerate(frames_index):
                 if frame_index not in frames_predictions:
-                    frames_predictions[frame_index] = []
-                frames_predictions[frame_index].append(predictions_for_frames[j])
+                    frames_predictions[frame_index] = dict()
+                if len(predictions_for_frames.shape) == 1:
+                    if 0 not in frames_predictions[frame_index]:
+                        frames_predictions[frame_index][0] = []
+                    frames_predictions[frame_index][0].append(predictions_for_frames[j])
+                else:
+                    # then it's muti_class labels
+                    for index in np.arange(len(predictions_for_frames[j])):
+                        if index not in frames_predictions[frame_index]:
+                            frames_predictions[frame_index][index] = []
+                        frames_predictions[frame_index][index].append(predictions_for_frames[j, index])
 
-        predictions = np.zeros(n_frames)
-        for frame_index, prediction_values in frames_predictions.items():
-            predictions[frame_index] = np.mean(prediction_values)
+        predictions = np.zeros((n_frames, using_multi_class))
+        for frame_index, class_dict in frames_predictions.items():
+            for class_index, prediction_values in class_dict.items():
+                predictions[frame_index, class_index] = np.mean(prediction_values)
     else:
-        predictions = np.ndarray.flatten(predictions)
+        # to flatten all but last dimensions
+        predictions = predictions.reshape(-1, predictions.shape[-1])
+        # predictions = np.ndarray.flatten(predictions)
 
         # now we remove the extra prediction in case the number of frames was not divisible by the window length
         if (n_frames % window_len) != 0:
-            real_predictions = np.zeros(n_frames)
+            real_predictions = np.zeros((n_frames, using_multi_class))
             modulo = n_frames % window_len
             real_predictions[:len(predictions) - window_len] = predictions[
                                                                :len(predictions) - window_len]
@@ -3377,8 +3399,8 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 40
+    using_multi_class = 3  # 1 or 3 so far
+    n_epochs = 20
     batch_size = 16
     window_len = 50
     max_width = 25
@@ -3402,13 +3424,14 @@ def train_model():
     learning_rate_reduction_patience = 3
     without_bidirectional = False
     # TODO: try 256, 256, 256
-    lstm_layers_size = [128, 256, 512]  # 128, 256, 512
+    lstm_layers_size = [256, 512]  # 128, 256, 512
     with_early_stopping = True
-    early_stop_patience = 15  # 10
+    early_stop_patience = 5  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
-    main_ratio_balance = (0.6, 0.2, 0.2)
+    # main_ratio_balance = (0.6, 0.2, 0.2)
+    main_ratio_balance = (0.4, 0.3, 0.3)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
 
@@ -3430,9 +3453,9 @@ def train_model():
                                           pixels_around=pixels_around, buffer=buffer, with_neuropil_mask=True,
                                           using_multi_class=using_multi_class)
 
-    movie_patch_generator_for_training = movie_patch_generator_choices["MaskedVersions"]
-    movie_patch_generator_for_validation = movie_patch_generator_choices["MaskedVersions"]
-    movie_patch_generator_for_test = movie_patch_generator_choices["MaskedVersions"]
+    movie_patch_generator_for_training = movie_patch_generator_choices["MaskedAndGlobal"]
+    movie_patch_generator_for_validation = movie_patch_generator_choices["MaskedAndGlobal"]
+    movie_patch_generator_for_test = movie_patch_generator_choices["MaskedAndGlobal"]
 
     params_generator = {
         'batch_size': batch_size,
@@ -3494,7 +3517,7 @@ def train_model():
                         using_multi_class=using_multi_class)
 
     print(model.summary())
-    raise Exception("TOTOOO")
+    # raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(

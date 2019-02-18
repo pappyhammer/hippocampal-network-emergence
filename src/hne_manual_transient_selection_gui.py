@@ -782,7 +782,22 @@ class ManualOnsetFrame(tk.Frame):
         self.spike_nums = data_and_param.spike_nums
         self.nb_neurons = len(self.spike_nums)
         self.nb_times = len(self.spike_nums[0, :])
-        self.traces = data_and_param.traces
+
+        self.raw_traces = self.data_and_param.raw_traces
+
+        # self.traces = data_and_param.traces
+
+        self.traces = np.copy(self.raw_traces)
+        # smoothing the trace
+        windows = ['hanning', 'hamming', 'bartlett', 'blackman']
+        i_w = 1
+        window_length = 11
+        for i in np.arange(self.nb_neurons):
+            smooth_signal = smooth_convolve(x=self.traces[i], window_len=window_length,
+                                            window=windows[i_w])
+            beg = (window_length - 1) // 2
+            self.traces[i] = smooth_signal[beg:-beg]
+
         # will be initialize in the function normalize_traces
         self.ratio_traces = None
         self.nb_times_traces = len(self.traces[0, :])
@@ -794,7 +809,6 @@ class ManualOnsetFrame(tk.Frame):
         self.to_agree_peak_nums = self.data_and_param.to_agree_peak_nums
         self.to_agree_spike_nums = self.data_and_param.to_agree_spike_nums
         # print(f"len(peak_nums) {len(peak_nums)}")
-        self.raw_traces = self.data_and_param.raw_traces
         self.display_mvt = False
         self.mvt_frames_periods = None
         if self.data_and_param.ms.mvt_frames_periods is not None:
@@ -2659,6 +2673,10 @@ class ManualOnsetFrame(tk.Frame):
                                                          json_file=self.transient_classifier_json_file,
                                                          overlap_value=0.8, use_data_augmentation=False,
                                                          buffer=1)
+        # predictions as two dimension, first one represents the frame, the second one the prediction
+        # for each class
+        # print(f"predictions.shape {predictions.shape}")
+        # raise Exception("TOTO TOTO")
         self.transient_prediction[cell] = predictions
         self.transient_prediction_periods[cell] = dict()
 
@@ -4308,20 +4326,68 @@ class ManualOnsetFrame(tk.Frame):
             classifier_filling_color = "forestgreen"
             if self.current_neuron in self.transient_prediction:
                 predictions = self.transient_prediction[self.current_neuron]
-
-                self.axe_plot.plot(np.arange(self.nb_times_traces), predictions,
-                                   color="red", zorder=20)
+                if predictions.shape[1] == 1:
+                    predictions_color = "red"
+                else:
+                    predictions_color = "dimgrey"
+                for index_pred in np.arange(predictions.shape[1]):
+                    self.axe_plot.plot(np.arange(self.nb_times_traces),
+                                       (predictions[:, index_pred] / 2) - (0.75*index_pred),
+                                       color=predictions_color, zorder=20)
                 threshold_tc = self.transient_classifier_threshold
                 self.axe_plot.hlines(threshold_tc, 0, self.nb_times_traces - 1, color="red",
                                      linewidth=0.5,
                                      linestyles="dashed")
                 if threshold_tc not in self.transient_prediction_periods[self.current_neuron]:
-                    predicted_raster_dur = np.zeros(len(predictions), dtype="int8")
-                    predicted_raster_dur[predictions >= threshold_tc] = 1
+                    predicted_raster_dur = np.zeros(predictions.shape[0], dtype="int8")
+                    if predictions.shape[1] == 1:
+                        real_transient_frames = predictions[:, 0] >= threshold_tc
+                    elif predictions.shape[1] == 3:
+                        # real transient, fake ones, other (neuropil, decay etc...)
+                        # keeping predictions about real transient when superior
+                        # to other prediction on the same frame
+                        max_pred_by_frame = np.max(predictions, axis=1)
+                        real_transient_frames = (predictions[:, 0] == max_pred_by_frame)
+                        for class_index in np.arange(predictions.shape[1]):
+                            frames_index = (predictions[:, class_index] == max_pred_by_frame)
+                            tmp_raster_dur = np.zeros(predictions.shape[0], dtype="int8")
+                            tmp_raster_dur[frames_index] = 1
+                            periods = get_continous_time_periods(tmp_raster_dur)
+                            for period in periods:
+                                frames = np.arange(period[0], period[1]+1)
+                                self.axe_plot.plot(frames,
+                                                   (predictions[frames, class_index] / 2) -
+                                                   (0.75 * class_index), lw=2,
+                                                   color="red", zorder=21)
+                    elif predictions.shape[1] == 2:
+                        # real transient, fake ones
+                        # keeping predictions about real transient superior to the threshold
+                        # and superior to other prediction on the same frame
+                        max_pred_by_frame = np.max(predictions, axis=1)
+                        real_transient_frames = np.logical_and((predictions[:, 0] >= threshold_tc),
+                                                               (predictions[:, 0] == max_pred_by_frame))
+                    predicted_raster_dur[real_transient_frames] = 1
                     active_periods = get_continous_time_periods(predicted_raster_dur)
                     self.transient_prediction_periods[self.current_neuron][threshold_tc] = active_periods
                 else:
                     active_periods = self.transient_prediction_periods[self.current_neuron][threshold_tc]
+                    if predictions.shape[1] == 3:
+                        # real transient, fake ones, other (neuropil, decay etc...)
+                        # keeping predictions about real transient when superior
+                        # to other prediction on the same frame
+                        max_pred_by_frame = np.max(predictions, axis=1)
+                        real_transient_frames = (predictions[:, 0] == max_pred_by_frame)
+                        for class_index in np.arange(predictions.shape[1]):
+                            frames_index = (predictions[:, class_index] == max_pred_by_frame)
+                            tmp_raster_dur = np.zeros(predictions.shape[0], dtype="int8")
+                            tmp_raster_dur[frames_index] = 1
+                            periods = get_continous_time_periods(tmp_raster_dur)
+                            for period in periods:
+                                frames = np.arange(period[0], period[1] + 1)
+                                self.axe_plot.plot(frames,
+                                                   (predictions[frames, class_index] / 2) -
+                                                   (0.75 * class_index), lw=2,
+                                                   color="red", zorder=21)
 
                 for i_ap, active_period in enumerate(active_periods):
                     period = np.arange(active_period[0], active_period[1] + 1)
@@ -4351,8 +4417,23 @@ class ManualOnsetFrame(tk.Frame):
                     else:
                         raster_dur = self.raster_dur_for_a_cell[self.current_neuron]
 
-                    predicted_raster_dur = np.zeros(self.nb_times_traces, dtype="int8")
-                    predicted_raster_dur[predictions >= threshold_tc] = 1
+                    predicted_raster_dur = np.zeros(predictions.shape[0], dtype="int8")
+                    if predictions.shape[1] == 1:
+                        real_transient_frames = predictions[:, 0] >= threshold_tc
+                    elif predictions.shape[1] == 3:
+                        # real transient, fake ones, other (neuropil, decay etc...)
+                        # keeping predictions about real transient when superior
+                        # to other prediction on the same frame
+                        max_pred_by_frame = np.max(predictions, axis=1)
+                        real_transient_frames = (predictions[:, 0] == max_pred_by_frame)
+                    elif predictions.shape[1] == 2:
+                        # real transient, fake ones
+                        # keeping predictions about real transient superior to the threshold
+                        # and superior to other prediction on the same frame
+                        max_pred_by_frame = np.max(predictions, axis=1)
+                        real_transient_frames = np.logical_and((predictions[:, 0] >= threshold_tc),
+                                                               (predictions[:, 0] == max_pred_by_frame))
+                    predicted_raster_dur[real_transient_frames] = 1
                     frames_stat, transients_stat = classification_stat.compute_stats(raster_dur, predicted_raster_dur,
                                                                                      self.traces[self.current_neuron])
 

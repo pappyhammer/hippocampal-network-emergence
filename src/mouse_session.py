@@ -47,6 +47,7 @@ from matplotlib.lines import Line2D
 from scipy import stats
 from hne_spike_structure import HNESpikeStructure
 from mvt_selection_gui import MvtSelectionGui
+from pattern_discovery.tools.signal import smooth_convolve
 import PIL
 
 
@@ -68,8 +69,10 @@ class MouseSession:
         self.caiman_active_periods = None
         self.traces = None
         self.raw_traces = None
+        self.smooth_traces = None
         self.z_score_traces = None
         self.z_score_raw_traces = None
+        self.z_score_smooth_traces = None
         self.coord = None
         # comes from the gui
         self.cells_to_remove = None
@@ -321,12 +324,15 @@ class MouseSession:
         n_cells = self.traces.shape[0]
         self.z_score_traces = np.zeros(self.traces.shape)
         self.z_score_raw_traces = np.zeros(self.raw_traces.shape)
+        self.z_score_smooth_traces = np.zeros(self.smooth_traces.shape)
         # z_score traces
         for i in np.arange(n_cells):
             self.z_score_traces[i, :] = (self.traces[i, :] - np.mean(self.traces[i, :])) / np.std(self.traces[i, :])
             if self.raw_traces is not None:
                 self.z_score_raw_traces[i, :] = (self.raw_traces[i, :] - np.mean(self.raw_traces[i, :])) \
                                         / np.std(self.raw_traces[i, :])
+                self.z_score_smooth_traces[i, :] = (self.smooth_traces[i, :] - np.mean(self.smooth_traces[i, :])) \
+                                        / np.std(self.smooth_traces[i, :])
 
     def plot_psth_over_twitches_time_correlation_graph_style(self):
         """
@@ -2681,6 +2687,16 @@ class MouseSession:
             self.raw_traces = data[variables_mapping["raw_traces"]].astype(float)
             if frames_filter is not None:
                 self.raw_traces = self.raw_traces[:, frames_filter]
+            self.smooth_traces = np.copy(self.raw_traces)
+            # smoothing the trace
+            windows = ['hanning', 'hamming', 'bartlett', 'blackman']
+            i_w = 1
+            window_length = 11
+            for i in np.arange(self.raw_traces.shape[0]):
+                smooth_signal = smooth_convolve(x=self.smooth_traces[i], window_len=window_length,
+                                                window=windows[i_w])
+                beg = (window_length - 1) // 2
+                self.smooth_traces[i] = smooth_signal[beg:-beg]
         if "coord" in variables_mapping:
             self.coord = data[variables_mapping["coord"]][0]
             self.coord_obj = CoordClass(coord=self.coord, nb_col=200,
