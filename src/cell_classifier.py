@@ -452,9 +452,9 @@ def load_data(ms_to_use, param, split_values=(0.5, 0.3), buffer=2,
             #                                                               reshape=False)
 
             #   train_labels_augmented[first_index] = train_labels[index_img]
-            visualize_cells = True
+            visualize_cells = False
             if visualize_cells and (index_img == 0):
-                root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
+                root_path = "/Users/pappyhammer/Documents/academique/these_inmed/hne_project/"
                 path_data = root_path + "data/"
                 result_path = root_path + "results_classifier/"
 
@@ -647,10 +647,12 @@ def build_model(input_shape, use_mulimodal_inputs, with_dropout=0.5):
         else:
             output_tensor = layers.Dense(1, activation='sigmoid')(first_x)
 
+        print("Creating Model instance")
         if use_mulimodal_inputs:
             model = Model([input_tensor, input_tensor_bis], output_tensor)
         else:
             model = Model(input_tensor, output_tensor)
+        print("After Creating Model instance")
 
     return model
 
@@ -821,9 +823,13 @@ def train_model():
         print("Best performing model chosen hyper-parameters:")
         print(best_run)
     else:
+        print("before building model")
         model = build_model(input_shape=train_images.shape[1:], with_dropout=0.5,
                             use_mulimodal_inputs=use_mulimodal_inputs)
+        print("before printing summary")
         print(model.summary())
+
+        raise Exception("TOTOOO")
         # Define the optimizer
         # from https://www.kaggle.com/shahariar/keras-swish-activation-acc-0-996-top-7
         optimizer = adam(lr=0.001, epsilon=1e-08, decay=0.0)

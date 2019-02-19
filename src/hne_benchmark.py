@@ -665,9 +665,29 @@ def build_raster_dur_from_predictions(predictions, predictions_threshold, cells,
     predicted_raster_dur_dict = np.zeros((n_total_cells, n_frames), dtype="int8")
     for cell in cells:
         pred = predictions[cell]
-        # print(f"predictions_threshold: {predictions_threshold}: "
-        #       f"{len(np.where(predictions >= predictions_threshold)[0])}")
-        predicted_raster_dur_dict[cell, pred >= predictions_threshold] = 1
+
+        # predicted_raster_dur_dict[cell, pred >= predictions_threshold] = 1
+        if len(pred.shape) == 1:
+            predicted_raster_dur_dict[cell, pred >= predictions_threshold] = 1
+        elif (len(pred.shape) == 2) and (pred.shape[1] == 1):
+            pred = pred[:, 0]
+            predicted_raster_dur_dict[cell, pred >= predictions_threshold] = 1
+        elif (len(pred.shape) == 2) and (pred.shape[1] == 3):
+            # real transient, fake ones, other (neuropil, decay etc...)
+            # keeping predictions about real transient when superior
+            # to other prediction on the same frame
+            max_pred_by_frame = np.max(pred, axis=1)
+            real_transient_frames = (pred[:, 0] == max_pred_by_frame)
+            predicted_raster_dur_dict[cell, real_transient_frames] = 1
+        elif pred.shape[1] == 2:
+            # real transient, fake ones
+            # keeping predictions about real transient superior to the threshold
+            # and superior to other prediction on the same frame
+            max_pred_by_frame = np.max(pred, axis=1)
+            real_transient_frames = np.logical_and((pred[:, 0] >= threshold_tc),
+                                                   (pred[:, 0] == max_pred_by_frame))
+            predicted_raster_dur_dict[cell, real_transient_frames] = 1
+
     return predicted_raster_dur_dict
 
 
@@ -840,7 +860,7 @@ def main_benchmark():
         data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P12_17_11_10_a000.txt"
         data_dict["gt"]["cnn_threshold"] = 0.5
         # TODO: with cell 10, we need to re-make the prediction
-        data_dict["gt"]["cells"] = np.arange(10)
+        data_dict["gt"]["cells"] = np.concatenate((np.arange(11), [14]))
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
@@ -864,7 +884,12 @@ def main_benchmark():
         # BO so far
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_14.19-07-26.mat"
         # trained on 0,3 cell, with 2 inputs (cell masked + all), on 34 epochs. trained on 13/02/2019 14:34:45
+        # with predictions up to cell 9
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_14.19-19-05.mat"
+        # with predictions up to cell 10+ cell 14
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.14-20-01.mat"
+        # with predictions up to cell 10+ cell 14 without data_augmentation, just overlap 0.8
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.14-54-24.mat"
 
         # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
         # trained on 16/02/2019 11:21:11 BO equality
@@ -884,16 +909,33 @@ def main_benchmark():
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_16.16-46-58.mat"
 
         # trained from 2019_02_16.18-23-24_p12_0_3_2_inputs_buffer_1_dropout
-        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_16.21-39-50.mat"
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_16.21-39-50.mat"
+
+        # ## trained on p12 0,3, 6 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # with bin et al. v, without attention, trained on 19/02/2019 00-56-47, up to cell 10 + 14
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.13-36-27.mat"
+
+        # ## trained on p12 0 cell, with 1 inputs (cell masked),
+        # with bin et al. v, with attention before, trained on 19/02/2019 15-33-47, up to cell 10 + 14
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.15-42-02.mat"
+
+        # ## trained on p12 0 cell, with 1 inputs (cell masked), 8 epochs
+        # with bin et al. v, with attention before, trained on 19/02/2019 15-33-47, up to cell 10 + 14
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.16-28-12.mat"
+
+        # ## trained on p12 0 cell, with 1 inputs (cell masked), 10 epochs, multi-class
+        # with bin et al. v, with attention before, trained on 19/02/2019 16-52-15, up to cell 10 + 14
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.18-21-44.mat"
+
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.75
+        data_dict["rnn"]["prediction_threshold"] = 0.8
 
         data_dict["last_rnn"] = dict()
         data_dict["last_rnn"]["path"] = "p12/p12_17_11_10_a000"
         # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
-        # trained on 16/02/2019 11:21:11 BO equality
-        data_dict["last_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_16.14-57-49.mat"
+        # trained on 16/02/2019 11:21:11 BO equality, predictions up to cell 10 + 14
+        data_dict["last_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.14-20-01.mat"
         data_dict["last_rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["last_rnn"]["predictions"] = "predictions"
         data_dict["last_rnn"]["prediction_threshold"] = 0.6

@@ -2,8 +2,7 @@ import numpy as np
 import hdf5storage
 import keras
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Bidirectional, BatchNormalization
-from keras.layers import Input, LSTM, Embedding, Dense, TimeDistributed, Activation, Lambda, Permute, Reshape, \
-    RepeatVector, Multiply
+from keras.layers import Input, LSTM, Dense, TimeDistributed, Activation, Lambda, Permute, RepeatVector
 from keras.models import Model, Sequential
 from keras.models import model_from_json
 from keras.optimizers import RMSprop, adam, SGD
@@ -2751,22 +2750,24 @@ def attention_3d_block(inputs, time_steps, use_single_attention_vector=False):
     :return:
     """
     # inputs.shape = (batch_size, time_steps, input_dim)
+    # print(f"inputs.shape {inputs.shape}")
     input_dim = int(inputs.shape[2])
     a = Permute((2, 1))(inputs)
     # a = Reshape((input_dim, time_steps))(a)  # this line is not useful. It's just to know which dimension is what.
     a = Dense(time_steps, activation='softmax')(a)
     if use_single_attention_vector:
-        a = Lambda(lambda x: K.mean(x, axis=1), name='dim_reduction')(a)
+        a = Lambda(lambda x: K.mean(x, axis=1))(a)  # , name='dim_reduction'
         a = RepeatVector(input_dim)(a)
-    a_probs = Permute((2, 1), name='attention_vec')(a)
-    output_attention_mul = Multiply([inputs, a_probs])
+    a_probs = Permute((2, 1))(a)  # , name='attention_vec'
+    output_attention_mul = keras.layers.multiply([inputs, a_probs])
     return output_attention_mul
 
 
-def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, activation_fct="relu",
+def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, bin_lstm_size,
+                activation_fct="relu",
                 dropout_rate=0, dropout_rnn_rate=0, without_bidirectional=False,
-                with_batch_normalization=False, apply_attention=False, apply_attention_before_lstm=False,
-                use_single_attention_vector=False, use_bin_at_al_version=True):
+                with_batch_normalization=False, apply_attention=False, apply_attention_before_lstm=True,
+                use_single_attention_vector=True, use_bin_at_al_version=False):
     # n_frames represent the time-steps
     n_frames = input_shape[0]
 
@@ -2864,14 +2865,15 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, acti
             else:
                 rnn_input = encoded_video
 
-            if apply_attention and (not apply_attention_before_lstm):
-                return_sequences = True
-            elif use_bin_at_al_version:
-                return_sequences = True
-            elif using_multi_class <= 1:
-                return_sequences = (lstm_index < (len(lstm_layers_size) - 1))
-            else:
-                return_sequences = True
+            return_sequences = True
+            # if apply_attention and (not apply_attention_before_lstm):
+            #     return_sequences = True
+            # elif use_bin_at_al_version:
+            #     return_sequences = True
+            # elif using_multi_class <= 1:
+            #     return_sequences = (lstm_index < (len(lstm_layers_size) - 1))
+            # else:
+            #     return_sequences = True
             if without_bidirectional:
                 encoded_video = LSTM(lstm_size, dropout=dropout_rnn_rate,
                                      recurrent_dropout=dropout_rnn_rate,
@@ -2880,8 +2882,9 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, acti
                 if use_bin_at_al_version:
                     encoded_video = layers.concatenate([encoded_video, encoded_frame_sequence])
             else:
+                # there was a bug here, recurrent_dropout was taking return_sequences as value
                 encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
-                                                   recurrent_dropout=return_sequences,
+                                                   recurrent_dropout=dropout_rnn_rate,
                                                    return_sequences=return_sequences), merge_mode='concat',)(rnn_input)
                 # From Bin et al. test adding merging LSTM results + CNN represnetation then attention
                 if use_bin_at_al_version:
@@ -2905,18 +2908,20 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, acti
     else:
         # TODO: try layers.Average instead of concatenate
         merged = layers.concatenate(encoded_inputs)
-    # TODO: From Bin et al. test adding a LSTM here that will take merged as inputs + CNN represnetation (as attention)
+    # From Bin et al. test adding a LSTM here that will take merged as inputs + CNN represnetation (as attention)
     # Return sequences will have to be True and activate the CNN representation
     if use_bin_at_al_version:
-        merged = LSTM(256, dropout=dropout_rnn_rate,
+        # TODO: See why return sequences needed to be put to False, should make some issue with attentoin_3d
+        merged = LSTM(bin_lstm_size, dropout=dropout_rnn_rate,
                       recurrent_dropout=dropout_rnn_rate,
                       return_sequences=True)(merged)
+        print(f"merged.shape {merged.shape}")
         if apply_attention and (not apply_attention_before_lstm):
             # adding attention mechanism
             merged = attention_3d_block(inputs=merged, time_steps=n_frames,
                                                use_single_attention_vector=use_single_attention_vector)
-            # if using_multi_class <= 1:
-            #     merged = Flatten()(merged)
+        if using_multi_class <= 1:
+            merged = Flatten()(merged)
 
     if with_batch_normalization:
         merged = BatchNormalization()(merged)
@@ -2933,13 +2938,20 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, acti
 
     # if we use TimeDistributed then we need to return_sequences during the last LSTM
     if using_multi_class <= 1:
-        # outputs = TimeDistributed(Dense(1, activation='sigmoid')))(merged)
+        # if use_bin_at_al_version:
+        #     outputs = TimeDistributed(Dense(1, activation='sigmoid'))(merged)
+        # else:
         outputs = Dense(n_frames, activation='sigmoid')(merged)
+        # outputs = TimeDistributed(Dense(1, activation='sigmoid'))(merged)
     else:
         outputs = TimeDistributed(Dense(using_multi_class, activation='softmax'))(merged)
     if len(inputs) == 1:
+        print(f"len(inputs) {len(inputs)}")
         inputs = inputs[0]
+
+    print("Creating Model instance")
     video_model = Model(inputs=inputs, outputs=outputs)
+    print("After Creating Model instance")
 
     return video_model
 
@@ -3109,8 +3121,27 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
     for cell in cells_to_load:
         predictions = predict_transient_from_model(ms=ms, cell=cell, model=model, overlap_value=overlap_value,
                                                    use_data_augmentation=use_data_augmentation)
-        predictions_by_cell[cell] = predictions
-        spike_nums_dur[cell, predictions >= predictions_threshold] = 1
+        if len(predictions.shape) == 1:
+            predictions_by_cell[cell] = predictions
+        elif (len(predictions.shape) == 2) and (predictions.shape[1] == 1):
+            predictions_by_cell[cell] = predictions[:, 0]
+        elif (len(predictions.shape) == 2) and (predictions.shape[1] == 3):
+            # real transient, fake ones, other (neuropil, decay etc...)
+            # keeping predictions about real transient when superior
+            # to other prediction on the same frame
+            max_pred_by_frame = np.max(predictions, axis=1)
+            real_transient_frames = (predictions[:, 0] == max_pred_by_frame)
+            predictions_by_cell[cell, real_transient_frames] = 1
+        elif predictions.shape[1] == 2:
+            # real transient, fake ones
+            # keeping predictions about real transient superior to the threshold
+            # and superior to other prediction on the same frame
+            max_pred_by_frame = np.max(predictions, axis=1)
+            real_transient_frames = np.logical_and((predictions[:, 0] >= threshold_tc),
+                                                   (predictions[:, 0] == max_pred_by_frame))
+            predictions_by_cell[cell, real_transient_frames] = 1
+
+        spike_nums_dur[cell, predictions_by_cell[cell] >= predictions_threshold] = 1
 
     stop_time = time.time()
     print(f"Time to predict {total_n_cells} cells: "
@@ -3164,7 +3195,7 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
                                           pixels_around=pixels_around, buffer=buffer, with_neuropil_mask=True,
                                           using_multi_class=using_multi_class)
 
-    movie_patch_generator = movie_patch_generator_choices["MaskedVersions"]
+    movie_patch_generator = movie_patch_generator_choices["MaskedCell"]
 
     # source_dict not useful in that case, but necessary for the function to work properly, to change later
     source_dict = dict()
@@ -3363,17 +3394,17 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
         transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
                                          use_data_augmentation=True,
-                                         cells_to_predict=np.arange(11))
+                                         cells_to_predict=np.concatenate((np.arange(11), [14])))
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
         # p12_171110_a000_ms
-        # np.arange(10)
+        # np.concatenate((np.arange(10), [14]))
         # p7_171012_a000_ms
         # np.arange(118)
         return
@@ -3401,8 +3432,8 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 1
+    using_multi_class = 3  # 1 or 3 so far
+    n_epochs = 10
     batch_size = 16
     window_len = 50
     max_width = 25
@@ -3415,7 +3446,7 @@ def train_model():
     pixels_around = 0
     with_augmentation_for_training_data = True
     buffer = 1
-    split_values = (0.6, 0.2, 0.2)
+    split_values = (0.7, 0.2, 0.1)
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
     if using_multi_class > 1:
@@ -3426,14 +3457,15 @@ def train_model():
     learning_rate_reduction_patience = 3
     without_bidirectional = False
     # TODO: try 256, 256, 256
-    lstm_layers_size = [128]  # 128, 256, 512
+    lstm_layers_size = [256]  # 128, 256, 512
+    bin_lstm_size = 256
     with_early_stopping = True
-    early_stop_patience = 5  # 10
+    early_stop_patience = 15  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
-    # main_ratio_balance = (0.6, 0.2, 0.2)
-    main_ratio_balance = (0.6, 0.3, 0.1)
+    main_ratio_balance = (0.6, 0.2, 0.2)
+    # main_ratio_balance = (0.6, 0.3, 0.1)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
 
@@ -3455,9 +3487,9 @@ def train_model():
                                           pixels_around=pixels_around, buffer=buffer, with_neuropil_mask=True,
                                           using_multi_class=using_multi_class)
 
-    movie_patch_generator_for_training = movie_patch_generator_choices["MaskedVersions"]
-    movie_patch_generator_for_validation = movie_patch_generator_choices["MaskedVersions"]
-    movie_patch_generator_for_test = movie_patch_generator_choices["MaskedVersions"]
+    movie_patch_generator_for_training = movie_patch_generator_choices["MaskedCell"]
+    movie_patch_generator_for_validation = movie_patch_generator_choices["MaskedCell"]
+    movie_patch_generator_for_test = movie_patch_generator_choices["MaskedCell"]
 
     params_generator = {
         'batch_size': batch_size,
@@ -3516,7 +3548,11 @@ def train_model():
                         dropout_rnn_rate=dropout_value_rnn, without_bidirectional=without_bidirectional,
                         lstm_layers_size=lstm_layers_size,
                         with_batch_normalization=with_batch_normalization,
-                        using_multi_class=using_multi_class)
+                        using_multi_class=using_multi_class,
+                        use_bin_at_al_version=True, apply_attention=True,
+                        apply_attention_before_lstm=True,
+                        use_single_attention_vector=False,
+                        bin_lstm_size=bin_lstm_size)
 
     print(model.summary())
     # raise Exception("TOTOOO")

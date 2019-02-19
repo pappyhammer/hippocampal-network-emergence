@@ -7,6 +7,11 @@ import os
 import hdf5storage
 from pattern_discovery.display.cells_map_module import CoordClass
 from mouse_session import MouseSession
+from PIL import Image
+import matplotlib.pyplot as plt
+import tifffile
+
+from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize
 
 
 class DataForMs(p_disc_tools_param.Parameters):
@@ -74,6 +79,135 @@ def produce_cell_coord_from_cnn_validated_cells(param):
         coords_matlab_style[i] = coords_to_keep[i]
     sio.savemat(os.path.join(param.path_results, "test_coords_cnn.mat"), {"coord_python": coords_matlab_style})
 
+
+def generate_artificial_map(coords_to_use, dimensions=(200, 200), n_cells=50,
+                            n_overlap_by_cell_range=(1, 4), overlap_ratio_range=(0.1, 0.5)):
+    coords_left = None
+    map_coords, cells_with_overlap = (None, None)
+
+    return coords_left, map_coords, cells_with_overlap
+
+
+def make_video(images, outvid=None, fps=5, size=None,
+               is_color=True, format="XVID"):
+    """
+    Create a video from a list of images.
+
+    @param      outvid      output video file_name
+    @param      images      list of images to use in the video
+    @param      fps         frame per second
+    @param      size        size of each frame
+    @param      is_color    color
+    @param      format      see http://www.fourcc.org/codecs.php
+    @return                 see http://opencv-python-tutroals.readthedocs.org/en/latest/py_tutorials/py_gui/py_video_display/py_video_display.html
+
+    The function relies on http://opencv-python-tutroals.readthedocs.org/en/latest/.
+    By default, the video will have the size of the first image.
+    It will resize every image to this size before adding them to the video.
+    """
+    fourcc = VideoWriter_fourcc(*format)
+    vid = None
+    for image in images:
+        # if not os.path.exists(image):
+        #     raise FileNotFoundError(image)
+        # img = imread(image)
+        img = image
+        if vid is None:
+            if size is None:
+                size = img.shape[1], img.shape[0]
+            vid = VideoWriter(outvid, fourcc, float(fps), size, is_color)
+        if size[0] != img.shape[1] and size[1] != img.shape[0]:
+            img = resize(img, size)
+        vid.write(img)
+    vid.release()
+    return vid
+
+
+def fig2data(fig):
+    """
+    @brief Convert a Matplotlib figure to a 4D numpy array with RGBA channels and return it
+    @param fig a matplotlib figure
+    @return a numpy 3D array of RGBA values
+    """
+    # draw the renderer
+    fig.canvas.draw()
+
+    # Get the RGBA buffer from the figure
+    w, h = fig.canvas.get_width_height()
+    buf = np.fromstring(fig.canvas.tostring_argb(), dtype=np.uint8)
+    buf.shape = (w, h, 4)
+
+    # canvas.tostring_argb give pixmap in ARGB mode. Roll the ALPHA channel to have it in RGBA mode
+    buf = np.roll(buf, 3, axis=2)
+    return buf
+
+
+def fig2img(fig):
+    """
+    @brief Convert a Matplotlib figure to a PIL Image in RGBA format and return it
+    @param fig a matplotlib figure
+    @return a Python Imaging Library ( PIL ) image
+    """
+    # put the figure pixmap into a numpy array
+    buf = fig2data(fig)
+    w, h, d = buf.shape
+    return Image.frombytes("RGBA", (w, h), buf.tostring())  # "RGBA"
+
+
+def test_generate_movie_with_cells(coords, param):
+    n_frames = len(coords) // 4
+    lw = 400
+    lh = 400
+    images = np.zeros((n_frames, lw, lh))
+    first_im = None
+    im_to_append = []
+
+    for frame_index, n_cells in enumerate(np.arange(1, len(coords) // 2, 2)):
+        new_coords = []
+        for n_cell in np.arange(0, min(n_cells+1, len(coords) // 2)):
+            new_coords.append(coords[n_cell])
+        # raise Exception()
+        coord_obj = CoordClass(coord=new_coords, nb_col=200,
+                               nb_lines=200)
+        ms_fusion = MouseSession(age=10, session_id="fusion", nb_ms_by_frame=100, param=param)
+        ms_fusion.coord_obj = coord_obj
+        fig = ms_fusion.plot_all_cells_on_map(save_plot=False, return_fig=True)
+        im = fig2img(fig)
+        if first_im is None:
+            first_im = im
+        else:
+            im_to_append.append(im)
+        plt.close()
+        im = im.convert('L')
+        # print(f"coord[0].shape {coord[0].shape}")
+
+        im.thumbnail((lw, lh), Image.ANTIALIAS)
+        # im.show()
+        im_array = np.asarray(im)
+        # print(f"im_array.shape {im_array.shape}")
+        produce_cell_coords = False
+
+        if produce_cell_coords:
+            produce_cell_coord_from_cnn_validated_cells(param)
+
+        images[frame_index] = im_array
+
+    outvid_avi = os.path.join(param.path_data, param.path_results, "test_vid.avi")
+    outvid_tiff = os.path.join(param.path_data, param.path_results, "test_vid.tiff")
+    outvid_tiff_bis = os.path.join(param.path_data, param.path_results, "test_vid_bis.tiff")
+    # to avoid this error: error: (-215) src.depth() == CV_8U
+    images = np.uint8(255 * images)
+    make_video(images, outvid=outvid_avi, fps=5, size=None,
+                is_color=False, format="XVID")
+    # first_im.save(outvid_tiff, format="tiff", append_images=im_to_append, save_all=True,
+    #               compression="tiff_jpeg")
+
+    with tifffile.TiffWriter(outvid_tiff_bis) as tiff:
+        for img in im_to_append:
+            tiff.save(np.asarray(img), compress=6)
+
+
+
 def main():
     """
     Objective is to produce fake movies of let's say 1000 frames with like 50 cells with targeted cells that would have
@@ -98,22 +232,44 @@ def main():
     param = DataForMs(path_data=path_data, path_results=path_results, time_str=time_str)
 
     data = hdf5storage.loadmat(os.path.join(path_data, "artificial_movie_generator", "test_coords_cnn.mat"))
-    coords = data["coord_python"][0]
-    # coord_obj = CoordClass(coord=coords, nb_col=200,
-    #                             nb_lines=200)
 
+    coords = data["coord_python"][0]
+
+    test_generate_movie_with_cells(coords=coords, param=param)
+
+    # coord_obj = CoordClass(coord=coords, nb_col=200,
+    #                        nb_lines=200)
+    #
     # ms_fusion = MouseSession(age=10, session_id="fusion", nb_ms_by_frame=100, param=param)
     # ms_fusion.coord_obj = coord_obj
-    # ms_fusion.plot_all_cells_on_map()
-
-    print(f"coord[0].shape {coord[0].shape}")
-
-    produce_cell_coords = False
-
-    if produce_cell_coords:
-        produce_cell_coord_from_cnn_validated_cells(param)
+    # fig = ms_fusion.plot_all_cells_on_map(save_plot=False, return_fig=True)
+    # im = fig2img(fig)
+    # im = im.convert('L')
+    # # print(f"coord[0].shape {coord[0].shape}")
+    # lw = 400
+    # lh = 400
+    # im.thumbnail((lw, lh), Image.ANTIALIAS)
+    # # im.show()
+    # im_array = np.asarray(im)
+    # print(f"im_array.shape {im_array.shape}")
+    # produce_cell_coords = False
+    #
+    # if produce_cell_coords:
+    #     produce_cell_coord_from_cnn_validated_cells(param)
+    #
+    # outvid = os.path.join(path_data, path_results, "test_vid.avi")
+    # n_frames = 200
+    # images = np.zeros((n_frames, lw, lh))
+    # for i in np.arange(0, n_frames, 2):
+    #     images[i] = im_array
+    # # to avoid this error: error: (-215) src.depth() == CV_8U
+    # images = np.uint8(255 * images)
+    # make_video(images, outvid=outvid, fps=1, size=None,
+    #            is_color=False, format="XVID")
 
     coords_left, map_coords, cells_with_overlap = \
-        generate_artificial_map(coords_to_use=coords, dimensions=(200, 200), n_cells=50)
+        generate_artificial_map(coords_to_use=coords, dimensions=(200, 200), n_cells=50,
+                                n_overlap_by_cell_range=(1, 4), overlap_ratio_range=(0.1, 0.5))
+
 
 main()

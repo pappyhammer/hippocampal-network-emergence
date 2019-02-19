@@ -1883,7 +1883,7 @@ class MouseSession:
                                       cells_groups_colors=cells_groups_colors,
                                       with_cell_numbers=True)
 
-    def plot_all_cells_on_map(self):
+    def plot_all_cells_on_map(self, save_plot=True, return_fig=False):
         if self.coord_obj is None:
             return
         # we want to color cells that overlap with different colors
@@ -1948,7 +1948,7 @@ class MouseSession:
         cells_groups_colors.append(isolated_cell_color)
         cells_groups_alpha.append(1)
         cells_groups_edge_colors.append("white")
-        self.coord_obj.plot_cells_map(param=self.param,
+        fig = self.coord_obj.plot_cells_map(param=self.param,
                                       data_id=self.description, show_polygons=False,
                                       fill_polygons=False,
                                       title_option="all cells", connections_dict=None,
@@ -1957,7 +1957,10 @@ class MouseSession:
                                       cells_groups_edge_colors=cells_groups_edge_colors,
                                       with_edge=True, cells_groups_alpha=cells_groups_alpha,
                                       dont_fill_cells_not_in_groups=False,
-                                      with_cell_numbers=True, save_formats=["png"])
+                                      with_cell_numbers=True, save_formats=["png"],
+                                      save_plot=save_plot, return_fig=return_fig)
+        if return_fig:
+            return fig
 
     def plot_cell_assemblies_on_map(self):
         if (self.cell_assemblies is None) or (self.coord_obj is None):
