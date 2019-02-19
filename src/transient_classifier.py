@@ -1624,6 +1624,89 @@ class MoviePatchGeneratorGlobal(MoviePatchGenerator):
     def __str__(self):
         return f"{self.n_inputs} inputs. Main cell mask + pixels around that contain overlaping cells"
 
+
+class MoviePatchGeneratorGlobalWithContour(MoviePatchGenerator):
+    """
+    Will generate one input being the masked cell (the one we focus on) and the second input
+    would be the whole patch with all pixels given
+    """
+
+    def __init__(self, window_len, max_width, max_height, pixels_around,
+                 buffer, using_multi_class):
+        super().__init__(window_len=window_len, max_width=max_width, max_height=max_height,
+                         using_multi_class=using_multi_class)
+        self.pixels_around = pixels_around
+        self.buffer = buffer
+        self.n_inputs = 2
+
+    def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
+        source_profiles_dict = memory_dict
+        batch_size = len(movie_data_list)
+        data = np.zeros((batch_size, self.window_len, self.max_height, self.max_width, 1))
+        if with_labels:
+            if self.using_multi_class <= 1:
+                labels = np.zeros((batch_size, self.window_len), dtype="uint8")
+            else:
+                labels = np.zeros((batch_size, self.window_len, self.using_multi_class), dtype="uint8")
+        # Generate data
+        for index_batch, movie_data in enumerate(movie_data_list):
+            ms = movie_data.ms
+            cell = movie_data.cell
+            frame_index = movie_data.index_movie
+            augmentation_fct = movie_data.data_augmentation_fct
+
+            # now we generate the source profile of the cell for those frames and retrieve it if it has
+            # already been generated
+            src_profile_key = ms.description + str(cell)
+            if src_profile_key in source_profiles_dict:
+                mask_source_profile, coords = source_profiles_dict[src_profile_key]
+            else:
+                mask_source_profile, coords = \
+                    get_source_profile_param(cell=cell, ms=ms, pixels_around=self.pixels_around,
+                                             buffer=self.buffer,
+                                             max_width=self.max_width, max_height=self.max_height,
+                                             get_only_polygon_contour=True)
+                source_profiles_dict[src_profile_key] = [mask_source_profile, coords]
+
+            frames = np.arange(frame_index, frame_index + self.window_len)
+            if with_labels:
+                labels[index_batch] = movie_data.get_labels(using_multi_class=self.using_multi_class)
+            # now adding the movie of those frames in this sliding_window
+            source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
+
+            contour_mask = np.zeros((source_profile_frames.shape[1], source_profile_frames.shape[2]),
+                                     dtype="int8")
+            # "deleting" the cells
+            source_profile_frames[:, 1 - mask_source_profile] = 0
+            # TODO: visualizing the frame to check the contour is good
+
+            # doing augmentation if the function exists
+            if augmentation_fct is not None:
+                source_profile_frames = augmentation_fct(source_profile_frames)
+
+            # then we fit it the frame use by the network, padding the surrounding by zero if necessary
+            profile_fit = np.zeros((len(frames), self.max_height, self.max_width))
+            # we center the source profile
+            y_coord = (profile_fit.shape[1] - source_profile_frames.shape[1]) // 2
+            x_coord = (profile_fit.shape[2] - source_profile_frames.shape[2]) // 2
+            profile_fit[:, y_coord:source_profile_frames.shape[1] + y_coord,
+            x_coord:source_profile_frames.shape[2] + x_coord] = \
+                source_profile_frames
+
+            profile_fit = profile_fit.reshape((profile_fit.shape[0], profile_fit.shape[1], profile_fit.shape[2], 1))
+
+            data[index_batch] = profile_fit
+
+        if with_labels:
+            return {"input_0": data}, labels
+        else:
+            return {"input_0": data}
+
+    def __str__(self):
+        return f"{self.n_inputs} inputs. Main cell mask + pixels around that contain overlaping , " \
+            f"with main cell with contour (pixels set to zero)"
+
+
 class MoviePatchGeneratorMaskedVersions(MoviePatchGenerator):
     """
     Will generate one input being the masked cell (the one we focus on), the second input
@@ -2255,7 +2338,8 @@ def scale_polygon_to_source(poly_gon, minx, miny):
     return geometry.Polygon(scaled_coords)
 
 
-def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0, buffer=None, with_all_masks=False):
+def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
+                             buffer=None, with_all_masks=False, get_only_polygon_contour=False):
     """
 
     :param cell:
@@ -2316,7 +2400,11 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0, b
         img = PIL.Image.new('1', (len_x, len_y), 1)
         if buffer is not None:
             scaled_poly_gon = scaled_poly_gon.buffer(buffer)
-        ImageDraw.Draw(img).polygon(list(scaled_poly_gon.exterior.coords), outline=0, fill=0)
+        fill_value=0
+        if get_only_polygon_contour:
+            fill_value=None
+        ImageDraw.Draw(img).polygon(list(scaled_poly_gon.exterior.coords), outline=0,
+                                    fill=fill_value)
         mask_dict[cell_to_display] = np.array(img)
 
     if with_all_masks:
@@ -2531,7 +2619,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
         ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0])} # 3, 6
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3, 6, 9])} # 3, 6
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
@@ -2911,7 +2999,6 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, bin_
     # From Bin et al. test adding a LSTM here that will take merged as inputs + CNN represnetation (as attention)
     # Return sequences will have to be True and activate the CNN representation
     if use_bin_at_al_version:
-        # TODO: See why return sequences needed to be put to False, should make some issue with attentoin_3d
         merged = LSTM(bin_lstm_size, dropout=dropout_rnn_rate,
                       recurrent_dropout=dropout_rnn_rate,
                       return_sequences=True)(merged)
@@ -3394,7 +3481,7 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
@@ -3432,8 +3519,8 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    using_multi_class = 3  # 1 or 3 so far
-    n_epochs = 10
+    using_multi_class = 1  # 1 or 3 so far
+    n_epochs = 35
     batch_size = 16
     window_len = 50
     max_width = 25
@@ -3457,10 +3544,14 @@ def train_model():
     learning_rate_reduction_patience = 3
     without_bidirectional = False
     # TODO: try 256, 256, 256
-    lstm_layers_size = [256]  # 128, 256, 512
+    lstm_layers_size = [128, 256]  # 128, 256, 512
     bin_lstm_size = 256
+    use_bin_at_al_version = True
+    apply_attention = True
+    apply_attention_before_lstm = True
+    use_single_attention_vector = False
     with_early_stopping = True
-    early_stop_patience = 15  # 10
+    early_stop_patience = 20  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
@@ -3487,9 +3578,9 @@ def train_model():
                                           pixels_around=pixels_around, buffer=buffer, with_neuropil_mask=True,
                                           using_multi_class=using_multi_class)
 
-    movie_patch_generator_for_training = movie_patch_generator_choices["MaskedCell"]
-    movie_patch_generator_for_validation = movie_patch_generator_choices["MaskedCell"]
-    movie_patch_generator_for_test = movie_patch_generator_choices["MaskedCell"]
+    movie_patch_generator_for_training = movie_patch_generator_choices["MaskedVersions"]
+    movie_patch_generator_for_validation = movie_patch_generator_choices["MaskedVersions"]
+    movie_patch_generator_for_test = movie_patch_generator_choices["MaskedVersions"]
 
     params_generator = {
         'batch_size': batch_size,
@@ -3549,9 +3640,9 @@ def train_model():
                         lstm_layers_size=lstm_layers_size,
                         with_batch_normalization=with_batch_normalization,
                         using_multi_class=using_multi_class,
-                        use_bin_at_al_version=True, apply_attention=True,
-                        apply_attention_before_lstm=True,
-                        use_single_attention_vector=False,
+                        use_bin_at_al_version=use_bin_at_al_version, apply_attention=apply_attention,
+                        apply_attention_before_lstm=apply_attention_before_lstm,
+                        use_single_attention_vector=use_single_attention_vector,
                         bin_lstm_size=bin_lstm_size)
 
     print(model.summary())
@@ -3665,6 +3756,11 @@ def train_model():
         file.write(f"without_bidirectional: {without_bidirectional}" + '\n')
         file.write(f"movie_patch_generator: {str(movie_patch_generator_for_training)}" + '\n')
         file.write(f"lstm_layers_size: {lstm_layers_size}" + '\n')
+        file.write(f"bin_lstm_size: {bin_lstm_size}" + '\n')
+        file.write(f"use_bin_at_al_version: {use_bin_at_al_version}" + '\n')
+        file.write(f"apply_attention: {apply_attention}" + '\n')
+        file.write(f"apply_attention_before_lstm: {apply_attention_before_lstm}" + '\n')
+        file.write(f"use_single_attention_vector: {use_single_attention_vector}" + '\n')
         file.write(f"window_len: {window_len}" + '\n')
         file.write(f"max_width: {max_width}" + '\n')
         file.write(f"max_height: {max_height}" + '\n')
