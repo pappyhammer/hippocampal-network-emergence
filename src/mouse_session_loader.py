@@ -6,6 +6,17 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     # for_cell_classifier is True means we don't remove the cell that has been marked as fake cells
     ms_str_to_ms_dict = dict()
 
+    if "artificial_ms" in ms_str_to_load:
+        artificial_ms = MouseSession(age=10, session_id="artificial",
+                                           nb_ms_by_frame=100, param=param)
+        variables_mapping = {"coord": "coord_python"}
+        artificial_ms.load_data_from_file(file_name_to_load="artificial_movies/map_coords.mat",
+                                              variables_mapping=variables_mapping)
+
+        if load_movie:
+            artificial_ms.load_tif_movie(path="artificial_movies/")
+        ms_str_to_ms_dict["artificial_ms"] = artificial_ms
+
     if "p6_18_02_07_a001_ms" in ms_str_to_load:
         p6_18_02_07_a001_ms = MouseSession(age=6, session_id="18_02_07_a001", nb_ms_by_frame=100, param=param,
                                            weight=4.35)

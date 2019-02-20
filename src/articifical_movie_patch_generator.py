@@ -118,8 +118,8 @@ def generate_artificial_map(coords_to_use,
     # model cells, then we'll put cells around with some overlaping
     n_cells = 16
     sub_window_size = (30, 30)
-    x_padding = 1 # sub_window_size[1] // 6
-    y_padding = 1 # sub_window_size[0] // 6
+    x_padding = 1  # sub_window_size[1] // 6
+    y_padding = 1  # sub_window_size[0] // 6
     centroids = []
     line = 0
     col = 0
@@ -139,6 +139,8 @@ def generate_artificial_map(coords_to_use,
 
     coords_to_use = coords_to_use
     cells_with_overlap = []
+    # key is an int (one of the cells_with_overlap), and value an int correspdongin
+    overlapping_cells = dict()
     map_coords = []
     cell_index = 0
     for c in np.arange(n_cells):
@@ -151,59 +153,80 @@ def generate_artificial_map(coords_to_use,
         # list(poly_cell.exterior.coords)
         cell_coord, poly_main_cell = shift_cell_coord_to_centroid(centroid=centroid, cell_coord=cell_coord)
         cells_with_overlap.append(cell_index)
+        main_cell_index = cell_index
+        overlapping_cells[main_cell_index] = []
         map_coords.append(cell_coord)
         cell_index += 1
         coords_to_use = coords_to_use[1:]
 
-        overlapping_cells_coord = []
         # we decide how many cells will be overlaping it (more like intersect)
         n_overlaps = random.randint(n_overlap_by_cell_range[0], n_overlap_by_cell_range[1])
-        n_non_overlaps = random.randint(2, 8)
+        n_non_overlaps = random.randint(2, 10)
         n_over_added = 0
         n_non_over_added = 0
         centroids_added = []
+        max_n_overall_trial = 200
+        n_overall_trial = 0
 
         while (n_over_added < n_overlaps) or (n_non_over_added < n_non_overlaps):
+            if n_overall_trial >= max_n_overall_trial:
+                print("n_overall_trial >= max_n_overall_trial")
+                break
+            n_overall_trial += 1
             over_cell_coord = coords_to_use[0]
             coords_to_use = coords_to_use[1:]
-            new_centroid_x_values = np.concatenate((np.arange(x_borders[c][0] + x_padding, centroid[0]-1),
+            new_centroid_x_values = np.concatenate((np.arange(x_borders[c][0] + x_padding, centroid[0]-2),
                                                    np.arange(centroid[0]+2, x_borders[c][1]+1 - x_padding)))
-            new_centroid_y_values = np.concatenate((np.arange(y_borders[c][0] + y_padding, centroid[1] - 1),
+            new_centroid_y_values = np.concatenate((np.arange(y_borders[c][0] + y_padding, centroid[1] - 2),
                                                     np.arange(centroid[1] + 2, y_borders[c][1] + 1 - y_padding)))
             not_added = True
             # one cell might be too big to fit in, then we give up and go to the next window
-            max_n_trial = 100
+            max_n_trial = 1000
             n_trial = 0
             while not_added:
+                if n_trial >= max_n_trial:
+                    print("n_trial >= max_n_trial")
+                    break
+                n_trial += 1
                 # random x and y for centroid
                 np.random.shuffle(new_centroid_x_values)
                 np.random.shuffle(new_centroid_y_values)
                 x = new_centroid_x_values[0]
                 y = new_centroid_y_values[1]
+                # first we want this centroid to be at least 2 pixels away of any added centroid
+                if (x, y) in centroids_added:
+                    continue
+                to_close = False
+                for centr in centroids_added:
+                    if (abs(x - centr[0]) <= 2) and (abs(y - centr[1]) <= 2):
+                        to_close = True
+                        break
+                if to_close:
+                    continue
                 cell_coord, poly_new_cell = shift_cell_coord_to_centroid(centroid=(x, y), cell_coord=over_cell_coord)
                 # first we need to make sure the cell don't go out of the frame
-                minx, miny, maxx, maxy = np.array(list(poly_new_cell.bounds)).astype(int)
-                if (minx < 0) or (miny < 0) or (maxx >= dimensions[1]) or (maxy >= dimensions[0]):
+                minx, miny, maxx, maxy = np.array(list(poly_new_cell.bounds))
+                if (minx <= 0) or (miny <= 0) or (maxx >= dimensions[1]-1) or (maxy >= dimensions[0]-1):
                     continue
-                if poly_main_cell.intersects(poly_new_cell) and n_over_added < n_overlaps:
-                    map_coords.append(cell_coord)
+                # if intersects and not just touches (means commun border)
+                if poly_main_cell.intersects(poly_new_cell) and (not poly_main_cell.touches(poly_new_cell)) \
+                        and n_over_added < n_overlaps:
                     n_over_added += 1
                     not_added = False
-                    cell_index += 1
                 elif n_non_over_added < n_non_overlaps:
-                    map_coords.append(cell_coord)
                     n_non_over_added += 1
                     not_added = False
+                if not not_added:
+                    map_coords.append(cell_coord)
+                    overlapping_cells[main_cell_index].append(cell_index)
+                    centroids_added.append((x, y))
                     cell_index += 1
-                n_trial += 1
                 if n_trial >= max_n_trial:
                     print("n_trial >= max_n_trial")
                     break
-            if n_trial >= max_n_trial:
-                print("n_trial >= max_n_trial")
-                break
+
     print(f"cells_with_overlap {cells_with_overlap}")
-    return coords_to_use, map_coords, cells_with_overlap
+    return coords_to_use, map_coords, cells_with_overlap, overlapping_cells
 
 
 def make_video(images, outvid=None, fps=5, size=None,
@@ -473,6 +496,30 @@ def noisy(noise_typ, image):
         return noisy
 
 
+def produce_movie(map_coords, raster_dur, param, dimensions):
+    n_frames = raster_dur.shape[1]
+    images = np.ones((n_frames, dimensions[0], dimensions[1]))
+    images *= 0.1
+
+    noise_str = "speckle"
+    # in ["s&p", "poisson", "gauss", "speckle"]:
+    outvid_tiff_noisy = os.path.join(param.path_data, param.path_results,
+                                     f"artificial_movie.tiff")
+
+    with tifffile.TiffWriter(outvid_tiff_noisy) as tiff:
+        for img_array in images:
+            img_array = noisy(noise_str, img_array)
+            img_array = normalize_array_0_255(img_array)
+            tiff.save(img_array, compress=6)
+
+
+def build_raster_dur(map_coords, cells_with_overlap, overlapping_cells, n_frames):
+    n_cells = len(map_coords)
+    raster_dur = np.zeros((n_cells, n_frames), dtype="int8")
+
+    return raster_dur
+
+
 def main():
     """
     Objective is to produce fake movies of let's say 1000 frames with like 50 cells with targeted cells that would have
@@ -534,7 +581,7 @@ def main():
     # make_video(images, outvid=outvid, fps=1, size=None,
     #            is_color=False, format="XVID")
 
-    coords_left, map_coords, cells_with_overlap = \
+    coords_left, map_coords, cells_with_overlap, overlapping_cells = \
         generate_artificial_map(coords_to_use=coords,
                                 n_overlap_by_cell_range=(1, 4), overlap_ratio_range=(0.1, 0.5))
 
@@ -545,5 +592,19 @@ def main():
     ms_fusion.coord_obj = coord_obj
     ms_fusion.plot_all_cells_on_map()
 
+    n_frames = 2500
+
+    # we need to generate a raster_dur, with some synchronicity between overlapping cells
+    raster_dur = build_raster_dur(map_coords=map_coords, cells_with_overlap=cells_with_overlap,
+                                    overlapping_cells=overlapping_cells, n_frames=2500)
+
+    # then we build the movie based on cells_coords and the raster_dur
+    produce_movie(map_coords=map_coords, raster_dur=raster_dur, param=param,
+                  dimensions=(120, 120))
+
+    coords_matlab_style = np.empty((len(map_coords),), dtype=np.object)
+    for i in range(len(map_coords)):
+        coords_matlab_style[i] = map_coords[i]
+    sio.savemat(os.path.join(param.path_results, "map_coords.mat"), {"coord_python": coords_matlab_style})
 
 main()

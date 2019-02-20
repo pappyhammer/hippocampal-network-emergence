@@ -167,7 +167,8 @@ class ChooseSessionFrame(tk.Frame):
         # self.pack()
         self.data_and_param = data_and_param
 
-        self.available_ms_str = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+        self.available_ms_str = ["artificial_ms",
+                                 "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
                                  "p7_171012_a000_ms", "p7_18_02_08_a000_ms",
                                  "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
                                  "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
@@ -199,11 +200,23 @@ class ChooseSessionFrame(tk.Frame):
                                                 param=self.data_and_param, for_cell_classifier=False,
                                                 load_traces=True, load_abf=True)
         self.data_and_param.ms = ms_str_to_ms_dict[self.option_menu_variable.get()]
-        self.data_and_param.traces = self.data_and_param.ms.traces
-        self.data_and_param.raw_traces = self.data_and_param.ms.raw_traces
+        self.data_and_param.ms.load_tiff_movie_in_memory()
+
+        if self.data_and_param.ms.raw_traces is not None:
+            self.data_and_param.raw_traces = self.data_and_param.ms.raw_traces
+        else:
+            self.data_and_param.raw_traces = self.data_and_param.ms.build_raw_traces_from_movie()
+            print(f"raw_traces.shape {self.data_and_param.raw_traces.shape}")
+        if self.data_and_param.ms.traces is not None:
+            self.data_and_param.traces = self.data_and_param.ms.traces
+        else:
+            traces = np.copy(self.data_and_param.raw_traces)
+            smooth_traces(traces)
+            self.data_and_param.traces = traces
 
         n_cells = len(self.data_and_param.traces)
         n_times = len(self.data_and_param.traces[0, :])
+
         if (self.data_and_param.peak_nums is None) or (self.data_and_param.spike_nums is None):
             # then we do an automatic detection
             self.data_and_param.peak_nums = np.zeros((n_cells, n_times), dtype="int8")
@@ -639,6 +652,18 @@ def get_file_name_and_path(path_file):
     return path_file[:last_slash_index], path_file[last_slash_index:]
 
 
+def smooth_traces(traces):
+    # smoothing the trace
+    windows = ['hanning', 'hamming', 'bartlett', 'blackman']
+    i_w = 1
+    window_length = 11
+    for i in np.arange(traces.shape[0]):
+        smooth_signal = smooth_convolve(x=traces[i], window_len=window_length,
+                                        window=windows[i_w])
+        beg = (window_length - 1) // 2
+        traces[i] = smooth_signal[beg:-beg]
+
+
 class MyCanvas(FigureCanvasTkAgg):
     def __init__(self, figure, parent_frame, manual_onset_frame):
         FigureCanvasTkAgg.__init__(self, figure, parent_frame)
@@ -789,14 +814,15 @@ class ManualOnsetFrame(tk.Frame):
 
         self.traces = np.copy(self.raw_traces)
         # smoothing the trace
-        windows = ['hanning', 'hamming', 'bartlett', 'blackman']
-        i_w = 1
-        window_length = 11
-        for i in np.arange(self.nb_neurons):
-            smooth_signal = smooth_convolve(x=self.traces[i], window_len=window_length,
-                                            window=windows[i_w])
-            beg = (window_length - 1) // 2
-            self.traces[i] = smooth_signal[beg:-beg]
+        smooth_traces(self.traces)
+        # windows = ['hanning', 'hamming', 'bartlett', 'blackman']
+        # i_w = 1
+        # window_length = 11
+        # for i in np.arange(self.nb_neurons):
+        #     smooth_signal = smooth_convolve(x=self.traces[i], window_len=window_length,
+        #                                     window=windows[i_w])
+        #     beg = (window_length - 1) // 2
+        #     self.traces[i] = smooth_signal[beg:-beg]
 
         # will be initialize in the function normalize_traces
         self.ratio_traces = None
@@ -1249,22 +1275,11 @@ class ManualOnsetFrame(tk.Frame):
         # frames to be played by the movie
         self.movie_frames = None
         if self.data_and_param.ms.tif_movie_file_name is not None:
-            start_time = time.time()
             self.movie_available = True
-            im = PIL.Image.open(self.data_and_param.ms.tif_movie_file_name)
-            # im.show()
-            # test = np.array(im)
-            n_frames = len(list(ImageSequence.Iterator(im)))
-            dim_x, dim_y = np.array(im).shape
-            print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
-            self.tiff_movie = np.zeros((n_frames, dim_x, dim_y), dtype="uint16")
-            for frame, page in enumerate(ImageSequence.Iterator(im)):
-                self.tiff_movie[frame] = np.array(page)
-            stop_time = time.time()
-            print(f"Time for loading movie: "
-                  f"{np.round(stop_time - start_time, 3)} s")
+            if self.data_and_param.ms.tiff_movie is None:
+                self.data_and_param.ms.load_tiff_movie_in_memory()
+            self.tiff_movie = self.data_and_param.ms.tiff_movie
             # will be useful for transient classifier prediction
-            self.data_and_param.ms.tiff_movie = self.tiff_movie
             self.data_and_param.ms.avg_cell_map_img = np.mean(self.tiff_movie, axis=0)
             self.data_and_param.ms.normalize_movie()
             self.tiff_movie = self.data_and_param.ms.tiff_movie_normalized

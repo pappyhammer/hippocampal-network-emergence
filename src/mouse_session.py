@@ -49,6 +49,7 @@ from hne_spike_structure import HNESpikeStructure
 from mvt_selection_gui import MvtSelectionGui
 from pattern_discovery.tools.signal import smooth_convolve
 import PIL
+from PIL import ImageSequence
 
 
 class MouseSession:
@@ -583,6 +584,33 @@ class MouseSession:
                                show_percentiles=show_percentiles)
 
         # now we take the cells that are the most correlated to twitches
+
+    def load_tiff_movie_in_memory(self):
+        if self.tif_movie_file_name is not None:
+            if self.tiff_movie is None:
+                start_time = time.time()
+                im = PIL.Image.open(self.tif_movie_file_name)
+                n_frames = len(list(ImageSequence.Iterator(im)))
+                dim_x, dim_y = np.array(im).shape
+                print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
+                tiff_movie = np.zeros((n_frames, dim_x, dim_y), dtype="uint16")
+                for frame, page in enumerate(ImageSequence.Iterator(im)):
+                    tiff_movie[frame] = np.array(page)
+                stop_time = time.time()
+                print(f"Time for loading movie: "
+                      f"{np.round(stop_time - start_time, 3)} s")
+
+                self.tiff_movie = tiff_movie
+
+    def build_raw_traces_from_movie(self):
+        if self.tiff_movie is None:
+            return
+        raw_traces = np.zeros((self.coord_obj.n_cells, self.tiff_movie.shape[0]))
+        for cell in np.arange(self.coord_obj.n_cells):
+            mask = self.coord_obj.get_cell_mask(cell=cell,
+                                         dimensions=(self.tiff_movie.shape[1], self.tiff_movie.shape[2]))
+            raw_traces[cell, :] = np.mean(self.tiff_movie[:, mask], axis=1)
+        return raw_traces
 
     def plot_time_correlation_graph_over_twitches(self):
         if self.twitches_frames_periods is None:
@@ -2645,7 +2673,8 @@ class MouseSession:
             file_name_original = file_name
             file_name = file_name.lower()
             descr = self.description.lower() + ".tif"
-            if descr != file_name:
+            descr_ff = self.description.lower() + ".tiff"
+            if (descr != file_name) and (descr_ff != file_name):
                 continue
             self.tif_movie_file_name = self.param.path_data + path + file_name_original
             # print(f"self.tif_movie_file_name {self.tif_movie_file_name}")

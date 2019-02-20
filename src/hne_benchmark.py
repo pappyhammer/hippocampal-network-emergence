@@ -921,15 +921,31 @@ def main_benchmark():
 
         # ## trained on p12 0 cell, with 1 inputs (cell masked), 8 epochs
         # with bin et al. v, with attention before, trained on 19/02/2019 15-33-47, up to cell 10 + 14
-        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.16-28-12.mat"
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.16-28-12.mat"
 
         # ## trained on p12 0 cell, with 1 inputs (cell masked), 10 epochs, multi-class
         # with bin et al. v, with attention before, trained on 19/02/2019 16-52-15, up to cell 10 + 14
-        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.18-21-44.mat"
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.18-21-44.mat"
+
+        # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 20/02/2019 12:20:24 with bin et al. version + atttention before
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_20.15-39-51.mat"
+
+        # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 20/02/2019 12:20:24 with bin et al. version + atttention before, using last epoch
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_20.16-29-06.mat"
+
+        # ## trained on p12 0,3, 6, 9 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 20/02/2019 21-57-23 with bin et al. version + atttention before
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_20.16-09-29.mat"
+
+        # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 20/02/2019  with bin et al. version + atttention before, multi-class
+        # data_dict["rnn"]["file_name"] = ""
 
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.8
+        data_dict["rnn"]["prediction_threshold"] = 0.5
 
         data_dict["last_rnn"] = dict()
         data_dict["last_rnn"]["path"] = "p12/p12_17_11_10_a000"
@@ -938,7 +954,7 @@ def main_benchmark():
         data_dict["last_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.14-20-01.mat"
         data_dict["last_rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["last_rnn"]["predictions"] = "predictions"
-        data_dict["last_rnn"]["prediction_threshold"] = 0.6
+        data_dict["last_rnn"]["prediction_threshold"] = 0.5
 
         # data_dict["old_rnn"] = dict()
         # data_dict["old_rnn"]["path"] = "p12/p12_17_11_10_a000"
