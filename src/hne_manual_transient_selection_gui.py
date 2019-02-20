@@ -3495,7 +3495,6 @@ class ManualOnsetFrame(tk.Frame):
                                                                'inter_neurons': inter_neurons,
                                                                "doubtful_frames_nums": self.doubtful_frames_nums,
                                                                "mvt_frames_nums": self.mvt_frames_nums})
-
         if and_close:
             self.root.destroy()
 

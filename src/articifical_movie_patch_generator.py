@@ -13,6 +13,9 @@ import tifffile
 from shapely import geometry
 import shapely
 import random
+import math
+from pattern_discovery.tools.misc import get_continous_time_periods
+from pattern_discovery.display.raster import plot_spikes_raster
 
 from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize
 
@@ -128,9 +131,9 @@ def generate_artificial_map(coords_to_use,
     x_borders = []
     y_borders = []
     for c in np.arange(n_cells):
-        x_borders.append((col*sub_window_size[1], (col+1)*sub_window_size[1]))
-        y_borders.append((line*sub_window_size[0], (line+1)*sub_window_size[0]))
-        centroids.append((int((col+0.5)*sub_window_size[1]), int((line+0.5)*sub_window_size[0])))
+        x_borders.append((col * sub_window_size[1], (col + 1) * sub_window_size[1]))
+        y_borders.append((line * sub_window_size[0], (line + 1) * sub_window_size[0]))
+        centroids.append((int((col + 0.5) * sub_window_size[1]), int((line + 0.5) * sub_window_size[0])))
         line += 1
         if (line % max_lines) == 0:
             line = 0
@@ -175,8 +178,8 @@ def generate_artificial_map(coords_to_use,
             n_overall_trial += 1
             over_cell_coord = coords_to_use[0]
             coords_to_use = coords_to_use[1:]
-            new_centroid_x_values = np.concatenate((np.arange(x_borders[c][0] + x_padding, centroid[0]-2),
-                                                   np.arange(centroid[0]+2, x_borders[c][1]+1 - x_padding)))
+            new_centroid_x_values = np.concatenate((np.arange(x_borders[c][0] + x_padding, centroid[0] - 2),
+                                                    np.arange(centroid[0] + 2, x_borders[c][1] + 1 - x_padding)))
             new_centroid_y_values = np.concatenate((np.arange(y_borders[c][0] + y_padding, centroid[1] - 2),
                                                     np.arange(centroid[1] + 2, y_borders[c][1] + 1 - y_padding)))
             not_added = True
@@ -206,7 +209,7 @@ def generate_artificial_map(coords_to_use,
                 cell_coord, poly_new_cell = shift_cell_coord_to_centroid(centroid=(x, y), cell_coord=over_cell_coord)
                 # first we need to make sure the cell don't go out of the frame
                 minx, miny, maxx, maxy = np.array(list(poly_new_cell.bounds))
-                if (minx <= 0) or (miny <= 0) or (maxx >= dimensions[1]-1) or (maxy >= dimensions[0]-1):
+                if (minx <= 0) or (miny <= 0) or (maxx >= dimensions[1] - 1) or (maxy >= dimensions[0] - 1):
                     continue
                 # if intersects and not just touches (means commun border)
                 if poly_main_cell.intersects(poly_new_cell) and (not poly_main_cell.touches(poly_new_cell)) \
@@ -343,7 +346,7 @@ def test_generate_movie_with_cells(coords, param):
 
     for noise_str in ["s&p", "poisson", "gauss", "speckle"]:
         outvid_tiff_noisy = os.path.join(param.path_data, param.path_results,
-                                      f"test_noisy_vid_{noise_str}.tiff")
+                                         f"test_noisy_vid_{noise_str}.tiff")
 
         with tifffile.TiffWriter(outvid_tiff_noisy) as tiff:
             for img_array in images:
@@ -352,7 +355,6 @@ def test_generate_movie_with_cells(coords, param):
                 tiff.save(img_array, compress=6)
 
     raise Exception()
-
 
     # to avoid this error: error: (-215) src.depth() == CV_8U
     # images = np.uint8(255 * images)
@@ -425,7 +427,10 @@ def test_generate_movie_with_cells(coords, param):
 def normalize_array_0_255(img_array):
     minv = np.amin(img_array)
     maxv = np.amax(img_array)
-    img_array = (255 * (img_array - minv) / (maxv - minv)).astype(np.uint8)
+    if maxv - minv == 0:
+        img_array = img_array.astype(np.uint8)
+    else:
+        img_array = (255 * (img_array - minv) / (maxv - minv)).astype(np.uint8)
     return img_array
 
 
@@ -453,7 +458,7 @@ def noisy(noise_typ, image):
         sigma = var ** 0.5
 
         if len(image.shape) == 3:
-            row,col,ch= image.shape
+            row, col, ch = image.shape
             gauss = np.random.normal(mean, sigma, (row, col, ch))
             gauss = gauss.reshape(row, col, ch)
         else:
@@ -496,29 +501,207 @@ def noisy(noise_typ, image):
         return noisy
 
 
+def build_traces(raster_dur, param, coord_obj, dimensions):
+    n_cells = raster_dur.shape[0]
+    n_frames = raster_dur.shape[1]
+
+    decay_factor = 8
+    traces = np.ones((n_cells, n_frames))
+
+    for cell in np.arange(n_cells):
+        mask = coord_obj.get_cell_mask(cell, dimensions)
+        n_pixels = np.sum(mask)
+        baseline = 1 * n_pixels
+        traces[cell] *= baseline
+        active_periods = get_continous_time_periods(raster_dur[cell])
+        for period in active_periods:
+            last_frame = period[1]+1
+            len_period = last_frame - period[0]
+            x_coords = [period[0], last_frame]
+            low_amplitude = traces[cell, period[0]]
+            if len_period <= 2:
+                amplitude_max = random.randint(2, 5)
+            elif len_period <= 5:
+                amplitude_max = random.randint(3, 8)
+            else:
+                amplitude_max = random.randint(5, 10)
+            amplitude_max *= n_pixels
+            amplitude_max += low_amplitude
+            y_coords = [low_amplitude, amplitude_max]
+            traces_values = give_values_on_linear_line_between_2_points(x_coords, y_coords)
+            traces[cell, period[0]:last_frame + 1] = traces_values
+            if (last_frame + 1) == n_frames:
+                continue
+            len_decay = max(len_period * decay_factor, 12)
+            growth_rate = finding_growth_rate(t=len_decay, a=amplitude_max, end_value=baseline)
+            # print(f"len_decay {len_decay}")
+            # decay_frames = np.arange(last_frame, last_frame + len_decay)
+            traces_decay_values = exponential_decay_formula(t=np.arange(len_decay), a=amplitude_max,
+                                                            k=growth_rate, c=0)
+
+            if last_frame + len_decay <= n_frames:
+                traces[cell, last_frame:last_frame + len_decay] = traces_decay_values
+            else:
+                offset = (last_frame + len_decay) - n_frames
+                traces[cell, last_frame:] = traces_decay_values[:-offset]
+
+    z_score_traces = np.copy(traces)
+    for cell in np.arange(n_cells):
+        z_score_traces[cell] = (z_score_traces[cell] - np.mean(z_score_traces[cell])) / np.std(z_score_traces[cell])
+    plot_spikes_raster(spike_nums=raster_dur,
+                       display_spike_nums=True,
+                       display_traces=True,
+                       traces=z_score_traces,
+                       raster_face_color="white",
+                       param=param,
+                       spike_train_format=False,
+                       title=f"traces",
+                       file_name=f"traces_artificial",
+                       y_ticks_labels_size=4,
+                       save_raster=True,
+                       without_activity_sum=True,
+                       show_raster=False,
+                       plot_with_amplitude=False,
+                       spike_shape="o",
+                       spike_shape_size=0.4,
+                       save_formats="pdf")
+
+    return traces
+
+
+def build_activity_masks(coord_obj, traces, dimensions):
+    cells_activity_mask = []
+    n_frames = traces.shape[1]
+    for cell in np.arange(coord_obj.n_cells):
+        mask = coord_obj.get_cell_mask(cell, dimensions)
+        n_pixels = np.sum(mask)
+        activity_mask = np.zeros((n_frames, dimensions[0], dimensions[1]))
+        # activity_mask[:, mask] = 1
+        # activity_mask *= (traces[cell ]/ n_pixels)
+        for frame in np.arange(n_frames):
+            amplitude = traces[cell, frame]
+            activity_mask[frame] = mask * (amplitude / n_pixels)
+        cells_activity_mask.append([mask, activity_mask])
+    return cells_activity_mask
+
+
 def produce_movie(map_coords, raster_dur, param, dimensions):
     n_frames = raster_dur.shape[1]
-    images = np.ones((n_frames, dimensions[0], dimensions[1]))
-    images *= 0.1
+    n_cells = raster_dur.shape[0]
 
-    noise_str = "speckle"
+    coord_obj = CoordClass(coord=map_coords, nb_col=120,
+                           nb_lines=120)
+
+    ms_fusion = MouseSession(age=10, session_id="fusion", nb_ms_by_frame=100, param=param)
+    ms_fusion.coord_obj = coord_obj
+    ms_fusion.plot_all_cells_on_map()
+
+    traces = build_traces(raster_dur, param, coord_obj, dimensions)
+
+    cells_activity_mask = build_activity_masks(coord_obj=coord_obj, traces=traces, dimensions=dimensions)
+
+    noise_str = "gauss"
     # in ["s&p", "poisson", "gauss", "speckle"]:
-    outvid_tiff_noisy = os.path.join(param.path_data, param.path_results,
-                                     f"artificial_movie.tiff")
+    outvid_tiff = os.path.join(param.path_data, param.path_results,
+                                     f"p10_artificial.tiff")
 
-    with tifffile.TiffWriter(outvid_tiff_noisy) as tiff:
-        for img_array in images:
+    images = np.ones((n_frames, dimensions[0], dimensions[1]))
+    # images *= 0.01
+
+    with tifffile.TiffWriter(outvid_tiff) as tiff:
+        for frame, img_array in enumerate(images):
+            for cell in np.arange(n_cells):
+                mask, activity_mask = cells_activity_mask[cell]
+                # print(f"img_array.shape {img_array.shape}, activity_mask.shape {activity_mask.shape}, "
+                #       f"mask {mask.shape}")
+                img_array[mask] = activity_mask[frame, mask]
             img_array = noisy(noise_str, img_array)
             img_array = normalize_array_0_255(img_array)
             tiff.save(img_array, compress=6)
 
 
-def build_raster_dur(map_coords, cells_with_overlap, overlapping_cells, n_frames):
+def build_raster_dur(map_coords, cells_with_overlap, overlapping_cells, n_frames, param):
     n_cells = len(map_coords)
     raster_dur = np.zeros((n_cells, n_frames), dtype="int8")
+    for cell in np.arange(n_cells):
+        n_transient = random.randint(5, 40)
+        onsets = np.zeros(0, dtype="int16")
+        for transient in np.arange(n_transient):
+            while True:
+                onset = random.randint(2, n_frames-20)
+                sub_array = np.abs(onsets - onset)
+                if (len(onsets) == 0) or (np.min(sub_array) > 3):
+                    onsets = np.append(onsets, [onset])
+                    break
+        # useless
+        onsets.sort()
+        for transient in np.arange(n_transient):
+            onset = onsets[transient]
+            duration_transient = random.randint(1, 8)
+            raster_dur[cell, onset:onset+duration_transient] = 1
+
+    plot_spikes_raster(spike_nums=raster_dur, param=param,
+                       spike_train_format=False,
+                       title=f"raster plot test",
+                       file_name=f"spike_nums__dur_artificial",
+                       y_ticks_labels_size=4,
+                       save_raster=True,
+                       without_activity_sum=False,
+                       sliding_window_duration=1,
+                       show_sum_spikes_as_percentage=True,
+                       show_raster=False,
+                       plot_with_amplitude=False,
+                       spike_shape="o",
+                       spike_shape_size=4,
+                       save_formats="pdf")
 
     return raster_dur
 
+
+def give_values_on_linear_line_between_2_points(x_coords, y_coords):
+    # x_coords = [100, 400]
+    # y_coords = [240, 265]
+    # print(f"x_coords {x_coords} y_coords {y_coords}")
+    # Calculate the coefficients. This line answers the initial question.
+    coefficients = np.polyfit(x_coords, y_coords, 1)
+
+    # 'a =', coefficients[0]
+    # 'b =', coefficients[1]
+
+    # Let's compute the values of the line...
+    polynomial = np.poly1d(coefficients)
+    x_axis = np.arange(x_coords[0], x_coords[1] + 1)
+    y_axis = polynomial(x_axis)
+
+    return y_axis
+
+
+def exponential_decay_formula(t, a, k, c):
+    """
+    :param t: time that has passed
+    :param a: initial value (amount before measuring growth or decay)
+    :param k: continuous growth rate (also called constant of proportionality)
+    (k > 0, the amount is increasing (growing); k < 0, the amount is decreasing (decaying))
+    :param c: lowest value
+    :return:
+    """
+    return a * np.exp(k * t) + c
+
+
+def finding_growth_rate(t, a, end_value):
+    k = np.log(end_value / a) / t
+    return k
+
+def save_raster_dur_for_gui(raster_dur, param):
+    spike_nums = np.zeros(raster_dur.shape, dtype="int8")
+    peak_nums = np.zeros(raster_dur.shape, dtype="int8")
+    for cell in np.arange(raster_dur.shape[0]):
+        active_periods = get_continous_time_periods(raster_dur[cell])
+        for period in active_periods:
+            spike_nums[cell, period[0]] = 1
+            peak_nums[cell, period[1]+1] = 1
+    sio.savemat(os.path.join(param.path_results, "gui_data.mat"), {'Bin100ms_spikedigital_Python': spike_nums,
+                                                       'LocPeakMatrix_Python': peak_nums})
 
 def main():
     """
@@ -585,18 +768,13 @@ def main():
         generate_artificial_map(coords_to_use=coords,
                                 n_overlap_by_cell_range=(1, 4), overlap_ratio_range=(0.1, 0.5))
 
-    coord_obj = CoordClass(coord=map_coords, nb_col=120,
-                           nb_lines=120)
-
-    ms_fusion = MouseSession(age=10, session_id="fusion", nb_ms_by_frame=100, param=param)
-    ms_fusion.coord_obj = coord_obj
-    ms_fusion.plot_all_cells_on_map()
-
     n_frames = 2500
 
     # we need to generate a raster_dur, with some synchronicity between overlapping cells
     raster_dur = build_raster_dur(map_coords=map_coords, cells_with_overlap=cells_with_overlap,
-                                    overlapping_cells=overlapping_cells, n_frames=2500)
+                                  overlapping_cells=overlapping_cells, n_frames=2500, param=param)
+
+    save_raster_dur_for_gui(raster_dur, param)
 
     # then we build the movie based on cells_coords and the raster_dur
     produce_movie(map_coords=map_coords, raster_dur=raster_dur, param=param,
@@ -606,5 +784,6 @@ def main():
     for i in range(len(map_coords)):
         coords_matlab_style[i] = map_coords[i]
     sio.savemat(os.path.join(param.path_results, "map_coords.mat"), {"coord_python": coords_matlab_style})
+
 
 main()

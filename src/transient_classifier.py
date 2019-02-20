@@ -2400,9 +2400,9 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
         img = PIL.Image.new('1', (len_x, len_y), 1)
         if buffer is not None:
             scaled_poly_gon = scaled_poly_gon.buffer(buffer)
-        fill_value=0
+        fill_value = 0
         if get_only_polygon_contour:
-            fill_value=None
+            fill_value = None
         ImageDraw.Draw(img).polygon(list(scaled_poly_gon.exterior.coords), outline=0,
                                     fill=fill_value)
         mask_dict[cell_to_display] = np.array(img)
@@ -2599,7 +2599,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     # p13_18_10_29_a001_GUI_transients_RD.mat
     """
     print("load_data_for_generator")
-    use_small_sample = True
+    use_small_sample = False
     # used for counting how many cells and transients available
     load_them_all = False
     if load_them_all:
@@ -2619,17 +2619,17 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
         ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3, 6, 9])} # 3, 6
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])} # 3, 6
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
-        ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p11_17_11_24_a000_ms",
+        ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", # "p11_17_11_24_a000_ms",
                      "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
         #  "p9_18_09_27_a003_ms",
         cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 53, 75, 81]),  #
                               "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10]),  #
                               # "p9_18_09_27_a003_ms": np.array([3, 5]), # 7, 9
-                              "p11_17_11_24_a000_ms": np.array([3, 22, 24, 29]),  #
+                              #"p11_17_11_24_a000_ms": np.array([3, 22, 24, 29]),  #
                               "p12_171110_a000_ms": np.array([0, 3, 7]),  # 3
                               "p13_18_10_29_a001_ms": np.array([0, 5])}  # 12, 13
         # max p7: 117, max p9: 30, max p12: 6 .build_spike_nums_dur()
@@ -3282,7 +3282,7 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
                                           pixels_around=pixels_around, buffer=buffer, with_neuropil_mask=True,
                                           using_multi_class=using_multi_class)
 
-    movie_patch_generator = movie_patch_generator_choices["MaskedCell"]
+    movie_patch_generator = movie_patch_generator_choices["MaskedVersions"]
 
     # source_dict not useful in that case, but necessary for the function to work properly, to change later
     source_dict = dict()
@@ -3520,7 +3520,7 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 35
+    n_epochs = 15
     batch_size = 16
     window_len = 50
     max_width = 25
@@ -3541,7 +3541,7 @@ def train_model():
     else:
         loss_fct = 'binary_crossentropy'
     with_learning_rate_reduction = True
-    learning_rate_reduction_patience = 3
+    learning_rate_reduction_patience = 2
     without_bidirectional = False
     # TODO: try 256, 256, 256
     lstm_layers_size = [128, 256]  # 128, 256, 512
@@ -3551,12 +3551,12 @@ def train_model():
     apply_attention_before_lstm = True
     use_single_attention_vector = False
     with_early_stopping = True
-    early_stop_patience = 20  # 10
+    early_stop_patience = 5  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
-    main_ratio_balance = (0.6, 0.2, 0.2)
-    # main_ratio_balance = (0.6, 0.3, 0.1)
+    # main_ratio_balance = (0.6, 0.2, 0.2)
+    main_ratio_balance = (0.6, 0.3, 0.1)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
 
