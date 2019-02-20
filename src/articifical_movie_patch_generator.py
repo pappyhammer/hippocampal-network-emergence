@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import tifffile
 from shapely import geometry
 import shapely
+import random
 
 from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize
 
@@ -82,23 +83,59 @@ def produce_cell_coord_from_cnn_validated_cells(param):
     sio.savemat(os.path.join(param.path_results, "test_coords_cnn.mat"), {"coord_python": coords_matlab_style})
 
 
+def shift_cell_coord_to_centroid(centroid, cell_coord):
+    # it is necessary to remove one, as data comes from matlab, starting from 1 and not 0
+    cell_coord = cell_coord - 1
+    cell_coord = cell_coord.astype(int)
+    coord_list_tuple = []
+    for n in np.arange(cell_coord.shape[1]):
+        coord_list_tuple.append((cell_coord[0, n], cell_coord[1, n]))
+
+    poly_cell = geometry.Polygon(coord_list_tuple)
+    centroid_point = poly_cell.centroid
+    # print(f"centroid {centroid} centroid[0] {centroid[0]}")
+    # print(f"centroid_point.x {centroid_point.x}, centroid_point.y {centroid_point.y}")
+    x_shift = centroid[0] - centroid_point.x
+    y_shift = centroid[1] - centroid_point.y
+    # print(f"x_shift {x_shift}, y_shift {y_shift}")
+    for n in np.arange(cell_coord.shape[1]):
+        cell_coord[0, n] = cell_coord[0, n] + x_shift
+        cell_coord[1, n] = cell_coord[1, n] + y_shift
+
+    coord_list_tuple = []
+    for n in np.arange(cell_coord.shape[1]):
+        coord_list_tuple.append((cell_coord[0, n], cell_coord[1, n]))
+    poly_cell = geometry.Polygon(coord_list_tuple)
+
+    cell_coord = cell_coord + 1
+
+    return cell_coord, poly_cell
+
+
 def generate_artificial_map(coords_to_use,
                             n_overlap_by_cell_range=(1, 4), overlap_ratio_range=(0.1, 0.5)):
     dimensions = (120, 120)
+    # model cells, then we'll put cells around with some overlaping
     n_cells = 16
     sub_window_size = (30, 30)
+    x_padding = 1 # sub_window_size[1] // 6
+    y_padding = 1 # sub_window_size[0] // 6
     centroids = []
     line = 0
     col = 0
-    max_lines = dimensions[0] // sub_window_size [0]
-    max_cols = dimensions[1] // sub_window_size [1]
+    max_lines = dimensions[0] // sub_window_size[0]
+    max_cols = dimensions[1] // sub_window_size[1]
+    x_borders = []
+    y_borders = []
     for c in np.arange(n_cells):
-        centroids.append((int((line+0.5)*sub_window_size[0]), int((col+0.5)*sub_window_size[1])))
+        x_borders.append((col*sub_window_size[1], (col+1)*sub_window_size[1]))
+        y_borders.append((line*sub_window_size[0], (line+1)*sub_window_size[0]))
+        centroids.append((int((col+0.5)*sub_window_size[1]), int((line+0.5)*sub_window_size[0])))
         line += 1
         if (line % max_lines) == 0:
             line = 0
             col += 1
-    print(f"centroids {centroids}")
+    # print(f"centroids {centroids}")
 
     coords_to_use = coords_to_use
     cells_with_overlap = []
@@ -106,41 +143,66 @@ def generate_artificial_map(coords_to_use,
     cell_index = 0
     for c in np.arange(n_cells):
         cell_coord = coords_to_use[0]
-        print(f"cell_coord {cell_coord}")
+        # print(f"cell_coord {cell_coord}")
         # print(f"cell_coord.shape {cell_coord.shape}")
         # we center the cell and change its coordinates
         centroid = centroids[c]
-        # it is necessary to remove one, as data comes from matlab, starting from 1 and not 0
-        cell_coord = cell_coord - 1
-        cell_coord = cell_coord.astype(int)
-        coord_list_tuple = []
-        for n in np.arange(cell_coord.shape[1]):
-            coord_list_tuple.append((cell_coord[0, n], cell_coord[1, n]))
-
-        poly_cell = geometry.Polygon(coord_list_tuple)
-        centroid_point = poly_cell.centroid
-        print(f"centroid {centroid} centroid[0] {centroid[0]}")
-        print(f"centroid_point.x {centroid_point.x}, centroid_point.y {centroid_point.y}")
-        x_shift = centroid[0] - centroid_point.x
-        y_shift = centroid[1] - centroid_point.y
-        print(f"x_shift {x_shift}, y_shift {y_shift}")
-        for n in np.arange(cell_coord.shape[1]):
-            cell_coord[0, n] = cell_coord[0, n] + x_shift
-            cell_coord[1, n] = cell_coord[1, n] + y_shift
-        cell_coord = cell_coord + 1
-        print(f"new cell_coord {cell_coord}")
         # poly_cell = shapely.affinity.translate(poly_cell, xoff=x_shift, yoff=y_shift)
         # list(poly_cell.exterior.coords)
-
+        cell_coord, poly_main_cell = shift_cell_coord_to_centroid(centroid=centroid, cell_coord=cell_coord)
         cells_with_overlap.append(cell_index)
         map_coords.append(cell_coord)
         cell_index += 1
         coords_to_use = coords_to_use[1:]
 
-
-
         overlapping_cells_coord = []
+        # we decide how many cells will be overlaping it (more like intersect)
+        n_overlaps = random.randint(n_overlap_by_cell_range[0], n_overlap_by_cell_range[1])
+        n_non_overlaps = random.randint(2, 8)
+        n_over_added = 0
+        n_non_over_added = 0
+        centroids_added = []
 
+        while (n_over_added < n_overlaps) or (n_non_over_added < n_non_overlaps):
+            over_cell_coord = coords_to_use[0]
+            coords_to_use = coords_to_use[1:]
+            new_centroid_x_values = np.concatenate((np.arange(x_borders[c][0] + x_padding, centroid[0]-1),
+                                                   np.arange(centroid[0]+2, x_borders[c][1]+1 - x_padding)))
+            new_centroid_y_values = np.concatenate((np.arange(y_borders[c][0] + y_padding, centroid[1] - 1),
+                                                    np.arange(centroid[1] + 2, y_borders[c][1] + 1 - y_padding)))
+            not_added = True
+            # one cell might be too big to fit in, then we give up and go to the next window
+            max_n_trial = 100
+            n_trial = 0
+            while not_added:
+                # random x and y for centroid
+                np.random.shuffle(new_centroid_x_values)
+                np.random.shuffle(new_centroid_y_values)
+                x = new_centroid_x_values[0]
+                y = new_centroid_y_values[1]
+                cell_coord, poly_new_cell = shift_cell_coord_to_centroid(centroid=(x, y), cell_coord=over_cell_coord)
+                # first we need to make sure the cell don't go out of the frame
+                minx, miny, maxx, maxy = np.array(list(poly_new_cell.bounds)).astype(int)
+                if (minx < 0) or (miny < 0) or (maxx >= dimensions[1]) or (maxy >= dimensions[0]):
+                    continue
+                if poly_main_cell.intersects(poly_new_cell) and n_over_added < n_overlaps:
+                    map_coords.append(cell_coord)
+                    n_over_added += 1
+                    not_added = False
+                    cell_index += 1
+                elif n_non_over_added < n_non_overlaps:
+                    map_coords.append(cell_coord)
+                    n_non_over_added += 1
+                    not_added = False
+                    cell_index += 1
+                n_trial += 1
+                if n_trial >= max_n_trial:
+                    print("n_trial >= max_n_trial")
+                    break
+            if n_trial >= max_n_trial:
+                print("n_trial >= max_n_trial")
+                break
+    print(f"cells_with_overlap {cells_with_overlap}")
     return coords_to_use, map_coords, cells_with_overlap
 
 
