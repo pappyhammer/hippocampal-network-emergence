@@ -2595,11 +2595,11 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     p11_17_11_24_a000: 0 to 25 + 29
     p12_171110_a000_ms: up to cell 10 included + cell 14
     p13_18_10_29_a001: 0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117
-
+    artificial_ms: with same weights: [0, 13, 23, 30, 45, 53, 63, 71, 84, 94, 101, 106, 119, 128, 133, 144]
     # p13_18_10_29_a001_GUI_transients_RD.mat
     """
     print("load_data_for_generator")
-    use_small_sample = False
+    use_small_sample = True
     # used for counting how many cells and transients available
     load_them_all = False
     if load_them_all:
@@ -2618,8 +2618,11 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # np.array([3, 52, 53, 75, 81, 83, 93, 115])
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
-        ms_to_use = ["p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])} # 3, 6
+        # ms_to_use = ["p12_171110_a000_ms"]
+        # cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])} # 3, 6
+        ms_to_use = ["artificial_ms", "p12_171110_a000_ms"]
+        cell_to_load_by_ms = {"artificial_ms": np.array([0, 13, 23, 30]),
+                              "p12_171110_a000_ms": np.array([0, 3])} # 3, 6
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
@@ -3484,9 +3487,9 @@ def train_model():
     go_predict_from_movie = False
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
+        transients_prediction_from_movie(ms_to_use=["p8_18_10_24_a005_ms"], param=param, overlap_value=0.8,
                                          use_data_augmentation=True,
-                                         cells_to_predict=np.concatenate((np.arange(11), [14])))
+                                         cells_to_predict=np.array([9, 10, 13, 28, 41, 42, 207, 321, 110]))
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])

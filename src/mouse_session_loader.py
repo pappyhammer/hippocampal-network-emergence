@@ -1,5 +1,18 @@
 from mouse_session import MouseSession
+import numpy as np
+from pattern_discovery.tools.signal import smooth_convolve
 
+
+def smooth_traces(traces):
+    # smoothing the trace
+    windows = ['hanning', 'hamming', 'bartlett', 'blackman']
+    i_w = 1
+    window_length = 11
+    for i in np.arange(traces.shape[0]):
+        smooth_signal = smooth_convolve(x=traces[i], window_len=window_length,
+                                        window=windows[i_w])
+        beg = (window_length - 1) // 2
+        traces[i] = smooth_signal[beg:-beg]
 
 def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_movie=True,
                         for_cell_classifier=False, for_transient_classifier=False):
@@ -12,9 +25,26 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         variables_mapping = {"coord": "coord_python"}
         artificial_ms.load_data_from_file(file_name_to_load="artificial_movies/map_coords.mat",
                                               variables_mapping=variables_mapping)
-
         if load_movie:
             artificial_ms.load_tif_movie(path="artificial_movies/")
+
+        if for_cell_classifier or for_transient_classifier:
+            variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                 "peak_nums": "LocPeakMatrix_Python"}
+            artificial_ms.load_data_from_file(file_name_to_load=
+                                                   "artificial_movies/gui_data.mat",
+                                                   variables_mapping=variables_mapping,
+                                                   from_gui=True)
+
+            artificial_ms.build_spike_nums_dur()
+            artificial_ms.load_tiff_movie_in_memory()
+            artificial_ms.normalize_movie()
+            artificial_ms.raw_traces = artificial_ms.build_raw_traces_from_movie()
+            traces = np.copy(artificial_ms.raw_traces)
+            smooth_traces(traces)
+            artificial_ms.traces = traces
+            artificial_ms.smooth_traces = traces
+
         ms_str_to_ms_dict["artificial_ms"] = artificial_ms
 
     if "p6_18_02_07_a001_ms" in ms_str_to_load:

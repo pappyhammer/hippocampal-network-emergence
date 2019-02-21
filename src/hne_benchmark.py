@@ -842,10 +842,10 @@ def main_benchmark():
         return
 
     # ########### options ###################
-    ms_to_benchmark = "p12_17_11_10_a000"
+    # ms_to_benchmark = "p12_17_11_10_a000"
     # ms_to_benchmark = "p7_17_10_12_a000"
     # ms_to_benchmark = "p13_18_10_29_a001_ms"
-    # ms_to_benchmark = "p8_18_10_24_a005_ms"
+    ms_to_benchmark = "p8_18_10_24_a005_ms"
     do_onsets_benchmarks = False
     do_plot_roc_predictions = False
     # ########### end options ###################
@@ -867,7 +867,7 @@ def main_benchmark():
         # if traces is given, then rnn will be boosted
         data_dict["rnn"]["trace_file_name"] = "p12_17_11_10_a000_Traces.mat"
         data_dict["rnn"]["trace_var_name"] = "C_df"
-        data_dict["rnn"]["boost_rnn"] = False
+        data_dict["rnn"]["boost_rnn"] = True
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
 
         # "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat" based on best 2 p12 cells predictions
@@ -946,6 +946,10 @@ def main_benchmark():
         # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
         # trained on 20/02/2019 12:20:24 with bin et al. version + atttention before, using avt-derniere epoch
         data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_20.20-15-26.mat"
+
+        # ## trained on 4 sessions, 13 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 21/02/2019 00-47-30 with bin et al. version + atttention before
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_21.18-16-21.mat"
 
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
@@ -1085,7 +1089,7 @@ def main_benchmark():
         data_dict["rnn"]["path"] = "p8/p8_18_10_24_a005"
         data_dict["rnn"]["trace_file_name"] = "p8_18_10_24_a005_Traces.mat"
         data_dict["rnn"]["trace_var_name"] = "C_df"
-        data_dict["rnn"]["boost_rnn"] = True
+        data_dict["rnn"]["boost_rnn"] = False
         # train on 2 of the cell of Robin
         # trained on 2 cells of p8
         # data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_06.20-29-38_9_cells_from_Robin.mat"
@@ -1100,9 +1104,12 @@ def main_benchmark():
         # trained on 5 sessions and 15 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
         # trained on 15/02/2019 00:01:55, on epoch 13
         data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_16.16-06-00.mat"
+        # ## trained on 4 sessions, 13 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 21/02/2019 00-47-30 with bin et al. version + atttention before
+        data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_21.19-07-23.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.55
+        data_dict["rnn"]["prediction_threshold"] = 0.4
 
         data_dict["old_rnn"] = dict()
         data_dict["old_rnn"]["path"] = "p8/p8_18_10_24_a005"
