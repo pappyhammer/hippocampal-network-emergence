@@ -231,7 +231,7 @@ def get_source_profile(cell, ms, binary_version=True, pixels_around=0, bounds=No
 def get_source_profile_to_classify(ms, buffer=None, max_width=20, max_height=20, binary_version=False):
     n_cells = ms.spike_struct.n_cells
     if n_cells is None:
-        n_cells = len(ms.traces)
+        n_cells = len(ms.raw_traces)
 
     if binary_version:
         full_data = np.zeros((n_cells, max_height, max_width), dtype="uint8")

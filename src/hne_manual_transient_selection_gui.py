@@ -211,7 +211,7 @@ class ChooseSessionFrame(tk.Frame):
             self.data_and_param.traces = self.data_and_param.ms.traces
         else:
             traces = np.copy(self.data_and_param.raw_traces)
-            smooth_traces(traces)
+            do_traces_smoothing(traces)
             self.data_and_param.traces = traces
 
         n_cells = len(self.data_and_param.traces)
@@ -652,7 +652,7 @@ def get_file_name_and_path(path_file):
     return path_file[:last_slash_index], path_file[last_slash_index:]
 
 
-def smooth_traces(traces):
+def do_traces_smoothing(traces):
     # smoothing the trace
     windows = ['hanning', 'hamming', 'bartlett', 'blackman']
     i_w = 1
@@ -814,7 +814,7 @@ class ManualOnsetFrame(tk.Frame):
 
         self.traces = np.copy(self.raw_traces)
         # smoothing the trace
-        smooth_traces(self.traces)
+        do_traces_smoothing(self.traces)
         # windows = ['hanning', 'hamming', 'bartlett', 'blackman']
         # i_w = 1
         # window_length = 11
@@ -3210,6 +3210,11 @@ class ManualOnsetFrame(tk.Frame):
                 self.data_and_param.ms.normalize_movie()
                 self.data_and_param.ms.spike_struct.peak_nums = self.peak_nums
                 self.data_and_param.ms.spike_struct.spike_nums = self.spike_nums
+                self.data_and_param.ms.spike_struct.n_cells = self.spike_nums.shape[0]
+                if self.data_and_param.ms.traces is None:
+                    self.data_and_param.ms.traces = self.traces
+                if self.data_and_param.ms.raw_traces is None:
+                    self.data_and_param.ms.raw_traces = self.raw_traces
                 predictions = predict_cell_from_saved_model(ms=self.data_and_param.ms,
                                                             weights_file=weights_file, json_file=json_file)
                 print_accuracy = False
@@ -4349,7 +4354,7 @@ class ManualOnsetFrame(tk.Frame):
                                        (predictions[:, index_pred] / 2) - (0.75*index_pred),
                                        color=predictions_color, zorder=20)
                 threshold_tc = self.transient_classifier_threshold
-                self.axe_plot.hlines(threshold_tc, 0, self.nb_times_traces - 1, color="red",
+                self.axe_plot.hlines(threshold_tc / 2, 0, self.nb_times_traces - 1, color="red",
                                      linewidth=0.5,
                                      linestyles="dashed")
                 if threshold_tc not in self.transient_prediction_periods[self.current_neuron]:

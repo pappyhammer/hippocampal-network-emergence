@@ -20,6 +20,7 @@ import PIL
 from PIL import ImageDraw
 
 from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize
+from pattern_discovery.tools.signal import smooth_convolve
 
 
 class DataForMs(p_disc_tools_param.Parameters):
@@ -523,12 +524,15 @@ def build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline):
     decay_factor = 10
     traces = np.ones((n_cells, n_frames))
     original_baseline = baseline
+    # cell_baseline_ratio: by how much increasing the baseline of the cell comparing to the baseline of map
+    # TODO: change ratio for each cell, goes from 1.4 to 1.6 for exemple
+    cell_baseline_ratio = 1.5
     for cell in np.arange(n_cells):
-        baseline = original_baseline * n_pixels_by_cell[cell]
+        baseline = original_baseline * n_pixels_by_cell[cell] * cell_baseline_ratio
         traces[cell] *= baseline
         active_periods = get_continous_time_periods(raster_dur[cell])
         for period in active_periods:
-            last_frame = period[1]+1
+            last_frame = period[1] + 1
             len_period = last_frame - period[0]
             x_coords = [period[0], last_frame]
             low_amplitude = traces[cell, period[0]]
@@ -679,7 +683,8 @@ def get_mask(dimensions, poly_gon):
 
 def get_weighted_activity_mask_for_a_cell(mask, soma_mask, n_pixels, n_pixels_soma):
     mu, sigma = 100, 15  # mean and standard deviation
-    mu_soma, sigma_soma = 60, 10
+    mu_soma = random.randint(50, 70)
+    sigma_soma= mu_soma // 6
 
     weighted_mask = np.zeros(mask.shape)
 
@@ -702,7 +707,8 @@ def get_weighted_activity_mask_for_a_cell(mask, soma_mask, n_pixels, n_pixels_so
         if len(np.where(weighted_soma_mask < 0)[0]) > 0:
             print(f"weighted_soma_mask < 0 {len(np.where(weighted_soma_mask < 0)[0])}")
         weighted_soma_mask[weighted_soma_mask < 0] = 0
-        weighted_soma_mask = weighted_soma_mask.reshape((soma_mask.shape[0], soma_mask.shape[1]))  # back to original shape
+        weighted_soma_mask = weighted_soma_mask.reshape(
+            (soma_mask.shape[0], soma_mask.shape[1]))  # back to original shape
         # print(f"weighted_soma_mask {np.sum(weighted_soma_mask)}")
 
         weighted_mask[soma_mask] = weighted_soma_mask[soma_mask]
@@ -723,7 +729,7 @@ def construct_movie_images(coord_obj, traces, dimensions, baseline, soma_geoms, 
         mask = coord_obj.get_cell_mask(cell, dimensions)
         n_pixels = np.sum(mask)
 
-        add_soma = not(cell % 5 == 0)
+        add_soma = not (cell % 5 == 0)
 
         same_weight_for_all_frame = True
 
@@ -755,13 +761,13 @@ def construct_movie_images(coord_obj, traces, dimensions, baseline, soma_geoms, 
         for frame in np.arange(n_frames):
             if not same_weight_for_all_frame:
                 weighted_mask = get_weighted_activity_mask_for_a_cell(mask=mask, soma_mask=soma_mask,
-                                                                  n_pixels=n_pixels, n_pixels_soma=n_pixels_soma)
+                                                                      n_pixels=n_pixels, n_pixels_soma=n_pixels_soma)
 
             amplitude = traces[cell, frame]
             activity_mask[frame] = weighted_mask * (amplitude / np.sum(weighted_mask))
 
         cell_pieces.add(CellPiece(id=f"{cell}", poly_gon=coord_obj.cells_polygon[cell],
-                                     activity_mask=activity_mask, dimensions=dimensions))
+                                  activity_mask=activity_mask, dimensions=dimensions))
 
     images = np.ones((n_frames, dimensions[0], dimensions[1]))
     images *= baseline
@@ -797,7 +803,7 @@ def build_somas(coord_obj):
     for cell, poly_gon in coord_obj.cells_polygon.items():
         img = PIL.Image.new('1', (120, 120), 0)
         ImageDraw.Draw(img).polygon(list(poly_gon.exterior.coords), outline=1,
-                                        fill=1)
+                                    fill=1)
         img = np.array(img)
         n_pixel = np.sum(img)
         # print(f"soma {cell}: {n_pixel}")
@@ -852,12 +858,12 @@ def produce_movie(map_coords, raster_dur, param, dimensions):
     traces = build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline)
 
     images = construct_movie_images(coord_obj=coord_obj, traces=traces, dimensions=dimensions,
-                                    n_pixels_by_cell=n_pixels_by_cell, baseline=baseline, soma_geoms = soma_geoms)
+                                    n_pixels_by_cell=n_pixels_by_cell, baseline=baseline, soma_geoms=soma_geoms)
     # cells_activity_mask
     noise_str = "gauss"
     # in ["s&p", "poisson", "gauss", "speckle"]:
     outvid_tiff = os.path.join(param.path_data, param.path_results,
-                                     f"p10_artificial.tiff")
+                               f"p10_artificial.tiff")
 
     # images = np.ones((n_frames, dimensions[0], dimensions[1]))
     # images *= 0.01
@@ -869,17 +875,50 @@ def produce_movie(map_coords, raster_dur, param, dimensions):
             img_array = noisy(noise_str, img_array)
             img_array = normalize_array_0_255(img_array)
             tiff.save(img_array, compress=6)
+            images[frame] = img_array
 
+    save_traces(coord_obj=coord_obj, movie=images, param=param)
+
+
+def do_traces_smoothing(traces):
+    # smoothing the trace
+    windows = ['hanning', 'hamming', 'bartlett', 'blackman']
+    i_w = 1
+    window_length = 11
+    for i in np.arange(traces.shape[0]):
+        smooth_signal = smooth_convolve(x=traces[i], window_len=window_length,
+                                        window=windows[i_w])
+        beg = (window_length - 1) // 2
+        traces[i] = smooth_signal[beg:-beg]
+
+
+def save_traces(coord_obj, movie, param):
+    raw_traces = np.zeros((coord_obj.n_cells, movie.shape[0]))
+    for cell in np.arange(coord_obj.n_cells):
+        mask = coord_obj.get_cell_mask(cell=cell,
+                                       dimensions=(movie.shape[1], movie.shape[2]))
+        raw_traces[cell, :] = np.mean(movie[:, mask], axis=1)
+
+    smooth_traces = np.copy(raw_traces)
+    do_traces_smoothing(smooth_traces)
+
+    sio.savemat(os.path.join(param.path_results, "artificial_traces.mat"), {'C_df': smooth_traces,
+                                                                            'raw_traces': raw_traces})
 
 def build_raster_dur(map_coords, cells_with_overlap, overlapping_cells, n_frames, param):
     n_cells = len(map_coords)
     raster_dur = np.zeros((n_cells, n_frames), dtype="int8")
     for cell in np.arange(n_cells):
-        n_transient = random.randint(5, 40)
+        if cell in cells_with_overlap:
+            n_transient = random.randint(5, 10)
+        elif cell in overlapping_cells:
+            n_transient = random.randint(20, 40)
+        else:
+            n_transient = random.randint(5, 40)
         onsets = np.zeros(0, dtype="int16")
         for transient in np.arange(n_transient):
             while True:
-                onset = random.randint(2, n_frames-20)
+                onset = random.randint(2, n_frames - 20)
                 sub_array = np.abs(onsets - onset)
                 if (len(onsets) == 0) or (np.min(sub_array) > 3):
                     onsets = np.append(onsets, [onset])
@@ -889,7 +928,7 @@ def build_raster_dur(map_coords, cells_with_overlap, overlapping_cells, n_frames
         for transient in np.arange(n_transient):
             onset = onsets[transient]
             duration_transient = random.randint(1, 8)
-            raster_dur[cell, onset:onset+duration_transient] = 1
+            raster_dur[cell, onset:onset + duration_transient] = 1
 
     plot_spikes_raster(spike_nums=raster_dur, param=param,
                        spike_train_format=False,
@@ -943,6 +982,7 @@ def finding_growth_rate(t, a, end_value):
     k = np.log(end_value / a) / t
     return k
 
+
 def save_raster_dur_for_gui(raster_dur, param):
     spike_nums = np.zeros(raster_dur.shape, dtype="int8")
     peak_nums = np.zeros(raster_dur.shape, dtype="int8")
@@ -950,9 +990,10 @@ def save_raster_dur_for_gui(raster_dur, param):
         active_periods = get_continous_time_periods(raster_dur[cell])
         for period in active_periods:
             spike_nums[cell, period[0]] = 1
-            peak_nums[cell, period[1]+1] = 1
+            peak_nums[cell, period[1] + 1] = 1
     sio.savemat(os.path.join(param.path_results, "gui_data.mat"), {'Bin100ms_spikedigital_Python': spike_nums,
-                                                       'LocPeakMatrix_Python': peak_nums})
+                                                                   'LocPeakMatrix_Python': peak_nums})
+
 
 def main():
     """
@@ -1031,6 +1072,13 @@ def main():
     # then we build the movie based on cells_coords and the raster_dur
     produce_movie(map_coords=map_coords, raster_dur=raster_dur, param=param,
                   dimensions=(120, 120))
+
+    # saving cells' number of interest
+
+    file_name_txt = 'artificial_cells_listing.txt'
+
+    with open(os.path.join(param.path_results, file_name_txt), "w", encoding='UTF-8') as file:
+        file.write(f"Targets cells: {', '.join(list(map(str, cells_with_overlap)))}" + '\n')
 
     coords_matlab_style = np.empty((len(map_coords),), dtype=np.object)
     for i in range(len(map_coords)):
