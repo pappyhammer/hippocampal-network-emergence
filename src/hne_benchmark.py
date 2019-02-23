@@ -842,8 +842,8 @@ def main_benchmark():
         return
 
     # ########### options ###################
-    # ms_to_benchmark = "p12_17_11_10_a000"
-    ms_to_benchmark = "p7_17_10_12_a000"
+    ms_to_benchmark = "p12_17_11_10_a000"
+    # ms_to_benchmark = "p7_17_10_12_a000"
     # ms_to_benchmark = "p13_18_10_29_a001_ms"
     # ms_to_benchmark = "p8_18_10_24_a005_ms"
     # ms_to_benchmark = "artificial_ms"
@@ -957,19 +957,25 @@ def main_benchmark():
         data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_22.14-40-26.mat"
 
         # ## trained on artificial data , 4 cells + p12 2 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
-        # trained on 21/02/2019  with bin et al. version + atttention before predictions up to cell 9 + 14
-        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_22.16-08-44.mat"
+        # trained on 21/02/2019 222-24-00 with bin et al. version + atttention before predictions up to cell 9 + 14
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_22.16-08-44.mat"
 
+        # ## trained on artificial data , 4 cells + p12 1 cell, with 1 inputs (global + contour),
+        # trained on 23/02/2019 18-36-53 with bin et al. version + atttention before predictions up to cell 10 + 14
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_23.19-10-46.mat"
 
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.7
+        data_dict["rnn"]["prediction_threshold"] = 0.35
 
         data_dict["last_rnn"] = dict()
         data_dict["last_rnn"]["path"] = "p12/p12_17_11_10_a000"
         # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
         # trained on 16/02/2019 11:21:11 BO equality, predictions up to cell 10 + 14
         data_dict["last_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.14-20-01.mat"
+        # ## trained on artificial data , 4 cells + p12 2 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 21/02/2019 222-24-00 with bin et al. version + atttention before predictions up to cell 9 + 14
+        data_dict["last_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_22.16-08-44.mat"
 
         data_dict["last_rnn"]["predictions"] = "predictions"
         data_dict["last_rnn"]["prediction_threshold"] = 0.7

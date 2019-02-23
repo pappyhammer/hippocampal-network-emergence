@@ -1637,7 +1637,7 @@ class MoviePatchGeneratorGlobalWithContour(MoviePatchGenerator):
                          using_multi_class=using_multi_class)
         self.pixels_around = pixels_around
         self.buffer = buffer
-        self.n_inputs = 2
+        self.n_inputs = 1
 
     def generate_movies_from_metadata(self, movie_data_list, memory_dict, with_labels=True):
         source_profiles_dict = memory_dict
@@ -2595,11 +2595,11 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     p11_17_11_24_a000: 0 to 25 + 29
     p12_171110_a000_ms: up to cell 10 included + cell 14
     p13_18_10_29_a001: 0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117
-    artificial_ms: with same weights: [0, 13, 23, 30, 45, 53, 63, 71, 84, 94, 101, 106, 119, 128, 133, 144]
+    artificial_ms: with same weights: [0, 11, 16, 27, 36, 46, 53, 68, 83, 94, 109, 115, 128, 137, 146, 156]
     # p13_18_10_29_a001_GUI_transients_RD.mat
     """
     print("load_data_for_generator")
-    use_small_sample = True
+    use_small_sample = False
     # used for counting how many cells and transients available
     load_them_all = False
     if load_them_all:
@@ -2620,21 +2620,23 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # np.array([52, 53, 75, 81, 83, 93, 115]
         # ms_to_use = ["p12_171110_a000_ms"]
         # cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])} # 3, 6
-        ms_to_use = ["artificial_ms", "p7_171012_a000_ms"]
-        cell_to_load_by_ms = {"artificial_ms": np.array([0, 13, 23, 30, 45, 53, 63, 71]),
-                              "p7_171012_a000_ms": np.array([52, 53, 75])} # 3, 6
+        ms_to_use = ["artificial_ms", "p12_171110_a000_ms"]
+        cell_to_load_by_ms = {"artificial_ms": np.array([0, 13, 23, 30]),
+                              "p12_171110_a000_ms": np.array([0])} # 3, 6
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
-        ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", # "p11_17_11_24_a000_ms",
+        ms_to_use = ["artificial_ms", "p8_18_10_24_a005_ms", # "p11_17_11_24_a000_ms", "p7_171012_a000_ms",
                      "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
         #  "p9_18_09_27_a003_ms",
-        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 53, 75, 81]),  #
+        cell_to_load_by_ms = {
+                            #"p7_171012_a000_ms": np.array([52, 53, 75, 81]),  #
                               "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10]),  #
+                              "artificial_ms": np.array([0, 11, 16, 27, 36, 46, 53, 68, 83, 94, 109, 115, 128]),
                               # "p9_18_09_27_a003_ms": np.array([3, 5]), # 7, 9
                               #"p11_17_11_24_a000_ms": np.array([3, 22, 24, 29]),  #
                               "p12_171110_a000_ms": np.array([0, 3, 7]),  # 3
-                              "p13_18_10_29_a001_ms": np.array([0, 5])}  # 12, 13
+                              "p13_18_10_29_a001_ms": np.array([0, 5, 12, 13])}  # 12, 13
         # max p7: 117, max p9: 30, max p12: 6 .build_spike_nums_dur()
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
@@ -3002,6 +3004,11 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, bin_
     # From Bin et al. test adding a LSTM here that will take merged as inputs + CNN represnetation (as attention)
     # Return sequences will have to be True and activate the CNN representation
     if use_bin_at_al_version:
+        if with_batch_normalization:
+            merged = BatchNormalization()(merged)
+        if dropout_rate > 0:
+            merged = layers.Dropout(dropout_rate)(merged)
+
         merged = LSTM(bin_lstm_size, dropout=dropout_rnn_rate,
                       recurrent_dropout=dropout_rnn_rate,
                       return_sequences=True)(merged)
@@ -3013,8 +3020,8 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, bin_
         if using_multi_class <= 1:
             merged = Flatten()(merged)
 
-    if with_batch_normalization:
-        merged = BatchNormalization()(merged)
+    # if with_batch_normalization:
+    #     merged = BatchNormalization()(merged)
     if dropout_rate > 0:
         merged = layers.Dropout(dropout_rate)(merged)
     # TODO: test those 7 lines (https://www.kaggle.com/amansrivastava/exploration-bi-lstm-model)
@@ -3161,7 +3168,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
 
     total_n_cells = len(cells_to_load)
     # print(f'total_n_cells {total_n_cells}')
-    # raise Exception("TOTOTOTO")
+    # raise Exception("TITI")
     if total_n_cells == 0:
         raise Exception(f"No cells loaded")
 
@@ -3229,7 +3236,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
             # keeping predictions about real transient superior to the threshold
             # and superior to other prediction on the same frame
             max_pred_by_frame = np.max(predictions, axis=1)
-            real_transient_frames = np.logical_and((predictions[:, 0] >= threshold_tc),
+            real_transient_frames = np.logical_and((predictions[:, 0] >= predictions_threshold),
                                                    (predictions[:, 0] == max_pred_by_frame))
             predictions_by_cell[cell, real_transient_frames] = 1
 
@@ -3286,6 +3293,11 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
         MoviePatchGeneratorMaskedVersions(window_len=window_len, max_width=max_width, max_height=max_height,
                                           pixels_around=pixels_around, buffer=buffer, with_neuropil_mask=True,
                                           using_multi_class=using_multi_class)
+
+    movie_patch_generator_choices["GlobalWithContour"] = \
+        MoviePatchGeneratorGlobalWithContour(window_len=window_len, max_width=max_width, max_height=max_height,
+                                             pixels_around=pixels_around, buffer=buffer,
+                                             using_multi_class=using_multi_class)
 
     movie_patch_generator = movie_patch_generator_choices["MaskedVersions"]
 
@@ -3486,12 +3498,12 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p7_171012_a000_ms"], param=param, overlap_value=0.8,
+        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
                                          use_data_augmentation=True,
-                                         cells_to_predict=np.arange(20, 50))
+                                         cells_to_predict=np.concatenate((np.arange(11), [14])))
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
@@ -3499,7 +3511,7 @@ def train_model():
         # np.concatenate((np.arange(11), [14]))
         # p7_171012_a000_ms
         # np.arange(118)
-        # "artificial_ms": np.array([0, 13, 23, 30, 45, 53, 63, 71, 84, 94, 101, 106, 119, 128, 133, 144])
+        # "artificial_ms": np.array([0, 11, 16, 27, 36, 46, 53, 68, 83, 94, 109, 115, 128, 137, 146, 156])
         return
 
     # 3 options to target the cell
@@ -3526,7 +3538,7 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 30
+    n_epochs = 40
     batch_size = 16
     window_len = 50
     max_width = 25
@@ -3534,7 +3546,7 @@ def train_model():
     overlap_value = 0.9
     dropout_value = 0.5
     dropout_value_rnn = 0.5
-    with_batch_normalization = False
+    with_batch_normalization = True
     max_n_transformations = 6
     pixels_around = 0
     with_augmentation_for_training_data = True
@@ -3558,7 +3570,7 @@ def train_model():
     apply_attention_before_lstm = True
     use_single_attention_vector = False
     with_early_stopping = True
-    early_stop_patience = 10  # 10
+    early_stop_patience = 15  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
@@ -3583,6 +3595,11 @@ def train_model():
     movie_patch_generator_choices["MaskedVersions"] = \
         MoviePatchGeneratorMaskedVersions(window_len=window_len, max_width=max_width, max_height=max_height,
                                           pixels_around=pixels_around, buffer=buffer, with_neuropil_mask=True,
+                                          using_multi_class=using_multi_class)
+
+    movie_patch_generator_choices["GlobalWithContour"] = \
+        MoviePatchGeneratorGlobalWithContour(window_len=window_len, max_width=max_width, max_height=max_height,
+                                          pixels_around=pixels_around, buffer=buffer,
                                           using_multi_class=using_multi_class)
 
     movie_patch_generator_for_training = movie_patch_generator_choices["MaskedVersions"]

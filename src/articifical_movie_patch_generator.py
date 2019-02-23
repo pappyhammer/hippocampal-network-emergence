@@ -447,6 +447,7 @@ def test_generate_movie_with_cells(coords, param):
 
 def normalize_array_0_255(img_array):
     minv = np.amin(img_array)
+    # minv = 0
     maxv = np.amax(img_array)
     if maxv - minv == 0:
         img_array = img_array.astype(np.uint8)
@@ -869,7 +870,7 @@ def produce_movie(map_coords, raster_dur, param, dimensions, cells_with_overlap,
     images = construct_movie_images(coord_obj=coord_obj, traces=traces, dimensions=dimensions,
                                     n_pixels_by_cell=n_pixels_by_cell, baseline=baseline, soma_geoms=soma_geoms)
     # cells_activity_mask
-    noise_str = "speckle"
+    noise_str = "gauss"
     # in ["s&p", "poisson", "gauss", "speckle"]:
     outvid_tiff = os.path.join(param.path_data, param.path_results,
                                f"p10_artificial.tiff")
@@ -972,7 +973,7 @@ def build_raster_dur(map_coords, cells_with_overlap, overlapping_cells, n_frames
     raster_dur = np.zeros((n_cells, n_frames), dtype="int8")
     for cell in np.arange(n_cells):
         if cell in cells_with_overlap:
-            n_transient = random.randint(5, 10)
+            n_transient = random.randint(5, 20)
         elif cell in overlapping_cells:
             n_transient = random.randint(20, 40)
         else:
@@ -1056,6 +1057,10 @@ def save_raster_dur_for_gui(raster_dur, param):
     sio.savemat(os.path.join(param.path_results, "gui_data.mat"), {'Bin100ms_spikedigital_Python': spike_nums,
                                                                    'LocPeakMatrix_Python': peak_nums})
 
+def vessels_test():
+    dimensions = (120, 120)
+    img_array = None
+    plt.imshow(img_array)
 
 def main():
     """
