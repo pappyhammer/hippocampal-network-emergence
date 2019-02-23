@@ -842,8 +842,8 @@ def main_benchmark():
         return
 
     # ########### options ###################
-    ms_to_benchmark = "p12_17_11_10_a000"
-    # ms_to_benchmark = "p7_17_10_12_a000"
+    # ms_to_benchmark = "p12_17_11_10_a000"
+    ms_to_benchmark = "p7_17_10_12_a000"
     # ms_to_benchmark = "p13_18_10_29_a001_ms"
     # ms_to_benchmark = "p8_18_10_24_a005_ms"
     # ms_to_benchmark = "artificial_ms"
@@ -1053,7 +1053,7 @@ def main_benchmark():
         data_dict["gt"]["gt_file"] = "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt"
         data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P7_17_10_12_a000.txt"
         data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.arange(30)
+        data_dict["gt"]["cells"] = np.arange(20, 50)
         # data_dict["gt"]["cells_to_remove"] = np.array([52, 75])
 
 
@@ -1075,9 +1075,12 @@ def main_benchmark():
         # trained on 5 sessions and 15 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
         # trained on 15/02/2019 00:01:55, on epoch 13 with overlap at 0.8
         data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_16.17-29-37.mat"
+        # trained on p7 3 cells + artificial, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 22/02/2019 19:16:53, on epoch 14 with overlap at 0.8 (from cell 20 to 50)
+        data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_23.12-16-46.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.45
+        data_dict["rnn"]["prediction_threshold"] = 0.4
 
         data_dict["last_rnn"] = dict()
         data_dict["last_rnn"]["path"] = "p7/p7_17_10_12_a000"

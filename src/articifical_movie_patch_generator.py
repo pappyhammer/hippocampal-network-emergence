@@ -131,25 +131,29 @@ def change_polygon_centroid(new_centroid, poly_cell):
     return poly_cell
 
 
-def generate_artificial_map(coords_to_use,
+def generate_artificial_map(coords_to_use, padding,
                             n_overlap_by_cell_range=(1, 4), overlap_ratio_range=(0.1, 0.5)):
-    dimensions = (120, 120)
+    # padding is used to to add mvts
+    dimensions_without_padding = (120, 120)
+    dimensions = (dimensions_without_padding[0] + (padding * 2), dimensions_without_padding[1] + (padding * 2))
     # model cells, then we'll put cells around with some overlaping
     n_cells = 16
     sub_window_size = (30, 30)
+    # cell padding
     x_padding = 1  # sub_window_size[1] // 6
     y_padding = 1  # sub_window_size[0] // 6
     centroids = []
     line = 0
     col = 0
-    max_lines = dimensions[0] // sub_window_size[0]
-    max_cols = dimensions[1] // sub_window_size[1]
+    max_lines = dimensions_without_padding[0] // sub_window_size[0]
+    max_cols = dimensions_without_padding[1] // sub_window_size[1]
     x_borders = []
     y_borders = []
     for c in np.arange(n_cells):
-        x_borders.append((col * sub_window_size[1], (col + 1) * sub_window_size[1]))
-        y_borders.append((line * sub_window_size[0], (line + 1) * sub_window_size[0]))
-        centroids.append((int((col + 0.5) * sub_window_size[1]), int((line + 0.5) * sub_window_size[0])))
+        x_borders.append((col * sub_window_size[1] + padding, (col + 1) * sub_window_size[1] + padding))
+        y_borders.append((line * sub_window_size[0] + padding, (line + 1) * sub_window_size[0] + padding))
+        centroids.append((int((col + 0.5) * sub_window_size[1] + padding),
+                          int((line + 0.5) * sub_window_size[0] + padding)))
         line += 1
         if (line % max_lines) == 0:
             line = 0
@@ -225,7 +229,8 @@ def generate_artificial_map(coords_to_use,
                 cell_coord, poly_new_cell = shift_cell_coord_to_centroid(centroid=(x, y), cell_coord=over_cell_coord)
                 # first we need to make sure the cell don't go out of the frame
                 minx, miny, maxx, maxy = np.array(list(poly_new_cell.bounds))
-                if (minx <= 0) or (miny <= 0) or (maxx >= dimensions[1] - 1) or (maxy >= dimensions[0] - 1):
+                if (minx <= padding) or (miny <= padding) or (maxx >= (dimensions[1] - 1 + padding)) or \
+                        (maxy >= (dimensions[0] - 1 + padding)):
                     continue
                 # if intersects and not just touches (means commun border)
                 if poly_main_cell.intersects(poly_new_cell) and (not poly_main_cell.touches(poly_new_cell)) \
@@ -245,7 +250,7 @@ def generate_artificial_map(coords_to_use,
                     break
 
     print(f"cells_with_overlap {cells_with_overlap}")
-    return coords_to_use, map_coords, cells_with_overlap, overlapping_cells
+    return coords_to_use, map_coords, cells_with_overlap, overlapping_cells, dimensions
 
 
 def make_video(images, outvid=None, fps=5, size=None,
@@ -525,9 +530,11 @@ def build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline):
     traces = np.ones((n_cells, n_frames))
     original_baseline = baseline
     # cell_baseline_ratio: by how much increasing the baseline of the cell comparing to the baseline of map
-    # TODO: change ratio for each cell, goes from 1.4 to 1.6 for exemple
-    cell_baseline_ratio = 1.5
+    # The ratio change for each cell, goes from 1.4 to 1.6
+    cell_baseline_ratio_values = np.arange(1.4, 1.61, 0.1)
     for cell in np.arange(n_cells):
+        random.shuffle(cell_baseline_ratio_values)
+        cell_baseline_ratio = cell_baseline_ratio_values[0]
         baseline = original_baseline * n_pixels_by_cell[cell] * cell_baseline_ratio
         traces[cell] *= baseline
         active_periods = get_continous_time_periods(raster_dur[cell])
@@ -684,7 +691,7 @@ def get_mask(dimensions, poly_gon):
 def get_weighted_activity_mask_for_a_cell(mask, soma_mask, n_pixels, n_pixels_soma):
     mu, sigma = 100, 15  # mean and standard deviation
     mu_soma = random.randint(50, 70)
-    sigma_soma= mu_soma // 6
+    sigma_soma = mu_soma // 6
 
     weighted_mask = np.zeros(mask.shape)
 
@@ -797,11 +804,11 @@ def construct_movie_images(coord_obj, traces, dimensions, baseline, soma_geoms, 
     return images
 
 
-def build_somas(coord_obj):
+def build_somas(coord_obj, dimensions):
     soma_geoms = []
 
     for cell, poly_gon in coord_obj.cells_polygon.items():
-        img = PIL.Image.new('1', (120, 120), 0)
+        img = PIL.Image.new('1', (dimensions[0], dimensions[1]), 0)
         ImageDraw.Draw(img).polygon(list(poly_gon.exterior.coords), outline=1,
                                     fill=1)
         img = np.array(img)
@@ -820,7 +827,7 @@ def build_somas(coord_obj):
             if hasattr(soma, 'geoms') or (soma.exterior is None):
                 # means its a MultiPolygon object
                 continue
-            img = PIL.Image.new('1', (120, 120), 0)
+            img = PIL.Image.new('1', (dimensions[0], dimensions[1]), 0)
             ImageDraw.Draw(img).polygon(list(soma.exterior.coords), outline=1,
                                         fill=1)
             img = np.array(img)
@@ -833,15 +840,17 @@ def build_somas(coord_obj):
     return soma_geoms
 
 
-def produce_movie(map_coords, raster_dur, param, dimensions):
+def produce_movie(map_coords, raster_dur, param, dimensions, cells_with_overlap, overlapping_cells,
+                  padding,
+                  with_mvt=True):
     n_frames = raster_dur.shape[1]
     n_cells = raster_dur.shape[0]
 
-    coord_obj = CoordClass(coord=map_coords, nb_col=120,
-                           nb_lines=120)
+    coord_obj = CoordClass(coord=map_coords, nb_col=dimensions[0],
+                           nb_lines=dimensions[1])
 
     # build polygons representing somas
-    soma_geoms = build_somas(coord_obj)
+    soma_geoms = build_somas(coord_obj, dimensions=dimensions)
 
     ms_fusion = MouseSession(age=10, session_id="fusion", nb_ms_by_frame=100, param=param)
     ms_fusion.coord_obj = coord_obj
@@ -860,24 +869,76 @@ def produce_movie(map_coords, raster_dur, param, dimensions):
     images = construct_movie_images(coord_obj=coord_obj, traces=traces, dimensions=dimensions,
                                     n_pixels_by_cell=n_pixels_by_cell, baseline=baseline, soma_geoms=soma_geoms)
     # cells_activity_mask
-    noise_str = "gauss"
+    noise_str = "speckle"
     # in ["s&p", "poisson", "gauss", "speckle"]:
     outvid_tiff = os.path.join(param.path_data, param.path_results,
                                f"p10_artificial.tiff")
 
-    # images = np.ones((n_frames, dimensions[0], dimensions[1]))
-    # images *= 0.01
+    # used to add mvt
+    # images_with_padding = np.ones((images.shape[0], dimensions[0], dimensions[1]))
+    # images_with_padding *= baseline
 
+    images_mask = np.zeros((images.shape[1], images.shape[2]), dtype="uint8")
+    # print(f"images_with_padding.shape {images_with_padding.shape}")
+    # print(f"images_mask.shape {images_mask.shape}")
+
+    x_shift = 0
+    y_shift = 0
+    shaking_frames = []
+    if with_mvt:
+        # adding movement
+        shaking_rate = 1 / 60
+        x_shift_range = (-2, 2)
+        y_shift_range = (-2, 2)
+        n_continuous_shaking_frames_range = (1, 5)
+        shake_it_when_it_fired = True
+        if shake_it_when_it_fired:
+            shaking_frames = []
+            # we put a frame contained in each active period of target cells or overlaping cells
+            cells = list(cells_with_overlap) + list(overlapping_cells)
+            for cell in cells:
+                periods = get_continous_time_periods(raster_dur[cell])
+                for period in periods:
+                    shaking_frames.append(random.randint(max(period[0] - 1, 0), period[1]))
+            shaking_frames = np.unique(shaking_frames)
+        else:
+            shaking_frames = np.arange(n_frames)
+        random.shuffle(shaking_frames)
+        shaking_frames = shaking_frames[:int(n_frames * shaking_rate)]
+        shaking_frames_to_concat = np.zeros(0, dtype='int16')
+        for frame in shaking_frames:
+            n_to_add = random.randint(n_continuous_shaking_frames_range[0], n_continuous_shaking_frames_range[1])
+            shaking_frames_to_concat = np.concatenate(
+                (shaking_frames_to_concat, np.arange(frame + 1, frame + n_to_add)))
+        shaking_frames = np.concatenate((shaking_frames, shaking_frames_to_concat))
+        # doing it for the saving on file
+        shaking_frames = np.unique(shaking_frames)
+        np.ndarray.sort(shaking_frames)
     with tifffile.TiffWriter(outvid_tiff) as tiff:
         for frame, img_array in enumerate(images):
-            # for mask, activity_mask in cells_activity_mask:
-            #     img_array[mask] = activity_mask[frame, mask]
+            if with_mvt:
+                shaked = False
+                if frame in shaking_frames:
+                    x_shift = random.randint(x_shift_range[0], x_shift_range[1])
+                    y_shift = random.randint(y_shift_range[0], y_shift_range[1])
+                    shaked = True
+            last_y = (-padding + y_shift) if (-padding + y_shift) < 0 else images.shape[1]
+            last_x = (-padding + x_shift) if (-padding + x_shift) < 0 else images.shape[1]
+            images[frame, padding + y_shift:last_y, padding + x_shift:last_x] = \
+                img_array[padding:-padding, padding:-padding]
+            img_array = images[frame]
             img_array = noisy(noise_str, img_array)
             img_array = normalize_array_0_255(img_array)
             tiff.save(img_array, compress=6)
             images[frame] = img_array
+            if with_mvt:
+                if shaked:
+                    x_shift = 0
+                    y_shift = 0
 
     save_traces(coord_obj=coord_obj, movie=images, param=param)
+    print(f"n shaking frames : {len(shaking_frames)}")
+    return shaking_frames
 
 
 def do_traces_smoothing(traces):
@@ -904,6 +965,7 @@ def save_traces(coord_obj, movie, param):
 
     sio.savemat(os.path.join(param.path_results, "artificial_traces.mat"), {'C_df': smooth_traces,
                                                                             'raw_traces': raw_traces})
+
 
 def build_raster_dur(map_coords, cells_with_overlap, overlapping_cells, n_frames, param):
     n_cells = len(map_coords)
@@ -1016,10 +1078,10 @@ def main():
     if not os.path.isdir(path_results):
         os.mkdir(path_results)
 
+    # TODO: put in param all options for generating the movie
     param = DataForMs(path_data=path_data, path_results=path_results, time_str=time_str)
 
     data = hdf5storage.loadmat(os.path.join(path_data, "artificial_movie_generator", "test_coords_cnn.mat"))
-    # TODO: generate soma shape based on those data (down-scaling)
 
     coords = data["coord_python"][0]
 
@@ -1056,10 +1118,12 @@ def main():
     # images = np.uint8(255 * images)
     # make_video(images, outvid=outvid, fps=1, size=None,
     #            is_color=False, format="XVID")
+    padding = 5
 
-    coords_left, map_coords, cells_with_overlap, overlapping_cells = \
+    coords_left, map_coords, cells_with_overlap, overlapping_cells, dimensions = \
         generate_artificial_map(coords_to_use=coords,
-                                n_overlap_by_cell_range=(1, 4), overlap_ratio_range=(0.1, 0.5))
+                                n_overlap_by_cell_range=(1, 4), overlap_ratio_range=(0.1, 0.5),
+                                padding=padding)
 
     n_frames = 2500
 
@@ -1070,8 +1134,9 @@ def main():
     save_raster_dur_for_gui(raster_dur, param)
 
     # then we build the movie based on cells_coords and the raster_dur
-    produce_movie(map_coords=map_coords, raster_dur=raster_dur, param=param,
-                  dimensions=(120, 120))
+    shaking_frames = produce_movie(map_coords=map_coords, raster_dur=raster_dur, param=param,
+                                   dimensions=dimensions, cells_with_overlap=cells_with_overlap,
+                                   overlapping_cells=overlapping_cells, padding=padding)
 
     # saving cells' number of interest
 
@@ -1079,6 +1144,7 @@ def main():
 
     with open(os.path.join(param.path_results, file_name_txt), "w", encoding='UTF-8') as file:
         file.write(f"Targets cells: {', '.join(list(map(str, cells_with_overlap)))}" + '\n')
+        file.write(f"Shaking frames: {', '.join(list(map(str, shaking_frames)))}" + '\n')
 
     coords_matlab_style = np.empty((len(map_coords),), dtype=np.object)
     for i in range(len(map_coords)):

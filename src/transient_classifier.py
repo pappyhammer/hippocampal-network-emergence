@@ -3151,7 +3151,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
         cells_to_load = np.array(cells_to_predict)
 
     cells_to_load = np.setdiff1d(cells_to_load, ms.cells_to_remove)
-    using_cnn_predictions = False
+    using_cnn_predictions = True
     if using_cnn_predictions:
         if ms.cell_cnn_predictions is not None:
             print(f"Using cnn predictions from {ms.description}")
@@ -3160,6 +3160,8 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
             cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
 
     total_n_cells = len(cells_to_load)
+    # print(f'total_n_cells {total_n_cells}')
+    # raise Exception("TOTOTOTO")
     if total_n_cells == 0:
         raise Exception(f"No cells loaded")
 
@@ -3484,13 +3486,12 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
+        transients_prediction_from_movie(ms_to_use=["p7_171012_a000_ms"], param=param, overlap_value=0.8,
                                          use_data_augmentation=True,
-                                         cells_to_predict=
-                                         np.concatenate((np.arange(11), [14])))
+                                         cells_to_predict=np.arange(20, 50))
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
@@ -3538,6 +3539,7 @@ def train_model():
     pixels_around = 0
     with_augmentation_for_training_data = True
     buffer = 1
+    # between training, validation and test data
     split_values = (0.7, 0.2, 0.1)
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
@@ -3651,7 +3653,7 @@ def train_model():
                         bin_lstm_size=bin_lstm_size)
 
     print(model.summary())
-    # raise Exception("TOTOOO")
+    raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(
