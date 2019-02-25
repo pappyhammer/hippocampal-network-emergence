@@ -842,10 +842,10 @@ def main_benchmark():
         return
 
     # ########### options ###################
-    ms_to_benchmark = "p12_17_11_10_a000"
+    # ms_to_benchmark = "p12_17_11_10_a000"
     # ms_to_benchmark = "p7_17_10_12_a000"
     # ms_to_benchmark = "p13_18_10_29_a001_ms"
-    # ms_to_benchmark = "p8_18_10_24_a005_ms"
+    ms_to_benchmark = "p8_18_10_24_a005_ms"
     # ms_to_benchmark = "artificial_ms"
     do_onsets_benchmarks = False
     do_plot_roc_predictions = False
@@ -1144,15 +1144,21 @@ def main_benchmark():
         # ## trained on 4 sessions, 13 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
         # trained on 21/02/2019 00-47-30 with bin et al. version + atttention before
         data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_21.19-07-23.mat"
+        # ## trained on 3 cells p8, 8 artificial, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 25/02/2019 11-01-02 with bin et al. version + atttention before
+        data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_25.17-40-58.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.4
+        data_dict["rnn"]["prediction_threshold"] = 0.6
 
         data_dict["old_rnn"] = dict()
         data_dict["old_rnn"]["path"] = "p8/p8_18_10_24_a005"
         # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
         # trained on 16/02/2019 11:21:11
         data_dict["old_rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_16.15-43-26.mat"
+        # ## trained on 4 sessions, 13 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 21/02/2019 00-47-30 with bin et al. version + atttention before
+        data_dict["old_rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_21.19-07-23.mat"
         data_dict["old_rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["old_rnn"]["predictions"] = "predictions"
         data_dict["old_rnn"]["prediction_threshold"] = 0.5
@@ -1165,10 +1171,10 @@ def main_benchmark():
         data_dict["caiman_raw"]["trace_file_name"] = "p8_18_10_24_a005_Traces.mat"
         data_dict["caiman_raw"]["trace_var_name"] = "C_df"
 
-        data_dict["caiman_filt"] = dict()
-        data_dict["caiman_filt"]["path"] = "p8/p8_18_10_24_a005"
-        data_dict["caiman_filt"]["file_name"] = "p8_18_10_24_a005_filt_RasterDur.mat"
-        data_dict["caiman_filt"]["var_name"] = "rasterdur"
+        # data_dict["caiman_filt"] = dict()
+        # data_dict["caiman_filt"]["path"] = "p8/p8_18_10_24_a005"
+        # data_dict["caiman_filt"]["file_name"] = "p8_18_10_24_a005_filt_RasterDur.mat"
+        # data_dict["caiman_filt"]["var_name"] = "rasterdur"
 
     # ground truth
     data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gui_file"]))

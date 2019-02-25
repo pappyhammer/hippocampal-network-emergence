@@ -2595,11 +2595,12 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     p11_17_11_24_a000: 0 to 25 + 29
     p12_171110_a000_ms: up to cell 10 included + cell 14
     p13_18_10_29_a001: 0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117
-    artificial_ms: with same weights: [0, 11, 16, 27, 36, 46, 53, 68, 83, 94, 109, 115, 128, 137, 146, 156]
+    artificial_ms_1: with same weights & mvts & fake cells: [0, 14, 31, 40, 58, 69, 87, 99, 111]
+    artificial_ms_2: 0, 15, 30, 47, 66, 73, 89, 98, 112
     # p13_18_10_29_a001_GUI_transients_RD.mat
     """
     print("load_data_for_generator")
-    use_small_sample = False
+    use_small_sample = True
     # used for counting how many cells and transients available
     load_them_all = False
     if load_them_all:
@@ -2620,13 +2621,13 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # np.array([52, 53, 75, 81, 83, 93, 115]
         # ms_to_use = ["p12_171110_a000_ms"]
         # cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])} # 3, 6
-        ms_to_use = ["artificial_ms", "p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"artificial_ms": np.array([0, 13, 23, 30]),
-                              "p12_171110_a000_ms": np.array([0])} # 3, 6
+        ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms"]
+        cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 14, 27, 40, 57, 75, 88, 103, 112]),
+                              "p11_17_11_24_a000_ms": np.array([3, 22, 24, 29])} # 3, 6
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
-        ms_to_use = ["artificial_ms", "p8_18_10_24_a005_ms", # "p11_17_11_24_a000_ms", "p7_171012_a000_ms",
+        ms_to_use = ["artificial_ms_1", "p8_18_10_24_a005_ms", # "p11_17_11_24_a000_ms", "p7_171012_a000_ms",
                      "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
         #  "p9_18_09_27_a003_ms",
         cell_to_load_by_ms = {
@@ -2857,10 +2858,30 @@ def attention_3d_block(inputs, time_steps, use_single_attention_vector=False):
 
 
 def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, bin_lstm_size,
-                activation_fct="relu",
+                activation_fct="relu", dropout_at_the_end=0,
                 dropout_rate=0, dropout_rnn_rate=0, without_bidirectional=False,
                 with_batch_normalization=False, apply_attention=False, apply_attention_before_lstm=True,
                 use_single_attention_vector=True, use_bin_at_al_version=False):
+    """
+
+    :param input_shape:
+    :param lstm_layers_size:
+    :param n_inputs:
+    :param using_multi_class:
+    :param bin_lstm_size:
+    :param activation_fct:
+    :param dropout_at_the_end: From Li et al. 2018 to avoid disharmony between batch normalization and dropout,
+    if batch is True, then we should add dropout only on the last step before the sigmoid or softmax activation
+    :param dropout_rate:
+    :param dropout_rnn_rate:
+    :param without_bidirectional:
+    :param with_batch_normalization:
+    :param apply_attention:
+    :param apply_attention_before_lstm:
+    :param use_single_attention_vector:
+    :param use_bin_at_al_version:
+    :return:
+    """
     # n_frames represent the time-steps
     n_frames = input_shape[0]
 
@@ -3004,10 +3025,11 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, bin_
     # From Bin et al. test adding a LSTM here that will take merged as inputs + CNN represnetation (as attention)
     # Return sequences will have to be True and activate the CNN representation
     if use_bin_at_al_version:
-        if with_batch_normalization:
-            merged = BatchNormalization()(merged)
-        if dropout_rate > 0:
-            merged = layers.Dropout(dropout_rate)(merged)
+        # next lines commented, seems like it didn't help at all
+        # if with_batch_normalization:
+        #     merged = BatchNormalization()(merged)
+        # if dropout_rate > 0:
+        #     merged = layers.Dropout(dropout_rate)(merged)
 
         merged = LSTM(bin_lstm_size, dropout=dropout_rnn_rate,
                       recurrent_dropout=dropout_rnn_rate,
@@ -3020,18 +3042,16 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, bin_
         if using_multi_class <= 1:
             merged = Flatten()(merged)
 
-    # if with_batch_normalization:
-    #     merged = BatchNormalization()(merged)
-    if dropout_rate > 0:
-        merged = layers.Dropout(dropout_rate)(merged)
     # TODO: test those 7 lines (https://www.kaggle.com/amansrivastava/exploration-bi-lstm-model)
-    # number_dense_units = 1000
-    # merged = Dense(number_dense_units, activation=activation_function)(merged)
-    # merged = Activation(activation_fct)(merged)
-    # if with_batch_normalization:
-    #     merged = BatchNormalization()(merged)
-    # if dropout_rate > 0:
-    #     merged = (layers.Dropout(dropout_rate)(merged)
+    number_dense_units = 1024
+    merged = Dense(number_dense_units)(merged)
+    merged = Activation(activation_fct)(merged)
+    if with_batch_normalization:
+        merged = BatchNormalization()(merged)
+    if dropout_rate > 0:
+        merged = (layers.Dropout(dropout_rate))(merged)
+    elif dropout_at_the_end > 0:
+        merged = (layers.Dropout(dropout_at_the_end))(merged)
 
     # if we use TimeDistributed then we need to return_sequences during the last LSTM
     if using_multi_class <= 1:
@@ -3501,9 +3521,9 @@ def train_model():
     go_predict_from_movie = False
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
+        transients_prediction_from_movie(ms_to_use=["p8_18_10_24_a005_ms"], param=param, overlap_value=0.8,
                                          use_data_augmentation=True,
-                                         cells_to_predict=np.concatenate((np.arange(11), [14])))
+                                         cells_to_predict=np.array([9, 10, 13, 28, 41, 42, 207, 321, 110]))
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
@@ -3511,7 +3531,8 @@ def train_model():
         # np.concatenate((np.arange(11), [14]))
         # p7_171012_a000_ms
         # np.arange(118)
-        # "artificial_ms": np.array([0, 11, 16, 27, 36, 46, 53, 68, 83, 94, 109, 115, 128, 137, 146, 156])
+        # "artificial_ms_1": np.array([0, 11, 16, 27, 36, 46, 53, 68, 83, 94, 109, 115, 128, 137, 146, 156])
+        # "artificial_ms_2"
         return
 
     # 3 options to target the cell
@@ -3544,8 +3565,9 @@ def train_model():
     max_width = 25
     max_height = 25
     overlap_value = 0.9
-    dropout_value = 0.5
-    dropout_value_rnn = 0.5
+    dropout_value = 0
+    dropout_value_rnn = 0
+    dropout_at_the_end = 0.5
     with_batch_normalization = True
     max_n_transformations = 6
     pixels_around = 0
@@ -3575,7 +3597,7 @@ def train_model():
     with_shuffling = True
     seed_value = 42  # use None to not use seed
     # main_ratio_balance = (0.6, 0.2, 0.2)
-    main_ratio_balance = (0.5, 0.4, 0.1)
+    main_ratio_balance = (0.6, 0.3, 0.1)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
 
@@ -3659,7 +3681,7 @@ def train_model():
     start_time = time.time()
     model = build_model(input_shape=input_shape, n_inputs=movie_patch_generator_for_training.n_inputs,
                         activation_fct=activation_fct,
-                        dropout_rate=dropout_value,
+                        dropout_rate=dropout_value, dropout_at_the_end=dropout_at_the_end,
                         dropout_rnn_rate=dropout_value_rnn, without_bidirectional=without_bidirectional,
                         lstm_layers_size=lstm_layers_size,
                         with_batch_normalization=with_batch_normalization,
@@ -3670,7 +3692,7 @@ def train_model():
                         bin_lstm_size=bin_lstm_size)
 
     print(model.summary())
-    raise Exception("TOTOOO")
+    # raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(

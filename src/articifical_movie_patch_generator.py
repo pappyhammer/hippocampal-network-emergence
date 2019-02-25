@@ -24,7 +24,7 @@ from pattern_discovery.tools.signal import smooth_convolve
 
 
 class DataForMs(p_disc_tools_param.Parameters):
-    def __init__(self, path_data, path_results, time_str=None):
+    def __init__(self, path_data, path_results, with_mvt, use_fake_cells, time_str=None):
         if time_str is None:
             self.time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
         else:
@@ -33,6 +33,8 @@ class DataForMs(p_disc_tools_param.Parameters):
         self.path_data = path_data
         self.cell_assemblies_data_path = None
         self.best_order_data_path = None
+        self.with_mvt = with_mvt
+        self.use_fake_cells = use_fake_cells
 
 
 def produce_cell_coord_from_cnn_validated_cells(param):
@@ -46,6 +48,9 @@ def produce_cell_coord_from_cnn_validated_cells(param):
                                             load_traces=False, load_abf=False,
                                             for_transient_classifier=True)
     coords_to_keep = []
+    true_cells = []
+    fake_cells = []
+    global_cell_index = 0
 
     for ms in ms_str_to_ms_dict.values():
         path_data = param.path_data
@@ -79,14 +84,23 @@ def produce_cell_coord_from_cnn_validated_cells(param):
         print(f"{ms.description}: cells_predicted_as_true: {len(cells_predicted_as_true)}")
 
         for cell in np.arange(ms.coord_obj.n_cells):
+            coords_to_keep.append(ms.coord_obj.coord[cell])
             if cell in cells_predicted_as_true:
-                coords_to_keep.append(ms.coord_obj.coord[cell])
+                true_cells.append(global_cell_index)
+            else:
+                fake_cells.append(global_cell_index)
+            global_cell_index += 1
 
     print(f"len(coords_to_keep): {len(coords_to_keep)}")
     coords_matlab_style = np.empty((len(coords_to_keep),), dtype=np.object)
     for i in range(len(coords_to_keep)):
         coords_matlab_style[i] = coords_to_keep[i]
-    sio.savemat(os.path.join(param.path_results, "test_coords_cnn.mat"), {"coord_python": coords_matlab_style})
+
+    true_cells = np.array(true_cells)
+    fake_cells = np.array(fake_cells)
+
+    sio.savemat(os.path.join(param.path_results, "coords_artificial_movie.mat"),
+                {"coord": coords_matlab_style, "true_cells": true_cells, "fake_cells": fake_cells})
 
 
 def shift_cell_coord_to_centroid(centroid, cell_coord):
@@ -131,13 +145,13 @@ def change_polygon_centroid(new_centroid, poly_cell):
     return poly_cell
 
 
-def generate_artificial_map(coords_to_use, padding,
+def generate_artificial_map(coords_to_use, padding, true_cells, fake_cells, param,
                             n_overlap_by_cell_range=(1, 4), overlap_ratio_range=(0.1, 0.5)):
     # padding is used to to add mvts
-    dimensions_without_padding = (120, 120)
+    dimensions_without_padding = (90, 90)
     dimensions = (dimensions_without_padding[0] + (padding * 2), dimensions_without_padding[1] + (padding * 2))
     # model cells, then we'll put cells around with some overlaping
-    n_cells = 16
+    n_cells = 9
     sub_window_size = (30, 30)
     # cell padding
     x_padding = 1  # sub_window_size[1] // 6
@@ -160,31 +174,42 @@ def generate_artificial_map(coords_to_use, padding,
             col += 1
     # print(f"centroids {centroids}")
 
-    coords_to_use = coords_to_use
+    # coords_to_use = coords_to_use
+    coords_true_cells = []
+    for true_cell in true_cells:
+        coords_true_cells.append(coords_to_use[true_cell])
+
+    coords_fake_cells = []
+    for fake_cell in fake_cells:
+        coords_fake_cells.append(coords_to_use[fake_cell])
+
     cells_with_overlap = []
     # key is an int (one of the cells_with_overlap), and value an int correspdongin
     overlapping_cells = dict()
     map_coords = []
+    # in order to randomly choose a true cell coord
+    true_cells_index = np.arange(len(coords_true_cells))
+    random.shuffle(true_cells_index)
+    # in order to randomly choose a fake cell coord
+    fake_cells_index = np.arange(len(coords_fake_cells))
+    random.shuffle(fake_cells_index)
     cell_index = 0
+    n_non_target_cells_added = 0
     for c in np.arange(n_cells):
-        cell_coord = coords_to_use[0]
-        # print(f"cell_coord {cell_coord}")
-        # print(f"cell_coord.shape {cell_coord.shape}")
+        cell_coord = coords_true_cells[true_cells_index[0]]
+        true_cells_index = true_cells_index[1:]
         # we center the cell and change its coordinates
         centroid = centroids[c]
-        # poly_cell = shapely.affinity.translate(poly_cell, xoff=x_shift, yoff=y_shift)
-        # list(poly_cell.exterior.coords)
         cell_coord, poly_main_cell = shift_cell_coord_to_centroid(centroid=centroid, cell_coord=cell_coord)
         cells_with_overlap.append(cell_index)
         main_cell_index = cell_index
         overlapping_cells[main_cell_index] = []
         map_coords.append(cell_coord)
         cell_index += 1
-        coords_to_use = coords_to_use[1:]
 
         # we decide how many cells will be overlaping it (more like intersect)
         n_overlaps = random.randint(n_overlap_by_cell_range[0], n_overlap_by_cell_range[1])
-        n_non_overlaps = random.randint(2, 10)
+        n_non_overlaps = random.randint(4, 15)
         n_over_added = 0
         n_non_over_added = 0
         centroids_added = []
@@ -196,8 +221,12 @@ def generate_artificial_map(coords_to_use, padding,
                 print("n_overall_trial >= max_n_overall_trial")
                 break
             n_overall_trial += 1
-            over_cell_coord = coords_to_use[0]
-            coords_to_use = coords_to_use[1:]
+            if param.use_fake_cells and (n_non_target_cells_added % 4 == 0):
+                over_cell_coord = coords_fake_cells[fake_cells_index[0]]
+                fake_cells_index = fake_cells_index[1:]
+            else:
+                over_cell_coord = coords_true_cells[true_cells_index[0]]
+                true_cells_index = true_cells_index[1:]
             new_centroid_x_values = np.concatenate((np.arange(x_borders[c][0] + x_padding, centroid[0] - 2),
                                                     np.arange(centroid[0] + 2, x_borders[c][1] + 1 - x_padding)))
             new_centroid_y_values = np.concatenate((np.arange(y_borders[c][0] + y_padding, centroid[1] - 2),
@@ -245,6 +274,7 @@ def generate_artificial_map(coords_to_use, padding,
                     overlapping_cells[main_cell_index].append(cell_index)
                     centroids_added.append((x, y))
                     cell_index += 1
+                    n_non_target_cells_added += 1
                 if n_trial >= max_n_trial:
                     print("n_trial >= max_n_trial")
                     break
@@ -532,7 +562,7 @@ def build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline):
     original_baseline = baseline
     # cell_baseline_ratio: by how much increasing the baseline of the cell comparing to the baseline of map
     # The ratio change for each cell, goes from 1.4 to 1.6
-    cell_baseline_ratio_values = np.arange(1.4, 1.61, 0.1)
+    cell_baseline_ratio_values = np.arange(1.7, 1.9, 0.1)
     for cell in np.arange(n_cells):
         random.shuffle(cell_baseline_ratio_values)
         cell_baseline_ratio = cell_baseline_ratio_values[0]
@@ -601,6 +631,7 @@ class CellPiece:
         self.poly_gon = poly_gon
         self.dimensions = dimensions
         self.mask = self.get_mask()
+        # TODO: keep a smaller mask to save memory
         self.activity_mask = activity_mask
 
     def fill_movie_images(self, images):
@@ -731,9 +762,11 @@ def construct_movie_images(coord_obj, traces, dimensions, baseline, soma_geoms, 
     n_frames = traces.shape[1]
     n_cells = coord_obj.n_cells
     soma_indices = np.arange(len(soma_geoms))
+    baseline_traces = np.min(traces)
 
     # change_polygon_centroid(new_centroid, poly_cell)
     for cell in np.arange(n_cells):
+        # print(f"construct_movie_images begins, cell {cell}")
         mask = coord_obj.get_cell_mask(cell, dimensions)
         n_pixels = np.sum(mask)
 
@@ -746,8 +779,10 @@ def construct_movie_images(coord_obj, traces, dimensions, baseline, soma_geoms, 
             random.shuffle(soma_indices)
             soma_geom = soma_geoms[soma_indices[0]]
             # then we want to move it in the cell
-            centroid_x = random.randint(-2, 2)
-            centroid_y = random.randint(-2, 2)
+            # centroid_x = random.randint(-1, 1)
+            # centroid_y = random.randint(-1, 1)
+            centroid_x = 0
+            centroid_y = 0
             cell_poly = coord_obj.cells_polygon[cell]
             centroid_x += cell_poly.centroid.x
             centroid_y += cell_poly.centroid.y
@@ -763,7 +798,11 @@ def construct_movie_images(coord_obj, traces, dimensions, baseline, soma_geoms, 
         if same_weight_for_all_frame:
             weighted_mask = get_weighted_activity_mask_for_a_cell(mask=mask, soma_mask=soma_mask,
                                                                   n_pixels=n_pixels, n_pixels_soma=n_pixels_soma)
+            # del soma_mask
+            del mask
 
+        # TODO: decrease size of the mask so it just fit the cell
+        # TODO: and add coord to where the top right of the mask starts
         activity_mask = np.zeros((n_frames, dimensions[0], dimensions[1]))
 
         for frame in np.arange(n_frames):
@@ -772,8 +811,14 @@ def construct_movie_images(coord_obj, traces, dimensions, baseline, soma_geoms, 
                                                                       n_pixels=n_pixels, n_pixels_soma=n_pixels_soma)
 
             amplitude = traces[cell, frame]
-            activity_mask[frame] = weighted_mask * (amplitude / np.sum(weighted_mask))
-
+            if amplitude == baseline_traces:
+                weighted_mask_tmp = np.copy(weighted_mask)
+                weighted_mask_tmp[soma_mask] = 0
+                activity_mask[frame] = weighted_mask_tmp * (amplitude / np.sum(weighted_mask))
+                del weighted_mask_tmp
+            else:
+                activity_mask[frame] = weighted_mask * (amplitude / np.sum(weighted_mask))
+        del weighted_mask
         cell_pieces.add(CellPiece(id=f"{cell}", poly_gon=coord_obj.cells_polygon[cell],
                                   activity_mask=activity_mask, dimensions=dimensions))
 
@@ -842,8 +887,7 @@ def build_somas(coord_obj, dimensions):
 
 
 def produce_movie(map_coords, raster_dur, param, dimensions, cells_with_overlap, overlapping_cells,
-                  padding,
-                  with_mvt=True):
+                  padding):
     n_frames = raster_dur.shape[1]
     n_cells = raster_dur.shape[0]
 
@@ -886,7 +930,7 @@ def produce_movie(map_coords, raster_dur, param, dimensions, cells_with_overlap,
     x_shift = 0
     y_shift = 0
     shaking_frames = []
-    if with_mvt:
+    if param.with_mvt:
         # adding movement
         shaking_rate = 1 / 60
         x_shift_range = (-2, 2)
@@ -917,7 +961,7 @@ def produce_movie(map_coords, raster_dur, param, dimensions, cells_with_overlap,
         np.ndarray.sort(shaking_frames)
     with tifffile.TiffWriter(outvid_tiff) as tiff:
         for frame, img_array in enumerate(images):
-            if with_mvt:
+            if param.with_mvt:
                 shaked = False
                 if frame in shaking_frames:
                     x_shift = random.randint(x_shift_range[0], x_shift_range[1])
@@ -932,7 +976,7 @@ def produce_movie(map_coords, raster_dur, param, dimensions, cells_with_overlap,
             img_array = normalize_array_0_255(img_array)
             tiff.save(img_array, compress=6)
             images[frame] = img_array
-            if with_mvt:
+            if param.with_mvt:
                 if shaked:
                     x_shift = 0
                     y_shift = 0
@@ -1084,11 +1128,19 @@ def main():
         os.mkdir(path_results)
 
     # TODO: put in param all options for generating the movie
-    param = DataForMs(path_data=path_data, path_results=path_results, time_str=time_str)
+    param = DataForMs(path_data=path_data, path_results=path_results, time_str=time_str,
+                      with_mvt=False, use_fake_cells=False)
 
-    data = hdf5storage.loadmat(os.path.join(path_data, "artificial_movie_generator", "test_coords_cnn.mat"))
+    produce_cell_coords = False
+    if produce_cell_coords:
+        produce_cell_coord_from_cnn_validated_cells(param)
+        raise Exception("produce_cell_coord_from_cnn_validated_cells")
 
-    coords = data["coord_python"][0]
+    data = hdf5storage.loadmat(os.path.join(path_data, "artificial_movie_generator", "coords_artificial_movie.mat"))
+
+    coords = data["coord"][0]
+    true_cells = data["true_cells"][0]
+    fake_cells = data["fake_cells"][0]
 
     do_test_generate_movie_with_cells = False
     if do_test_generate_movie_with_cells:
@@ -1127,8 +1179,9 @@ def main():
 
     coords_left, map_coords, cells_with_overlap, overlapping_cells, dimensions = \
         generate_artificial_map(coords_to_use=coords,
+                                true_cells=true_cells, fake_cells=fake_cells,
                                 n_overlap_by_cell_range=(1, 4), overlap_ratio_range=(0.1, 0.5),
-                                padding=padding)
+                                padding=padding, param=param)
 
     n_frames = 2500
 

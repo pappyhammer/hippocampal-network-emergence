@@ -19,20 +19,20 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     # for_cell_classifier is True means we don't remove the cell that has been marked as fake cells
     ms_str_to_ms_dict = dict()
 
-    if "artificial_ms" in ms_str_to_load:
-        artificial_ms = MouseSession(age=10, session_id="artificial",
+    if "artificial_ms_1" in ms_str_to_load:
+        artificial_ms = MouseSession(age=1, session_id="artificial_1",
                                            nb_ms_by_frame=100, param=param)
         variables_mapping = {"coord": "coord_python"}
-        artificial_ms.load_data_from_file(file_name_to_load="artificial_movies/map_coords.mat",
+        artificial_ms.load_data_from_file(file_name_to_load="artificial_movies/1/map_coords.mat",
                                               variables_mapping=variables_mapping)
         if load_movie:
-            artificial_ms.load_tif_movie(path="artificial_movies/")
+            artificial_ms.load_tif_movie(path="artificial_movies/1/")
 
         if for_cell_classifier or for_transient_classifier:
             variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
                                  "peak_nums": "LocPeakMatrix_Python"}
             artificial_ms.load_data_from_file(file_name_to_load=
-                                                   "artificial_movies/gui_data.mat",
+                                                   "artificial_movies/1/gui_data.mat",
                                                    variables_mapping=variables_mapping,
                                                    from_gui=True)
 
@@ -45,7 +45,35 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             artificial_ms.traces = traces
             artificial_ms.smooth_traces = traces
 
-        ms_str_to_ms_dict["artificial_ms"] = artificial_ms
+        ms_str_to_ms_dict["artificial_ms_1"] = artificial_ms
+
+    if "artificial_ms_2" in ms_str_to_load:
+        artificial_ms = MouseSession(age=2, session_id="artificial_2",
+                                     nb_ms_by_frame=100, param=param)
+        variables_mapping = {"coord": "coord_python"}
+        artificial_ms.load_data_from_file(file_name_to_load="artificial_movies/2/map_coords.mat",
+                                          variables_mapping=variables_mapping)
+        if load_movie:
+            artificial_ms.load_tif_movie(path="artificial_movies/2/")
+
+        if for_cell_classifier or for_transient_classifier:
+            variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                 "peak_nums": "LocPeakMatrix_Python"}
+            artificial_ms.load_data_from_file(file_name_to_load=
+                                              "artificial_movies/2/gui_data.mat",
+                                              variables_mapping=variables_mapping,
+                                              from_gui=True)
+
+            artificial_ms.build_spike_nums_dur()
+            artificial_ms.load_tiff_movie_in_memory()
+            artificial_ms.normalize_movie()
+            artificial_ms.raw_traces = artificial_ms.build_raw_traces_from_movie()
+            traces = np.copy(artificial_ms.raw_traces)
+            smooth_traces(traces)
+            artificial_ms.traces = traces
+            artificial_ms.smooth_traces = traces
+
+        ms_str_to_ms_dict["artificial_ms_2"] = artificial_ms
 
     if "p6_18_02_07_a001_ms" in ms_str_to_load:
         p6_18_02_07_a001_ms = MouseSession(age=6, session_id="18_02_07_a001", nb_ms_by_frame=100, param=param,
