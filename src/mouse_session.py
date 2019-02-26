@@ -2679,6 +2679,44 @@ class MouseSession:
             self.tif_movie_file_name = self.param.path_data + path + file_name_original
             # print(f"self.tif_movie_file_name {self.tif_movie_file_name}")
 
+    def load_raster_dur_from_predictions(self, file_name, prediction_threshold, variables_mapping):
+        data = hdf5storage.loadmat(os.path.join(self.param.path_data, file_name))
+        if "predictions" in variables_mapping:
+            predictions = data[variables_mapping["predictions"]]
+            predicted_raster_dur_dict = np.zeros((len(predictions), len(predictions[0])), dtype="int8")
+            for cell in np.arange(len(predictions)):
+                pred = predictions[cell]
+                # predicted_raster_dur_dict[cell, pred >= predictions_threshold] = 1
+                if len(pred.shape) == 1:
+                    predicted_raster_dur_dict[cell, pred >= prediction_threshold] = 1
+                elif (len(pred.shape) == 2) and (pred.shape[1] == 1):
+                    pred = pred[:, 0]
+                    predicted_raster_dur_dict[cell, pred >= prediction_threshold] = 1
+                elif (len(pred.shape) == 2) and (pred.shape[1] == 3):
+                    # real transient, fake ones, other (neuropil, decay etc...)
+                    # keeping predictions about real transient when superior
+                    # to other prediction on the same frame
+                    max_pred_by_frame = np.max(pred, axis=1)
+                    real_transient_frames = (pred[:, 0] == max_pred_by_frame)
+                    predicted_raster_dur_dict[cell, real_transient_frames] = 1
+                elif pred.shape[1] == 2:
+                    # real transient, fake ones
+                    # keeping predictions about real transient superior to the threshold
+                    # and superior to other prediction on the same frame
+                    max_pred_by_frame = np.max(pred, axis=1)
+                    real_transient_frames = np.logical_and((pred[:, 0] >= prediction_threshold),
+                                                           (pred[:, 0] == max_pred_by_frame))
+                    predicted_raster_dur_dict[cell, real_transient_frames] = 1
+            self.spike_struct.spike_nums_dur = predicted_raster_dur_dict
+            self.spike_struct.n_cells = len(self.spike_struct.spike_nums_dur)
+            if self.spike_struct.labels is None:
+                self.spike_struct.labels = np.arange(len(self.spike_struct.spike_nums_dur))
+            if self.spike_struct.n_in_matrix is None:
+                self.spike_struct.n_in_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
+                self.spike_struct.n_out_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
+        else:
+            raise Exception("load_raster_dur_from_predictions no predicions variable")
+
     def load_data_from_file(self, file_name_to_load, variables_mapping, frames_filter=None,
                             from_gui=False):
         """

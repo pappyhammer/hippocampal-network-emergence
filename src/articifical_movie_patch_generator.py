@@ -18,13 +18,15 @@ from pattern_discovery.tools.misc import get_continous_time_periods
 from pattern_discovery.display.raster import plot_spikes_raster
 import PIL
 from PIL import ImageDraw
+import matplotlib.image as mpimg
 
 from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize
 from pattern_discovery.tools.signal import smooth_convolve
 
 
 class DataForMs(p_disc_tools_param.Parameters):
-    def __init__(self, path_data, path_results, with_mvt, use_fake_cells, time_str=None):
+    def __init__(self, path_data, path_results, with_mvt, use_fake_cells, dimensions, n_vessels,
+                 same_baseline_from_cell_than_background, time_str=None):
         if time_str is None:
             self.time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
         else:
@@ -35,6 +37,9 @@ class DataForMs(p_disc_tools_param.Parameters):
         self.best_order_data_path = None
         self.with_mvt = with_mvt
         self.use_fake_cells = use_fake_cells
+        self.dimensions = dimensions
+        self.n_vessels = n_vessels
+        self.same_baseline_from_cell_than_background = same_baseline_from_cell_than_background
 
 
 def produce_cell_coord_from_cnn_validated_cells(param):
@@ -148,10 +153,10 @@ def change_polygon_centroid(new_centroid, poly_cell):
 def generate_artificial_map(coords_to_use, padding, true_cells, fake_cells, param,
                             n_overlap_by_cell_range=(1, 4), overlap_ratio_range=(0.1, 0.5)):
     # padding is used to to add mvts
-    dimensions_without_padding = (90, 90)
+    dimensions_without_padding = param.dimensions
     dimensions = (dimensions_without_padding[0] + (padding * 2), dimensions_without_padding[1] + (padding * 2))
     # model cells, then we'll put cells around with some overlaping
-    n_cells = 9
+    n_cells = 16
     sub_window_size = (30, 30)
     # cell padding
     x_padding = 1  # sub_window_size[1] // 6
@@ -184,7 +189,7 @@ def generate_artificial_map(coords_to_use, padding, true_cells, fake_cells, para
         coords_fake_cells.append(coords_to_use[fake_cell])
 
     cells_with_overlap = []
-    # key is an int (one of the cells_with_overlap), and value an int correspdongin
+    # key is an int (one of the cells_with_overlap), and value an int corresponding
     overlapping_cells = dict()
     map_coords = []
     # in order to randomly choose a true cell coord
@@ -209,7 +214,7 @@ def generate_artificial_map(coords_to_use, padding, true_cells, fake_cells, para
 
         # we decide how many cells will be overlaping it (more like intersect)
         n_overlaps = random.randint(n_overlap_by_cell_range[0], n_overlap_by_cell_range[1])
-        n_non_overlaps = random.randint(4, 15)
+        n_non_overlaps = random.randint(2, 10)
         n_over_added = 0
         n_non_over_added = 0
         centroids_added = []
@@ -258,8 +263,8 @@ def generate_artificial_map(coords_to_use, padding, true_cells, fake_cells, para
                 cell_coord, poly_new_cell = shift_cell_coord_to_centroid(centroid=(x, y), cell_coord=over_cell_coord)
                 # first we need to make sure the cell don't go out of the frame
                 minx, miny, maxx, maxy = np.array(list(poly_new_cell.bounds))
-                if (minx <= padding) or (miny <= padding) or (maxx >= (dimensions[1] - 1 + padding)) or \
-                        (maxy >= (dimensions[0] - 1 + padding)):
+                if (minx <= padding) or (miny <= padding) or (maxx >= dimensions_without_padding[1]) or \
+                        (maxy >= dimensions_without_padding[0]):
                     continue
                 # if intersects and not just touches (means commun border)
                 if poly_main_cell.intersects(poly_new_cell) and (not poly_main_cell.touches(poly_new_cell)) \
@@ -280,7 +285,7 @@ def generate_artificial_map(coords_to_use, padding, true_cells, fake_cells, para
                     break
 
     print(f"cells_with_overlap {cells_with_overlap}")
-    return coords_to_use, map_coords, cells_with_overlap, overlapping_cells, dimensions
+    return coords_to_use, map_coords, cells_with_overlap, overlapping_cells
 
 
 def make_video(images, outvid=None, fps=5, size=None,
@@ -564,9 +569,12 @@ def build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline):
     # The ratio change for each cell, goes from 1.4 to 1.6
     cell_baseline_ratio_values = np.arange(1.7, 1.9, 0.1)
     for cell in np.arange(n_cells):
-        random.shuffle(cell_baseline_ratio_values)
-        cell_baseline_ratio = cell_baseline_ratio_values[0]
-        baseline = original_baseline * n_pixels_by_cell[cell] * cell_baseline_ratio
+        if param.same_baseline_from_cell_than_background:
+            baseline = original_baseline * n_pixels_by_cell[cell]
+        else:
+            random.shuffle(cell_baseline_ratio_values)
+            cell_baseline_ratio = cell_baseline_ratio_values[0]
+            baseline = original_baseline * n_pixels_by_cell[cell] * cell_baseline_ratio
         traces[cell] *= baseline
         active_periods = get_continous_time_periods(raster_dur[cell])
         for period in active_periods:
@@ -756,7 +764,8 @@ def get_weighted_activity_mask_for_a_cell(mask, soma_mask, n_pixels, n_pixels_so
     return weighted_mask
 
 
-def construct_movie_images(coord_obj, traces, dimensions, baseline, soma_geoms, n_pixels_by_cell=None):
+def construct_movie_images(coord_obj, traces, dimensions, baseline, soma_geoms, vessels, param,
+                           n_pixels_by_cell=None):
     print("construct_movie_images begins")
     cell_pieces = set()
     n_frames = traces.shape[1]
@@ -825,6 +834,15 @@ def construct_movie_images(coord_obj, traces, dimensions, baseline, soma_geoms, 
     images = np.ones((n_frames, dimensions[0], dimensions[1]))
     images *= baseline
 
+    if (len(vessels) > 0) and (param.n_vessels > 0):
+        vessels_index = np.arange(len(vessels))
+        random.shuffle(vessels_index)
+        n_vessels = min(param.n_vessels, len(vessels))
+        for vessel_index in vessels_index[:n_vessels]:
+            vessel = vessels[vessel_index]
+            mask_vessel = get_mask(dimensions=dimensions, poly_gon=vessel)
+            images[:, mask_vessel] = baseline / 2
+
     # then we collect all pieces of cell, by piece we mean part of the cell with no overlap and part
     # with one or more intersect, and get it as a polygon object
 
@@ -886,10 +904,11 @@ def build_somas(coord_obj, dimensions):
     return soma_geoms
 
 
-def produce_movie(map_coords, raster_dur, param, dimensions, cells_with_overlap, overlapping_cells,
-                  padding):
+def produce_movie(map_coords, raster_dur, param, cells_with_overlap, overlapping_cells,
+                  padding, vessels):
     n_frames = raster_dur.shape[1]
     n_cells = raster_dur.shape[0]
+    dimensions = param.dimensions
 
     coord_obj = CoordClass(coord=map_coords, nb_col=dimensions[0],
                            nb_lines=dimensions[1])
@@ -912,7 +931,8 @@ def produce_movie(map_coords, raster_dur, param, dimensions, cells_with_overlap,
     traces = build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline)
 
     images = construct_movie_images(coord_obj=coord_obj, traces=traces, dimensions=dimensions,
-                                    n_pixels_by_cell=n_pixels_by_cell, baseline=baseline, soma_geoms=soma_geoms)
+                                    n_pixels_by_cell=n_pixels_by_cell, baseline=baseline, soma_geoms=soma_geoms,
+                                    vessels=vessels, param=param)
     # cells_activity_mask
     noise_str = "gauss"
     # in ["s&p", "poisson", "gauss", "speckle"]:
@@ -959,6 +979,7 @@ def produce_movie(map_coords, raster_dur, param, dimensions, cells_with_overlap,
         # doing it for the saving on file
         shaking_frames = np.unique(shaking_frames)
         np.ndarray.sort(shaking_frames)
+
     with tifffile.TiffWriter(outvid_tiff) as tiff:
         for frame, img_array in enumerate(images):
             if param.with_mvt:
@@ -1025,7 +1046,7 @@ def build_raster_dur(map_coords, cells_with_overlap, overlapping_cells, n_frames
         onsets = np.zeros(0, dtype="int16")
         for transient in np.arange(n_transient):
             while True:
-                onset = random.randint(2, n_frames - 20)
+                onset = random.randint(0, n_frames - 20)
                 sub_array = np.abs(onsets - onset)
                 if (len(onsets) == 0) or (np.min(sub_array) > 3):
                     onsets = np.append(onsets, [onset])
@@ -1101,10 +1122,97 @@ def save_raster_dur_for_gui(raster_dur, param):
     sio.savemat(os.path.join(param.path_results, "gui_data.mat"), {'Bin100ms_spikedigital_Python': spike_nums,
                                                                    'LocPeakMatrix_Python': peak_nums})
 
-def vessels_test():
-    dimensions = (120, 120)
-    img_array = None
-    plt.imshow(img_array)
+
+def produce_vessels(param):
+    vessels_dir = "artificial_movie_generator/vessels_tiff_imgs"
+    vessels_imgs = []
+    # finding the cnn_file coresponding to the ms
+    for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(param.path_data, vessels_dir)):
+        for file_name in local_filenames:
+            if file_name.endswith(".tiff") or file_name.endswith(".tif"):
+                vessel_img = mpimg.imread(os.path.join(param.path_data, vessels_dir, file_name))
+                vessels_imgs.append(vessel_img)
+                print(f"vessel_img.shape {vessel_img.shape}")
+        # looking only in the top directory
+        break
+
+    # we want to produce a polygon from the border of the vessels, and save the coords in a file to load it later
+    # we also save the size of the window
+    # vessel_img.shape[0] represent the height of the image
+    # vessel_img.shape[1] represent the width of the image
+    # 255 means white, 0 means black
+    coord_array_list = []
+    dimensions_list = []
+    for vessel_img in vessels_imgs:
+        coord_list = []
+        height = vessel_img.shape[0]
+        width = vessel_img.shape[1]
+        for y in np.arange(height):
+            x_pixels = (np.where(vessel_img[y, :] == 0))[0]
+            n_pixels = len(x_pixels)
+            if n_pixels > 0:
+                if (y == 0) or (y == height - 1):
+                    for x in x_pixels:
+                        coord_list.append((x, y))
+                else:
+                    coord_list.append((x_pixels[0], y))
+                    coord_list.append((x_pixels[-1], y))
+        coord_array = np.zeros((len(coord_list), 2), dtype="uint16")
+        for index, coord in enumerate(coord_list):
+            coord_array[index, 0] = coord[0]
+            coord_array[index, 1] = coord[1]
+        coord_array_list.append(coord_array)
+        dimensions = np.array([height, width]).astype(int)
+        dimensions_list.append(dimensions)
+
+    dict_to_save = dict()
+    for index, coord_array in enumerate(coord_array_list):
+        dict_to_save[f"coord_{index}"] = coord_array
+        dict_to_save[f"dimensions_{index}"] = dimensions_list[index]
+
+    sio.savemat(os.path.join(param.path_results, "vessels_coord.mat"), dict_to_save)
+
+
+def load_vessels(param):
+    # list of shapely Polygon instances
+    dimensions_to_fit = param.dimensions
+    vessels = []
+    vessels_dir = "artificial_movie_generator"
+    file_names = []
+    # finding the cnn_file coresponding to the ms
+    for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(param.path_data, vessels_dir)):
+        for file_name in local_filenames:
+            if file_name.endswith(".mat") or ("vessel" in file_name.lower()):
+                file_names.append(file_name)
+        # looking only in the top directory
+        break
+
+    for file_name in file_names:
+        data = hdf5storage.loadmat(os.path.join(param.path_data, vessels_dir, file_name))
+        coord_list = []
+        dimensions_list = []
+        index = 0
+        while True:
+            if f"coord_{index}" in data:
+                coord_list.append(data[f"coord_{index}"])
+                dimensions_list.append(data[f"dimensions_{index}"])
+            else:
+                break
+            index += 1
+
+        for index, coord in enumerate(coord_list):
+            coord_tuple_list = []
+            dimensions = dimensions_list[index][0]
+            ratio_x = dimensions_to_fit[0] / dimensions[0]
+            ratio_y = dimensions_to_fit[1] / dimensions[1]
+
+            for (x, y) in coord:
+                coord_tuple_list.append((x*ratio_x, y*ratio_y))
+            vessels.append(geometry.Polygon(coord_tuple_list))
+
+    # print(f"len(vessels) {len(vessels)}")
+    return vessels
+
 
 def main():
     """
@@ -1129,7 +1237,16 @@ def main():
 
     # TODO: put in param all options for generating the movie
     param = DataForMs(path_data=path_data, path_results=path_results, time_str=time_str,
-                      with_mvt=False, use_fake_cells=False)
+                      with_mvt=False, use_fake_cells=False, dimensions=(120, 120),
+                      n_vessels=0, same_baseline_from_cell_than_background=True)
+
+    go_produce_vessels = False
+    if go_produce_vessels:
+        produce_vessels(param)
+        raise Exception("TITI")
+
+    vessels = load_vessels(param)
+    # raise Exception("KING OF THE NORTH")
 
     produce_cell_coords = False
     if produce_cell_coords:
@@ -1177,7 +1294,7 @@ def main():
     #            is_color=False, format="XVID")
     padding = 5
 
-    coords_left, map_coords, cells_with_overlap, overlapping_cells, dimensions = \
+    coords_left, map_coords, cells_with_overlap, overlapping_cells = \
         generate_artificial_map(coords_to_use=coords,
                                 true_cells=true_cells, fake_cells=fake_cells,
                                 n_overlap_by_cell_range=(1, 4), overlap_ratio_range=(0.1, 0.5),
@@ -1193,8 +1310,9 @@ def main():
 
     # then we build the movie based on cells_coords and the raster_dur
     shaking_frames = produce_movie(map_coords=map_coords, raster_dur=raster_dur, param=param,
-                                   dimensions=dimensions, cells_with_overlap=cells_with_overlap,
-                                   overlapping_cells=overlapping_cells, padding=padding)
+                                   cells_with_overlap=cells_with_overlap,
+                                   overlapping_cells=overlapping_cells, padding=padding,
+                                   vessels=vessels)
 
     # saving cells' number of interest
 

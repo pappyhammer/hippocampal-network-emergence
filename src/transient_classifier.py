@@ -2339,7 +2339,8 @@ def scale_polygon_to_source(poly_gon, minx, miny):
 
 
 def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
-                             buffer=None, with_all_masks=False, get_only_polygon_contour=False):
+                             buffer=None, with_all_masks=False, get_only_polygon_contour=False,
+                             with_cell_in_the_middle=False):
     """
 
     :param cell:
@@ -2359,34 +2360,39 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
     overlapping_cells = ms.coord_obj.intersect_cells[cell]
     cells_to_display = [cell]
     cells_to_display.extend(overlapping_cells)
+    if with_cell_in_the_middle:
+        pass
+        # NOT WORKING YET, need to find a solution when the cell is near the border
+        # poly_gon = ms.coord_obj.cells_polygon[cell]
+        # poly_gon.x
+    else:
+        # calculating the bound that will surround all the cells
+        minx = None
+        maxx = None
+        miny = None
+        maxy = None
 
-    # calculating the bound that will surround all the cells
-    minx = None
-    maxx = None
-    miny = None
-    maxy = None
+        for cell_to_display in cells_to_display:
+            poly_gon = ms.coord_obj.cells_polygon[cell_to_display]
 
-    for cell_to_display in cells_to_display:
-        poly_gon = ms.coord_obj.cells_polygon[cell_to_display]
+            if minx is None:
+                minx, miny, maxx, maxy = np.array(list(poly_gon.bounds)).astype(int)
+            else:
+                tmp_minx, tmp_miny, tmp_maxx, tmp_maxy = np.array(list(poly_gon.bounds)).astype(int)
+                minx = min(minx, tmp_minx)
+                miny = min(miny, tmp_miny)
+                maxx = max(maxx, tmp_maxx)
+                maxy = max(maxy, tmp_maxy)
 
-        if minx is None:
-            minx, miny, maxx, maxy = np.array(list(poly_gon.bounds)).astype(int)
-        else:
-            tmp_minx, tmp_miny, tmp_maxx, tmp_maxy = np.array(list(poly_gon.bounds)).astype(int)
-            minx = min(minx, tmp_minx)
-            miny = min(miny, tmp_miny)
-            maxx = max(maxx, tmp_maxx)
-            maxy = max(maxy, tmp_maxy)
+        minx = max(0, minx - pixels_around)
+        miny = max(0, miny - pixels_around)
+        # we use max_width and max_height to make sure it won't be bigger than the frame used by the network
+        # and we crop the frame if necessary
+        maxx = np.min(((len_frame_x - 1), (maxx + pixels_around), (minx + max_height - 1)))
+        maxy = np.min(((len_frame_y - 1), (maxy + pixels_around), (miny + max_width - 1)))
 
-    minx = max(0, minx - pixels_around)
-    miny = max(0, miny - pixels_around)
-    # we use max_width and max_height to make sure it won't be bigger than the frame used by the network
-    # and we crop the frame if necessary
-    maxx = np.min(((len_frame_x - 1), (maxx + pixels_around), (minx + max_height - 1)))
-    maxy = np.min(((len_frame_y - 1), (maxy + pixels_around), (miny + max_width - 1)))
-
-    len_x = maxx - minx + 1
-    len_y = maxy - miny + 1
+        len_x = maxx - minx + 1
+        len_y = maxy - miny + 1
 
     mask_dict = dict()
 
@@ -2595,12 +2601,13 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     p11_17_11_24_a000: 0 to 25 + 29
     p12_171110_a000_ms: up to cell 10 included + cell 14
     p13_18_10_29_a001: 0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117
-    artificial_ms_1: with same weights & mvts & fake cells: [0, 14, 31, 40, 58, 69, 87, 99, 111]
+    artificial_ms_1: with same weights & mvts & fake cells:
+    [0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]
     artificial_ms_2: 0, 15, 30, 47, 66, 73, 89, 98, 112
     # p13_18_10_29_a001_GUI_transients_RD.mat
     """
     print("load_data_for_generator")
-    use_small_sample = True
+    use_small_sample = False
     # used for counting how many cells and transients available
     load_them_all = False
     if load_them_all:
@@ -2627,17 +2634,18 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
-        ms_to_use = ["artificial_ms_1", "p8_18_10_24_a005_ms", # "p11_17_11_24_a000_ms", "p7_171012_a000_ms",
+        ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms", # p8_18_10_24_a005_ms  "p7_171012_a000_ms",
                      "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
         #  "p9_18_09_27_a003_ms",
         cell_to_load_by_ms = {
                             #"p7_171012_a000_ms": np.array([52, 53, 75, 81]),  #
-                              "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10]),  #
-                              "artificial_ms": np.array([0, 11, 16, 27, 36, 46, 53, 68, 83, 94, 109, 115, 128]),
+                              # "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10]),  #
+                              "artificial_ms_1":
+                                  np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
                               # "p9_18_09_27_a003_ms": np.array([3, 5]), # 7, 9
-                              #"p11_17_11_24_a000_ms": np.array([3, 22, 24, 29]),  #
-                              "p12_171110_a000_ms": np.array([0, 3, 7]),  # 3
-                              "p13_18_10_29_a001_ms": np.array([0, 5, 12, 13])}  # 12, 13
+                              "p11_17_11_24_a000_ms": np.arange(25),  #
+                              "p12_171110_a000_ms": np.arange(11),  # 3
+                              "p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77])}  # 12, 13
         # max p7: 117, max p9: 30, max p12: 6 .build_spike_nums_dur()
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
@@ -3043,9 +3051,9 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, bin_
             merged = Flatten()(merged)
 
     # TODO: test those 7 lines (https://www.kaggle.com/amansrivastava/exploration-bi-lstm-model)
-    number_dense_units = 1024
-    merged = Dense(number_dense_units)(merged)
-    merged = Activation(activation_fct)(merged)
+    # number_dense_units = 1024
+    # merged = Dense(number_dense_units)(merged)
+    # merged = Activation(activation_fct)(merged)
     if with_batch_normalization:
         merged = BatchNormalization()(merged)
     if dropout_rate > 0:
@@ -3187,7 +3195,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
             cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
 
     total_n_cells = len(cells_to_load)
-    # print(f'total_n_cells {total_n_cells}')
+    print(f'total_n_cells {total_n_cells}')
     # raise Exception("TITI")
     if total_n_cells == 0:
         raise Exception(f"No cells loaded")
@@ -3521,9 +3529,9 @@ def train_model():
     go_predict_from_movie = False
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p8_18_10_24_a005_ms"], param=param, overlap_value=0.8,
+        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
                                          use_data_augmentation=True,
-                                         cells_to_predict=np.array([9, 10, 13, 28, 41, 42, 207, 321, 110]))
+                                         cells_to_predict=None)
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
@@ -3559,16 +3567,16 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 40
+    n_epochs = 50
     batch_size = 16
     window_len = 50
     max_width = 25
     max_height = 25
     overlap_value = 0.9
-    dropout_value = 0
-    dropout_value_rnn = 0
-    dropout_at_the_end = 0.5
-    with_batch_normalization = True
+    dropout_value = 0.5
+    dropout_value_rnn = 0.5
+    dropout_at_the_end = 0
+    with_batch_normalization = False
     max_n_transformations = 6
     pixels_around = 0
     with_augmentation_for_training_data = True
@@ -3592,12 +3600,12 @@ def train_model():
     apply_attention_before_lstm = True
     use_single_attention_vector = False
     with_early_stopping = True
-    early_stop_patience = 15  # 10
+    early_stop_patience = 25  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
     # main_ratio_balance = (0.6, 0.2, 0.2)
-    main_ratio_balance = (0.6, 0.3, 0.1)
+    main_ratio_balance = (0.7, 0.2, 0.1)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
 

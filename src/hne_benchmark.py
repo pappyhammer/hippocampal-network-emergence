@@ -684,7 +684,7 @@ def build_raster_dur_from_predictions(predictions, predictions_threshold, cells,
             # keeping predictions about real transient superior to the threshold
             # and superior to other prediction on the same frame
             max_pred_by_frame = np.max(pred, axis=1)
-            real_transient_frames = np.logical_and((pred[:, 0] >= threshold_tc),
+            real_transient_frames = np.logical_and((pred[:, 0] >= predictions_threshold),
                                                    (pred[:, 0] == max_pred_by_frame))
             predicted_raster_dur_dict[cell, real_transient_frames] = 1
 
@@ -842,13 +842,13 @@ def main_benchmark():
         return
 
     # ########### options ###################
-    # ms_to_benchmark = "p12_17_11_10_a000"
+    ms_to_benchmark = "p12_17_11_10_a000"
     # ms_to_benchmark = "p7_17_10_12_a000"
     # ms_to_benchmark = "p13_18_10_29_a001_ms"
-    ms_to_benchmark = "p8_18_10_24_a005_ms"
+    # ms_to_benchmark = "p8_18_10_24_a005_ms"
     # ms_to_benchmark = "artificial_ms"
     do_onsets_benchmarks = False
-    do_plot_roc_predictions = False
+    do_plot_roc_predictions = True
     # ########### end options ###################
 
     data_dict = dict()
@@ -861,7 +861,7 @@ def main_benchmark():
         data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P12_17_11_10_a000.txt"
         data_dict["gt"]["cnn_threshold"] = 0.5
         # TODO: with cell 10, we need to re-make the prediction
-        data_dict["gt"]["cells"] = np.concatenate((np.arange(10), [14]))
+        data_dict["gt"]["cells"] = np.concatenate((np.arange(11), [14]))
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
@@ -956,29 +956,35 @@ def main_benchmark():
         # trained on 21/02/2019 21-11-31 with bin et al. version + atttention before predictions up to cell 9 + 14
         data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_22.14-40-26.mat"
 
-        # ## trained on artificial data , 4 cells + p12 2 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
-        # trained on 21/02/2019 222-24-00 with bin et al. version + atttention before predictions up to cell 9 + 14
+        # ## trained on artificial data , 4 cells + p12 2 cells,
+        # with 3 inputs (cell masked + cells masked + neuropil mask), BO
+        # trained on 21/02/2019 22-24-00 with bin et al. version + atttention before predictions up to cell 9 + 14
         data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_22.16-08-44.mat"
 
         # ## trained on artificial data , 4 cells + p12 1 cell, with 1 inputs (global + contour),
         # trained on 23/02/2019 18-36-53 with bin et al. version + atttention before predictions up to cell 10 + 14
         data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_23.19-10-46.mat"
 
+        # ## trained on artificial data , 4 cells + p12 2 cells,
+        # with 3 inputs (cell masked + cells masked + neuropil mask), BO
+        # trained on 21/02/2019 22-24-00 with bin et al. version + atttention before predictions for all cnn valide cell
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_26.08-43-06_all_cnn_cells_arti_p12_2_cells.mat"
+
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.35
+        data_dict["rnn"]["prediction_threshold"] = 0.4
 
         data_dict["last_rnn"] = dict()
         data_dict["last_rnn"]["path"] = "p12/p12_17_11_10_a000"
         # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
         # trained on 16/02/2019 11:21:11 BO equality, predictions up to cell 10 + 14
         data_dict["last_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.14-20-01.mat"
-        # ## trained on artificial data , 4 cells + p12 2 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
-        # trained on 21/02/2019 222-24-00 with bin et al. version + atttention before predictions up to cell 9 + 14
-        data_dict["last_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_22.16-08-44.mat"
+        # # ## trained on artificial data , 4 cells + p12 2 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # # trained on 21/02/2019 222-24-00 with bin et al. version + atttention before predictions up to cell 9 + 14
+        # data_dict["last_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_22.16-08-44.mat"
 
         data_dict["last_rnn"]["predictions"] = "predictions"
-        data_dict["last_rnn"]["prediction_threshold"] = 0.7
+        data_dict["last_rnn"]["prediction_threshold"] = 0.6
 
         # data_dict["old_rnn"] = dict()
         # data_dict["old_rnn"]["path"] = "p12/p12_17_11_10_a000"
@@ -1147,6 +1153,7 @@ def main_benchmark():
         # ## trained on 3 cells p8, 8 artificial, with 3 inputs (cell masked + cells masked + neuropil mask),
         # trained on 25/02/2019 11-01-02 with bin et al. version + atttention before
         data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_25.17-40-58.mat"
+
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
         data_dict["rnn"]["prediction_threshold"] = 0.6

@@ -1890,8 +1890,8 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    # range_n_clusters_k_mean = np.arange(2, 10)
-    range_n_clusters_k_mean = np.array([5])
+    range_n_clusters_k_mean = np.arange(3, 7)
+    # range_n_clusters_k_mean = np.array([5])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
 

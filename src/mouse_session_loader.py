@@ -14,6 +14,7 @@ def smooth_traces(traces):
         beg = (window_length - 1) // 2
         traces[i] = smooth_signal[beg:-beg]
 
+
 def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_movie=True,
                         for_cell_classifier=False, for_transient_classifier=False):
     # for_cell_classifier is True means we don't remove the cell that has been marked as fake cells
@@ -849,15 +850,29 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             if for_cell_classifier:
                 p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
                                                                        "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
-        # else:
-        #     variables_mapping = {"spike_nums_dur": "spike_nums_dur_predicted"}
-        #     # not the best prediction, but done on all CNN validated cells
-        #     p12_171110_a000_ms.\
-        #         load_data_from_file(file_name_to_load=
-        #                             "p12/p12_17_11_10_a000/P12_17_11_10_a000_predictions_2019_02_06.22-48-11_all_cnn_cells_trained_2_p12_cells.mat",
-        #                             variables_mapping=variables_mapping)
-        #     p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
-        #                                                                "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
+        else:
+            # variables_mapping = {"spike_nums_dur": "spike_nums_dur_predicted"}
+            # not the best prediction, but done on all CNN validated cells
+            # p12_171110_a000_ms.\
+            #     load_data_from_file(file_name_to_load=
+            #                         "p12/p12_17_11_10_a000/P12_17_11_10_a000_predictions_2019_02_06.22-48-11_all_cnn_cells_trained_2_p12_cells.mat",
+            #                         variables_mapping=variables_mapping)
+            variables_mapping = {"predictions": "predictions"}
+            p12_171110_a000_ms.load_raster_dur_from_predictions(
+                file_name="p12/p12_17_11_10_a000/" +
+                          "P12_17_11_10_a000_predictions_2019_02_26.08-43-06_all_cnn_cells_arti_p12_2_cells.mat",
+                prediction_threshold=0.2, variables_mapping=variables_mapping)
+            if p12_171110_a000_ms.cell_cnn_predictions is not None:
+                print(f"Using cnn predictions from {p12_171110_a000_ms.description}")
+                # not taking into consideration cells that are not predicted as true from the cell classifier
+                cells_predicted_as_false = np.where(p12_171110_a000_ms.cell_cnn_predictions < 0.5)[0]
+                if p12_171110_a000_ms.cells_to_remove is None:
+                    p12_171110_a000_ms.cells_to_remove = cells_predicted_as_false
+                else:
+                    p12_171110_a000_ms.cells_to_remove = np.concatenate((p12_171110_a000_ms.cells_to_remove,
+                                                                           cells_predicted_as_false))
+            # p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
+            #                                                            "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p12_171110_a000_ms.load_data_from_file(
