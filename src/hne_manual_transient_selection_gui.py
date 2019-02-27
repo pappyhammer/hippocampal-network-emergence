@@ -809,12 +809,14 @@ class ManualOnsetFrame(tk.Frame):
         self.nb_times = len(self.spike_nums[0, :])
 
         self.raw_traces = self.data_and_param.raw_traces
+        use_caiman_demix_trace = True
+        if use_caiman_demix_trace:
+            self.traces = data_and_param.traces
+        else:
+            self.traces = np.copy(self.raw_traces)
+            # smoothing the trace, but no demixing
+            do_traces_smoothing(self.traces)
 
-        # self.traces = data_and_param.traces
-
-        self.traces = np.copy(self.raw_traces)
-        # smoothing the trace
-        do_traces_smoothing(self.traces)
         # windows = ['hanning', 'hamming', 'bartlett', 'blackman']
         # i_w = 1
         # window_length = 11
