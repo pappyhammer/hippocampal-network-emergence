@@ -195,6 +195,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         #                                          variables_mapping=variables_mapping)
         if load_movie:
             p7_171012_a000_ms.load_tif_movie(path="p7/p7_17_10_12_a000/")
+
+        p7_171012_a000_ms.load_caiman_results(path_data="p7/p7_17_10_12_a000/")
         ms_str_to_ms_dict["p7_171012_a000_ms"] = p7_171012_a000_ms
 
     if "p7_17_10_18_a002_ms" in ms_str_to_load:
@@ -578,6 +580,40 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             p8_18_10_24_a005_ms.load_tif_movie(path="p8/p8_18_10_24_a005/")
         ms_str_to_ms_dict["p8_18_10_24_a005_ms"] = p8_18_10_24_a005_ms
 
+    # Oriens movie
+    if "p8_18_10_24_a006_ms" in ms_str_to_load:
+        p8_18_10_24_a006_ms = MouseSession(age=8, session_id="18_10_24_a006", nb_ms_by_frame=100, param=param)
+
+        p8_18_10_24_a006_ms.set_avg_cell_map_tif(file_name="p8/p8_18_10_24_a006/AVG_p8_18_10_24_a006.tif")
+
+        # if for_cell_classifier or for_transient_classifier:
+        #     variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+        #                          "peak_nums": "LocPeakMatrix_Python",
+        #                          "cells_to_remove": "cells_to_remove",
+        #                          "inter_neurons_from_gui": "inter_neurons"}
+        #     p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load=
+        #                                            "p8/p8_18_10_24_a006/p8_18_10_24_a006_GUI_transientsRD.mat",
+        #                                            variables_mapping=variables_mapping,
+        #                                            from_gui=True)
+        #     p8_18_10_24_a006_ms.build_spike_nums_dur()
+
+        if load_traces:
+            variables_mapping = {"traces": "C_df"}
+            p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a006/p8_18_10_24_a006_Traces.mat",
+                                                    variables_mapping=variables_mapping)
+            variables_mapping = {"raw_traces": "raw_traces"}
+            p8_18_10_24_a006_ms.load_data_from_file(
+                file_name_to_load="p8/p8_18_10_24_a006/p8_18_10_24_a006_raw_Traces.mat",
+                variables_mapping=variables_mapping)
+        variables_mapping = {"coord": "ContoursAll"}
+        p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a006/p8_18_10_24_a006_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        # if load_abf:
+        #     p8_18_10_24_a006_ms.load_abf_file(abf_file_name="p8/p8_18_10_24_a005/p8_18_10_24_a006.abf",
+        #                                       threshold_piezo=0.5)  # used to be 0.4
+        if load_movie:
+            p8_18_10_24_a006_ms.load_tif_movie(path="p8/p8_18_10_24_a006/")
+        ms_str_to_ms_dict["p8_18_10_24_a006_ms"] = p8_18_10_24_a006_ms
     # p9_17_11_29_a002 low participation comparing to other, dead shortly after the recording
     # p9_17_11_29_a002_ms = MouseSession(age=9, session_id="17_11_29_a002", nb_ms_by_frame=100, param=param,
     #                                    weight=5.7)
@@ -850,27 +886,27 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             if for_cell_classifier:
                 p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
                                                                        "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
-        else:
-            # variables_mapping = {"spike_nums_dur": "spike_nums_dur_predicted"}
-            # not the best prediction, but done on all CNN validated cells
-            # p12_171110_a000_ms.\
-            #     load_data_from_file(file_name_to_load=
-            #                         "p12/p12_17_11_10_a000/P12_17_11_10_a000_predictions_2019_02_06.22-48-11_all_cnn_cells_trained_2_p12_cells.mat",
-            #                         variables_mapping=variables_mapping)
-            variables_mapping = {"predictions": "predictions"}
-            p12_171110_a000_ms.load_raster_dur_from_predictions(
-                file_name="p12/p12_17_11_10_a000/" +
-                          "P12_17_11_10_a000_predictions_2019_02_26.08-43-06_all_cnn_cells_arti_p12_2_cells.mat",
-                prediction_threshold=0.2, variables_mapping=variables_mapping)
-            if p12_171110_a000_ms.cell_cnn_predictions is not None:
-                print(f"Using cnn predictions from {p12_171110_a000_ms.description}")
-                # not taking into consideration cells that are not predicted as true from the cell classifier
-                cells_predicted_as_false = np.where(p12_171110_a000_ms.cell_cnn_predictions < 0.5)[0]
-                if p12_171110_a000_ms.cells_to_remove is None:
-                    p12_171110_a000_ms.cells_to_remove = cells_predicted_as_false
-                else:
-                    p12_171110_a000_ms.cells_to_remove = np.concatenate((p12_171110_a000_ms.cells_to_remove,
-                                                                           cells_predicted_as_false))
+        # else:
+        #     # variables_mapping = {"spike_nums_dur": "spike_nums_dur_predicted"}
+        #     # not the best prediction, but done on all CNN validated cells
+        #     # p12_171110_a000_ms.\
+        #     #     load_data_from_file(file_name_to_load=
+        #     #                         "p12/p12_17_11_10_a000/P12_17_11_10_a000_predictions_2019_02_06.22-48-11_all_cnn_cells_trained_2_p12_cells.mat",
+        #     #                         variables_mapping=variables_mapping)
+        #     variables_mapping = {"predictions": "predictions"}
+        #     p12_171110_a000_ms.load_raster_dur_from_predictions(
+        #         file_name="p12/p12_17_11_10_a000/" +
+        #                   "P12_17_11_10_a000_predictions_2019_02_26.08-43-06_all_cnn_cells_arti_p12_2_cells.mat",
+        #         prediction_threshold=0.2, variables_mapping=variables_mapping)
+        #     if p12_171110_a000_ms.cell_cnn_predictions is not None:
+        #         print(f"Using cnn predictions from {p12_171110_a000_ms.description}")
+        #         # not taking into consideration cells that are not predicted as true from the cell classifier
+        #         cells_predicted_as_false = np.where(p12_171110_a000_ms.cell_cnn_predictions < 0.5)[0]
+        #         if p12_171110_a000_ms.cells_to_remove is None:
+        #             p12_171110_a000_ms.cells_to_remove = cells_predicted_as_false
+        #         else:
+        #             p12_171110_a000_ms.cells_to_remove = np.concatenate((p12_171110_a000_ms.cells_to_remove,
+        #                                                                    cells_predicted_as_false))
             # p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
             #                                                            "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
         if load_traces:
