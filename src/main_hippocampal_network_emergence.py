@@ -1890,9 +1890,9 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(3, 7)
-    # range_n_clusters_k_mean = np.array([5])
-    n_surrogate_k_mean = 20
+    # range_n_clusters_k_mean = np.arange(3, 7)
+    range_n_clusters_k_mean = np.array([8])
+    n_surrogate_k_mean = 100
     keep_only_the_best_kmean_cluster = False
 
     # ##########################################################################################
@@ -1912,7 +1912,7 @@ def main():
     param.max_branches = 10
     param.time_inter_seq = 30  # 50
     param.min_duration_intra_seq = 0
-    param.min_len_seq = 5  # 5
+    param.min_len_seq = 4  # 5
     param.min_rep_nb = 3
 
     debug_mode = False

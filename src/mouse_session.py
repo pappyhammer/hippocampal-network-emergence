@@ -2818,6 +2818,9 @@ class MouseSession:
         self.spike_struct.clean_data_using_cells_to_remove(cells_to_remove=self.cells_to_remove)
         # raise Exception("titi")
 
+    def clean_raster_at_concatenation(self):
+        self.spike_struct.clean_raster_at_concatenation()
+
     def detect_n_in_n_out(self):
         self.spike_struct.detect_n_in_n_out()
 

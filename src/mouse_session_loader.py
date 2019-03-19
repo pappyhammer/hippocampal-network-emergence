@@ -195,7 +195,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         #                                          variables_mapping=variables_mapping)
         if load_movie:
             p7_171012_a000_ms.load_tif_movie(path="p7/p7_17_10_12_a000/")
-
         p7_171012_a000_ms.load_caiman_results(path_data="p7/p7_17_10_12_a000/")
         ms_str_to_ms_dict["p7_171012_a000_ms"] = p7_171012_a000_ms
 
@@ -886,27 +885,29 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             if for_cell_classifier:
                 p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
                                                                        "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
-        # else:
-        #     # variables_mapping = {"spike_nums_dur": "spike_nums_dur_predicted"}
-        #     # not the best prediction, but done on all CNN validated cells
-        #     # p12_171110_a000_ms.\
-        #     #     load_data_from_file(file_name_to_load=
-        #     #                         "p12/p12_17_11_10_a000/P12_17_11_10_a000_predictions_2019_02_06.22-48-11_all_cnn_cells_trained_2_p12_cells.mat",
-        #     #                         variables_mapping=variables_mapping)
-        #     variables_mapping = {"predictions": "predictions"}
-        #     p12_171110_a000_ms.load_raster_dur_from_predictions(
-        #         file_name="p12/p12_17_11_10_a000/" +
-        #                   "P12_17_11_10_a000_predictions_2019_02_26.08-43-06_all_cnn_cells_arti_p12_2_cells.mat",
-        #         prediction_threshold=0.2, variables_mapping=variables_mapping)
-        #     if p12_171110_a000_ms.cell_cnn_predictions is not None:
-        #         print(f"Using cnn predictions from {p12_171110_a000_ms.description}")
-        #         # not taking into consideration cells that are not predicted as true from the cell classifier
-        #         cells_predicted_as_false = np.where(p12_171110_a000_ms.cell_cnn_predictions < 0.5)[0]
-        #         if p12_171110_a000_ms.cells_to_remove is None:
-        #             p12_171110_a000_ms.cells_to_remove = cells_predicted_as_false
-        #         else:
-        #             p12_171110_a000_ms.cells_to_remove = np.concatenate((p12_171110_a000_ms.cells_to_remove,
-        #                                                                    cells_predicted_as_false))
+        else:
+            # variables_mapping = {"spike_nums_dur": "spike_nums_dur_predicted"}
+            # not the best prediction, but done on all CNN validated cells
+            # p12_171110_a000_ms.\
+            #     load_data_from_file(file_name_to_load=
+            #                         "p12/p12_17_11_10_a000/P12_17_11_10_a000_predictions_2019_02_06.22-48-11_all_cnn_cells_trained_2_p12_cells.mat",
+            #                         variables_mapping=variables_mapping)
+            # trained on 50 cells + artificial data, 3 inputs, with overlap 0.9 and 3 transformations
+            # rnn trained on 26/02/2019 17-20-11 on 391 cells
+            variables_mapping = {"predictions": "predictions"}
+            p12_171110_a000_ms.load_raster_dur_from_predictions(
+                file_name="p12/p12_17_11_10_a000/" +
+                          "P12_17_11_10_a000_predictions_2019_03_14.20-19-48.mat",
+                prediction_threshold=0.5, variables_mapping=variables_mapping)
+            # if p12_171110_a000_ms.cell_cnn_predictions is not None:
+            #     print(f"Using cnn predictions from {p12_171110_a000_ms.description}")
+            #     # not taking into consideration cells that are not predicted as true from the cell classifier
+            #     cells_predicted_as_false = np.where(p12_171110_a000_ms.cell_cnn_predictions < 0.5)[0]
+            #     if p12_171110_a000_ms.cells_to_remove is None:
+            #         p12_171110_a000_ms.cells_to_remove = cells_predicted_as_false
+            #     else:
+            #         p12_171110_a000_ms.cells_to_remove = np.concatenate((p12_171110_a000_ms.cells_to_remove,
+            #                                                                cells_predicted_as_false))
             # p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
             #                                                            "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
         if load_traces:
@@ -928,6 +929,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         if (not for_cell_classifier) and (not for_transient_classifier):
             p12_171110_a000_ms.clean_data_using_cells_to_remove()
+
+        p12_171110_a000_ms.clean_raster_at_concatenation()
 
         p12_171110_a000_ms.load_caiman_results(path_data="p12/p12_17_11_10_a000/")
 

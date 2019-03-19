@@ -187,6 +187,24 @@ class HNESpikeStructure:
             self.labels = new_labels
         self.n_cells = new_n_cells
 
+    def clean_raster_at_concatenation(self):
+        """
+        Movies of 2500 frames are concatenated, we need to clean around the concatenation times
+        :return:
+        """
+        if self.spike_nums_dur.shape[1] != 12500:
+            return
+        mask_frames = np.zeros(self.spike_nums_dur.shape[1], dtype="bool")
+        for i in [2500, 7500, 10000]:
+            mask_frames[i-1:i+2] = True
+
+        if self.spike_nums is not None:
+            self.spike_nums[:, mask_frames] = 0
+        if self.spike_nums_dur is not None:
+            self.spike_nums_dur[:, mask_frames] = 0
+        if self.peak_nums is not None:
+            self.peak_nums[:, mask_frames] = 0
+        print("clean_raster_at_concatenation done")
 
     def build_spike_nums_dur(self):
         if (self.spike_nums is None) or (self.peak_nums is None):

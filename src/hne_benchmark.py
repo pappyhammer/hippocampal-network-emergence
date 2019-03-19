@@ -848,7 +848,7 @@ def main_benchmark():
     # ms_to_benchmark = "p8_18_10_24_a005_ms"
     # ms_to_benchmark = "artificial_ms"
     do_onsets_benchmarks = False
-    do_plot_roc_predictions = True
+    do_plot_roc_predictions = False
     # ########### end options ###################
 
     data_dict = dict()
@@ -861,7 +861,7 @@ def main_benchmark():
         data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P12_17_11_10_a000.txt"
         data_dict["gt"]["cnn_threshold"] = 0.5
         # TODO: with cell 10, we need to re-make the prediction
-        data_dict["gt"]["cells"] = np.concatenate((np.arange(11), [14]))
+        data_dict["gt"]["cells"] =  np.concatenate((np.arange(11), [14])) # np.array([14])
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
@@ -970,15 +970,27 @@ def main_benchmark():
         # trained on 21/02/2019 22-24-00 with bin et al. version + atttention before predictions for all cnn valide cell
         data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_26.08-43-06_all_cnn_cells_arti_p12_2_cells.mat"
 
+        # trained on 50 cells + artificial data, 3 inputs, with overlap 0.7 and 2 transformations
+        # rnn trained on 26/02/2019 17-20-11 on 391 cells
+        # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_03_14.08-16-02_391_cells.mat"
+
+        # trained on 50 cells + artificial data, 3 inputs, with overlap 0.9 and 3 transformations
+        # rnn trained on 26/02/2019 17-20-11 on 391 cells
+        data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_03_14.20-19-48.mat"
+
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.4
+        data_dict["rnn"]["prediction_threshold"] = 0.5
 
         data_dict["last_rnn"] = dict()
         data_dict["last_rnn"]["path"] = "p12/p12_17_11_10_a000"
         # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
         # trained on 16/02/2019 11:21:11 BO equality, predictions up to cell 10 + 14
-        data_dict["last_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.14-20-01.mat"
+        # data_dict["last_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_19.14-20-01.mat"
+        # ## trained on artificial data , 4 cells + p12 2 cells,
+        # with 3 inputs (cell masked + cells masked + neuropil mask), BO
+        # trained on 21/02/2019 22-24-00 with bin et al. version + atttention before predictions for all cnn valide cell
+        data_dict["last_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_26.08-43-06_all_cnn_cells_arti_p12_2_cells.mat"
         # # ## trained on artificial data , 4 cells + p12 2 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
         # # trained on 21/02/2019 222-24-00 with bin et al. version + atttention before predictions up to cell 9 + 14
         # data_dict["last_rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_22.16-08-44.mat"
@@ -1065,7 +1077,7 @@ def main_benchmark():
         data_dict["gt"]["gt_file"] = "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt"
         data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P7_17_10_12_a000.txt"
         data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.arange(20, 50)
+        data_dict["gt"]["cells"] = np.arange(100)
         # data_dict["gt"]["cells_to_remove"] = np.array([52, 75])
 
 
@@ -1073,7 +1085,7 @@ def main_benchmark():
         data_dict["rnn"]["path"] = "p7/p7_17_10_12_a000"
         data_dict["rnn"]["trace_file_name"] = "p7_17_10_12_a000_Traces.mat"
         data_dict["rnn"]["trace_var_name"] = "C_df"
-        data_dict["rnn"]["boost_rnn"] = True
+        data_dict["rnn"]["boost_rnn"] = False
         # not of these two better than caiman
         # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_01.15-56-10.mat"
         # BO ?
@@ -1090,9 +1102,12 @@ def main_benchmark():
         # trained on p7 3 cells + artificial, with 3 inputs (cell masked + cells masked + neuropil mask),
         # trained on 22/02/2019 19:16:53, on epoch 14 with overlap at 0.8 (from cell 20 to 50)
         data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_23.12-16-46.mat"
+        # trained on 50 cells (p11, p12, p13) + artificial, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 26/02/2019 17-20-11, on epoch 21 with overlap at 0.8 (until cell 99 included)
+        data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_03_08.14-15-54.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.4
+        data_dict["rnn"]["prediction_threshold"] = 0.35
 
         data_dict["last_rnn"] = dict()
         data_dict["last_rnn"]["path"] = "p7/p7_17_10_12_a000"
@@ -1153,10 +1168,14 @@ def main_benchmark():
         # ## trained on 3 cells p8, 8 artificial, with 3 inputs (cell masked + cells masked + neuropil mask),
         # trained on 25/02/2019 11-01-02 with bin et al. version + atttention before
         data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_25.17-40-58.mat"
+        # trained on 50 cells (p11, p12, p13) + artificial, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 26/02/2019 , on epoch 21 with overlap at 0.8 (until cell 99 included)
+        data_dict["rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_03_08.13-53-35.mat"
+
 
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.6
+        data_dict["rnn"]["prediction_threshold"] = 0.5
 
         data_dict["old_rnn"] = dict()
         data_dict["old_rnn"]["path"] = "p8/p8_18_10_24_a005"
