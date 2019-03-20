@@ -34,7 +34,7 @@ from pattern_discovery.display.raster import plot_spikes_raster
 from pattern_discovery.display.misc import time_correlation_graph
 from pattern_discovery.display.cells_map_module import CoordClass
 from pattern_discovery.tools.sce_detection import get_sce_detection_threshold, detect_sce_with_sliding_window, \
-    get_low_activity_events_detection_threshold
+    get_low_activity_events_detection_threshold, detect_sce_potatoes_style
 from sortedcontainers import SortedList, SortedDict
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import compute_and_plot_clusters_raster_kmean_version
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import give_stat_one_sce
@@ -1848,6 +1848,7 @@ def main():
     ms_to_analyse = available_ms
 
     just_do_stat_on_event_detection_parameters = False
+    just_plot_raster = False
     just_plot_time_correlation_graph_over_twitches = False
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_traces_raster = False
@@ -1856,7 +1857,6 @@ def main():
     just_plot_cell_assemblies_on_map = False
     just_plot_all_cells_on_map = False
     do_plot_psth_twitches = False
-    just_plot_raster = False
     just_do_seqnmf = False
 
     # for events (sce) detection
@@ -1878,7 +1878,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = False
+    do_clustering = True
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
@@ -1890,15 +1890,15 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    # range_n_clusters_k_mean = np.arange(3, 7)
-    range_n_clusters_k_mean = np.array([8])
-    n_surrogate_k_mean = 100
+    range_n_clusters_k_mean = np.arange(2, 11)
+    # range_n_clusters_k_mean = np.array([3])
+    n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
 
     # ##########################################################################################
     # ################################ PATTERNS SEARCH #########################################
     # ##########################################################################################
-    do_pattern_search = True
+    do_pattern_search = False
     keep_the_longest_seq = False
     split_pattern_search = False
     use_only_uniformity_method = False
@@ -2317,7 +2317,7 @@ def main():
             #  and for each with raster_dur and with_onsets for n surrogates
 
             spike_struct = ms.spike_struct
-            n_cells = len(spike_struct.spike_nums)
+            n_cells = spike_struct.n_cells
             if ms.spike_struct.spike_nums_dur is not None:
                 use_raster_durs = [True]
             else:
@@ -2367,6 +2367,9 @@ def main():
                     #     pass
                     # ########### END TEST ###########
 
+                    # sce_detection_result = detect_sce_potatoes_style(spike_nums=spike_nums_to_use, perc_threshold=95,
+                    #                                                  debug_mode=True)
+
                     if ms.activity_threshold is None:
                         activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use,
                                                                          window_duration=sliding_window_duration,
@@ -2381,6 +2384,7 @@ def main():
                     else:
                         activity_threshold = ms.activity_threshold
                         spike_struct.activity_threshold = ms.activity_threshold
+
 
                     sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
                                                                           window_duration=sliding_window_duration,
@@ -2414,6 +2418,8 @@ def main():
 
                     spike_shape = '|' if use_raster_dur else 'o'
                     inter_neurons = ms.spike_struct.inter_neurons
+                    if inter_neurons is None:
+                        inter_neurons = []
                     span_area_coords = [SCE_times]
                     span_area_colors = ['lightgrey']
                     if ms.mvt_frames_periods is not None:
@@ -2773,13 +2779,16 @@ def main():
                            save_formats="pdf")
 
         # TODO: detect_sce_with_sliding_window with spike_trains
-        sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
-                                                              window_duration=sliding_window_duration,
-                                                              perc_threshold=perc_threshold,
-                                                              activity_threshold=activity_threshold,
-                                                              debug_mode=False,
-                                                              no_redundancy=no_redundancy,
-                                                              keep_only_the_peak=False)
+        # sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
+        #                                                       window_duration=sliding_window_duration,
+        #                                                       perc_threshold=perc_threshold,
+        #                                                       activity_threshold=activity_threshold,
+        #                                                       debug_mode=False,
+        #                                                       no_redundancy=no_redundancy,
+        #                                                       keep_only_the_peak=False)
+        sce_detection_result = detect_sce_potatoes_style(spike_nums=spike_nums_to_use, perc_threshold=95,
+                                                         debug_mode=True, keep_only_the_peak=False)
+
         print(f"sce_with_sliding_window detected")
         cellsinpeak = sce_detection_result[2]
         SCE_times = sce_detection_result[1]

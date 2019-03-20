@@ -3167,7 +3167,8 @@ def get_source_profile_for_prediction(ms, cell, augmentation_functions=None, buf
 
 
 def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
-                                     use_data_augmentation=True, cells_to_predict=None):
+                                     use_data_augmentation=True, cells_to_predict=None,
+                                     using_cnn_predictions=False):
     # TODO: Pass a dict to predict more than one session at once
     if len(ms_to_use) > 1:
         ms_to_use = list(ms_to_use[0])
@@ -3180,14 +3181,16 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
     ms = ms_str_to_ms_dict[ms_to_use[0]]
 
     n_cells = len(ms.coord)
+    print(f"n_cells {n_cells}")
+    # raise Exception("TITI")
     if cells_to_predict is None:
         cells_to_load = np.arange(n_cells)
     else:
         cells_to_load = np.array(cells_to_predict)
 
-    cells_to_load = np.setdiff1d(cells_to_load, ms.cells_to_remove)
-    using_cnn_predictions = True
+    using_cnn_predictions = using_cnn_predictions
     if using_cnn_predictions:
+        cells_to_load = np.setdiff1d(cells_to_load, ms.cells_to_remove)
         if ms.cell_cnn_predictions is not None:
             print(f"Using cnn predictions from {ms.description}")
             # not taking into consideration cells that are not predicted as true from the cell classifier
@@ -3297,6 +3300,7 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
 
     if use_data_augmentation:
         augmentation_functions = [horizontal_flip, vertical_flip, v_h_flip]
+        # augmentation_functions = [horizontal_flip, vertical_flip]
     else:
         augmentation_functions = None
 
@@ -3526,11 +3530,11 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.8,
-                                         use_data_augmentation=True,
+        transients_prediction_from_movie(ms_to_use=["p7_171012_a000_ms"], param=param, overlap_value=0.9,
+                                         use_data_augmentation=True, using_cnn_predictions=False,
                                          cells_to_predict=None)
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
@@ -3566,7 +3570,7 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    using_multi_class = 1  # 1 or 3 so far
+    using_multi_class = 3  # 1 or 3 so far
     n_epochs = 50
     batch_size = 16
     window_len = 50
