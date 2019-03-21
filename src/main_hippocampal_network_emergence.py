@@ -47,7 +47,9 @@ from mouse_session import MouseSession
 from hne_parameters import HNEParameters
 from hne_spike_structure import HNESpikeStructure
 from mouse_session_loader import load_mouse_sessions
-import networkx as nx
+import networkx as nxfrom
+from articifical_movie_patch_generator import produce_movie
+import articifical_movie_patch_generator as art_movie_gen
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -1831,6 +1833,7 @@ def main():
     ms_str_to_load = ["p12_171110_a000_ms"]
     ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     ms_str_to_load = ["p7_171012_a000_ms"]
+    ms_str_to_load = ["p7_171012_a000_ms"]
     ms_str_to_load = ["p12_171110_a000_ms"]
 
     # 256
@@ -1858,6 +1861,7 @@ def main():
     just_plot_all_cells_on_map = False
     do_plot_psth_twitches = False
     just_do_seqnmf = False
+    just_generate_artificial_movie_from_rasterdur = True
 
     # for events (sce) detection
     perc_threshold = 99
@@ -1878,7 +1882,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = True
+    do_clustering = False
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
@@ -1890,8 +1894,8 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 11)
-    # range_n_clusters_k_mean = np.array([3])
+    # range_n_clusters_k_mean = np.arange(2, 11)
+    range_n_clusters_k_mean = np.array([5])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
 
@@ -1936,6 +1940,19 @@ def main():
             ms.plot_raster_with_cells_assemblies_events_and_mvts()
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("koko")
+            continue
+
+        if just_generate_artificial_movie_from_rasterdur:
+            param_movie = art_movie_gen.DataForMs(path_data=param.path_data, path_results=param.path_results,
+                                                  time_str=param.time_str,
+                              with_mvt=False, use_fake_cells=False, dimensions=(200, 200),
+                              n_vessels=0, same_baseline_from_cell_than_background=True)
+            produce_movie(map_coords=ms.coord, raster_dur=ms.spike_struct.spike_nums_dur[:100], param=param_movie,
+                          cells_with_overlap=None,
+                          overlapping_cells=None, padding=0,
+                          vessels=[])
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("momo")
             continue
 
         spike_nums_to_use = ms.spike_struct.spike_nums_dur
@@ -2779,15 +2796,15 @@ def main():
                            save_formats="pdf")
 
         # TODO: detect_sce_with_sliding_window with spike_trains
-        # sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
-        #                                                       window_duration=sliding_window_duration,
-        #                                                       perc_threshold=perc_threshold,
-        #                                                       activity_threshold=activity_threshold,
-        #                                                       debug_mode=False,
-        #                                                       no_redundancy=no_redundancy,
-        #                                                       keep_only_the_peak=False)
-        sce_detection_result = detect_sce_potatoes_style(spike_nums=spike_nums_to_use, perc_threshold=95,
-                                                         debug_mode=True, keep_only_the_peak=False)
+        sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
+                                                              window_duration=sliding_window_duration,
+                                                              perc_threshold=perc_threshold,
+                                                              activity_threshold=activity_threshold,
+                                                              debug_mode=False,
+                                                              no_redundancy=no_redundancy,
+                                                              keep_only_the_peak=False)
+        # sce_detection_result = detect_sce_potatoes_style(spike_nums=spike_nums_to_use, perc_threshold=95,
+        #                                                  debug_mode=True, keep_only_the_peak=False)
 
         print(f"sce_with_sliding_window detected")
         cellsinpeak = sce_detection_result[2]

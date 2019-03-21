@@ -842,8 +842,8 @@ def main_benchmark():
         return
 
     # ########### options ###################
-    ms_to_benchmark = "p12_17_11_10_a000"
-    # ms_to_benchmark = "p7_17_10_12_a000"
+    # ms_to_benchmark = "p12_17_11_10_a000"
+    ms_to_benchmark = "p7_17_10_12_a000"
     # ms_to_benchmark = "p13_18_10_29_a001_ms"
     # ms_to_benchmark = "p8_18_10_24_a005_ms"
     # ms_to_benchmark = "artificial_ms"
@@ -1075,9 +1075,9 @@ def main_benchmark():
         data_dict["gt"]["path"] = "p7/p7_17_10_12_a000"
         data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_GUI_transients_RD.mat"
         data_dict["gt"]["gt_file"] = "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt"
-        data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P7_17_10_12_a000.txt"
-        data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.arange(100)
+        # data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P7_17_10_12_a000.txt"
+        # data_dict["gt"]["cnn_threshold"] = 0.5
+        data_dict["gt"]["cells"] = np.arange(118)
         # data_dict["gt"]["cells_to_remove"] = np.array([52, 75])
 
 
@@ -1105,17 +1105,22 @@ def main_benchmark():
         # trained on 50 cells (p11, p12, p13) + artificial, with 3 inputs (cell masked + cells masked + neuropil mask),
         # trained on 26/02/2019 17-20-11, on epoch 21 with overlap at 0.8 (until cell 99 included)
         data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_03_08.14-15-54.mat"
+
+        # trained on 50 cells + artificial data, 3 inputs, with overlap 0.9 and 3 transformations
+        # rnn trained on 26/02/2019 17-20-11 on all cells
+        data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_03_19.08-35-56.mat"
+
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.35
+        data_dict["rnn"]["prediction_threshold"] = 0.3
 
-        data_dict["last_rnn"] = dict()
-        data_dict["last_rnn"]["path"] = "p7/p7_17_10_12_a000"
-        # BO before
-        data_dict["last_rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
-        data_dict["last_rnn"]["var_name"] = "spike_nums_dur_predicted"
-        data_dict["last_rnn"]["predictions"] = "predictions"
-        data_dict["last_rnn"]["prediction_threshold"] = 0.4
+        # data_dict["last_rnn"] = dict()
+        # data_dict["last_rnn"]["path"] = "p7/p7_17_10_12_a000"
+        # # BO before
+        # data_dict["last_rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
+        # data_dict["last_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        # data_dict["last_rnn"]["predictions"] = "predictions"
+        # data_dict["last_rnn"]["prediction_threshold"] = 0.4
 
         # data_dict["caiman_jd"] = dict()
         # data_dict["caiman_jd"]["path"] = "p7/p7_17_10_12_a000"

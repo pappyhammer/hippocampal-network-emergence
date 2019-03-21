@@ -181,7 +181,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             if for_cell_classifier:
                 p7_171012_a000_ms.\
                     load_cells_to_remove_from_txt(file_name="p7/p7_17_10_12_a000/"
-                                                            "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt")
+                                                              "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt")
+        else:
+            variables_mapping = {"predictions": "predictions"}
+            p7_171012_a000_ms.load_raster_dur_from_predictions(
+                file_name="p7/p7_17_10_12_a000/" +
+                          "P7_17_10_12_a000_predictions_2019_03_19.08-35-56.mat",
+                prediction_threshold=0.3, variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Traces.mat",

@@ -578,7 +578,7 @@ def build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline):
         traces[cell] *= baseline
         active_periods = get_continous_time_periods(raster_dur[cell])
         for period in active_periods:
-            last_frame = period[1] + 1
+            last_frame = min(period[1] + 1, n_frames-1)
             len_period = last_frame - period[0]
             x_coords = [period[0], last_frame]
             low_amplitude = traces[cell, period[0]]
@@ -592,7 +592,12 @@ def build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline):
             amplitude_max += low_amplitude
             y_coords = [low_amplitude, amplitude_max]
             traces_values = give_values_on_linear_line_between_2_points(x_coords, y_coords)
-            traces[cell, period[0]:last_frame + 1] = traces_values
+            try:
+                traces[cell, period[0]:last_frame+1] = traces_values
+            except ValueError:
+                print(f"traces[cell, period[0]:last_frame + 1] {traces[cell, period[0]:last_frame + 1]}, "
+                      f"traces_values {traces_values}, period[0] {period[0]}, last_frame + 1 {last_frame + 1}")
+                raise Exception("ValueError: could not broadcast input array from shape (3) into shape (2)")
             if (last_frame + 1) == n_frames:
                 continue
             len_decay = max(len_period * decay_factor, 12)
@@ -1327,5 +1332,3 @@ def main():
         coords_matlab_style[i] = map_coords[i]
     sio.savemat(os.path.join(param.path_results, "map_coords.mat"), {"coord_python": coords_matlab_style})
 
-
-main()
