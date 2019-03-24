@@ -514,7 +514,7 @@ class DontAgreeOnsetAction(ManualAction):
 
 
 class AgreeOnsetAction(ManualAction):
-    def __init__(self, agreed_onsets_index,**kwargs):
+    def __init__(self, agreed_onsets_index, **kwargs):
         super().__init__(**kwargs)
         self.agreed_onsets_index = agreed_onsets_index
 
@@ -1180,7 +1180,7 @@ class ManualOnsetFrame(tk.Frame):
 
                 self.to_agree_label = Label(top_frame)
                 self.to_agree_label["text"] = f"{self.numbers_of_onset_to_agree()}/" \
-                    f"{self.numbers_of_peak_to_agree()}"
+                                              f"{self.numbers_of_peak_to_agree()}"
                 self.to_agree_label.pack(side=LEFT)
 
                 empty_label = Label(top_frame)
@@ -2398,10 +2398,10 @@ class ManualOnsetFrame(tk.Frame):
                 not_agreed_onsets_index += x_from
                 self.to_agree_spike_nums[self.current_neuron, not_agreed_onsets_index] = 0
                 dont_agree_onset_action = DontAgreeOnsetAction(not_agreed_onsets_index=not_agreed_onsets_index,
-                                                      session_frame=self,
-                                                         neuron=self.current_neuron, is_saved=self.is_saved,
-                                                         x_limits=(left_x_limit, right_x_limit),
-                                                         y_limits=(bottom_limit, top_limit))
+                                                               session_frame=self,
+                                                               neuron=self.current_neuron, is_saved=self.is_saved,
+                                                               x_limits=(left_x_limit, right_x_limit),
+                                                               y_limits=(bottom_limit, top_limit))
 
             # we remove onsets from the to_agree in the interval and add them to onsets_times
             not_agreed_peaks_index = np.where((self.to_agree_peak_nums[self.current_neuron, x_from:x_to]))[0]
@@ -2412,11 +2412,11 @@ class ManualOnsetFrame(tk.Frame):
                 left_x_limit, right_x_limit = self.axe_plot.get_xlim()
                 bottom_limit, top_limit = self.axe_plot.get_ylim()
                 self.update_last_action(DontAgreePeakAction(not_agreed_peaks_index=not_agreed_peaks_index,
-                                                         session_frame=self,
-                                                        dont_agree_onset_action=dont_agree_onset_action,
-                                                         neuron=self.current_neuron, is_saved=self.is_saved,
-                                                         x_limits=(left_x_limit, right_x_limit),
-                                                         y_limits=(bottom_limit, top_limit)))
+                                                            session_frame=self,
+                                                            dont_agree_onset_action=dont_agree_onset_action,
+                                                            neuron=self.current_neuron, is_saved=self.is_saved,
+                                                            x_limits=(left_x_limit, right_x_limit),
+                                                            y_limits=(bottom_limit, top_limit)))
             elif dont_agree_onset_action is not None:
                 self.update_last_action(dont_agree_onset_action)
 
@@ -2468,9 +2468,9 @@ class ManualOnsetFrame(tk.Frame):
                 self.onset_times[self.current_neuron, agreed_onsets_index] = 1
                 self.spike_nums[self.current_neuron, agreed_onsets_index] = 1
                 agree_onset_action = AgreeOnsetAction(agreed_onsets_index=agreed_onsets_index, session_frame=self,
-                                                         neuron=self.current_neuron, is_saved=self.is_saved,
-                                                         x_limits=(left_x_limit, right_x_limit),
-                                                         y_limits=(bottom_limit, top_limit))
+                                                      neuron=self.current_neuron, is_saved=self.is_saved,
+                                                      x_limits=(left_x_limit, right_x_limit),
+                                                      y_limits=(bottom_limit, top_limit))
 
             # we remove onsets from the to_agree in the interval and add them to onsets_times
             agreed_peaks_index = np.where((self.to_agree_peak_nums[self.current_neuron, x_from:x_to]))[0]
@@ -2482,10 +2482,10 @@ class ManualOnsetFrame(tk.Frame):
                 left_x_limit, right_x_limit = self.axe_plot.get_xlim()
                 bottom_limit, top_limit = self.axe_plot.get_ylim()
                 self.update_last_action(AgreePeakAction(agreed_peaks_index=agreed_peaks_index,
-                                                         session_frame=self, agree_onset_action=agree_onset_action,
-                                                         neuron=self.current_neuron, is_saved=self.is_saved,
-                                                         x_limits=(left_x_limit, right_x_limit),
-                                                         y_limits=(bottom_limit, top_limit)))
+                                                        session_frame=self, agree_onset_action=agree_onset_action,
+                                                        neuron=self.current_neuron, is_saved=self.is_saved,
+                                                        x_limits=(left_x_limit, right_x_limit),
+                                                        y_limits=(bottom_limit, top_limit)))
             elif agree_onset_action is not None:
                 self.update_last_action(agree_onset_action)
 
@@ -3377,6 +3377,20 @@ class ManualOnsetFrame(tk.Frame):
                 # ax.spines['top'].set_color(frame_color)
                 # ax.spines['right'].set_color(frame_color)
                 # ax.spines['left'].set_color(frame_color)
+        # saving source profile with full frame for SEUDO in a matlab file
+        bounds = None
+        seudo_source_profiles = None
+        for cell_index, cell_to_display in enumerate(np.arange(n_cells)):
+            if cell_to_display not in self.source_profile_dict_for_map_of_all_cells:
+                source_profile, minx, miny, mask_source_profile = self.get_source_profile(cell=cell_to_display,
+                                                                                          pixels_around=3,
+                                                                                          bounds=bounds,
+                                                                                          with_full_frame=True)
+                source_profile[mask_source_profile] = 0
+                if seudo_source_profiles is None:
+                    seudo_source_profiles = np.zeros((n_cells, source_profile.shape[0], source_profile.shape[1]))
+                seudo_source_profiles[cell_index] = source_profile
+
         bounds = None
         for cell_index, cell_to_display in enumerate(np.arange(n_cells)):
             if cell_to_display not in self.source_profile_dict_for_map_of_all_cells:
@@ -3433,6 +3447,9 @@ class ManualOnsetFrame(tk.Frame):
         path_results = self.path_result + "/" + self.data_and_param.time_str
         if not os.path.isdir(path_results):
             os.mkdir(path_results)
+
+        sio.savemat(f"{path_results}/" + f"{self.data_and_param.ms.description}_seudo_source_profiles.mat",
+                    {'seudo_source_profiles': seudo_source_profiles})
 
         if isinstance(save_formats, str):
             save_formats = [save_formats]
@@ -3862,7 +3879,16 @@ class ManualOnsetFrame(tk.Frame):
         self.magnifier_canvas.draw()
         self.magnifier_canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=YES)
 
-    def get_source_profile(self, cell, pixels_around=0, bounds=None, buffer=None):
+    def get_source_profile(self, cell, pixels_around=0, bounds=None, buffer=None, with_full_frame=False):
+        """
+
+        :param cell:
+        :param pixels_around:
+        :param bounds:
+        :param buffer:
+        :param with_full_frame:  Average the full frame
+        :return:
+        """
         # print("get_source_profile")
         len_frame_x = self.tiff_movie[0].shape[1]
         len_frame_y = self.tiff_movie[0].shape[0]
@@ -3874,10 +3900,16 @@ class ManualOnsetFrame(tk.Frame):
         else:
             minx, miny, maxx, maxy = bounds
 
-        minx = max(0, minx - pixels_around)
-        miny = max(0, miny - pixels_around)
-        maxx = min(len_frame_x - 1, maxx + pixels_around)
-        maxy = min(len_frame_y - 1, maxy + pixels_around)
+        if with_full_frame:
+            minx = 0
+            miny = 0
+            maxx = len_frame_x - 1
+            maxy = len_frame_y - 1
+        else:
+            minx = max(0, minx - pixels_around)
+            miny = max(0, miny - pixels_around)
+            maxx = min(len_frame_x - 1, maxx + pixels_around)
+            maxy = min(len_frame_y - 1, maxy + pixels_around)
 
         len_x = maxx - minx + 1
         len_y = maxy - miny + 1
@@ -4354,7 +4386,7 @@ class ManualOnsetFrame(tk.Frame):
                     predictions_color = "dimgrey"
                 for index_pred in np.arange(predictions.shape[1]):
                     self.axe_plot.plot(np.arange(self.nb_times_traces),
-                                       (predictions[:, index_pred] / 2) - (0.75*index_pred),
+                                       (predictions[:, index_pred] / 2) - (0.75 * index_pred),
                                        color=predictions_color, zorder=20)
                 threshold_tc = self.transient_classifier_threshold
                 self.axe_plot.hlines(threshold_tc / 2, 0, self.nb_times_traces - 1, color="red",
@@ -4376,7 +4408,7 @@ class ManualOnsetFrame(tk.Frame):
                             tmp_raster_dur[frames_index] = 1
                             periods = get_continous_time_periods(tmp_raster_dur)
                             for period in periods:
-                                frames = np.arange(period[0], period[1]+1)
+                                frames = np.arange(period[0], period[1] + 1)
                                 self.axe_plot.plot(frames,
                                                    (predictions[frames, class_index] / 2) -
                                                    (0.75 * class_index), lw=2,
@@ -4687,7 +4719,7 @@ class ManualOnsetFrame(tk.Frame):
                                                             peaks_amplitude,
                                                             marker='o', c="black",
                                                             edgecolors="red",
-                                                            s=size_peak_scatter*1.2, zorder=10)
+                                                            s=size_peak_scatter * 1.2, zorder=10)
 
         # #################### CLICK SCATTER ####################
 
@@ -5021,6 +5053,7 @@ def print_save(text, file, to_write, no_print=False):
     if to_write:
         file.write(text + '\n')
 
+
 def fusion_gui_selection(path_data):
     rep_fusion = "for_fusion"
     file_names = []
@@ -5035,9 +5068,8 @@ def fusion_gui_selection(path_data):
         return
 
     for file_name in file_names:
-       if file_name.endswith(".txt"):
-           txt_to_read = file_name
-
+        if file_name.endswith(".txt"):
+            txt_to_read = file_name
 
     data_files = []
     cells_by_file = []

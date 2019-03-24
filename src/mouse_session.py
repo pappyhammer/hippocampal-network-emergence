@@ -117,6 +117,10 @@ class MouseSession:
         self.weight = weight
         self.coord_obj = None
 
+        # dict containing information for Richard data
+        # keys will be : Active_Wake_Frames, Quiet_Wake_Frames, REMs_Frames, NREMs_Frames
+        self.richard_dict = None
+
         # used for time-correlation graph purpose
         self.time_lags_list = None
         self.correlation_list = None
@@ -2775,6 +2779,28 @@ class MouseSession:
                 self.spike_struct.n_out_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
         else:
             raise Exception("load_raster_dur_from_predictions no predicions variable")
+
+    def load_richard_data(self, path_data):
+        # Active_Wake_Frames, Quiet_Wake_Frames, REMs_Frames, NREMs_Frames
+        keys = ["Active_Wake_Frames", "Quiet_Wake_Frames", "REMs_Frames", "NREMs_Frames"]
+        self.richard_dict = dict()
+        for key in keys:
+            self.richard_dict[key] = np.zeros(0, dtype="int16")
+        file_names = []
+
+        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_data):
+            file_names.extend(local_filenames)
+            break
+        if len(file_names) == 0:
+            return
+
+        for key in keys:
+            if key + ".mat" in file_names:
+                file_name = os.path.join(self.param.path_data, path_data, key + ".mat")
+                data = hdf5storage.loadmat(file_name)
+                # -1 as we need python index starting at zero
+                self.richard_dict[key] = data[key] - 1
 
     def load_data_from_file(self, file_name_to_load, variables_mapping, frames_filter=None,
                             from_gui=False):

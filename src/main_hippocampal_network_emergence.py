@@ -1835,13 +1835,13 @@ def main():
     ms_str_to_load = ["p7_171012_a000_ms"]
     ms_str_to_load = ["p7_171012_a000_ms"]
     ms_str_to_load = ["richard_015_D74_P2_ms"]
-    ms_str_to_load = ["richard_015_D89_P2_ms"]
-    ms_str_to_load = ["richard_015_D66_P2_ms"]
-    ms_str_to_load = ["richard_015_D75_P2_ms"]
-    ms_str_to_load = ["richard_018_D32_P2_ms"]
-    ms_str_to_load = ["richard_018_D28_P2_ms"]
-    ms_str_to_load = ["richard_028_D1_P1_ms"]
-    ms_str_to_load = ["richard_028_D2_P1_ms"]
+    # ms_str_to_load = ["richard_015_D89_P2_ms"]
+    # ms_str_to_load = ["richard_015_D66_P2_ms"]
+    # ms_str_to_load = ["richard_015_D75_P2_ms"]
+    # ms_str_to_load = ["richard_018_D32_P2_ms"]
+    # ms_str_to_load = ["richard_018_D28_P2_ms"]
+    # ms_str_to_load = ["richard_028_D1_P1_ms"]
+    # ms_str_to_load = ["richard_028_D2_P1_ms"]
     # ms_str_to_load = ["p12_171110_a000_ms"]
 
 
@@ -1899,6 +1899,9 @@ def main():
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
     with_cells_in_cluster_seq_sorted = False
+    use_richard_option = True
+    # wake, sleep, quiet_wake, sleep_quiet_wake
+    richard_option = "wake"
 
     # ##### for fca #####
     n_surrogate_fca = 20
@@ -2779,7 +2782,33 @@ def main():
                 spike_nums_to_use = spike_struct.spike_nums
 
         # ######  end parameters setting #########
-        if ms.activity_threshold is None:
+        if use_richard_option:
+            # wake, sleep, quiet_wake, quiet + sleep
+            print(f"richard_option {richard_option}")
+            print(f"spike_nums_to_use n_frames before: {spike_nums_to_use.shape[1]}")
+            data_descr += "_" + richard_option
+
+            if richard_option == "wake":
+                frames_selected = np.concatenate((ms.richard_dict["Active_Wake_Frames"],
+                                                  ms.richard_dict["Quiet_Wake_Frames"]))
+                frames_selected = np.unique(frames_selected)
+            elif richard_option == "sleep":
+                frames_selected = np.concatenate((ms.richard_dict["REMs_Frames"],
+                                                  ms.richard_dict["NREMs_Frames"]))
+                frames_selected = np.unique(frames_selected)
+            elif richard_option == "quiet_wake":
+                frames_selected = ms.richard_dict["Quiet_Wake_Frames"]
+            elif richard_option == "sleep_quiet_wake":
+                frames_selected = np.concatenate((ms.richard_dict["REMs_Frames"],
+                                                  ms.richard_dict["NREMs_Frames"]))
+                frames_selected = np.concatenate((frames_selected,
+                                                  ms.richard_dict["Quiet_Wake_Frames"]))
+                frames_selected = np.unique(frames_selected)
+            spike_nums_to_use = spike_nums_to_use[:, frames_selected]
+            print(f"spike_nums_to_use n_frames after: {spike_nums_to_use.shape[1]}")
+            # raise Exception("test richard")
+
+        if (ms.activity_threshold is None) or use_richard_option:
             activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use,
                                                              window_duration=sliding_window_duration,
                                                              spike_train_mode=False,
@@ -2796,7 +2825,7 @@ def main():
         spike_struct.activity_threshold = activity_threshold
         # param.activity_threshold = activity_threshold
 
-        print("plot_spikes_raster")
+        print("// plot_spikes_raster")
 
         plot_spikes_raster(spike_nums=spike_nums_to_use, param=ms.param,
                            spike_train_format=False,
@@ -2919,6 +2948,30 @@ def main():
                                                                        keep_only_the_best=
                                                                        keep_only_the_best_kmean_cluster)
                 else:
+
+                        #
+                        # print(f"perc_threshold {perc_threshold}, "
+                        #       f"activity_threshold {activity_threshold}, {np.round((activity_threshold/n_cells)*100, 2)}%")
+                        #
+                        # spike_struct.activity_threshold = activity_threshold
+                        #
+                        # sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
+                        #                                                       window_duration=sliding_window_duration,
+                        #                                                       perc_threshold=perc_threshold,
+                        #                                                       activity_threshold=activity_threshold,
+                        #                                                       debug_mode=False,
+                        #                                                       no_redundancy=no_redundancy,
+                        #                                                       keep_only_the_peak=False)
+                        # print(f"sce_with_sliding_window detected")
+                        # cellsinpeak = sce_detection_result[2]
+                        # SCE_times = sce_detection_result[1]
+                        # sce_times_bool = sce_detection_result[0]
+                        # sce_times_numbers = sce_detection_result[3]
+                        # # useful for plotting twitches
+                        # ms.sce_bool = sce_times_bool
+                        # ms.sce_times_numbers = sce_times_numbers
+                        # ms.SCE_times = SCE_times
+
                     compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels,
                                                                    activity_threshold=ms.spike_struct.activity_threshold,
                                                                    range_n_clusters_k_mean=range_n_clusters_k_mean,
