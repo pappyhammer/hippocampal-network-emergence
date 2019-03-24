@@ -50,6 +50,7 @@ from mvt_selection_gui import MvtSelectionGui
 from pattern_discovery.tools.signal import smooth_convolve
 import PIL
 from PIL import ImageSequence
+from sklearn.decomposition import PCA
 
 
 class MouseSession:
@@ -1669,6 +1670,64 @@ class MouseSession:
             plt.show()
         plt.close()
 
+    def pca_on_raster(self):
+        print(f"starting PCA")
+        n_components = 4
+        n_cells = self.spike_struct.spike_nums_dur.shape[0]
+        n_times = self.spike_struct.spike_nums_dur.shape[1]
+        # self.normalize_traces()
+        traces_0_1 = np.zeros((n_cells, n_times))
+        for cell in np.arange(n_cells):
+            max_value = np.max(self.traces[cell])
+            min_value = np.min(self.traces[cell])
+            traces_0_1[cell] = (self.traces[cell] - min_value) / (max_value - min_value)
+            # traces_0_1[cell] = self.traces[cell] / max_value
+        spike_nums_dur = np.zeros((n_cells, n_times))
+        for cell in np.arange(n_cells):
+            spike_times = np.where(self.spike_struct.spike_nums_dur[cell])[0]
+            # spike_nums_dur[cell, spike_times] = self.z_score_traces[cell, spike_times]
+            spike_nums_dur[cell, spike_times] = traces_0_1[cell, spike_times]
+
+        pca = PCA(n_components=n_components)  #
+        pca_result = pca.fit_transform(spike_nums_dur)
+        print(f"pca_result.shape {pca_result.shape}")
+        # print(f"pca_result[0,:] {pca_result[0,:]}")
+        # print(f"pca_result[1,:] {pca_result[1,:]}")
+        print(f"pca.explained_variance_ratio_ {pca.explained_variance_ratio_}")
+
+        for component in np.arange(n_components):
+            # sorted_raster = np.copy(spike_nums_dur)
+            indices_sorted = np.argsort(pca_result[:, component])
+            plot_spikes_raster(spike_nums=spike_nums_dur[indices_sorted, :], param=self.param,
+                               title=f"{self.description}_spike_nums_pc_{component}_ordered",
+                               spike_train_format=False,
+                               file_name=f"{self.description}_spike_nums_pc_{component}_ordered",
+                               y_ticks_labels=indices_sorted,
+                               save_raster=True,
+                               show_raster=False,
+                               sliding_window_duration=1,
+                               show_sum_spikes_as_percentage=False,
+                               plot_with_amplitude=True,
+                               save_formats="pdf",
+                               spike_shape="o",
+                               spike_shape_size=1,
+                               without_activity_sum=False,
+                               size_fig=(15, 6))
+            n_cells_to_display = 40
+            cells_groups_colors = [(1, 0, 0, 1)]
+            cells_groups = []
+            cells_groups.append(list(indices_sorted[:n_cells_to_display]))
+            # cells_groups.append(list(indices_sorted[n_cells_to_display:]))
+
+            self.coord_obj.plot_cells_map(param=self.param,
+                                          data_id=self.description, show_polygons=False,
+                                          fill_polygons=False,
+                                          title_option=f"pc_{component}", connections_dict=None,
+                                          cells_groups=cells_groups,
+                                          cells_groups_colors=cells_groups_colors,
+                                          dont_fill_cells_not_in_groups=False,
+                                          with_cell_numbers=True, save_formats=["png"])
+
     def plot_raster_with_cells_assemblies_events_and_mvts(self):
         if self.sce_times_in_cell_assemblies is None:
             return
@@ -2727,6 +2786,8 @@ class MouseSession:
         :return:
         """
         data = hdf5storage.loadmat(self.param.path_data + file_name_to_load)
+        # print(f"data.keys() {list(data.keys())}")
+
         if "spike_nums" in variables_mapping:
             self.spike_struct.spike_nums = data[variables_mapping["spike_nums"]].astype(int)
             if frames_filter is not None:

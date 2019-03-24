@@ -1834,7 +1834,18 @@ def main():
     ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     ms_str_to_load = ["p7_171012_a000_ms"]
     ms_str_to_load = ["p7_171012_a000_ms"]
-    ms_str_to_load = ["p12_171110_a000_ms"]
+    ms_str_to_load = ["richard_015_D74_P2_ms"]
+    ms_str_to_load = ["richard_015_D89_P2_ms"]
+    ms_str_to_load = ["richard_015_D66_P2_ms"]
+    ms_str_to_load = ["richard_015_D75_P2_ms"]
+    ms_str_to_load = ["richard_018_D32_P2_ms"]
+    ms_str_to_load = ["richard_018_D28_P2_ms"]
+    ms_str_to_load = ["richard_028_D1_P1_ms"]
+    ms_str_to_load = ["richard_028_D2_P1_ms"]
+    # ms_str_to_load = ["p12_171110_a000_ms"]
+
+
+
 
     # 256
 
@@ -1861,7 +1872,8 @@ def main():
     just_plot_all_cells_on_map = False
     do_plot_psth_twitches = False
     just_do_seqnmf = False
-    just_generate_artificial_movie_from_rasterdur = True
+    just_generate_artificial_movie_from_rasterdur = False
+    just_do_pca_on_raster = False
 
     # for events (sce) detection
     perc_threshold = 99
@@ -1882,7 +1894,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = False
+    do_clustering = True
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
@@ -1894,8 +1906,8 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    # range_n_clusters_k_mean = np.arange(2, 11)
-    range_n_clusters_k_mean = np.array([5])
+    range_n_clusters_k_mean = np.arange(2, 19)
+    # range_n_clusters_k_mean = np.array([5])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
 
@@ -1903,9 +1915,9 @@ def main():
     # ################################ PATTERNS SEARCH #########################################
     # ##########################################################################################
     do_pattern_search = False
-    keep_the_longest_seq = False
+    keep_the_longest_seq = True
     split_pattern_search = False
-    use_only_uniformity_method = False
+    use_only_uniformity_method = True
     use_loss_score_to_keep_the_best_from_tree = False
     use_sce_times_for_pattern_search = False
     use_ordered_spike_nums_for_surrogate = True
@@ -1925,6 +1937,8 @@ def main():
 
     ms_by_age = dict()
     for ms_index, ms in enumerate(ms_to_analyse):
+        if do_pattern_search or do_clustering:
+            break
         print(f"ms {ms.description}")
         # np.savez(ms.param.path_data + ms.description + "_rasters_reduced.npz",
         #          spike_nums=ms.spike_struct.spike_nums[:50, :5000],
@@ -1934,6 +1948,12 @@ def main():
             ms.plot_time_correlation_graph_over_twitches()
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("loko")
+            continue
+
+        if just_do_pca_on_raster:
+            ms.pca_on_raster()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("pca_done")
             continue
 
         if just_plot_raster_with_cells_assemblies_events_and_mvts:

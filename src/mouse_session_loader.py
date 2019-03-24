@@ -1219,4 +1219,93 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["p60_a529_2015_02_25_v_arnaud_ms"] = p60_a529_2015_02_25_v_arnaud_ms
 
+    if "richard_015_D74_P2_ms" in ms_str_to_load:
+        # from 46517 to the end : all awake, no sleep, but no information about moving or not.
+        richard_015_D74_P2_ms = MouseSession(age=60, session_id="richard_015_D74_P2",
+                                              nb_ms_by_frame=100, param=param)
+        richard_015_D74_P2_ms.activity_threshold = 19
+        variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
+        richard_015_D74_P2_ms.load_data_from_file(file_name_to_load=
+                                                   "richard_data/015/Cue/015_D74_P2/Spike_Times_Onset_to_Peak.mat",
+                                                   variables_mapping=variables_mapping)
+
+        ms_str_to_ms_dict["richard_015_D74_P2_ms"] = richard_015_D74_P2_ms
+
+    if "richard_015_D89_P2_ms" in ms_str_to_load:
+        richard_015_D89_P2_ms = MouseSession(age=60, session_id="richard_015_D89_P2",
+                                              nb_ms_by_frame=100, param=param)
+        richard_015_D89_P2_ms.activity_threshold = 22
+        variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
+        richard_015_D89_P2_ms.load_data_from_file(file_name_to_load=
+                                                   "richard_data/015/Cue/015_D89_P2/Spike_Times_Onset_to_Peak.mat",
+                                                   variables_mapping=variables_mapping)
+
+        ms_str_to_ms_dict["richard_015_D89_P2_ms"] = richard_015_D89_P2_ms
+
+    if "richard_015_D66_P2_ms" in ms_str_to_load:
+        richard_015_D66_P2_ms = MouseSession(age=60, session_id="richard_015_D66_P2",
+                                              nb_ms_by_frame=100, param=param)
+        variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
+        richard_015_D66_P2_ms.activity_threshold = 22
+        richard_015_D66_P2_ms.load_data_from_file(file_name_to_load=
+                                                   "richard_data/015/Nocue/015_D66_P2/Spike_Times_Onset_to_Peak.mat",
+                                                   variables_mapping=variables_mapping)
+
+        ms_str_to_ms_dict["richard_015_D66_P2_ms"] = richard_015_D66_P2_ms
+
+    if "richard_015_D75_P2_ms" in ms_str_to_load:
+        richard_015_D75_P2_ms = MouseSession(age=60, session_id="richard_015_D75_P2",
+                                              nb_ms_by_frame=100, param=param)
+        # richard_015_D75_P2_ms.activity_threshold = 19
+        variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
+        richard_015_D75_P2_ms.load_data_from_file(file_name_to_load=
+                                                   "richard_data/015/Nocue/015_D75_P2/Spike_Times_Onset_to_Peak.mat",
+                                                   variables_mapping=variables_mapping)
+
+        ms_str_to_ms_dict["richard_015_D75_P2_ms"] = richard_015_D75_P2_ms
+
+    if "richard_018_D32_P2_ms" in ms_str_to_load:
+        richard_018_D32_P2_ms = MouseSession(age=60, session_id="richard_018_D32_P2",
+                                             nb_ms_by_frame=100, param=param)
+        richard_018_D32_P2_ms.activity_threshold = 18
+        variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
+        richard_018_D32_P2_ms.load_data_from_file(file_name_to_load=
+                                                  "richard_data/018/Cue/018_D32_P2/Spike_Times_Onset_to_Peak.mat",
+                                                  variables_mapping=variables_mapping)
+
+        ms_str_to_ms_dict["richard_018_D32_P2_ms"] = richard_018_D32_P2_ms
+
+    if "richard_018_D28_P2_ms" in ms_str_to_load:
+        richard_018_D28_P2_ms = MouseSession(age=60, session_id="richard_018_D28_P2",
+                                             nb_ms_by_frame=100, param=param)
+        # richard_018_D28_P2_ms.activity_threshold = 19
+        variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
+        richard_018_D28_P2_ms.load_data_from_file(file_name_to_load=
+                                                  "richard_data/018/Nocue/018_D28_P2/Spike_Times_Onset_to_Peak.mat",
+                                                  variables_mapping=variables_mapping)
+
+        ms_str_to_ms_dict["richard_018_D28_P2_ms"] = richard_018_D28_P2_ms
+
+    if "richard_028_D1_P1_ms" in ms_str_to_load:
+        richard_028_D1_P1_ms = MouseSession(age=60, session_id="richard_028_D1_P1",
+                                             nb_ms_by_frame=100, param=param)
+        # richard_028_D1_P1_ms.activity_threshold = 19
+        variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
+        richard_028_D1_P1_ms.load_data_from_file(file_name_to_load=
+                                                  "richard_data/028/Cue/028_D1_P1/Spike_Times_Onset_to_Peak.mat",
+                                                  variables_mapping=variables_mapping)
+
+        ms_str_to_ms_dict["richard_028_D1_P1_ms"] = richard_028_D1_P1_ms
+
+    if "richard_028_D2_P1_ms" in ms_str_to_load:
+        richard_028_D2_P1_ms = MouseSession(age=60, session_id="richard_028_D2_P1",
+                                             nb_ms_by_frame=100, param=param)
+        # richard_028_D1_P1_ms.activity_threshold = 19
+        variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
+        richard_028_D2_P1_ms.load_data_from_file(file_name_to_load=
+                                                  "richard_data/028/Nocue/028_D2_P1/Spike_Times_Onset_to_Peak.mat",
+                                                  variables_mapping=variables_mapping)
+
+        ms_str_to_ms_dict["richard_028_D2_P1_ms"] = richard_028_D2_P1_ms
+
     return ms_str_to_ms_dict
