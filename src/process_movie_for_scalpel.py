@@ -8,13 +8,14 @@ import scipy.io as sio
 
 def main():
     data_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/scalpel/video_to_process/"
+    data_path = "/home/julien/these_inmed/scalpel/video_to_process/"
 
     movie_file_name = None
 
     # look for filenames in the fisrst directory, if we don't break, it will go through all directories
     for (dirpath, dirnames, local_filenames) in os.walk(data_path):
         for file_name in local_filenames:
-            if file_name.endswith(".tif") and (not file_name.startswith(".")):
+            if (file_name.endswith(".tif") or file_name.endswith(".tiff")) and (not file_name.startswith(".")):
                 movie_file_name = file_name
         break
     if movie_file_name is None:
@@ -34,13 +35,22 @@ def main():
     print(f"Time for loading movie: "
           f"{np.round(stop_time - start_time, 3)} s")
 
-    size_chunck = 500
-    frame_indices = np.arange(0, n_frames, size_chunck)
+    chunck_it = True
 
-    for i, frame_index in enumerate(frame_indices):
-        y = np.zeros((n_pixels, size_chunck))
-        for y_frame, frame in enumerate(np.arange(frame_index, frame_index+size_chunck)):
-            y[:, y_frame] = tiff_movie[frame, :, :].flatten('F')
-        sio.savemat(f"{data_path}/" + f"Y_{i+1}.mat",
+    if chunck_it:
+        size_chunck = 1250
+        frame_indices = np.arange(0, n_frames, size_chunck)
+
+        for i, frame_index in enumerate(frame_indices):
+            y = np.zeros((n_pixels, size_chunck))
+            for y_frame, frame in enumerate(np.arange(frame_index, frame_index+size_chunck)):
+                y[:, y_frame] = tiff_movie[frame, :, :].flatten('F')
+            sio.savemat(f"{data_path}/" + f"Y_{i+1}.mat",
+                        {'video': y})
+    else:
+        y = np.zeros((n_pixels, n_frames))
+        for frame in np.arange(n_frames):
+            y[:, frame] = tiff_movie[frame, :, :].flatten('F')
+        sio.savemat(f"{data_path}/" + f"Y_1.mat",
                     {'video': y})
 main()
