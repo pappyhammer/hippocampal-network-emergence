@@ -1306,7 +1306,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "richard_028_D2_P1_ms" in ms_str_to_load:
         richard_028_D2_P1_ms = MouseSession(age=60, session_id="richard_028_D2_P1",
                                              nb_ms_by_frame=100, param=param)
-        richard_028_D1_P1_ms.activity_threshold = 30
+        richard_028_D2_P1_ms.activity_threshold = 30
         variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
         richard_028_D2_P1_ms.load_data_from_file(file_name_to_load=
                                                   "richard_data/028/Nocue/028_D2_P1/Spike_Times_Onset_to_Peak.mat",

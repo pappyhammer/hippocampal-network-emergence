@@ -1674,11 +1674,12 @@ class MouseSession:
             plt.show()
         plt.close()
 
-    def pca_on_raster(self):
+    def pca_on_raster(self, span_area_coords=None,span_area_colors=None):
         print(f"starting PCA")
-        n_components = 4
+        n_components = 3
         n_cells = self.spike_struct.spike_nums_dur.shape[0]
         n_times = self.spike_struct.spike_nums_dur.shape[1]
+        spike_nums_dur_original = np.copy(self.spike_struct.spike_nums_dur)
         # self.normalize_traces()
         traces_0_1 = np.zeros((n_cells, n_times))
         for cell in np.arange(n_cells):
@@ -1687,17 +1688,69 @@ class MouseSession:
             traces_0_1[cell] = (self.traces[cell] - min_value) / (max_value - min_value)
             # traces_0_1[cell] = self.traces[cell] / max_value
         spike_nums_dur = np.zeros((n_cells, n_times))
+        use_duration = True
         for cell in np.arange(n_cells):
-            spike_times = np.where(self.spike_struct.spike_nums_dur[cell])[0]
-            # spike_nums_dur[cell, spike_times] = self.z_score_traces[cell, spike_times]
-            spike_nums_dur[cell, spike_times] = traces_0_1[cell, spike_times]
+            periods = get_continous_time_periods(np.copy(self.spike_struct.spike_nums_dur[cell]))
+            if use_duration:
+                # version with length of transients
+                for period in periods:
+                    duration = period[1] - period[0] + 1
+                    # if duration == 0:
+                    #     print(f"pca_on_raster: duration is O")
+                    # if duration >= 8:
+                    #     spike_nums_dur[cell, period[0]:period[1]+1] = duration
 
+                    if duration >= 10:
+                        duration = 4
+                    elif duration < 3:
+                        duration = 1
+                    elif duration < 6:
+                        duration = 2
+                    else:
+                        duration = 3
+
+                    spike_nums_dur[cell, period[0]:period[1] + 1] = duration
+            else:
+                # spike_times = np.where(self.spike_struct.spike_nums_dur[cell])[0]
+                # # spike_nums_dur[cell, spike_times] = self.z_score_traces[cell, spike_times]
+                # spike_nums_dur[cell, spike_times] = traces_0_1[cell, spike_times]
+                for period in periods:
+                    duration = period[1] - period[0]
+                    spike_nums_dur[cell, period[0]:period[1] + 1] = np.max(traces_0_1[cell, period[0]:period[1] + 1])
+                                                                   # * duration
+        # if use_duration:
+        #     # ordering cells so all the one active are at the beginning
+        #     index_free = 0
+        #     for cell in np.arange(n_cells):
+        #         if np.sum(spike_nums_dur[cell]) > 0:
+        #             tmp = np.copy(spike_nums_dur[index_free])
+        #             spike_nums_dur[index_free] = spike_nums_dur[cell]
+        #             spike_nums_dur[cell] = tmp
+        #             index_free += 1
         pca = PCA(n_components=n_components)  #
         pca_result = pca.fit_transform(spike_nums_dur)
         print(f"pca_result.shape {pca_result.shape}")
         # print(f"pca_result[0,:] {pca_result[0,:]}")
         # print(f"pca_result[1,:] {pca_result[1,:]}")
         print(f"pca.explained_variance_ratio_ {pca.explained_variance_ratio_}")
+
+        plot_spikes_raster(spike_nums=spike_nums_dur, param=self.param,
+                           title=f"{self.description}_spike_nums",
+                           spike_train_format=False,
+                           file_name=f"{self.description}_spike_nums",
+                           save_raster=True,
+                           show_raster=False,
+                           sliding_window_duration=1,
+                           show_sum_spikes_as_percentage=False,
+                           plot_with_amplitude=True,
+                           save_formats="pdf",
+                           spike_shape="o",
+                           span_area_coords=span_area_coords,
+                           span_area_colors=span_area_colors,
+                           spike_shape_size=0.5,
+                           spike_nums_for_activity_sum=spike_nums_dur_original,
+                           without_activity_sum=False,
+                           size_fig=(15, 6))
 
         for component in np.arange(n_components):
             # sorted_raster = np.copy(spike_nums_dur)
@@ -1714,7 +1767,10 @@ class MouseSession:
                                plot_with_amplitude=True,
                                save_formats="pdf",
                                spike_shape="o",
-                               spike_shape_size=1,
+                               span_area_coords=span_area_coords,
+                               span_area_colors=span_area_colors,
+                               spike_shape_size=0.5,
+                               spike_nums_for_activity_sum=self.spike_struct.spike_nums_dur[indices_sorted, :],
                                without_activity_sum=False,
                                size_fig=(15, 6))
             n_cells_to_display = 40

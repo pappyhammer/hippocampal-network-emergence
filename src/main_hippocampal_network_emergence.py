@@ -1230,30 +1230,51 @@ def get_ratio_spikes_on_events_vs_total_events_by_cell(spike_nums,
     return result
 
 
-def test_seq_detect(ms):
+def test_seq_detect(ms, span_area_coords=None, span_area_colors=None):
     # print(f"test_seq_detect {ms.description} {ms.best_order_loaded}")
     if ms.best_order_loaded is None:
         return
 
     spike_nums_dur = ms.spike_struct.spike_nums_dur
     spike_nums_dur_ordered = spike_nums_dur[ms.best_order_loaded, :]
-    seq_dict = find_sequences_in_ordered_spike_nums(spike_nums_dur_ordered, param=ms.param)
+    # seq_dict = find_sequences_in_ordered_spike_nums(spike_nums_dur_ordered, param=ms.param)
     # save_on_file_seq_detection_results(best_cells_order=ms.best_order_loaded,
     #                                    seq_dict=seq_dict,
     #                                    file_name=f"sorting_results_with_timestamps{ms.description}.txt",
     #                                    param=ms.param,
     #                                    significant_category_dict=None)
 
-    colors_for_seq_list = ["blue", "red", "limegreen", "grey", "orange", "cornflowerblue", "yellow", "seagreen",
-                           "magenta"]
+    # colors_for_seq_list = ["blue", "red", "limegreen", "grey", "orange", "cornflowerblue", "yellow", "seagreen",
+    #                        "magenta"]
     ordered_labels_real_data = []
     labels = np.arange(len(spike_nums_dur_ordered))
     for old_cell_index in ms.best_order_loaded:
         ordered_labels_real_data.append(labels[old_cell_index])
+    # plot_spikes_raster(spike_nums=spike_nums_dur_ordered, param=ms.param,
+    #                    title=f"{ms.description}_spike_nums_ordered_seq_test",
+    #                    spike_train_format=False,
+    #                    file_name=f"{ms.description}_spike_nums_ordered_seq_test",
+    #                    y_ticks_labels=ordered_labels_real_data,
+    #                    save_raster=True,
+    #                    show_raster=False,
+    #                    sliding_window_duration=1,
+    #                    show_sum_spikes_as_percentage=True,
+    #                    plot_with_amplitude=False,
+    #                    activity_threshold=ms.activity_threshold,
+    #                    save_formats="pdf",
+    #                    seq_times_to_color_dict=seq_dict,
+    #                    link_seq_color=colors_for_seq_list,
+    #                    link_seq_line_width=1,
+    #                    link_seq_alpha=0.9,
+    #                    jitter_links_range=5,
+    #                    min_len_links_seq=3,
+    #                    spike_shape="|",
+    #                    spike_shape_size=10)
+
     plot_spikes_raster(spike_nums=spike_nums_dur_ordered, param=ms.param,
-                       title=f"{ms.description}_spike_nums_ordered_seq_test",
+                       title=f"{ms.description}_spike_nums_ordered",
                        spike_train_format=False,
-                       file_name=f"{ms.description}_spike_nums_ordered_seq_test",
+                       file_name=f"{ms.description}_spike_nums_ordered",
                        y_ticks_labels=ordered_labels_real_data,
                        save_raster=True,
                        show_raster=False,
@@ -1262,40 +1283,40 @@ def test_seq_detect(ms):
                        plot_with_amplitude=False,
                        activity_threshold=ms.activity_threshold,
                        save_formats="pdf",
-                       seq_times_to_color_dict=seq_dict,
-                       link_seq_color=colors_for_seq_list,
                        link_seq_line_width=1,
                        link_seq_alpha=0.9,
                        jitter_links_range=5,
                        min_len_links_seq=3,
                        spike_shape="|",
+                       span_area_coords=span_area_coords,
+                       span_area_colors=span_area_colors,
                        spike_shape_size=10)
 
     print(f"n_cells: {len(spike_nums_dur_ordered)}")
 
-    if ms.cell_assemblies is not None:
-        total_cells_in_ca = 0
-        for cell_assembly_index, cell_assembly in enumerate(ms.cell_assemblies):
-            total_cells_in_ca += len(cell_assembly)
-        #     print(f"CA {cell_assembly_index}: {cell_assembly}")
-        # print(f"n_cells in cell assemblies: {total_cells_in_ca}")
-        sequences_with_ca_numbers = []
-        cells_seq_with_correct_indices = []
-        # we need to find the indices from the organized seq
-        for seq in seq_dict.keys():
-            cells_seq_with_correct_indices.append(ms.best_order_loaded[np.array(seq)])
-        for seq in cells_seq_with_correct_indices:
-            new_seq = np.ones(len(seq), dtype="int16")
-            new_seq *= - 1
-            for cell_assembly_index, cell_assembly in enumerate(ms.cell_assemblies):
-                for index_cell, cell in enumerate(seq):
-                    if cell in cell_assembly:
-                        new_seq[index_cell] = cell_assembly_index
-            sequences_with_ca_numbers.append(new_seq)
+    # if ms.cell_assemblies is not None:
+    #     total_cells_in_ca = 0
+    #     for cell_assembly_index, cell_assembly in enumerate(ms.cell_assemblies):
+    #         total_cells_in_ca += len(cell_assembly)
+    #     #     print(f"CA {cell_assembly_index}: {cell_assembly}")
+    #     # print(f"n_cells in cell assemblies: {total_cells_in_ca}")
+    #     sequences_with_ca_numbers = []
+    #     cells_seq_with_correct_indices = []
+    #     # we need to find the indices from the organized seq
+    #     for seq in seq_dict.keys():
+    #         cells_seq_with_correct_indices.append(ms.best_order_loaded[np.array(seq)])
+    #     for seq in cells_seq_with_correct_indices:
+    #         new_seq = np.ones(len(seq), dtype="int16")
+    #         new_seq *= - 1
+    #         for cell_assembly_index, cell_assembly in enumerate(ms.cell_assemblies):
+    #             for index_cell, cell in enumerate(seq):
+    #                 if cell in cell_assembly:
+    #                     new_seq[index_cell] = cell_assembly_index
+    #         sequences_with_ca_numbers.append(new_seq)
 
     # print("")
     # print("Seq with cell assemblies index")
-    choose_manually = True
+    choose_manually = False
     if choose_manually:
         max_index_seq = 0
         max_rep = 0
@@ -1317,7 +1338,7 @@ def test_seq_detect(ms):
         #     print(f"Original: {cells_seq_with_correct_indices[index]}")
         #     print(f"Cell assemblies {seq}")
     else:
-        max_index_seq = 15
+        max_index_seq = len(spike_nums_dur_ordered) # 50
 
     cells_to_highlight = []
     cells_to_highlight_colors = []
@@ -1334,14 +1355,14 @@ def test_seq_detect(ms):
         cells_to_highlight.extend(cell_indices_to_color)
         cells_to_highlight_colors.extend([color] * len(cell_indices_to_color))
 
-        span_areas_coords = []
-        span_area_colors = []
-        span_areas_coords.append(ms.mvt_frames_periods)
-        span_area_colors.append('red')
-        span_areas_coords.append(ms.sce_times_in_cell_assemblies)
-        span_area_colors.append('green')
-        span_areas_coords.append(ms.twitches_frames_periods)
-        span_area_colors.append('blue')
+        # span_areas_coords = []
+        # span_area_colors = []
+        # span_areas_coords.append(ms.mvt_frames_periods)
+        # span_area_colors.append('red')
+        # span_areas_coords.append(ms.sce_times_in_cell_assemblies)
+        # span_area_colors.append('green')
+        # span_areas_coords.append(ms.twitches_frames_periods)
+        # span_area_colors.append('blue')
 
     colors_for_seq_list = ["white"]
     # span_area_coords = [ms.SCE_times]
@@ -1365,9 +1386,11 @@ def test_seq_detect(ms):
                        # link_seq_alpha=0.9,
                        jitter_links_range=0,
                        min_len_links_seq=3,
-                       spike_shape="o",
-                       spike_shape_size=1,
-                       # span_area_coords=span_areas_coords,
+                       # spike_shape="o",
+                       # spike_shape_size=1,
+                       spike_shape="|",
+                       spike_shape_size=10,
+                       # span_area_coords=span_area_coords,
                        # span_area_colors=span_area_colors,
                        # span_area_coords=span_area_coords,
                        # span_area_colors=span_area_colors,
@@ -1376,6 +1399,9 @@ def test_seq_detect(ms):
                        size_fig=(15, 6))
     # with amplitude, using traces
     # print(f"ms.traces.shape {ms.traces.shape}")
+    if ms.traces is None:
+        return
+
     amplitude_spike_nums = ms.traces
     n_times = len(amplitude_spike_nums[0, :])
     # normalizing it
@@ -1834,14 +1860,14 @@ def main():
     ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     ms_str_to_load = ["p7_171012_a000_ms"]
     ms_str_to_load = ["p7_171012_a000_ms"]
-    ms_str_to_load = ["richard_015_D74_P2_ms"]
+    # ms_str_to_load = ["richard_015_D74_P2_ms"]
     # ms_str_to_load = ["richard_015_D89_P2_ms"]
     # ms_str_to_load = ["richard_015_D66_P2_ms"]
     # ms_str_to_load = ["richard_015_D75_P2_ms"]
     # ms_str_to_load = ["richard_018_D32_P2_ms"]
     # ms_str_to_load = ["richard_018_D28_P2_ms"]
     # ms_str_to_load = ["richard_028_D1_P1_ms"]
-    # ms_str_to_load = ["richard_028_D2_P1_ms"]
+    ms_str_to_load = ["richard_028_D2_P1_ms"]
     # ms_str_to_load = ["p12_171110_a000_ms"]
 
 
@@ -1874,6 +1900,7 @@ def main():
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
     just_do_pca_on_raster = False
+    just_display_seq_with_cell_assembly = True
 
     # for events (sce) detection
     perc_threshold = 99
@@ -1894,7 +1921,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = True
+    do_clustering = False
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
@@ -1918,9 +1945,9 @@ def main():
     # ################################ PATTERNS SEARCH #########################################
     # ##########################################################################################
     do_pattern_search = False
-    keep_the_longest_seq = True
+    keep_the_longest_seq = False
     split_pattern_search = False
-    use_only_uniformity_method = True
+    use_only_uniformity_method = False
     use_loss_score_to_keep_the_best_from_tree = False
     use_sce_times_for_pattern_search = False
     use_ordered_spike_nums_for_surrogate = True
@@ -1953,8 +1980,41 @@ def main():
                 raise Exception("loko")
             continue
 
+        if just_display_seq_with_cell_assembly:
+            print("test_seq_detect")
+            span_area_coords = None
+            span_area_colors = None
+            show_richard_active_frames = True
+            if show_richard_active_frames:
+                active_frames = ms.richard_dict["Active_Wake_Frames"]
+                bin_array = np.zeros(ms.spike_struct.spike_nums_dur.shape[1], dtype="int8")
+                bin_array[np.unique(active_frames)] = 1
+                periods = get_continous_time_periods(bin_array)
+                span_area_coords = [periods]
+                span_area_colors = ["red"]
+            test_seq_detect(ms, span_area_coords=span_area_coords, span_area_colors=span_area_colors)
+            raise Exception("toto")
+
         if just_do_pca_on_raster:
-            ms.pca_on_raster()
+            spike_nums_to_use = ms.spike_struct.spike_nums_dur
+            sce_detection_result = detect_sce_potatoes_style(spike_nums=spike_nums_to_use, perc_threshold=95,
+                                                             debug_mode=True)
+
+            print(f"sce_with_sliding_window detected")
+            # tuple of times
+            SCE_times = sce_detection_result[1]
+
+            # print(f"SCE_times {SCE_times}")
+            sce_times_numbers = sce_detection_result[3]
+            sce_times_bool = sce_detection_result[0]
+            # useful for plotting twitches
+            ms.sce_bool = sce_times_bool
+            ms.sce_times_numbers = sce_times_numbers
+            ms.SCE_times = SCE_times
+
+            span_area_coords = [SCE_times]
+            span_area_colors = ['lightgrey']
+            ms.pca_on_raster(span_area_coords=span_area_coords, span_area_colors=span_area_colors)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("pca_done")
             continue
@@ -2099,9 +2159,7 @@ def main():
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("plot_raw_traces_around_each_sce_for_each_cell exception")
             continue
-        #
-        # test_seq_detect(ms)
-        # raise Exception("toto")
+
         if just_plot_all_cells_on_map:
             ms.plot_all_cells_on_map()
             if ms_index == len(ms_to_analyse) - 1:
@@ -2424,7 +2482,6 @@ def main():
                     else:
                         activity_threshold = ms.activity_threshold
                         spike_struct.activity_threshold = ms.activity_threshold
-
 
                     sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
                                                                           window_duration=sliding_window_duration,

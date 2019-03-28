@@ -192,6 +192,10 @@ class HNESpikeStructure:
         Movies of 2500 frames are concatenated, we need to clean around the concatenation times
         :return:
         """
+
+        if self.spike_nums_dur is None:
+            return
+
         if self.spike_nums_dur.shape[1] != 12500:
             return
         mask_frames = np.zeros(self.spike_nums_dur.shape[1], dtype="bool")
