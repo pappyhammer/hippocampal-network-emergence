@@ -38,7 +38,7 @@ def main():
     chunck_it = True
 
     if chunck_it:
-        size_chunck = 1250
+        size_chunck = 500
         frame_indices = np.arange(0, n_frames, size_chunck)
 
         for i, frame_index in enumerate(frame_indices):

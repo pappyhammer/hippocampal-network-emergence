@@ -151,7 +151,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p7_171012_a000_ms = MouseSession(age=7, session_id="17_10_12_a000", nb_ms_by_frame=100, param=param,
                                          weight=None)
         # calculated with 99th percentile on raster dur
-        # p7_171012_a000_ms.activity_threshold = 19
+        p7_171012_a000_ms.activity_threshold = 16
         # p7_171012_a000_ms.set_low_activity_threshold(threshold=6, percentile_value=1)
         # p7_171012_a000_ms.set_low_activity_threshold(threshold=7, percentile_value=5)
         # p7_171012_a000_ms.set_inter_neurons([305, 360, 398, 412])
@@ -591,16 +591,18 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         p8_18_10_24_a006_ms.set_avg_cell_map_tif(file_name="p8/p8_18_10_24_a006/AVG_p8_18_10_24_a006.tif")
 
-        # if for_cell_classifier or for_transient_classifier:
-        #     variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
-        #                          "peak_nums": "LocPeakMatrix_Python",
-        #                          "cells_to_remove": "cells_to_remove",
-        #                          "inter_neurons_from_gui": "inter_neurons"}
-        #     p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load=
-        #                                            "p8/p8_18_10_24_a006/p8_18_10_24_a006_GUI_transientsRD.mat",
-        #                                            variables_mapping=variables_mapping,
-        #                                            from_gui=True)
-        #     p8_18_10_24_a006_ms.build_spike_nums_dur()
+        if for_cell_classifier or for_transient_classifier:
+            variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                 "peak_nums": "LocPeakMatrix_Python",
+                                 "cells_to_remove": "cells_to_remove",
+                                 "inter_neurons_from_gui": "inter_neurons"}
+            p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load=
+                                                   "p8/p8_18_10_24_a006/p8_18_10_24_a006_GUI_transients_JD.mat",
+                                                   variables_mapping=variables_mapping,
+                                                   from_gui=True)
+            p8_18_10_24_a006_ms.build_spike_nums_dur()
+
+            p8_18_10_24_a006_ms.load_caiman_results(path_data="p8/p8_18_10_24_a006/")
 
         if load_traces:
             variables_mapping = {"traces": "C_df"}

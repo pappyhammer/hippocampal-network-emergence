@@ -843,9 +843,10 @@ def main_benchmark():
 
     # ########### options ###################
     # ms_to_benchmark = "p12_17_11_10_a000"
-    ms_to_benchmark = "p7_17_10_12_a000"
+    # ms_to_benchmark = "p7_17_10_12_a000"
     # ms_to_benchmark = "p13_18_10_29_a001_ms"
     # ms_to_benchmark = "p8_18_10_24_a005_ms"
+    ms_to_benchmark = "p8_18_10_24_a006_ms"
     # ms_to_benchmark = "artificial_ms"
     do_onsets_benchmarks = False
     do_plot_roc_predictions = False
@@ -861,7 +862,7 @@ def main_benchmark():
         data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P12_17_11_10_a000.txt"
         data_dict["gt"]["cnn_threshold"] = 0.5
         # TODO: with cell 10, we need to re-make the prediction
-        data_dict["gt"]["cells"] =  np.concatenate((np.arange(11), [14])) # np.array([14])
+        data_dict["gt"]["cells"] = np.concatenate((np.arange(11), [14])) # np.array([14])
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
@@ -1028,6 +1029,37 @@ def main_benchmark():
         data_dict["caiman_filt"]["file_name_onsets"] = "robin_28_01_19/p12_17_11_10_a000_Bin100ms_spikedigital.mat"
         data_dict["caiman_filt"]["onsets_var_name"] = "Bin100ms_spikedigital"
         data_dict["caiman_filt"]["var_name"] = "rasterdur"
+
+    elif ms_to_benchmark == "p8_18_10_24_a006_ms":
+        data_dict["gt"] = dict()
+        data_dict["gt"]["path"] = "p8/p8_18_10_24_a006"
+        data_dict["gt"]["gui_file"] = "p8_18_10_24_a006_GUI_transients_JD.mat"
+        data_dict["gt"]["cells"] = np.array([0, 1, 6, 7, 10, 11])
+
+        data_dict["caiman_raw"] = dict()
+        data_dict["caiman_raw"]["path"] = "p8/p8_18_10_24_a006"
+        data_dict["caiman_raw"]["file_name_onsets"] = "p8_18_10_24_a006_Spikenums_caiman.mat"
+        data_dict["caiman_raw"]["onsets_var_name"] = "spikenums"
+        data_dict["caiman_raw"]["to_bin"] = True
+        data_dict["caiman_raw"]["trace_file_name"] = "p8_18_10_24_a006_Traces.mat"
+        data_dict["caiman_raw"]["trace_var_name"] = "C_df"
+
+        data_dict["caiman_filt"] = dict()
+        data_dict["caiman_filt"]["path"] = "p8/p8_18_10_24_a006"
+        data_dict["caiman_filt"]["file_name"] = "p8_18_10_24_a006_Spikenums_caiman.mat"
+        data_dict["caiman_filt"]["var_name"] = "rasterdur"
+
+        data_dict["rnn"] = dict()
+        data_dict["rnn"]["path"] = "p8/p8_18_10_24_a006"
+        # if traces is given, then rnn will be boosted
+        data_dict["rnn"]["boost_rnn"] = False
+        # trained on 50 cells + artificial data, 3 inputs, with overlap 0.9 and 3 transformations
+        # rnn trained on 26/02/2019 17-20-11 on cells 0, 1, 6, 7, 10, 11
+        data_dict["rnn"]["file_name"] = "P8_18_10_24_a006_predictions_2019_03_28.15-47-20.mat"
+
+        data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["rnn"]["predictions"] = "predictions"
+        data_dict["rnn"]["prediction_threshold"] = 0.3
 
     elif ms_to_benchmark == "artificial_ms":
         data_dict["gt"] = dict()

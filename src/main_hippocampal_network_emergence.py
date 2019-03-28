@@ -1866,8 +1866,8 @@ def main():
     # ms_str_to_load = ["richard_015_D75_P2_ms"]
     # ms_str_to_load = ["richard_018_D32_P2_ms"]
     # ms_str_to_load = ["richard_018_D28_P2_ms"]
-    # ms_str_to_load = ["richard_028_D1_P1_ms"]
-    ms_str_to_load = ["richard_028_D2_P1_ms"]
+    ms_str_to_load = ["richard_028_D1_P1_ms"]
+    # ms_str_to_load = ["richard_028_D2_P1_ms"]
     # ms_str_to_load = ["p12_171110_a000_ms"]
 
 
@@ -1926,8 +1926,8 @@ def main():
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
     with_cells_in_cluster_seq_sorted = False
-    use_richard_option = True
-    # wake, sleep, quiet_wake, sleep_quiet_wake
+    use_richard_option = False
+    # wake, sleep, quiet_wake, sleep_quiet_wake, active_wake
     richard_option = "wake"
 
     # ##### for fca #####
@@ -1936,7 +1936,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 19)
+    range_n_clusters_k_mean = np.arange(2, 10)
     # range_n_clusters_k_mean = np.array([5])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
@@ -1958,8 +1958,8 @@ def main():
     param.max_branches = 10
     param.time_inter_seq = 30  # 50
     param.min_duration_intra_seq = 0
-    param.min_len_seq = 4  # 5
-    param.min_rep_nb = 3
+    param.min_len_seq = 5  # 5
+    param.min_rep_nb = 5
 
     debug_mode = False
 
@@ -2822,7 +2822,7 @@ def main():
 
         # ######  parameters setting #########
         data_descr = f"{ms.description}"
-        print(f"ms: {data_descr}")
+        print(f"ms: {data_descr} {param.time_str}")
 
         if do_fca_clustering:
             sliding_window_duration = 5
@@ -2854,13 +2854,17 @@ def main():
                                                   ms.richard_dict["NREMs_Frames"]))
                 frames_selected = np.unique(frames_selected)
             elif richard_option == "quiet_wake":
-                frames_selected = ms.richard_dict["Quiet_Wake_Frames"]
+                frames_selected = np.unique(ms.richard_dict["Quiet_Wake_Frames"])
+            elif richard_option == "active_wake":
+                frames_selected = np.unique(ms.richard_dict["Active_Wake_Frames"])
             elif richard_option == "sleep_quiet_wake":
                 frames_selected = np.concatenate((ms.richard_dict["REMs_Frames"],
                                                   ms.richard_dict["NREMs_Frames"]))
                 frames_selected = np.concatenate((frames_selected,
                                                   ms.richard_dict["Quiet_Wake_Frames"]))
                 frames_selected = np.unique(frames_selected)
+            # removing frames over the number of frames in the raster dur
+            frames_selected = frames_selected[frames_selected < spike_nums_to_use.shape[1]]
             spike_nums_to_use = spike_nums_to_use[:, frames_selected]
             print(f"spike_nums_to_use n_frames after: {spike_nums_to_use.shape[1]}")
             # raise Exception("test richard")
@@ -3089,7 +3093,7 @@ def main():
                                           n_surrogate=n_surrogate_for_pattern_search,
                                           data_id=ms.description, debug_mode=False,
                                           use_ordered_spike_nums_for_surrogate=use_ordered_spike_nums_for_surrogate,
-                                          extra_file_name="",
+                                          extra_file_name=data_descr,
                                           sce_times_bool=sce_times_bool_to_use,
                                           use_only_uniformity_method=use_only_uniformity_method,
                                           use_loss_score_to_keep_the_best_from_tree=

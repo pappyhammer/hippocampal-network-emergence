@@ -2607,7 +2607,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     # p13_18_10_29_a001_GUI_transients_RD.mat
     """
     print("load_data_for_generator")
-    use_small_sample = False
+    use_small_sample = True
     # used for counting how many cells and transients available
     load_them_all = False
     if load_them_all:
@@ -2631,6 +2631,9 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms"]
         cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 14, 27, 40, 57, 75, 88, 103, 112]),
                               "p11_17_11_24_a000_ms": np.array([3, 22, 24, 29])} # 3, 6
+        ms_to_use = ["artificial_ms_1", "p8_18_10_24_a006_ms"]
+        cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 14, 27, 40]),
+                              "p8_18_10_24_a006_ms": np.array([0, 1])}  # 3, 6
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
@@ -3530,12 +3533,12 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p7_171012_a000_ms"], param=param, overlap_value=0.9,
+        transients_prediction_from_movie(ms_to_use=["p8_18_10_24_a006_ms"], param=param, overlap_value=0.9,
                                          use_data_augmentation=True, using_cnn_predictions=False,
-                                         cells_to_predict=None)
+                                         cells_to_predict=np.array([0, 1, 6, 7, 10, 11]))
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
@@ -3545,6 +3548,8 @@ def train_model():
         # np.arange(118)
         # "artificial_ms_1": np.array([0, 11, 16, 27, 36, 46, 53, 68, 83, 94, 109, 115, 128, 137, 146, 156])
         # "artificial_ms_2"
+        #  "p8/p8_18_10_24_a006"
+        # np.array([0, 1, 6, 7, 10, 11])
         return
 
     # 3 options to target the cell
@@ -3571,7 +3576,7 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     using_multi_class = 3  # 1 or 3 so far
-    n_epochs = 50
+    n_epochs = 20
     batch_size = 16
     window_len = 50
     max_width = 25
