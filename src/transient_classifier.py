@@ -2628,12 +2628,14 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # np.array([52, 53, 75, 81, 83, 93, 115]
         # ms_to_use = ["p12_171110_a000_ms"]
         # cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])} # 3, 6
-        ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms"]
-        cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 14, 27, 40, 57, 75, 88, 103, 112]),
-                              "p11_17_11_24_a000_ms": np.array([3, 22, 24, 29])} # 3, 6
-        ms_to_use = ["artificial_ms_1", "p8_18_10_24_a006_ms"]
-        cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 14, 27, 40]),
-                              "p8_18_10_24_a006_ms": np.array([0, 1])}  # 3, 6
+        # ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms"]
+        # cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 14, 27, 40, 57, 75, 88, 103, 112]),
+        #                       "p11_17_11_24_a000_ms": np.array([3, 22, 24, 29])} # 3, 6
+        # ms_to_use = ["artificial_ms_1", "p8_18_10_24_a006_ms"]
+        # cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 14, 27, 40]),
+        #                       "p8_18_10_24_a006_ms": np.array([0, 1])}  # 3, 6
+        ms_to_use = ["p8_18_10_24_a006_ms"]
+        cell_to_load_by_ms = {"p8_18_10_24_a006_ms": np.array([0, 1])}  # 3, 6
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
@@ -3250,7 +3252,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
           f"{np.round(stop_time - start_time, 3)} s")
 
     start_time = time.time()
-    predictions_threshold = 0.4
+    predictions_threshold = 0.5
     for cell in cells_to_load:
         predictions = predict_transient_from_model(ms=ms, cell=cell, model=model, overlap_value=overlap_value,
                                                    use_data_augmentation=use_data_augmentation)
@@ -3533,7 +3535,7 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
         transients_prediction_from_movie(ms_to_use=["p8_18_10_24_a006_ms"], param=param, overlap_value=0.9,
@@ -3575,7 +3577,7 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    using_multi_class = 3  # 1 or 3 so far
+    using_multi_class = 1  # 1 or 3 so far
     n_epochs = 20
     batch_size = 16
     window_len = 50
@@ -3609,7 +3611,7 @@ def train_model():
     apply_attention_before_lstm = True
     use_single_attention_vector = False
     with_early_stopping = True
-    early_stop_patience = 25  # 10
+    early_stop_patience = 10  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed

@@ -1034,7 +1034,7 @@ def main_benchmark():
         data_dict["gt"] = dict()
         data_dict["gt"]["path"] = "p8/p8_18_10_24_a006"
         data_dict["gt"]["gui_file"] = "p8_18_10_24_a006_GUI_transients_JD.mat"
-        data_dict["gt"]["cells"] = np.array([0, 1, 6, 7, 10, 11])
+        data_dict["gt"]["cells"] = np.array([6, 7, 10, 11]) # 0, 1
 
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p8/p8_18_10_24_a006"
@@ -1057,9 +1057,40 @@ def main_benchmark():
         # rnn trained on 26/02/2019 17-20-11 on cells 0, 1, 6, 7, 10, 11
         data_dict["rnn"]["file_name"] = "P8_18_10_24_a006_predictions_2019_03_28.15-47-20.mat"
 
+        # trained on 2 cells p8 + artificial data, 3 inputs, with overlap 0.9 and 3 transformations
+        # 3 classes
+        # rnn trained on 28/03/2019 17-29-38 on cells 0, 1, 6, 7, 10, 11
+        # data_dict["rnn"]["file_name"] = "P8_18_10_24_a006_predictions_2019_03_29.13-41-40.mat"
+
+        # trained on 2 cells p8 + artificial data, 3 inputs, with overlap 0.9 and 3 transformations
+        # 1 class
+        # rnn trained on 28/03/2019 23-47-51 on cells 0, 1, 6, 7, 10, 11
+        data_dict["rnn"]["file_name"] = "P8_18_10_24_a006_predictions_2019_03_29.17-02-18.mat"
+
+        # trained on 2 cells p8 , 3 inputs, with overlap 0.9 and 3 transformations
+        # 1 class
+        # rnn trained on 29/03/2019 18-56-19 on cells 0, 1, 6, 7, 10, 11
+        data_dict["rnn"]["file_name"] = "P8_18_10_24_a006_predictions_2019_03_29.22-51-07.mat"
+
+
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.3
+        data_dict["rnn"]["prediction_threshold"] = 0.5
+
+        data_dict["last_rnn"] = dict()
+        data_dict["last_rnn"]["path"] = "p8/p8_18_10_24_a006"
+        # if traces is given, then rnn will be boosted
+        data_dict["last_rnn"]["boost_rnn"] = False
+        # trained on 50 cells + artificial data, 3 inputs, with overlap 0.9 and 3 transformations
+        # rnn trained on 26/02/2019 17-20-11 on cells 0, 1, 6, 7, 10, 11
+        data_dict["last_rnn"]["file_name"] = "P8_18_10_24_a006_predictions_2019_03_28.15-47-20.mat"   # 0.3
+        # trained on 2 cells p8 + artificial data, 3 inputs, with overlap 0.9 and 3 transformations
+        # 1 class
+        # rnn trained on 28/03/2019 23-47-51 on cells 0, 1, 6, 7, 10, 11
+        data_dict["last_rnn"]["file_name"] = "P8_18_10_24_a006_predictions_2019_03_29.17-02-18.mat"
+        data_dict["last_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["last_rnn"]["predictions"] = "predictions"
+        data_dict["last_rnn"]["prediction_threshold"] = 0.5
 
     elif ms_to_benchmark == "artificial_ms":
         data_dict["gt"] = dict()
