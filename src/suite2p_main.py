@@ -17,7 +17,7 @@ def main():
             'nchannels' : 1, # each tiff has these many channels per plane
             'functional_chan' : 1, # this channel is used to extract functional ROIs (1-based)
             'diameter':3, # this is the main parameter for cell detection, 2-dimensional if Y and X are different (e.g. [6 12])
-            'tau':  1., # this is the main parameter for deconvolution
+            'tau':  2., # this is the main parameter for deconvolution, 2 for gcamp6s
             'fs': 10.,  # sampling rate (total across planes)
             # output settings
             'save_mat': False, # whether to save output as matlab files
@@ -41,6 +41,7 @@ def main():
             'ratio_neuropil': 6., # ratio between neuropil basis size and cell radius
             'ratio_neuropil_to_cell': 3, # minimum ratio between neuropil radius and cell radius
             'tile_factor': 1., # use finer (>1) or coarser (<1) tiles for neuropil estimation during cell detection
+            # TODO: Try to lower the treshold to get more ROI
             'threshold_scaling': 1., # adjust the automatically determined threshold by this scalar multiplier
             'max_overlap': 0.80, # cells with more overlap than this get removed during triage, before refinement
             'inner_neuropil_radius': 2, # number of pixels to keep between ROI and neuropil donut
@@ -57,14 +58,16 @@ def main():
     # provide an h5 path in 'h5py' or a tiff path in 'data_path'
     # db overwrites any ops (allows for experiment specific settings)
     db = {
-        'h5py': [],  # a single h5 file path
+        'h5py': '/Users/pappyhammer/Documents/academique/these_inmed/suite2p/suite2p_tiffs/p8.h5',  # a single h5 file path
         'h5py_key': 'data',
         'look_one_level_down': False,  # whether to look in ALL subfolders when searching for tiffs
-        'data_path': ['/home/julien/these_inmed/suite2p/suite2p_tiffs'],  # a list of folders with tiffs
+        # 'data_path': ['/home/julien/these_inmed/suite2p/suite2p_tiffs'],  # a list of folders with tiffs
+        # 'data_path': ['/Users/pappyhammer/Documents/academique/these_inmed/suite2p/suite2p_tiffs'],
         # (or folder of folders with tiffs if look_one_level_down is True, or subfolders is not empty)
 
         'subfolders': [],  # choose subfolders of 'data_path' to look in (optional)
-        'fast_disk': '/home/julien/these_inmed/suite2p/suite2p_bin',  # string which specifies where the binary file will be stored (should be an SSD)
+        # 'fast_disk': '/home/julien/these_inmed/suite2p/suite2p_bin',  # string which specifies where the binary file will be stored (should be an SSD)
+        'fast_disk': '/Users/pappyhammer/Documents/academique/these_inmed/suite2p/suite2p_bin'
     }
 
     # run one experiment

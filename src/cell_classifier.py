@@ -277,10 +277,20 @@ def get_source_profile_to_classify(ms, buffer=None, max_width=20, max_height=20,
         # we center the source profile
         y_coord = (profile_fit.shape[0] - source_profile.shape[0]) // 2
         x_coord = (profile_fit.shape[1] - source_profile.shape[1]) // 2
-        profile_fit[y_coord:source_profile.shape[0] + y_coord, x_coord:source_profile.shape[1] + x_coord] = \
-            source_profile
-        profile_fit_masked[y_coord:source_profile.shape[0] + y_coord, x_coord:source_profile.shape[1] + x_coord] = \
-            source_profile_masked
+        start_y = y_coord if (y_coord >= 0) else 0
+        end_y = source_profile.shape[0] + y_coord if (y_coord >= 0) else max_height
+        start_x = x_coord if (x_coord >= 0) else 0
+        end_x = source_profile.shape[1] + x_coord if (x_coord >= 0) else max_width
+
+        # print(f"source_profile.shape {source_profile.shape} max: {(max_height, max_width)}")
+        src_profile_end_y = min(source_profile.shape[0], (end_y - start_y + 1))
+        src_profile_end_x = min(source_profile.shape[1], (end_x - start_x + 1))
+        src_profile_end_y = end_y - start_y
+        src_profile_end_x = end_x - start_x
+        profile_fit[start_y:end_y, start_x:end_x] = \
+            source_profile[0:src_profile_end_y, 0:src_profile_end_x]
+        profile_fit_masked[start_y:end_y, start_x:end_x] = \
+            source_profile_masked[0:src_profile_end_y, 0:src_profile_end_x]
 
         visualize_cells = False
         if visualize_cells:

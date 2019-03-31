@@ -1866,12 +1866,10 @@ def main():
     # ms_str_to_load = ["richard_015_D75_P2_ms"]
     # ms_str_to_load = ["richard_018_D32_P2_ms"]
     # ms_str_to_load = ["richard_018_D28_P2_ms"]
-    ms_str_to_load = ["richard_028_D1_P1_ms"]
+    # ms_str_to_load = ["richard_028_D1_P1_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
-    # ms_str_to_load = ["p12_171110_a000_ms"]
-
-
-
+    ms_str_to_load = ["p12_171110_a000_ms"]
+    # ms_str_to_load = ["p8_18_10_24_a005_ms"]
 
     # 256
 
@@ -1895,12 +1893,12 @@ def main():
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = False
+    just_plot_all_cells_on_map = True
     do_plot_psth_twitches = False
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
     just_do_pca_on_raster = False
-    just_display_seq_with_cell_assembly = True
+    just_display_seq_with_cell_assembly = False
 
     # for events (sce) detection
     perc_threshold = 99
@@ -1978,6 +1976,12 @@ def main():
             ms.plot_time_correlation_graph_over_twitches()
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("loko")
+            continue
+
+        if just_plot_all_cells_on_map:
+            ms.plot_all_cells_on_map()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_plot_all_cells_on_map exception")
             continue
 
         if just_display_seq_with_cell_assembly:
@@ -2158,12 +2162,6 @@ def main():
             ms.plot_raw_traces_around_each_sce_for_each_cell()
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("plot_raw_traces_around_each_sce_for_each_cell exception")
-            continue
-
-        if just_plot_all_cells_on_map:
-            ms.plot_all_cells_on_map()
-            if ms_index == len(ms_to_analyse) - 1:
-                raise Exception("just_plot_all_cells_on_map exception")
             continue
 
         if just_plot_cell_assemblies_on_map:

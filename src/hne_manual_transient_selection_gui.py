@@ -1337,13 +1337,7 @@ class ManualOnsetFrame(tk.Frame):
             for cell in np.arange(self.nb_neurons):
                 # cell contour
                 coord = self.data_and_param.ms.coord_obj.coord[cell]
-                coord = coord - 1
-                coord = coord.astype(int)
-                n_coord = len(coord[0, :])
-                xy = np.zeros((n_coord, 2))
-                for n in np.arange(n_coord):
-                    xy[n, 0] = coord[0, n]
-                    xy[n, 1] = coord[1, n]
+                xy = coord.transpose()
                 self.cell_contours[cell] = patches.Polygon(xy=xy,
                                                            fill=False, linewidth=0, facecolor="red",
                                                            edgecolor="red",
@@ -2052,13 +2046,7 @@ class ManualOnsetFrame(tk.Frame):
 
         # cell contour
         coord = self.data_and_param.ms.coord_obj.coord[cell]
-        coord = coord - 1
-        coord = coord.astype(int)
-        n_coord = len(coord[0, :])
-        xy = np.zeros((n_coord, 2))
-        for n in np.arange(n_coord):
-            xy[n, 0] = coord[0, n]
-            xy[n, 1] = coord[1, n]
+        xy = coord[cell].transpose()
         self.cell_contours[cell] = patches.Polygon(xy=xy,
                                                    fill=False, linewidth=0, facecolor="red",
                                                    edgecolor="red",
@@ -4023,7 +4011,7 @@ class ManualOnsetFrame(tk.Frame):
 
     def get_cell_new_coord_in_source(self, cell, minx, miny):
         coord = self.data_and_param.ms.coord_obj.coord[cell]
-        coord = coord - 1
+        # coord = coord - 1
         coord = coord.astype(int)
         n_coord = len(coord[0, :])
         xy = np.zeros((n_coord, 2))
@@ -4130,7 +4118,7 @@ class ManualOnsetFrame(tk.Frame):
 
             # cell contour
             coord = self.data_and_param.ms.coord_obj.coord[self.current_neuron]
-            coord = coord - 1
+            # coord = coord - 1
             coord = coord.astype(int)
             n_coord = len(coord[0, :])
             xy = np.zeros((n_coord, 2))

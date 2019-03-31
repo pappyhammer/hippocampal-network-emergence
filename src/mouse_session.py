@@ -51,6 +51,8 @@ from pattern_discovery.tools.signal import smooth_convolve
 import PIL
 from PIL import ImageSequence
 from sklearn.decomposition import PCA
+from shapely.geometry import MultiPoint
+from ScanImageTiffReader import ScanImageTiffReader
 
 
 class MouseSession:
@@ -69,6 +71,8 @@ class MouseSession:
         # raster_dur built upon the 25000 frames caiman "onsets"
         self.caiman_spike_nums_dur = None
         self.caiman_active_periods = None
+        # will be a dict, see load_suite2p_data() to know the key
+        self.suite2p_data = None
         self.traces = None
         self.raw_traces = None
         self.smooth_traces = None
@@ -593,17 +597,25 @@ class MouseSession:
     def load_tiff_movie_in_memory(self):
         if self.tif_movie_file_name is not None:
             if self.tiff_movie is None:
-                start_time = time.time()
-                im = PIL.Image.open(self.tif_movie_file_name)
-                n_frames = len(list(ImageSequence.Iterator(im)))
-                dim_x, dim_y = np.array(im).shape
-                print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
-                tiff_movie = np.zeros((n_frames, dim_x, dim_y), dtype="uint16")
-                for frame, page in enumerate(ImageSequence.Iterator(im)):
-                    tiff_movie[frame] = np.array(page)
-                stop_time = time.time()
-                print(f"Time for loading movie: "
-                      f"{np.round(stop_time - start_time, 3)} s")
+                using_scan_image_tiff = True
+                if using_scan_image_tiff:
+                    start_time = time.time()
+                    tiff_movie = ScanImageTiffReader(self.tif_movie_file_name).data()
+                    stop_time = time.time()
+                    print(f"Time for loading movie with scan_image_tiff: "
+                          f"{np.round(stop_time - start_time, 3)} s")
+                else:
+                    start_time = time.time()
+                    im = PIL.Image.open(self.tif_movie_file_name)
+                    n_frames = len(list(ImageSequence.Iterator(im)))
+                    dim_x, dim_y = np.array(im).shape
+                    print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
+                    tiff_movie = np.zeros((n_frames, dim_x, dim_y), dtype="uint16")
+                    for frame, page in enumerate(ImageSequence.Iterator(im)):
+                        tiff_movie[frame] = np.array(page)
+                    stop_time = time.time()
+                    print(f"Time for loading movie: "
+                          f"{np.round(stop_time - start_time, 3)} s")
 
                 self.tiff_movie = tiff_movie
 
@@ -613,7 +625,7 @@ class MouseSession:
         raw_traces = np.zeros((self.coord_obj.n_cells, self.tiff_movie.shape[0]))
         for cell in np.arange(self.coord_obj.n_cells):
             mask = self.coord_obj.get_cell_mask(cell=cell,
-                                         dimensions=(self.tiff_movie.shape[1], self.tiff_movie.shape[2]))
+                                         dimensions=(self.tiff_movie.shape[2], self.tiff_movie.shape[1]))
             raw_traces[cell, :] = np.mean(self.tiff_movie[:, mask], axis=1)
         return raw_traces
 
@@ -1885,6 +1897,105 @@ class MouseSession:
 
         for inter_neuron in inter_neurons:
             self.plot_connectivity_maps_of_a_cell(cell_to_map=inter_neuron, cell_descr="inter_neuron")
+
+    def load_suite2p_data(self, data_path, with_coord=False):
+        self.suite2p_data = dict()
+        f = np.load(os.path.join(self.param.path_data, data_path, 'F.npy'))
+        self.suite2p_data["F"] = f
+        f_neu = np.load(os.path.join(self.param.path_data, data_path,  'Fneu.npy'))
+        self.suite2p_data["Fneu"] = f_neu
+        spks = np.load(os.path.join(self.param.path_data, data_path,  'spks.npy'))
+        self.suite2p_data["spks"] = spks
+        # print(f"spks.shape {spks}")
+        stat = np.load(os.path.join(self.param.path_data, data_path,  'stat.npy'))
+        self.suite2p_data["stat"] = stat
+        # print(f"len(stat) {len(stat)}")
+        # stat = stat[0]
+        ops = np.load(os.path.join(self.param.path_data, data_path,  'ops.npy'))
+        ops = ops.item()
+        self.suite2p_data["ops"] = ops
+        is_cell = np.load(os.path.join(self.param.path_data, data_path,  'iscell.npy'))
+        self.suite2p_data["is_cell"] = is_cell
+        # print(f"len(is_cell) {len(is_cell)}")
+
+        # print(f"stat.keys() {list(stat.keys())}")
+        # print(f"stat['lam'] {len(stat['lam'])}: {stat['lam']}")
+        # print(f"stat['lam'] : {stat['footprint']}")
+
+        use_first_version = False
+        if use_first_version:
+            coord = []
+            for cell in np.arange(len(stat)):
+                # print(f"is_cell[cell] {is_cell[cell]}")
+                if is_cell[cell][0] == 0:
+                    continue
+                x_list = []
+                y_list = []
+                npx = stat[cell]["npix"]
+                x_unique = np.unique(stat[cell]["xpix"])
+                y_unique = np.unique(stat[cell]["ypix"])
+                indices_selected = []
+                for x in x_unique:
+                    x_indices = np.where(stat[cell]["xpix"] == x)[0]
+                    y_pos = stat[cell]["ypix"][x_indices]
+                    index_max = x_indices[np.argmax(y_pos)]
+                    indices_selected.append(index_max)
+                    x_list.append(stat[cell]["xpix"][index_max])
+                    y_list.append(stat[cell]["ypix"][index_max])
+                    index_min = x_indices[np.argmin(y_pos)]
+                    if index_min != index_max:
+                        indices_selected.append(index_min)
+                        x_list.append(stat[cell]["xpix"][index_min])
+                        y_list.append(stat[cell]["ypix"][index_min])
+
+                for y in y_unique:
+                    y_indices = np.where(stat[cell]["ypix"] == y)[0]
+                    x_pos = stat[cell]["xpix"][y_indices]
+                    index_max = y_indices[np.argmax(x_pos)]
+                    # indices_selected.append(index_max)
+                    if index_max not in indices_selected:
+                        indices_selected.append(index_max)
+                        y_list.append(stat[cell]["ypix"][index_max])
+                        x_list.append(stat[cell]["xpix"][index_max])
+                    index_min = y_indices[np.argmin(x_pos)]
+                    if (index_min not in indices_selected) and (index_min != index_max):
+                        indices_selected.append(index_max)
+                        # indices_selected.append(index_min)
+                        y_list.append(stat[cell]["ypix"][index_min])
+                        x_list.append(stat[cell]["xpix"][index_min])
+                coord_vector = np.zeros((2, len(x_list)), dtype="int16")
+                coord_vector[0] = np.array(x_list)
+                coord_vector[1] = np.array(y_list)
+                coord.append(coord_vector)
+        else:
+            coord = []
+            for cell in np.arange(len(stat)):
+                if is_cell[cell][0] == 0:
+                    continue
+                list_points_coord = [(x, y) for x, y in zip(stat[cell]["xpix"], stat[cell]["ypix"])]
+                coord_shapely = MultiPoint(list_points_coord).convex_hull.exterior.coords
+                coord.append(np.array(coord_shapely).transpose())
+        self.suite2p_data["coord"] = coord
+        if with_coord:
+            self.coord = coord
+            print(f"self.coord len: {len(self.coord)}")
+            self.coord_obj = CoordClass(coord=self.coord, nb_col=200,
+                                        nb_lines=200, from_suite_2p=True)
+        else:
+            # test trying to findout to which caiman cell those cells correspond
+            suite2p_coord_obj = CoordClass(coord=coord, nb_col=200,
+                                   nb_lines=200, from_suite_2p=True)
+            # for each suite2p cell, will give the estimate of the caiman cell index, will put -1 if no cell is found
+            caiman_suite2p_mapping = self.coord_obj.match_cells_indices(suite2p_coord_obj, param=self.param,
+                                                                        plot_title_opt=f"{self.description}_suite2p_vs_caiman")
+            np.save(os.path.join(self.param.path_results, f"{self.description}_suite2p_vs_caiman.npy"),
+            caiman_suite2p_mapping)
+            # {self.param.path_results}/
+            # self.raw_traces = f
+        # print(f"stat['ypix'] {len(stat['ypix'])}: {stat['ypix']}")
+        # print(f"stat['xpix'] {len(stat['xpix'])}: {stat['xpix']}")
+        # print(f"stat['npix'] {stat['npix']}")
+        # raise Exception("suite2p loaded")
 
     def plot_connectivity_maps_of_a_cell(self, cell_to_map, cell_descr, not_in=False,
                                          cell_color="red", links_cell_color="cornflowerblue"):

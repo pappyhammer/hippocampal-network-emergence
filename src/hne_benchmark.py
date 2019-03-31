@@ -1018,6 +1018,10 @@ def main_benchmark():
         data_dict["caiman_raw"]["trace_var_name"] = "C_df"
         # "p12_17_11_10_a000_caiman_raster_dur_JD_version.mat"
 
+        data_dict["suite2p_raw"] = dict()
+        data_dict["suite2p_raw"]["path"] = "p12/p12_17_11_10_a000/suite2p/"
+        data_dict["suite2p_raw"]["caiman_suite2p_mapping"] = "P12_17_11_10_a000_suite2p_vs_caiman.npy"
+
         # data_dict["caiman_jd"] = dict()
         # data_dict["caiman_jd"]["path"] = "p12/p12_17_11_10_a000"
         # data_dict["caiman_jd"]["file_name"] = "p12_17_11_10_a000_caiman_raster_dur_JD_version.mat"
@@ -1265,6 +1269,10 @@ def main_benchmark():
         data_dict["caiman_raw"]["trace_file_name"] = "p8_18_10_24_a005_Traces.mat"
         data_dict["caiman_raw"]["trace_var_name"] = "C_df"
 
+        data_dict["suite2p_raw"] = dict()
+        data_dict["suite2p_raw"]["path"] = "p8/p8_18_10_24_a005/suite2p/"
+        data_dict["suite2p_raw"]["caiman_suite2p_mapping"] = "P8_18_10_24_a005_suite2p_vs_caiman.npy"
+
         # data_dict["caiman_filt"] = dict()
         # data_dict["caiman_filt"]["path"] = "p8/p8_18_10_24_a005"
         # data_dict["caiman_filt"]["file_name"] = "p8_18_10_24_a005_filt_RasterDur.mat"
@@ -1336,6 +1344,20 @@ def main_benchmark():
     for key, value in data_dict.items():
         if key == "gt":
             continue
+        if key == "suite2p_raw":
+            spks = np.load(os.path.join(path_data, value["path"], 'spks.npy'))
+            caiman_suite2p_mapping = np.load(os.path.join(path_data, value["path"], value["caiman_suite2p_mapping"]))
+            suite2p_raster_dur = np.zeros((n_cells, n_frames), dtype="int8")
+            for cell in np.arange(len(spks)):
+                if caiman_suite2p_mapping[cell] >= 0:
+                    map_cell = caiman_suite2p_mapping[cell]
+                    # using deconvolution value, cell is active if value > 0
+                    # TODO: see to use a threshold superior than 0
+                    suite2p_raster_dur[map_cell, spks[cell] > 0] = 1
+            for cell in cells_for_benchmark:
+                if cell not in caiman_suite2p_mapping:
+                    print(f"Cell {cell} has no match in suite2p segmentation")
+            predicted_raster_dur_dict[key] = suite2p_raster_dur
         if key == "rnn" and ("prediction_threshold" in value):
             data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name"]))
             rnn_raster_dur = \
