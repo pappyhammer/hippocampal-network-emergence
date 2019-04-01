@@ -541,6 +541,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # 6.4
         p8_18_10_24_a005_ms = MouseSession(age=8, session_id="18_10_24_a005", nb_ms_by_frame=100, param=param,
                                            weight=6.4)
+        # if True will not use the coord from suite2p, if False, will just load the info concerning suite2p in
+        # if the dict suit2p_data in mouse_session
         try_suite_2p = False
         # calculated with 99th percentile on raster dur
         # p8_18_10_24_a005_ms.activity_threshold = 9

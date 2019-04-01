@@ -1868,8 +1868,8 @@ def main():
     # ms_str_to_load = ["richard_018_D28_P2_ms"]
     # ms_str_to_load = ["richard_028_D1_P1_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
-    ms_str_to_load = ["p12_171110_a000_ms"]
-    # ms_str_to_load = ["p8_18_10_24_a005_ms"]
+    # ms_str_to_load = ["p12_171110_a000_ms"]
+    ms_str_to_load = ["p8_18_10_24_a005_ms"]
 
     # 256
 

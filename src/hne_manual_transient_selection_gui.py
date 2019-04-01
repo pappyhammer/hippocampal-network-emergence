@@ -2046,7 +2046,7 @@ class ManualOnsetFrame(tk.Frame):
 
         # cell contour
         coord = self.data_and_param.ms.coord_obj.coord[cell]
-        xy = coord[cell].transpose()
+        xy = coord.transpose()
         self.cell_contours[cell] = patches.Polygon(xy=xy,
                                                    fill=False, linewidth=0, facecolor="red",
                                                    edgecolor="red",

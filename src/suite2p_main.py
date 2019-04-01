@@ -31,7 +31,7 @@ def main():
             'batch_size': 200, # number of frames per batch
             'maxregshift': 0.1, # max allowed registration shift, as a fraction of frame max(width and height)
             'align_by_chan' : 1, # when multi-channel, you can align by non-functional channel (1-based)
-            'reg_tif': False, # whether to save registered tiffs
+            'reg_tif': True, # whether to save registered tiffs
             'subpixel' : 10, # precision of subpixel registration (1/subpixel steps)
             # cell detection settings
             'connected': True, # whether or not to keep ROIs fully connected (set to 0 for dendrites)
@@ -41,9 +41,9 @@ def main():
             'ratio_neuropil': 6., # ratio between neuropil basis size and cell radius
             'ratio_neuropil_to_cell': 3, # minimum ratio between neuropil radius and cell radius
             'tile_factor': 1., # use finer (>1) or coarser (<1) tiles for neuropil estimation during cell detection
-            # TODO: Try to lower the treshold to get more ROI
-            'threshold_scaling': 1., # adjust the automatically determined threshold by this scalar multiplier
-            'max_overlap': 0.80, # cells with more overlap than this get removed during triage, before refinement
+            # TODO: Try to lower the threshold to get more ROI
+            'threshold_scaling': 0.8, # adjust the automatically determined threshold by this scalar multiplier
+            'max_overlap': 0.70, # cells with more overlap than this get removed during triage, before refinement
             'inner_neuropil_radius': 2, # number of pixels to keep between ROI and neuropil donut
             'outer_neuropil_radius': np.inf, # maximum neuropil radius
             'min_neuropil_pixels': 300, # minimum number of pixels in the neuropil
@@ -58,16 +58,17 @@ def main():
     # provide an h5 path in 'h5py' or a tiff path in 'data_path'
     # db overwrites any ops (allows for experiment specific settings)
     db = {
-        'h5py': '/Users/pappyhammer/Documents/academique/these_inmed/suite2p/suite2p_tiffs/p8.h5',  # a single h5 file path
-        'h5py_key': 'data',
+        # 'h5py': '/Users/pappyhammer/Documents/academique/these_inmed/suite2p/suite2p_tiffs/p8.h5',  # a single h5 file path
+        'h5py': '/home/julien/these_inmed/suite2p/suite2p_tiffs/p8_a005.h5',
+            'h5py_key': 'data',
         'look_one_level_down': False,  # whether to look in ALL subfolders when searching for tiffs
         # 'data_path': ['/home/julien/these_inmed/suite2p/suite2p_tiffs'],  # a list of folders with tiffs
         # 'data_path': ['/Users/pappyhammer/Documents/academique/these_inmed/suite2p/suite2p_tiffs'],
         # (or folder of folders with tiffs if look_one_level_down is True, or subfolders is not empty)
 
         'subfolders': [],  # choose subfolders of 'data_path' to look in (optional)
-        # 'fast_disk': '/home/julien/these_inmed/suite2p/suite2p_bin',  # string which specifies where the binary file will be stored (should be an SSD)
-        'fast_disk': '/Users/pappyhammer/Documents/academique/these_inmed/suite2p/suite2p_bin'
+        'fast_disk': '/home/julien/these_inmed/suite2p/suite2p_bin',  # string which specifies where the binary file will be stored (should be an SSD)
+        # 'fast_disk': '/Users/pappyhammer/Documents/academique/these_inmed/suite2p/suite2p_bin'
     }
 
     # run one experiment
