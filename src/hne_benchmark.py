@@ -693,12 +693,15 @@ def build_raster_dur_from_predictions(predictions, predictions_threshold, cells,
 
 def plot_roc_predictions(ground_truth_raster_dur, rnn_predictions, cells,
                          path_results, description, time_str,
-                         save_formats):
+                         save_formats, for_suite2p=False):
     n_frames = ground_truth_raster_dur.shape[1]
     n_cells = ground_truth_raster_dur.shape[0]
     sensitivity_values = []
     specificity_values = []
-    threshold_values = np.arange(0, 1.05, 0.05)
+    if for_suite2p:
+        threshold_values = np.arange(0, np.max(rnn_predictions)+2, 5)
+    else:
+        threshold_values = np.arange(0, 1.05, 0.05)
 
     for predictions_threshold in threshold_values:
         # building the raster_dur
@@ -842,14 +845,15 @@ def main_benchmark():
         return
 
     # ########### options ###################
-    # ms_to_benchmark = "p12_17_11_10_a000"
+    ms_to_benchmark = "p12_17_11_10_a000"
     # ms_to_benchmark = "p7_17_10_12_a000"
     # ms_to_benchmark = "p13_18_10_29_a001_ms"
     # ms_to_benchmark = "p8_18_10_24_a005_ms"
-    ms_to_benchmark = "p8_18_10_24_a006_ms"
+    # ms_to_benchmark = "p8_18_10_24_a006_ms"
     # ms_to_benchmark = "artificial_ms"
     do_onsets_benchmarks = False
     do_plot_roc_predictions = False
+    do_plot_roc_predictions_for_suite_2p = False
     # ########### end options ###################
 
     data_dict = dict()
@@ -1021,6 +1025,7 @@ def main_benchmark():
         data_dict["suite2p_raw"] = dict()
         data_dict["suite2p_raw"]["path"] = "p12/p12_17_11_10_a000/suite2p/"
         data_dict["suite2p_raw"]["caiman_suite2p_mapping"] = "P12_17_11_10_a000_suite2p_vs_caiman.npy"
+        data_dict["suite2p_raw"]["threshold"] = 120 # 50
 
         # data_dict["caiman_jd"] = dict()
         # data_dict["caiman_jd"]["path"] = "p12/p12_17_11_10_a000"
@@ -1147,7 +1152,6 @@ def main_benchmark():
         data_dict["gt"]["cells"] = np.arange(118)
         # data_dict["gt"]["cells_to_remove"] = np.array([52, 75])
 
-
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p7/p7_17_10_12_a000"
         data_dict["rnn"]["trace_file_name"] = "p7_17_10_12_a000_Traces.mat"
@@ -1272,6 +1276,7 @@ def main_benchmark():
         data_dict["suite2p_raw"] = dict()
         data_dict["suite2p_raw"]["path"] = "p8/p8_18_10_24_a005/suite2p/"
         data_dict["suite2p_raw"]["caiman_suite2p_mapping"] = "P8_18_10_24_a005_suite2p_vs_caiman.npy"
+        data_dict["suite2p_raw"]["threshold"] = 70 #  try 30
 
         # data_dict["caiman_filt"] = dict()
         # data_dict["caiman_filt"]["path"] = "p8/p8_18_10_24_a005"
@@ -1337,6 +1342,36 @@ def main_benchmark():
                              path_results=path_results, save_formats="pdf")
         return
 
+    if do_plot_roc_predictions_for_suite_2p:
+        if "suite2p_raw" in data_dict:
+            value = data_dict["suite2p_raw"]
+            spks = np.load(os.path.join(path_data, value["path"], 'spks.npy'))
+            is_cell = np.load(os.path.join(path_data, value["path"], 'iscell.npy'))
+            caiman_suite2p_mapping = np.load(os.path.join(path_data, value["path"], value["caiman_suite2p_mapping"]))
+            suite2p_predictions = np.zeros((n_cells, n_frames))
+            cell_mapping_index = 0
+            for cell in np.arange(len(spks)):
+                if is_cell[cell][0] == 0:
+                    continue
+                if caiman_suite2p_mapping[cell_mapping_index] >= 0:
+                    map_cell = caiman_suite2p_mapping[cell_mapping_index]
+                    # using deconvolution value, cell is active if value > 0
+                    # TODO: see to use a threshold superior than 0
+                    suite2p_predictions[map_cell] = spks[cell]
+                cell_mapping_index += 1
+            cells_to_keep = []
+            for cell in cells_for_benchmark:
+                if cell not in caiman_suite2p_mapping:
+                    print(f"Cell {cell} has no match in suite2p segmentation")
+                else:
+                    cells_to_keep.append(cell)
+            cells_for_benchmark = np.array(cells_to_keep)
+            plot_roc_predictions(ground_truth_raster_dur=ground_truth_raster_dur, rnn_predictions=suite2p_predictions,
+                                 cells=cells_for_benchmark,
+                                 time_str=time_str, description=ms_to_benchmark + "_suite2p",
+                                 path_results=path_results, save_formats="pdf", for_suite2p=True)
+        return
+
     predicted_raster_dur_dict = dict()
     predicted_spike_nums_dict = dict()
     traces = None
@@ -1346,19 +1381,28 @@ def main_benchmark():
             continue
         if key == "suite2p_raw":
             spks = np.load(os.path.join(path_data, value["path"], 'spks.npy'))
+            is_cell = np.load(os.path.join(path_data, value["path"], 'iscell.npy'))
             caiman_suite2p_mapping = np.load(os.path.join(path_data, value["path"], value["caiman_suite2p_mapping"]))
             suite2p_raster_dur = np.zeros((n_cells, n_frames), dtype="int8")
+            cell_mapping_index = 0
+            threshold = value["threshold"]
             for cell in np.arange(len(spks)):
-                if caiman_suite2p_mapping[cell] >= 0:
-                    map_cell = caiman_suite2p_mapping[cell]
+                if is_cell[cell][0] == 0:
+                    continue
+                if caiman_suite2p_mapping[cell_mapping_index] >= 0:
+                    map_cell = caiman_suite2p_mapping[cell_mapping_index]
                     # using deconvolution value, cell is active if value > 0
-                    # TODO: see to use a threshold superior than 0
-                    suite2p_raster_dur[map_cell, spks[cell] > 0] = 1
+                    suite2p_raster_dur[map_cell, spks[cell] > threshold] = 1
+                cell_mapping_index += 1
+            cells_to_keep = []
             for cell in cells_for_benchmark:
                 if cell not in caiman_suite2p_mapping:
                     print(f"Cell {cell} has no match in suite2p segmentation")
+                else:
+                    cells_to_keep.append(cell)
+            cells_for_benchmark = np.array(cells_to_keep)
             predicted_raster_dur_dict[key] = suite2p_raster_dur
-        if key == "rnn" and ("prediction_threshold" in value):
+        elif key == "rnn" and ("prediction_threshold" in value):
             data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name"]))
             rnn_raster_dur = \
                 build_raster_dur_from_predictions(predictions=data_file[value["predictions"]],

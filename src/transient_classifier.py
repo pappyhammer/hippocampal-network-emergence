@@ -2633,9 +2633,9 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         #                       "p11_17_11_24_a000_ms": np.array([3, 22, 24, 29])} # 3, 6
         # ms_to_use = ["artificial_ms_1", "p8_18_10_24_a006_ms"]
         # cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 14, 27, 40]),
-        #                       "p8_18_10_24_a006_ms": np.array([0, 1])}  # 3, 6
+        #                       "p8_18_10_24_a006_ms": np.array([0, 1])}
         ms_to_use = ["p8_18_10_24_a006_ms"]
-        cell_to_load_by_ms = {"p8_18_10_24_a006_ms": np.array([0, 1])}  # 3, 6
+        cell_to_load_by_ms = {"p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 10, 11])}
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
@@ -3535,7 +3535,7 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         transients_prediction_from_movie(ms_to_use=["p8_18_10_24_a006_ms"], param=param, overlap_value=0.9,
@@ -3578,7 +3578,7 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 20
+    n_epochs = 40
     batch_size = 16
     window_len = 50
     max_width = 25
@@ -3611,7 +3611,7 @@ def train_model():
     apply_attention_before_lstm = True
     use_single_attention_vector = False
     with_early_stopping = True
-    early_stop_patience = 10  # 10
+    early_stop_patience = 20  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed

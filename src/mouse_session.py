@@ -597,7 +597,7 @@ class MouseSession:
     def load_tiff_movie_in_memory(self):
         if self.tif_movie_file_name is not None:
             if self.tiff_movie is None:
-                using_scan_image_tiff = True
+                using_scan_image_tiff = False
                 if using_scan_image_tiff:
                     start_time = time.time()
                     tiff_movie = ScanImageTiffReader(self.tif_movie_file_name).data()
