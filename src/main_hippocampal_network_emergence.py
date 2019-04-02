@@ -850,7 +850,7 @@ def correlate_global_roi_and_shift(path_data, param):
         # print(f"dirnames_to_walk {dirnames_to_walk}")
         for dirname_to_walk in dirnames_to_walk:
             for (dir_path, dir_names, local_filenames) in os.walk(os.path.join(dirpath, dirname_to_walk)):
-                if dir_path[-1] == "/":
+                if (dir_path[-1] == "/") or (dir_path[-1] == "\\"):
                     dir_path = dir_path[:-1]
                 try:
                     index_slash = dir_path[::-1].index("/")
