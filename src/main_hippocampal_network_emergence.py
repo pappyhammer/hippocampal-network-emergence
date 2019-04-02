@@ -54,6 +54,7 @@ import networkx as nxfrom
 from articifical_movie_patch_generator import produce_movie
 import articifical_movie_patch_generator as art_movie_gen
 from ScanImageTiffReader import ScanImageTiffReader
+from pattern_discovery.tools.signal import smooth_convolve
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -897,7 +898,7 @@ def correlate_global_roi_and_shift(path_data, param):
             del tiff_movie
 
     corr_by_age = dict()
-
+    corr_by_age_bin = dict()
     # now we produce 2 subplots to plot the mvt and roi value of each session
     for value in data_dict.values():
         roi = value["roi"]
@@ -910,11 +911,56 @@ def correlate_global_roi_and_shift(path_data, param):
         mvt = (mvt - np.mean(mvt)) / np.std(mvt)
         mvt = mvt - np.abs(np.min(roi)) - np.max(mvt)
 
-        rho, p = scipy_stats.pearsonr(roi, mvt)
-        print(f"{value['id']} rho {str(np.round(rho, 3))}, p {p}")
+
         if value["age"] not in corr_by_age:
             corr_by_age[value["age"]] = []
+
+        if value["age"] not in corr_by_age_bin:
+            corr_by_age_bin[value["age"]] = []
+
+        rho, p = scipy_stats.pearsonr(roi, mvt)
+        print(f"{value['id']} rho {str(np.round(rho, 3))}, p {p}")
         corr_by_age[value["age"]].append(rho)
+
+        bin_size = 100
+        roi_bin = roi.reshape((len(roi)//bin_size, bin_size)).sum(axis=1)
+        mvt_bin = mvt.reshape((len(mvt)//bin_size, bin_size)).sum(axis=1)
+        rho_bin, p_bin = scipy_stats.pearsonr(roi_bin, mvt_bin)
+        print(f"{value['id']} rho_bin {str(np.round(rho_bin, 3))}, p_bin {p_bin}")
+        corr_by_age_bin[value["age"]].append(rho_bin)
+
+        rho_bin, p_bin = scipy_stats.spearmanr(roi_bin, mvt_bin)
+        print(f"{value['id']} rho_bin {str(np.round(rho_bin, 3))}, p_bin {p_bin}")
+
+        windows = ['hanning', 'hamming', 'bartlett', 'blackman']
+        i_w = 1
+        window_length = 11
+        beg = (window_length - 1) // 2
+
+        # smooth_roi = smooth_convolve(x=roi, window_len=window_length,
+        #                                     window=windows[i_w])
+        # smooth_roi = smooth_roi[beg:-beg]
+        #
+        # smooth_mvt = smooth_convolve(x=mvt, window_len=window_length,
+        #                              window=windows[i_w])
+        # smooth_mvt = smooth_mvt[beg:-beg]
+
+        # rho_smooth, p_smooth = scipy_stats.pearsonr(smooth_roi, smooth_mvt)
+        # print(f"{value['id']} rho_smooth {str(np.round(rho_smooth, 3))}, p_smooth {p_smooth}")
+
+        # rho_diff, p_diff = scipy_stats.pearsonr(np.diff(roi), np.diff(mvt))
+        # print(f"{value['id']} rho_diff {str(np.round(rho_diff, 3))}, p_diff {p_diff}")
+
+
+        # roi_filter = np.copy(roi)
+        # roi_filter[roi_filter < np.mean(roi)] = np.min(roi)
+        # roi_filter[roi_filter >= np.mean(roi)] = np.max(roi)
+        # mvt_filter = np.copy(mvt)
+        # mvt_filter[mvt_filter < np.mean(mvt)] = np.min(mvt)
+        # mvt_filter[mvt_filter >= np.mean(mvt)] = np.max(mvt)
+        #
+        # rho_filter, p_filter = scipy_stats.pearsonr(roi_filter, mvt_filter)
+        # print(f"{value['id']} rho_filter {str(np.round(rho_filter, 3))}, p_filter {p_filter}")
 
         n_frames = len(roi)
 
@@ -923,7 +969,7 @@ def correlate_global_roi_and_shift(path_data, param):
                                 figsize=(15, 5))
 
         ax1.set_facecolor("black")
-
+        
         ax1.plot(np.arange(n_frames), roi, color="cornflowerblue", lw=1, label=f"ROI", zorder=10)
         ax1.plot(np.arange(n_frames), mvt, color="red", lw=1, label=f"SHIFT", zorder=10)
         min_value = np.min(mvt)
@@ -961,6 +1007,35 @@ def correlate_global_roi_and_shift(path_data, param):
                         format=f"{save_format}")
         plt.close()
 
+        # then we plot the correlation graph
+        fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex='col',
+                                gridspec_kw={'height_ratios': [1], 'width_ratios': [1]},
+                                figsize=(10, 10))
+
+        ax1.set_facecolor("black")
+
+        ax1.scatter(roi, mvt,
+                    marker='o', c="white",
+                    edgecolors="cornflowerblue", s=10,
+                    zorder=10)
+
+        # ax1.set_xticks(ages)
+        # # sce clusters labels
+        # ax1.set_xticklabels(ages)
+
+        ax1.set_xlabel("roi")
+        ax1.set_ylabel("shift")
+
+        save_formats = ["pdf"]
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+        for save_format in save_formats:
+            fig.savefig(f'{param.path_results}/roi_vs_shift_plot_{value["id"]}'
+                        f'_{param.time_str}.{save_format}',
+                        format=f"{save_format}")
+        plt.close()
+
+    # scatter plot with correlation non binarised
     ages = np.array(list(corr_by_age.keys()))
     ages.sort()
     rhos = np.zeros(len(ages))
@@ -1001,6 +1076,87 @@ def correlate_global_roi_and_shift(path_data, param):
                     format=f"{save_format}")
     plt.close()
 
+    # scatter plot with correlation non binarised
+    ages = np.array(list(corr_by_age.keys()))
+    ages.sort()
+    rhos = np.zeros(len(ages))
+    stds = np.zeros(len(ages))
+    for age_index, age in enumerate(ages):
+        rhos[age_index] = np.mean(corr_by_age[age])
+        if len(corr_by_age[age]) > 1:
+            stds[age_index] = np.std(corr_by_age[age])
+    # then we plot the correlation graph
+    fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex='col',
+                            gridspec_kw={'height_ratios': [1], 'width_ratios': [1]},
+                            figsize=(10, 10))
+
+    ax1.set_facecolor("black")
+
+    ax1.errorbar(ages, rhos, stds, marker='o', markeredgecolor="blue",
+                 markerfacecolor="white", markersize=10, ecolor="cornflowerblue", linestyle="-",
+                 color="white",
+                 linewidth="1",
+                 zorder=10)
+
+    ax1.set_xticks(ages)
+    # sce clusters labels
+    ax1.set_xticklabels(ages)
+    # ax1.scatter(ages, rhos, marker='o', c="white",
+    #             edgecolors="blue", s=30,
+    #             zorder=10)
+
+    ax1.set_xlabel("age")
+    ax1.set_ylabel("rho")
+
+    save_formats = ["pdf"]
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/roi_vs_shift_corr_by_age'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}")
+    plt.close()
+
+    # scatter plot with correlation binarised
+    ages = np.array(list(corr_by_age_bin.keys()))
+    ages.sort()
+    rhos = np.zeros(len(ages))
+    stds = np.zeros(len(ages))
+    for age_index, age in enumerate(ages):
+        rhos[age_index] = np.mean(corr_by_age_bin[age])
+        if len(corr_by_age_bin[age]) > 1:
+            stds[age_index] = np.std(corr_by_age_bin[age])
+    # then we plot the correlation graph
+    fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex='col',
+                            gridspec_kw={'height_ratios': [1], 'width_ratios': [1]},
+                            figsize=(10, 10))
+
+    ax1.set_facecolor("black")
+
+    ax1.errorbar(ages, rhos, stds, marker='o', markeredgecolor="blue",
+                 markerfacecolor="white", markersize=10, ecolor="cornflowerblue", linestyle="-",
+                 color="white",
+                 linewidth="1",
+                 zorder=10)
+
+    ax1.set_xticks(ages)
+    # sce clusters labels
+    ax1.set_xticklabels(ages)
+    # ax1.scatter(ages, rhos, marker='o', c="white",
+    #             edgecolors="blue", s=30,
+    #             zorder=10)
+
+    ax1.set_xlabel("age")
+    ax1.set_ylabel("rho")
+
+    save_formats = ["pdf"]
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/roi_vs_shift_corr_by_age_bin'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}")
+    plt.close()
 
 def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap_gradient", cmap_name="Reds",
                                        scale_scatter=False, use_different_shapes_for_stat=False,
