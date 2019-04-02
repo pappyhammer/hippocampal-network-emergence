@@ -852,7 +852,10 @@ def correlate_global_roi_and_shift(path_data, param):
             for (dir_path, dir_names, local_filenames) in os.walk(os.path.join(dirpath, dirname_to_walk)):
                 if dir_path[-1] == "/":
                     dir_path = dir_path[:-1]
-                index_slash = dir_path[::-1].index("/")
+                try:
+                    index_slash = dir_path[::-1].index("/")
+                except ValueError:
+                    index_slash = dir_path[::-1].index("\\")
                 parent_dir = dir_path[-index_slash:]
                 if parent_dir[0].lower() != "p" or (len(parent_dir) < 4):
                     continue
