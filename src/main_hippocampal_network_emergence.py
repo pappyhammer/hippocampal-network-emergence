@@ -850,13 +850,7 @@ def correlate_global_roi_and_shift(path_data, param):
         # print(f"dirnames_to_walk {dirnames_to_walk}")
         for dirname_to_walk in dirnames_to_walk:
             for (dir_path, dir_names, local_filenames) in os.walk(os.path.join(dirpath, dirname_to_walk)):
-                if (dir_path[-1] == "/") or (dir_path[-1] == "\\"):
-                    dir_path = dir_path[:-1]
-                try:
-                    index_slash = dir_path[::-1].index("/")
-                except ValueError:
-                    index_slash = dir_path[::-1].index("\\")
-                parent_dir = dir_path[-index_slash:]
+                parent_dir = os.path.split(dir_path)[1]
                 if parent_dir[0].lower() != "p" or (len(parent_dir) < 4):
                     continue
                 # looking for files only in dir starting by p and with name length superior to 3
