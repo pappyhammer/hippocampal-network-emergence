@@ -936,6 +936,10 @@ def correlate_global_roi_and_shift(path_data, param):
         mvt = (mvt - np.mean(mvt)) / np.std(mvt)
         mvt = mvt - np.abs(np.min(roi)) - np.max(mvt)
 
+        rho, p = scipy_stats.pearsonr(roi, mvt)
+
+        if np.isnan(rho):
+            continue
 
         if value["age"] not in corr_by_age:
             corr_by_age[value["age"]] = []
@@ -943,7 +947,6 @@ def correlate_global_roi_and_shift(path_data, param):
         if value["age"] not in corr_by_age_bin:
             corr_by_age_bin[value["age"]] = []
 
-        rho, p = scipy_stats.pearsonr(roi, mvt)
         print(f"{value['id']} rho {str(np.round(rho, 3))}, p {p}")
         corr_by_age[value["age"]].append(rho)
 
