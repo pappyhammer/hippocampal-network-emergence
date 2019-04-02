@@ -3,6 +3,8 @@ import pandas as pd
 from sklearn.cluster import KMeans
 import matplotlib
 import matplotlib.cm as cm
+import scipy.io as sio
+import scipy.stats as scipy_stats
 import matplotlib.gridspec as gridspec
 import seaborn as sns
 from bisect import bisect
@@ -42,6 +44,7 @@ from pattern_discovery.clustering.fca.fca import compute_and_plot_clusters_raste
 from pattern_discovery.graph.force_directed_graphs import plot_graph_using_fa2
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
+import time
 from scipy import stats
 from mouse_session import MouseSession
 from hne_parameters import HNEParameters
@@ -50,6 +53,7 @@ from mouse_session_loader import load_mouse_sessions
 import networkx as nxfrom
 from articifical_movie_patch_generator import produce_movie
 import articifical_movie_patch_generator as art_movie_gen
+from ScanImageTiffReader import ScanImageTiffReader
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -826,6 +830,178 @@ def plot_hist_ratio_spikes_events(ratio_spikes_events, description, values_to_sc
     plt.close()
 
 
+def correlate_global_roi_and_shift(path_data, param):
+    if not os.path.isdir(path_data):
+        return
+
+    # each key corresponds to the name of directory containing the files
+    data_dict = {}
+    i = 0
+    for (dirpath, dirnames, local_filenames) in os.walk(path_data):
+        # print(f"dirpath {dirpath}")
+        # print(f"dirnames {dirnames}")
+        if i == 0:
+            # it means we are in the top directory
+            for index_dir_name, dir_name in enumerate(dirnames):
+                index_dir_name += 1
+                if dir_name[0].lower() != "p":
+                    print(f"directory with name not starting by the letter p: {dir_name}")
+                    return
+                data_dict[index_dir_name] = dict()
+                data_dict[index_dir_name]["id"] = dir_name
+                try:
+                    index_ = dir_name.index("_")
+                    if (index_ < 2) or (index_ > 3):
+                        print(f"directory name not in the right format: {dir_name}")
+                    age = int(dir_name[1:index_])
+                except ValueError:
+                    print(f"no '_' in directory name: {dir_name}")
+                    return
+                # print(f"age {age}")
+                data_dict[index_dir_name]["age"] = age
+            if len(data_dict) == 0:
+                print("No directory found")
+                return
+            i += 1
+            continue
+        data_dict[i]["dirpath"] = dirpath
+        for file_name in local_filenames:
+            if file_name.startswith("."):
+                continue
+            if file_name.endswith(".mat"):
+                if "roi" in file_name.lower():
+                    roi_array = hdf5storage.loadmat(os.path.join(dirpath, file_name))
+                    data_dict[i]["roi"] = roi_array["roi"][0]
+                else:
+                    mvt_x_y = hdf5storage.loadmat(os.path.join(dirpath, file_name))
+                    data_dict[i]["xshifts"] = mvt_x_y['xshifts'][0]
+                    data_dict[i]["yshifts"] = mvt_x_y['yshifts'][0]
+            if file_name.endswith(".tif") or file_name.endswith(".tiff"):
+                data_dict[i]["tiff_file"] = file_name
+        i += 1
+
+    # loading movie and calculating the global roi if not done previously
+    for key, value in data_dict.items():
+        if "roi" not in value:
+            # then we load the movie, measure to global roi, put it in the data_dict[key] and save it for future
+            # loading
+            start_time = time.time()
+            tiff_movie = ScanImageTiffReader(os.path.join(value["dirpath"], value["tiff_file"])).data()
+            stop_time = time.time()
+            print(f"Time for loading movie {value['tiff_file']} with scan_image_tiff: "
+                  f"{np.round(stop_time - start_time, 3)} s")
+            global_roi = np.mean(tiff_movie, axis=(1, 2))
+            # print(f"global_roi {global_roi.shape}")
+            value["roi"] = global_roi
+            sio.savemat(os.path.join(value["dirpath"], f"{value['id']}_roi.mat"), {"roi": global_roi})
+            del tiff_movie
+
+    corr_by_age = dict()
+
+    # now we produce 2 subplots to plot the mvt and roi value of each session
+    for value in data_dict.values():
+        roi = value["roi"]
+        # normalization
+        roi = (roi - np.mean(roi)) / np.std(roi)
+
+        # print(f'value["xshifts"] {np.abs(value["xshifts"])}')
+        mvt = np.abs(value["xshifts"]) + np.abs(value["yshifts"])
+        # normalization
+        mvt = (mvt - np.mean(mvt)) / np.std(mvt)
+        mvt = mvt - np.abs(np.min(roi)) - np.max(mvt)
+
+        rho, p = scipy_stats.pearsonr(roi, mvt)
+        print(f"{value['id']} rho {str(np.round(rho, 3))}, p {p}")
+        if value["age"] not in corr_by_age:
+            corr_by_age[value["age"]] = []
+        corr_by_age[value["age"]].append(rho)
+
+        n_frames = len(roi)
+
+        fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex='col',
+                                gridspec_kw={'height_ratios': [1], 'width_ratios': [1]},
+                                figsize=(15, 5))
+
+        ax1.set_facecolor("black")
+
+        ax1.plot(np.arange(n_frames), roi, color="cornflowerblue", lw=1, label=f"ROI", zorder=10)
+        ax1.plot(np.arange(n_frames), mvt, color="red", lw=1, label=f"SHIFT", zorder=10)
+        min_value = np.min(mvt)
+        max_value = np.max(roi)
+        interval = 200
+
+        ax1.vlines(np.arange(interval, n_frames, interval), min_value, max_value,
+                   color="white", linewidth=0.2,
+                   linestyles="dashed", zorder=5)
+
+        ax1.set_ylim(min_value, max_value)
+        ax1.set_xlim(0, n_frames)
+        # ax1.text(x=n_frames-500, y=np.max(roi)-1, s=f"{value['id']}", color="cornflowerblue", zorder=20,
+        #          ha='center', va="center", fontsize=5, fontweight='bold')
+        plt.title(value['id'], color="blue")
+
+        ax1.legend()
+        axes_to_clean = [ax1]
+        for ax in axes_to_clean:
+            ax.axes.get_xaxis().set_visible(False)
+            ax.axes.get_yaxis().set_visible(False)
+            ax.spines['bottom'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+            ax1.margins(0)
+        fig.tight_layout()
+
+        save_formats = ["pdf"]
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+        for save_format in save_formats:
+            fig.savefig(f'{param.path_results}/roi_vs_shift_{value["id"]}'
+                        f'_{param.time_str}.{save_format}',
+                        format=f"{save_format}")
+        plt.close()
+
+    ages = np.array(list(corr_by_age.keys()))
+    ages.sort()
+    rhos = np.zeros(len(ages))
+    stds = np.zeros(len(ages))
+    for age_index, age in enumerate(ages):
+        rhos[age_index] = np.mean(corr_by_age[age])
+        if len(corr_by_age[age]) > 1:
+            stds[age_index] = np.std(corr_by_age[age])
+    # then we plot the correlation graph
+    fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex='col',
+                            gridspec_kw={'height_ratios': [1], 'width_ratios': [1]},
+                            figsize=(10, 10))
+
+    ax1.set_facecolor("black")
+
+    ax1.errorbar(ages, rhos, stds, marker='o', markeredgecolor="blue",
+                 markerfacecolor="white", markersize=10, ecolor="cornflowerblue", linestyle="-",
+                 color="white",
+                 linewidth="1",
+                 zorder=10)
+
+    ax1.set_xticks(ages)
+    # sce clusters labels
+    ax1.set_xticklabels(ages)
+    # ax1.scatter(ages, rhos, marker='o', c="white",
+    #             edgecolors="blue", s=30,
+    #             zorder=10)
+
+    ax1.set_xlabel("age")
+    ax1.set_ylabel("rho")
+
+    save_formats = ["pdf"]
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/roi_vs_shift_corr_by_age'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}")
+    plt.close()
+
+
 def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap_gradient", cmap_name="Reds",
                                        scale_scatter=False, use_different_shapes_for_stat=False,
                                        save_formats="pdf"):
@@ -1338,7 +1514,7 @@ def test_seq_detect(ms, span_area_coords=None, span_area_colors=None):
         #     print(f"Original: {cells_seq_with_correct_indices[index]}")
         #     print(f"Cell assemblies {seq}")
     else:
-        max_index_seq = len(spike_nums_dur_ordered) # 50
+        max_index_seq = len(spike_nums_dur_ordered)  # 50
 
     cells_to_highlight = []
     cells_to_highlight_colors = []
@@ -1517,6 +1693,8 @@ def test_seq_detect(ms, span_area_coords=None, span_area_colors=None):
 
     # cells_to_highlight = None,
     # cells_to_highlight_colors = None,
+
+
 def find_hubs(graph, ms):
     n_cells = ms.spike_struct.n_cells
     # first selecting cells conencted to more than 5% cells
@@ -1538,7 +1716,7 @@ def find_hubs(graph, ms):
 
     if len(cells_selected_s2) == 0:
         return cells_selected_s2
-    
+
     cells_selected_s3 = []
     bc_dict = nx.betweenness_centrality(graph)  # , np.arange(n_cells)
     bc_values = list(bc_dict.values())
@@ -1727,7 +1905,7 @@ def main():
     path_results_raw = root_path + "results_hne/"
     cell_assemblies_data_path = path_data + "cell_assemblies/v3/"
     best_order_data_path = path_data + "best_order_data/v2/"
-    
+
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     path_results = path_results_raw + f"{time_str}"
     os.mkdir(path_results)
@@ -1735,7 +1913,7 @@ def main():
     # --------------------------------------------------------------------------------
     # ------------------------------ param section ------------------------------
     # --------------------------------------------------------------------------------
-    
+
     # param will be set later when the spike_nums will have been constructed
     param = HNEParameters(time_str=time_str, path_results=path_results, error_rate=2,
                           cell_assemblies_data_path=cell_assemblies_data_path,
@@ -1745,10 +1923,15 @@ def main():
                           no_reverse_seq=False, spike_rate_weight=False, path_data=path_data)
 
     just_compute_significant_seq_stat = False
+    just_correlate_global_roi_and_shift = True
     if just_compute_significant_seq_stat:
         compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v4/", param=param,
                                            save_formats=["pdf"],
                                            color_option="manual", cmap_name="Reds")
+        return
+
+    if just_correlate_global_roi_and_shift:
+        correlate_global_roi_and_shift(path_data=os.path.join(path_data, "analyse_mvt/"), param=param)
         return
 
     load_traces = True
@@ -1868,8 +2051,8 @@ def main():
     # ms_str_to_load = ["richard_018_D28_P2_ms"]
     # ms_str_to_load = ["richard_028_D1_P1_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
-    # ms_str_to_load = ["p12_171110_a000_ms"]
-    ms_str_to_load = ["p8_18_10_24_a005_ms"]
+    ms_str_to_load = ["p12_171110_a000_ms"]
+    # ms_str_to_load = ["p8_18_10_24_a005_ms"]
 
     # 256
 
@@ -2032,8 +2215,8 @@ def main():
         if just_generate_artificial_movie_from_rasterdur:
             param_movie = art_movie_gen.DataForMs(path_data=param.path_data, path_results=param.path_results,
                                                   time_str=param.time_str,
-                              with_mvt=False, use_fake_cells=False, dimensions=(200, 200),
-                              n_vessels=0, same_baseline_from_cell_than_background=True)
+                                                  with_mvt=False, use_fake_cells=False, dimensions=(200, 200),
+                                                  n_vessels=0, same_baseline_from_cell_than_background=True)
             produce_movie(map_coords=ms.coord, raster_dur=ms.spike_struct.spike_nums_dur[:100], param=param_movie,
                           cells_with_overlap=None,
                           overlapping_cells=None, padding=0,
@@ -2139,8 +2322,8 @@ def main():
                 save_formats = [save_formats]
             for save_format in save_formats:
                 fig_seqnmf.savefig(f'{ms.param.path_results}/{ms.description}_seqnmf_k_{k}_l_{l}_lambda_{lambda_value}'
-                            f'_{ms.param.time_str}.{save_format}',
-                            format=f"{save_format}")
+                                   f'_{ms.param.time_str}.{save_format}',
+                                   format=f"{save_format}")
 
             plt.show()
             plt.close()
@@ -3008,28 +3191,28 @@ def main():
                                                                        keep_only_the_best_kmean_cluster)
                 else:
 
-                        #
-                        # print(f"perc_threshold {perc_threshold}, "
-                        #       f"activity_threshold {activity_threshold}, {np.round((activity_threshold/n_cells)*100, 2)}%")
-                        #
-                        # spike_struct.activity_threshold = activity_threshold
-                        #
-                        # sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
-                        #                                                       window_duration=sliding_window_duration,
-                        #                                                       perc_threshold=perc_threshold,
-                        #                                                       activity_threshold=activity_threshold,
-                        #                                                       debug_mode=False,
-                        #                                                       no_redundancy=no_redundancy,
-                        #                                                       keep_only_the_peak=False)
-                        # print(f"sce_with_sliding_window detected")
-                        # cellsinpeak = sce_detection_result[2]
-                        # SCE_times = sce_detection_result[1]
-                        # sce_times_bool = sce_detection_result[0]
-                        # sce_times_numbers = sce_detection_result[3]
-                        # # useful for plotting twitches
-                        # ms.sce_bool = sce_times_bool
-                        # ms.sce_times_numbers = sce_times_numbers
-                        # ms.SCE_times = SCE_times
+                    #
+                    # print(f"perc_threshold {perc_threshold}, "
+                    #       f"activity_threshold {activity_threshold}, {np.round((activity_threshold/n_cells)*100, 2)}%")
+                    #
+                    # spike_struct.activity_threshold = activity_threshold
+                    #
+                    # sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
+                    #                                                       window_duration=sliding_window_duration,
+                    #                                                       perc_threshold=perc_threshold,
+                    #                                                       activity_threshold=activity_threshold,
+                    #                                                       debug_mode=False,
+                    #                                                       no_redundancy=no_redundancy,
+                    #                                                       keep_only_the_peak=False)
+                    # print(f"sce_with_sliding_window detected")
+                    # cellsinpeak = sce_detection_result[2]
+                    # SCE_times = sce_detection_result[1]
+                    # sce_times_bool = sce_detection_result[0]
+                    # sce_times_numbers = sce_detection_result[3]
+                    # # useful for plotting twitches
+                    # ms.sce_bool = sce_times_bool
+                    # ms.sce_times_numbers = sce_times_numbers
+                    # ms.SCE_times = SCE_times
 
                     compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels,
                                                                    activity_threshold=ms.spike_struct.activity_threshold,
