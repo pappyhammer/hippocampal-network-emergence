@@ -839,51 +839,63 @@ def correlate_global_roi_and_shift(path_data, param):
     data_dict = {}
     i = 0
     for (dirpath, dirnames, local_filenames) in os.walk(path_data):
+        if dirpath[-1] == "/":
+            dirpath = dirpath[:-1]
         # print(f"dirpath {dirpath}")
         # print(f"dirnames {dirnames}")
-        if i == 0:
-            # it means we are in the top directory
-            for index_dir_name, dir_name in enumerate(dirnames):
-                index_dir_name += 1
-                if dir_name[0].lower() != "p":
-                    print(f"directory with name not starting by the letter p: {dir_name}")
-                    return
-                data_dict[index_dir_name] = dict()
-                data_dict[index_dir_name]["id"] = dir_name
+        dirnames_to_walk = []
+        for dirname in dirnames:
+            if len(dirname) < 4 and (dirname[0].lower() == "p"):
+                dirnames_to_walk.append(dirname)
+        # print(f"dirnames_to_walk {dirnames_to_walk}")
+        for dirname_to_walk in dirnames_to_walk:
+            for (dir_path, dir_names, local_filenames) in os.walk(os.path.join(dirpath, dirname_to_walk)):
+                if dir_path[-1] == "/":
+                    dir_path = dir_path[:-1]
+                index_slash = dir_path[::-1].index("/")
+                parent_dir = dir_path[-index_slash:]
+                if parent_dir[0].lower() != "p" or (len(parent_dir) < 4):
+                    continue
+                # looking for files only in dir starting by p and with name length superior to 3
+                # print(f"parent_dir {parent_dir}")
                 try:
-                    index_ = dir_name.index("_")
+                    index_ = parent_dir.index("_")
                     if (index_ < 2) or (index_ > 3):
-                        print(f"directory name not in the right format: {dir_name}")
-                    age = int(dir_name[1:index_])
+                        continue
+                        # print(f"directory name not in the right format: {dir_name}")
+                    age = int(parent_dir[1:index_])
                 except ValueError:
-                    print(f"no '_' in directory name: {dir_name}")
-                    return
-                # print(f"age {age}")
-                data_dict[index_dir_name]["age"] = age
-            if len(data_dict) == 0:
-                print("No directory found")
-                return
-            i += 1
-            continue
-        data_dict[i]["dirpath"] = dirpath
-        for file_name in local_filenames:
-            if file_name.startswith("."):
-                continue
-            if file_name.endswith(".mat"):
-                if "roi" in file_name.lower():
-                    roi_array = hdf5storage.loadmat(os.path.join(dirpath, file_name))
-                    data_dict[i]["roi"] = roi_array["roi"][0]
-                else:
-                    mvt_x_y = hdf5storage.loadmat(os.path.join(dirpath, file_name))
-                    data_dict[i]["xshifts"] = mvt_x_y['xshifts'][0]
-                    data_dict[i]["yshifts"] = mvt_x_y['yshifts'][0]
-            if file_name.endswith(".tif") or file_name.endswith(".tiff"):
-                data_dict[i]["tiff_file"] = file_name
-        i += 1
+                    continue
+
+                data_dict[parent_dir] = dict()
+                data_dict[parent_dir]["id"] = parent_dir
+                data_dict[parent_dir]["age"] = age
+                data_dict[parent_dir]["dirpath"] = dir_path
+                for file_name in local_filenames:
+                    if file_name.startswith("."):
+                        continue
+                    if file_name.endswith(".mat"):
+                        if "global_roi" in file_name.lower():
+                            roi_array = hdf5storage.loadmat(os.path.join(dir_path, file_name))
+                            data_dict[parent_dir]["global_roi"] = roi_array["global_roi"][0]
+                        elif "params" in file_name.lower():
+                            mvt_x_y = hdf5storage.loadmat(os.path.join(dir_path, file_name))
+                            data_dict[parent_dir]["xshifts"] = mvt_x_y['xshifts'][0]
+                            data_dict[parent_dir]["yshifts"] = mvt_x_y['yshifts'][0]
+                    if (file_name.endswith(".tif") or file_name.endswith(".tiff")) and ("avg" not in file_name.lower()):
+                        data_dict[parent_dir]["tiff_file"] = file_name
+
+                if ("xshifts" not in data_dict[parent_dir]) or ("tiff_file" not in data_dict[parent_dir]):
+                    # if the shift info or the movie is missing, we remove this session
+                    del data_dict[parent_dir]
+
+    if len(data_dict) == 0:
+        print("No directory found")
+        return
 
     # loading movie and calculating the global roi if not done previously
     for key, value in data_dict.items():
-        if "roi" not in value:
+        if "global_roi" not in value:
             # then we load the movie, measure to global roi, put it in the data_dict[key] and save it for future
             # loading
             start_time = time.time()
@@ -893,15 +905,15 @@ def correlate_global_roi_and_shift(path_data, param):
                   f"{np.round(stop_time - start_time, 3)} s")
             global_roi = np.mean(tiff_movie, axis=(1, 2))
             # print(f"global_roi {global_roi.shape}")
-            value["roi"] = global_roi
-            sio.savemat(os.path.join(value["dirpath"], f"{value['id']}_roi.mat"), {"roi": global_roi})
+            value["global_roi"] = global_roi
+            sio.savemat(os.path.join(value["dirpath"], f"{value['id']}_global_roi.mat"), {"global_roi": global_roi})
             del tiff_movie
 
     corr_by_age = dict()
     corr_by_age_bin = dict()
     # now we produce 2 subplots to plot the mvt and roi value of each session
     for value in data_dict.values():
-        roi = value["roi"]
+        roi = value["global_roi"]
         # normalization
         roi = (roi - np.mean(roi)) / np.std(roi)
 
@@ -2087,7 +2099,7 @@ def main():
         return
 
     if just_correlate_global_roi_and_shift:
-        correlate_global_roi_and_shift(path_data=os.path.join(path_data, "analyse_mvt/"), param=param)
+        correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
 
     load_traces = True
