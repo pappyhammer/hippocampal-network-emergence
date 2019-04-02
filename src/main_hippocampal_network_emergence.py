@@ -55,6 +55,8 @@ from articifical_movie_patch_generator import produce_movie
 import articifical_movie_patch_generator as art_movie_gen
 from ScanImageTiffReader import ScanImageTiffReader
 from pattern_discovery.tools.signal import smooth_convolve
+import PIL
+from PIL import ImageSequence
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -839,8 +841,8 @@ def correlate_global_roi_and_shift(path_data, param):
     data_dict = {}
     i = 0
     for (dirpath, dirnames, local_filenames) in os.walk(path_data):
-        if dirpath[-1] == "/":
-            dirpath = dirpath[:-1]
+        # if dirpath[-1] == "/":
+        #     dirpath = dirpath[:-1]
         # print(f"dirpath {dirpath}")
         # print(f"dirnames {dirnames}")
         dirnames_to_walk = []
@@ -895,9 +897,23 @@ def correlate_global_roi_and_shift(path_data, param):
         if "global_roi" not in value:
             # then we load the movie, measure to global roi, put it in the data_dict[key] and save it for future
             # loading
-            start_time = time.time()
-            tiff_movie = ScanImageTiffReader(os.path.join(value["dirpath"], value["tiff_file"])).data()
-            stop_time = time.time()
+            use_scan_tiff_reader = False
+            if use_scan_tiff_reader:
+                start_time = time.time()
+                tiff_movie = ScanImageTiffReader(os.path.join(value["dirpath"], value["tiff_file"])).data()
+                stop_time = time.time()
+            else:
+                start_time = time.time()
+                im = PIL.Image.open(os.path.join(value["dirpath"], value["tiff_file"]))
+                n_frames = len(list(ImageSequence.Iterator(im)))
+                dim_x, dim_y = np.array(im).shape
+                print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
+                tiff_movie = np.zeros((n_frames, dim_x, dim_y), dtype="uint16")
+                for frame, page in enumerate(ImageSequence.Iterator(im)):
+                    tiff_movie[frame] = np.array(page)
+                stop_time = time.time()
+                print(f"Time for loading movie: "
+                      f"{np.round(stop_time - start_time, 3)} s")
             print(f"Time for loading movie {value['tiff_file']} with scan_image_tiff: "
                   f"{np.round(stop_time - start_time, 3)} s")
             global_roi = np.mean(tiff_movie, axis=(1, 2))
