@@ -936,6 +936,22 @@ def correlate_global_roi_and_shift(path_data, param):
         mvt = (mvt - np.mean(mvt)) / np.std(mvt)
         mvt = mvt - np.abs(np.min(roi)) - np.max(mvt)
 
+        non_lag_roi = np.copy(roi)
+        non_lag_mvt = np.copy(mvt)
+
+        add_lag = False
+        if add_lag:
+            lag = -1
+            if lag < 0:
+                mvt = mvt[np.abs(lag):]
+                roi = roi[:lag]
+            else:
+                if lag == 0:
+                    print("lag can't be set to 0")
+                    return
+                mvt = mvt[:-lag]
+                roi = roi[lag:]
+
         rho, p = scipy_stats.pearsonr(roi, mvt)
 
         if np.isnan(rho):
@@ -951,8 +967,8 @@ def correlate_global_roi_and_shift(path_data, param):
         corr_by_age[value["age"]].append(rho)
 
         bin_size = 100
-        roi_bin = roi.reshape((len(roi)//bin_size, bin_size)).sum(axis=1)
-        mvt_bin = mvt.reshape((len(mvt)//bin_size, bin_size)).sum(axis=1)
+        roi_bin = non_lag_roi.reshape((len(non_lag_roi)//bin_size, bin_size)).sum(axis=1)
+        mvt_bin = non_lag_mvt.reshape((len(non_lag_mvt)//bin_size, bin_size)).sum(axis=1)
         rho_bin, p_bin = scipy_stats.pearsonr(roi_bin, mvt_bin)
         print(f"{value['id']} rho_bin {str(np.round(rho_bin, 3))}, p_bin {p_bin}")
         corr_by_age_bin[value["age"]].append(rho_bin)
