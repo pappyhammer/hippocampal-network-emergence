@@ -22,6 +22,7 @@ import matplotlib.image as mpimg
 
 from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize
 from pattern_discovery.tools.signal import smooth_convolve
+import time
 
 
 class DataForMs(p_disc_tools_param.Parameters):
@@ -615,7 +616,9 @@ def build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline):
 
     z_score_traces = np.copy(traces)
     for cell in np.arange(n_cells):
-        z_score_traces[cell] = (z_score_traces[cell] - np.mean(z_score_traces[cell])) / np.std(z_score_traces[cell])
+        if np.std(z_score_traces[cell]) > 0:
+            z_score_traces[cell] = (z_score_traces[cell] - np.mean(z_score_traces[cell])) / np.std(z_score_traces[cell])
+
     plot_spikes_raster(spike_nums=raster_dur,
                        display_spike_nums=True,
                        display_traces=True,
@@ -639,30 +642,48 @@ def build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline):
 
 class CellPiece:
 
-    def __init__(self, id, poly_gon, dimensions, activity_mask=None):
+    def __init__(self, id, poly_gon, dimensions, activity_mask=None, frame_mode=False):
         self.id = id
         self.poly_gon = poly_gon
         self.dimensions = dimensions
         self.mask = self.get_mask()
         # TODO: keep a smaller mask to save memory
         self.activity_mask = activity_mask
+        # if True, means we work frame by frame
+        self.frame_mode = frame_mode
+        self.parents = []
+        self.daughters = []
 
     def fill_movie_images(self, images):
-        images[:, self.mask] = self.activity_mask[:, self.mask]
+        if self.frame_mode:
+            images[self.mask] = self.activity_mask[self.mask]
+        else:
+            images[:, self.mask] = self.activity_mask[:, self.mask]
 
     def set_activity_mask_from_other(self, other_activity_mask):
         self.activity_mask = np.zeros(other_activity_mask.shape)
-        self.activity_mask[:, self.mask] = other_activity_mask[:, self.mask]
+        if self.frame_mode:
+            self.activity_mask[self.mask] = other_activity_mask[self.mask]
+        else:
+            self.activity_mask[:, self.mask] = other_activity_mask[:, self.mask]
 
     def set_activity_mask_from_two_other(self, other_1, other_2):
         self.activity_mask = np.zeros(other_1.shape)
-        for frame in np.arange(other_1.shape[0]):
-            other_1_sum = np.sum(other_1[frame, self.mask])
-            other_2_sum = np.sum(other_2[frame, self.mask])
+        if self.frame_mode:
+            other_1_sum = np.sum(other_1[self.mask])
+            other_2_sum = np.sum(other_2[self.mask])
             if other_1_sum >= other_2_sum:
-                self.activity_mask[frame, self.mask] = other_1[frame, self.mask]
+                self.activity_mask[self.mask] = other_1[self.mask]
             else:
-                self.activity_mask[frame, self.mask] = other_2[frame, self.mask]
+                self.activity_mask[self.mask] = other_2[self.mask]
+        else:
+            for frame in np.arange(other_1.shape[0]):
+                other_1_sum = np.sum(other_1[frame, self.mask])
+                other_2_sum = np.sum(other_2[frame, self.mask])
+                if other_1_sum >= other_2_sum:
+                    self.activity_mask[frame, self.mask] = other_1[frame, self.mask]
+                else:
+                    self.activity_mask[frame, self.mask] = other_2[frame, self.mask]
 
     def get_mask(self):
         img = PIL.Image.new('1', (self.dimensions[0], self.dimensions[1]), 0)
@@ -670,6 +691,7 @@ class CellPiece:
             ImageDraw.Draw(img).polygon(list(self.poly_gon.exterior.coords), outline=1,
                                         fill=1)
         except AttributeError:
+            # print(f"list(self.poly_gon.coords) {list(self.poly_gon.coords)}")
             ImageDraw.Draw(img).polygon(list(self.poly_gon.coords), outline=1,
                                         fill=1)
         return np.array(img)
@@ -686,8 +708,19 @@ class CellPiece:
             geoms.append(intersection_polygon)
         id_ext = ["", "*", ".", "%", "a", "b"]
         for geom_index, geom in enumerate(geoms):
-            inter_cell_piece = CellPiece(id=new_id + id_ext[geom_index], poly_gon=geom, dimensions=self.dimensions)
+            # testing if there is more than one point in the polygon
+            try:
+                if len(geom.exterior.coords) < 2:
+                    continue
+            except AttributeError:
+                if len(geom.coords) < 2:
+                    continue
+            inter_cell_piece = CellPiece(id=new_id + id_ext[geom_index], poly_gon=geom, dimensions=self.dimensions,
+                                        frame_mode=self.frame_mode)
             inter_cell_piece.set_activity_mask_from_two_other(self.activity_mask, other.activity_mask)
+            inter_cell_piece.parents = [self, other]
+            self.daughters.append(inter_cell_piece)
+            other.daughters.append(inter_cell_piece)
             new_pieces.append(inter_cell_piece)
 
         diff_poly_gon = self.poly_gon.difference(other.poly_gon)
@@ -697,8 +730,17 @@ class CellPiece:
         except AttributeError:
             geoms.append(diff_poly_gon)
         for geom_index, geom in enumerate(geoms):
-            diff_cell_piece = CellPiece(id=self.id + id_ext[geom_index], poly_gon=geom, dimensions=self.dimensions)
+            try:
+                if len(geom.exterior.coords) < 2:
+                    continue
+            except AttributeError:
+                if len(geom.coords) < 2:
+                    continue
+            diff_cell_piece = CellPiece(id=self.id + id_ext[geom_index], poly_gon=geom, dimensions=self.dimensions,
+                                        frame_mode=self.frame_mode)
             diff_cell_piece.set_activity_mask_from_other(self.activity_mask)
+            diff_cell_piece.parents = [self]
+            self.daughters.append(diff_cell_piece)
             new_pieces.append(diff_cell_piece)
 
         diff_other_poly_gon = other.poly_gon.difference(self.poly_gon)
@@ -708,12 +750,33 @@ class CellPiece:
         except AttributeError:
             geoms.append(diff_other_poly_gon)
         for geom_index, geom in enumerate(geoms):
+            try:
+                if len(geom.exterior.coords) < 2:
+                    continue
+            except AttributeError:
+                if len(geom.coords) < 2:
+                    continue
             diff_other_cell_piece = CellPiece(id=other.id + id_ext[geom_index], poly_gon=geom,
-                                              dimensions=other.dimensions)
+                                              dimensions=other.dimensions,
+                                              frame_mode=self.frame_mode)
             diff_other_cell_piece.set_activity_mask_from_other(other.activity_mask)
+            diff_other_cell_piece.parents = [other]
+            other.daughters.append(diff_other_cell_piece)
             new_pieces.append(diff_other_cell_piece)
 
         return new_pieces
+
+    def update_activity_mask(self, activity_mask=None):
+        if len(self.parents) == 0:
+            if activity_mask is not None:
+                self.activity_mask = activity_mask
+            return
+        for parent in self.parents:
+            parent.update_activity_mask()
+        if len(self.parents) == 1:
+            self.set_activity_mask_from_other(self.parents[0].activity_mask)
+        if len(self.parents) == 2:
+            self.set_activity_mask_from_two_other(self.parents[0].activity_mask, self.parents[1].activity_mask)
 
     def __eq__(self, other):
         return self.id == other.id
@@ -768,6 +831,150 @@ def get_weighted_activity_mask_for_a_cell(mask, soma_mask, n_pixels, n_pixels_so
 
     return weighted_mask
 
+
+class MovieConstructor:
+
+    def __init__(self, coord_obj, traces, dimensions, baseline, soma_geoms, vessels, param):
+        self.n_frames = traces.shape[1]
+        self.n_cells = coord_obj.n_cells
+        self.soma_indices = np.arange(len(soma_geoms))
+        self.baseline_traces = np.min(traces)
+        self.same_weight_for_all_frame = True
+        self.weighted_masks = dict()
+        self.dimensions = dimensions
+        self.traces = traces
+        self.baseline = baseline
+        self.vessels = vessels
+        self.soma_masks = dict()
+        self.coord_obj = coord_obj
+        self.masks = dict()
+        self.n_pixels = dict()
+        self.n_pixels_soma = dict()
+        self.with_vessels = (len(vessels) > 0) and (param.n_vessels > 0)
+        self.masks_vessel = []
+        self.raw_traces = np.zeros((self.n_cells, self.n_frames))
+        # indicate if we identify already the cell pieces
+        self.cell_pieces_computed = False
+        self.parent_cell_pieces = dict()
+        self.all_cell_pieces = []
+
+        if self.with_vessels:
+            vessels_index = np.arange(len(vessels))
+            random.shuffle(vessels_index)
+            n_vessels = min(param.n_vessels, len(vessels))
+            for vessel_index in vessels_index[:n_vessels]:
+                vessel = vessels[vessel_index]
+                self.masks_vessel.append(get_mask(dimensions=dimensions, poly_gon=vessel))
+
+        # change_polygon_centroid(new_centroid, poly_cell)
+        for cell in np.arange(self.n_cells):
+            # print(f"construct_movie_images begins, cell {cell}")
+            self.masks[cell] = coord_obj.get_cell_mask(cell, dimensions)
+            self.n_pixels[cell] = np.sum(self.masks[cell])
+
+            add_soma = not (cell % 5 == 0)
+
+            if add_soma:
+                # first we pick a soma for this cell
+                random.shuffle(self.soma_indices)
+                soma_geom = soma_geoms[self.soma_indices[0]]
+                # then we want to move it in the cell
+                # centroid_x = random.randint(-1, 1)
+                # centroid_y = random.randint(-1, 1)
+                centroid_x = 0
+                centroid_y = 0
+                cell_poly = coord_obj.cells_polygon[cell]
+                centroid_x += cell_poly.centroid.x
+                centroid_y += cell_poly.centroid.y
+                soma_geom = change_polygon_centroid(new_centroid=(centroid_x, centroid_y), poly_cell=soma_geom)
+                # print(f"cell_poly x {cell_poly.centroid.x} y {cell_poly.centroid.y}")
+                # print(f"soma_geom x {soma_geom.centroid.x} y {soma_geom.centroid.y}")
+                soma_mask = get_mask(dimensions=dimensions, poly_gon=soma_geom)
+                self.soma_masks[cell] = soma_mask
+                self.n_pixels_soma[cell] = np.sum(soma_mask)
+            else:
+                soma_mask = None
+                self.soma_masks[cell] = None
+                self.n_pixels_soma[cell] = None
+
+            if self.same_weight_for_all_frame:
+                self.weighted_masks[cell] = get_weighted_activity_mask_for_a_cell(mask=self.masks[cell], soma_mask=soma_mask,
+                                                                      n_pixels=self.n_pixels[cell],
+                                                                           n_pixels_soma=self.n_pixels_soma[cell])
+                # del soma_mask
+                # del self.masks[cell]
+
+    def get_frame(self, frame):
+        cell_pieces = set()
+        # update_activity_mask(self, activity_mask)
+        for cell in np.arange(self.n_cells):
+
+            if not self.same_weight_for_all_frame:
+                weighted_mask = get_weighted_activity_mask_for_a_cell(mask=self.masks[cell],
+                                                                      soma_mask=self.soma_masks[cell],
+                                                                      n_pixels=self.n_pixels[cell],
+                                                                      n_pixels_soma=self.n_pixels_soma[cell])
+            else:
+                weighted_mask = self.weighted_masks[cell]
+            amplitude = self.traces[cell, frame]
+            if amplitude == self.baseline_traces:
+                weighted_mask_tmp = np.copy(weighted_mask)
+                if self.soma_masks[cell] is not None:
+                    weighted_mask_tmp[self.soma_masks[cell]] = 0
+                activity_mask = weighted_mask_tmp * (amplitude / np.sum(weighted_mask))
+                del weighted_mask_tmp
+            else:
+                activity_mask = weighted_mask * (amplitude / np.sum(weighted_mask))
+            del weighted_mask
+
+            if self.cell_pieces_computed:
+                self.parent_cell_pieces[cell].update_activity_mask(activity_mask=activity_mask)
+            else:
+                cell_piece = CellPiece(id=f"{cell}", poly_gon=self.coord_obj.cells_polygon[cell],
+                                      activity_mask=activity_mask, dimensions=self.dimensions, frame_mode=True)
+                self.parent_cell_pieces[cell] = cell_piece
+                cell_pieces.add(cell_piece)
+                self.all_cell_pieces.append(cell_piece)
+
+        frame_image = np.ones((self.dimensions[0], self.dimensions[1]))
+        frame_image *= self.baseline
+
+        if self.with_vessels:
+            for mask_vessel in self.masks_vessel:
+                frame_image[mask_vessel] = self.baseline / 2
+
+        # then we collect all pieces of cell, by piece we mean part of the cell with no overlap and part
+        # with one or more intersect, and get it as a polygon object
+        if not self.cell_pieces_computed:
+            while len(cell_pieces) > 0:
+                cell_piece = cell_pieces.pop()
+                no_intersections = True
+                for other_index, other_cell_piece in enumerate(cell_pieces):
+                    # check if they interesect and not just touches
+                    if cell_piece.poly_gon.intersects(other_cell_piece.poly_gon) and \
+                            (not cell_piece.poly_gon.touches(other_cell_piece.poly_gon)):
+                        no_intersections = False
+                        cell_pieces.remove(other_cell_piece)
+                        # then we split those 2 cell_pieces in 3, and loop again
+                        new_cell_pieces = cell_piece.split(other_cell_piece)
+                        cell_pieces.update(new_cell_pieces)
+                        self.all_cell_pieces.extend(new_cell_pieces)
+                        break
+                if no_intersections:
+                    cell_piece.fill_movie_images(frame_image)
+            self.cell_pieces_computed = True
+        else:
+            for cell_piece in self.all_cell_pieces:
+                # picking only cell_piece with no daugter, as recursively it will update the parent until to
+                # to get to the top of the tree, cell with no parents, that have been updated earlier
+                if len(cell_piece.daughters) == 0:
+                    cell_piece.update_activity_mask()
+                cell_piece.fill_movie_images(frame_image)
+
+        for cell in np.arange(self.n_cells):
+            self.raw_traces[cell, frame] = np.mean(frame_image[self.masks[cell]])
+
+        return frame_image
 
 def construct_movie_images(coord_obj, traces, dimensions, baseline, soma_geoms, vessels, param,
                            n_pixels_by_cell=None):
@@ -911,6 +1118,7 @@ def build_somas(coord_obj, dimensions):
 
 def produce_movie(map_coords, raster_dur, param, cells_with_overlap, overlapping_cells,
                   padding, vessels):
+    start_time = time.time()
     n_frames = raster_dur.shape[1]
     n_cells = raster_dur.shape[0]
     dimensions = param.dimensions
@@ -935,9 +1143,9 @@ def produce_movie(map_coords, raster_dur, param, cells_with_overlap, overlapping
     baseline = 1
     traces = build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline)
 
-    images = construct_movie_images(coord_obj=coord_obj, traces=traces, dimensions=dimensions,
-                                    n_pixels_by_cell=n_pixels_by_cell, baseline=baseline, soma_geoms=soma_geoms,
-                                    vessels=vessels, param=param)
+    # images = construct_movie_images(coord_obj=coord_obj, traces=traces, dimensions=dimensions,
+    #                                 n_pixels_by_cell=n_pixels_by_cell, baseline=baseline, soma_geoms=soma_geoms,
+    #                                 vessels=vessels, param=param)
     # cells_activity_mask
     noise_str = "gauss"
     # in ["s&p", "poisson", "gauss", "speckle"]:
@@ -948,7 +1156,7 @@ def produce_movie(map_coords, raster_dur, param, cells_with_overlap, overlapping
     # images_with_padding = np.ones((images.shape[0], dimensions[0], dimensions[1]))
     # images_with_padding *= baseline
 
-    images_mask = np.zeros((images.shape[1], images.shape[2]), dtype="uint8")
+    # images_mask = np.zeros((images.shape[1], images.shape[2]), dtype="uint8")
     # print(f"images_with_padding.shape {images_with_padding.shape}")
     # print(f"images_mask.shape {images_mask.shape}")
 
@@ -985,29 +1193,64 @@ def produce_movie(map_coords, raster_dur, param, cells_with_overlap, overlapping
         shaking_frames = np.unique(shaking_frames)
         np.ndarray.sort(shaking_frames)
 
+    print(f"Saving the tiff using MovieConstructor")
     with tifffile.TiffWriter(outvid_tiff) as tiff:
-        for frame, img_array in enumerate(images):
+        movie_constructor = MovieConstructor(coord_obj=coord_obj, traces=traces, dimensions=dimensions,
+                                             baseline=baseline, soma_geoms=soma_geoms,
+                                             vessels=vessels, param=param)
+        for frame in np.arange(n_frames):
+            img_array = movie_constructor.get_frame(frame=frame)
+            image = np.ones((dimensions[0], dimensions[1]))
             if param.with_mvt:
                 shaked = False
                 if frame in shaking_frames:
                     x_shift = random.randint(x_shift_range[0], x_shift_range[1])
                     y_shift = random.randint(y_shift_range[0], y_shift_range[1])
                     shaked = True
-            last_y = (-padding + y_shift) if (-padding + y_shift) < 0 else images.shape[1]
-            last_x = (-padding + x_shift) if (-padding + x_shift) < 0 else images.shape[1]
-            images[frame, padding + y_shift:last_y, padding + x_shift:last_x] = \
-                img_array[padding:-padding, padding:-padding]
-            img_array = images[frame]
+            last_y = (-padding + y_shift) if (-padding + y_shift) < 0 else img_array.shape[0]
+            last_x = (-padding + x_shift) if (-padding + x_shift) < 0 else img_array.shape[1]
+            if padding > 0:
+                image[padding + y_shift:last_y, padding + x_shift:last_x] = \
+                    img_array[padding:-padding, padding:-padding]
+                img_array = image
+            # else:
+            #     image = img_array
             img_array = noisy(noise_str, img_array)
             img_array = normalize_array_0_255(img_array)
             tiff.save(img_array, compress=6)
-            images[frame] = img_array
+            # images[frame] = img_array
             if param.with_mvt:
                 if shaked:
                     x_shift = 0
                     y_shift = 0
 
-    save_traces(coord_obj=coord_obj, movie=images, param=param)
+        # for frame, img_array in enumerate(images):
+        #     if param.with_mvt:
+        #         shaked = False
+        #         if frame in shaking_frames:
+        #             x_shift = random.randint(x_shift_range[0], x_shift_range[1])
+        #             y_shift = random.randint(y_shift_range[0], y_shift_range[1])
+        #             shaked = True
+        #     last_y = (-padding + y_shift) if (-padding + y_shift) < 0 else images.shape[1]
+        #     last_x = (-padding + x_shift) if (-padding + x_shift) < 0 else images.shape[2]
+        #     images[frame, padding + y_shift:last_y, padding + x_shift:last_x] = \
+        #         img_array[padding:-padding, padding:-padding]
+        #     img_array = images[frame]
+        #     img_array = noisy(noise_str, img_array)
+        #     img_array = normalize_array_0_255(img_array)
+        #     tiff.save(img_array, compress=6)
+        #     images[frame] = img_array
+        #     if param.with_mvt:
+        #         if shaked:
+        #             x_shift = 0
+        #             y_shift = 0
+
+    # save_traces(coord_obj=coord_obj, movie=images, param=param)
+    save_traces(coord_obj=coord_obj, movie=None, param=param, raw_traces=movie_constructor.raw_traces)
+    stop_time = time.time()
+    print(f"Time to complet produce_movie(): "
+          f"{np.round(stop_time - start_time, 3)} s")
+
     print(f"n shaking frames : {len(shaking_frames)}")
     return shaking_frames
 
@@ -1024,12 +1267,13 @@ def do_traces_smoothing(traces):
         traces[i] = smooth_signal[beg:-beg]
 
 
-def save_traces(coord_obj, movie, param):
-    raw_traces = np.zeros((coord_obj.n_cells, movie.shape[0]))
-    for cell in np.arange(coord_obj.n_cells):
-        mask = coord_obj.get_cell_mask(cell=cell,
-                                       dimensions=(movie.shape[1], movie.shape[2]))
-        raw_traces[cell, :] = np.mean(movie[:, mask], axis=1)
+def save_traces(coord_obj, movie, param, raw_traces=None):
+    if raw_traces is None:
+        raw_traces = np.zeros((coord_obj.n_cells, movie.shape[0]))
+        for cell in np.arange(coord_obj.n_cells):
+            mask = coord_obj.get_cell_mask(cell=cell,
+                                           dimensions=(movie.shape[1], movie.shape[2]))
+            raw_traces[cell, :] = np.mean(movie[:, mask], axis=1)
 
     smooth_traces = np.copy(raw_traces)
     do_traces_smoothing(smooth_traces)
