@@ -53,7 +53,7 @@ from PIL import ImageSequence
 from sklearn.decomposition import PCA
 from shapely.geometry import MultiPoint
 from ScanImageTiffReader import ScanImageTiffReader
-
+import hne_animation as hne_anim
 
 class MouseSession:
     def __init__(self, age, session_id, param, nb_ms_by_frame, weight=None, spike_nums=None, spike_nums_dur=None,
@@ -618,6 +618,21 @@ class MouseSession:
                           f"{np.round(stop_time - start_time, 3)} s")
 
                 self.tiff_movie = tiff_movie
+
+    def produce_animation(self):
+        # self.load_tiff_movie_in_memory()
+        animation = hne_anim.HNEAnimation(n_frames=12500, n_rows=1, n_cols=1)
+        # raw_movie_box = hne_anim.RawMovieBox(tiff_file_name=self.tif_movie_file_name)
+        # animation.add_box(row=0, col=0, box=raw_movie_box)
+        # raw_movie_box.width
+        activity_box = hne_anim.ActivitySumBox(width=200, height=80,
+                                               raster=self.spike_struct.spike_nums_dur,
+                                               show_sum_spikes_as_percentage=True,
+                                               n_frames_to_display=100)
+        animation.add_box(row=0, col=0, box=activity_box)
+        animation.produce_animation(path_results=self.param.path_results, file_name=f"test_raw_movie_{self.description}",
+                               save_formats=["tiff", "avi"], #
+                               frames_to_display=np.arange(100, 300))
 
     def build_raw_traces_from_movie(self):
         if self.tiff_movie is None:

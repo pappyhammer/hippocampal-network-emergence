@@ -902,6 +902,8 @@ def correlate_global_roi_and_shift(path_data, param):
                 start_time = time.time()
                 tiff_movie = ScanImageTiffReader(os.path.join(value["dirpath"], value["tiff_file"])).data()
                 stop_time = time.time()
+                print(f"Time for loading movie {value['tiff_file']} with scan_image_tiff: "
+                      f"{np.round(stop_time - start_time, 3)} s")
             else:
                 start_time = time.time()
                 im = PIL.Image.open(os.path.join(value["dirpath"], value["tiff_file"]))
@@ -914,8 +916,6 @@ def correlate_global_roi_and_shift(path_data, param):
                 stop_time = time.time()
                 print(f"Time for loading movie: "
                       f"{np.round(stop_time - start_time, 3)} s")
-            print(f"Time for loading movie {value['tiff_file']} with scan_image_tiff: "
-                  f"{np.round(stop_time - start_time, 3)} s")
             global_roi = np.mean(tiff_movie, axis=(1, 2))
             # print(f"global_roi {global_roi.shape}")
             value["global_roi"] = global_roi
@@ -2123,7 +2123,7 @@ def main():
                           no_reverse_seq=False, spike_rate_weight=False, path_data=path_data)
 
     just_compute_significant_seq_stat = False
-    just_correlate_global_roi_and_shift = True
+    just_correlate_global_roi_and_shift = False
     if just_compute_significant_seq_stat:
         compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v4/", param=param,
                                            save_formats=["pdf"],
@@ -2276,12 +2276,13 @@ def main():
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = True
+    just_plot_all_cells_on_map = False
     do_plot_psth_twitches = False
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
     just_do_pca_on_raster = False
     just_display_seq_with_cell_assembly = False
+    just_produce_animation = True
 
     # for events (sce) detection
     perc_threshold = 99
@@ -2367,6 +2368,12 @@ def main():
                 raise Exception("just_plot_all_cells_on_map exception")
             continue
 
+        if just_produce_animation:
+            ms.produce_animation()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_produce_animation exception")
+            continue
+
         if just_display_seq_with_cell_assembly:
             print("test_seq_detect")
             span_area_coords = None
@@ -2415,9 +2422,10 @@ def main():
         if just_generate_artificial_movie_from_rasterdur:
             param_movie = art_movie_gen.DataForMs(path_data=param.path_data, path_results=param.path_results,
                                                   time_str=param.time_str,
-                                                  with_mvt=False, use_fake_cells=False, dimensions=(200, 200),
+                                                  with_mvt=False, use_fake_cells=False, dimensions=(180, 175),
                                                   n_vessels=0, same_baseline_from_cell_than_background=True)
-            produce_movie(map_coords=ms.coord, raster_dur=ms.spike_struct.spike_nums_dur[:100], param=param_movie,
+            # dimension is height x width
+            produce_movie(map_coords=ms.coord, raster_dur=ms.spike_struct.spike_nums_dur, param=param_movie,
                           cells_with_overlap=None,
                           overlapping_cells=None, padding=0,
                           vessels=[])

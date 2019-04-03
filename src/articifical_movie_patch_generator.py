@@ -686,7 +686,7 @@ class CellPiece:
                     self.activity_mask[frame, self.mask] = other_2[frame, self.mask]
 
     def get_mask(self):
-        img = PIL.Image.new('1', (self.dimensions[0], self.dimensions[1]), 0)
+        img = PIL.Image.new('1', (self.dimensions[1], self.dimensions[0]), 0)
         try:
             ImageDraw.Draw(img).polygon(list(self.poly_gon.exterior.coords), outline=1,
                                         fill=1)
@@ -786,7 +786,7 @@ class CellPiece:
 
 
 def get_mask(dimensions, poly_gon):
-    img = PIL.Image.new('1', (dimensions[0], dimensions[1]), 0)
+    img = PIL.Image.new('1', (dimensions[1], dimensions[0]), 0)
     try:
         ImageDraw.Draw(img).polygon(list(poly_gon.exterior.coords), outline=1,
                                     fill=1)
@@ -869,7 +869,7 @@ class MovieConstructor:
         # change_polygon_centroid(new_centroid, poly_cell)
         for cell in np.arange(self.n_cells):
             # print(f"construct_movie_images begins, cell {cell}")
-            self.masks[cell] = coord_obj.get_cell_mask(cell, dimensions)
+            self.masks[cell] = coord_obj.get_cell_mask(cell, dimensions) # (dimensions[1], dimensions[0])
             self.n_pixels[cell] = np.sum(self.masks[cell])
 
             add_soma = not (cell % 5 == 0)
