@@ -298,9 +298,9 @@ class ActivitySumBox(AnimationBox):
 class HNEAnimation:
     def __init__(self, n_frames, n_rows=1, n_cols=1):
         if n_rows < 1:
-            raise Excepton("n_rows must be at least 1")
+            raise Exception("n_rows must be at least 1")
         if n_cols < 1:
-            raise Excepton("n_cols must be at least 1")
+            raise Exception("n_cols must be at least 1")
         self.n_frames = n_frames
         self.n_rows = n_rows
         self.n_cols = n_cols

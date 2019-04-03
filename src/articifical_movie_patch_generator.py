@@ -18,6 +18,10 @@ from pattern_discovery.tools.misc import get_continous_time_periods
 from pattern_discovery.display.raster import plot_spikes_raster
 import PIL
 from PIL import ImageDraw
+import matplotlib
+# useful on mac to create movie from fig
+matplotlib.use('agg')
+# matplotlib.use('TkAgg')
 import matplotlib.image as mpimg
 
 from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize
@@ -326,6 +330,7 @@ def make_video(images, outvid=None, fps=5, size=None,
 
 def fig2data(fig):
     """
+    http://www.icare.univ-lille1.fr/tutorials/convert_a_matplotlib_figure
     @brief Convert a Matplotlib figure to a 4D numpy array with RGBA channels and return it
     @param fig a matplotlib figure
     @return a numpy 3D array of RGBA values
@@ -357,46 +362,64 @@ def fig2img(fig):
 
 def test_generate_movie_with_cells(coords, param):
     n_frames = len(coords) // 8
+    print(f"n_frames {n_frames}")
     lw = 400
     lh = 400
-    images = np.zeros((n_frames, lw, lh))
+    images = np.zeros((n_frames, lw, lh, 4))
     first_im = None
     im_to_append = []
     #
-    # for frame_index, n_cells in enumerate(np.arange(1, len(coords) // 4, 2)):
-    #     new_coords = []
-    #     for n_cell in np.arange(0, min(n_cells+1, len(coords) // 4)):
-    #         new_coords.append(coords[n_cell])
-    #     # raise Exception()
-    #     coord_obj = CoordClass(coord=new_coords, nb_col=200,
-    #                            nb_lines=200)
-    #     ms_fusion = MouseSession(age=10, session_id="fusion", nb_ms_by_frame=100, param=param)
-    #     ms_fusion.coord_obj = coord_obj
-    #     fig = ms_fusion.plot_all_cells_on_map(save_plot=False, return_fig=True)
-    #     im = fig2img(fig)
-    #     if first_im is None:
-    #         first_im = im
-    #     else:
-    #         im_to_append.append(im)
-    #     plt.close()
-    #     im = im.convert('L')
-    #     # print(f"coord[0].shape {coord[0].shape}")
-    #
-    #     im.thumbnail((lw, lh), Image.ANTIALIAS)
-    #     # im.show()
-    #     im_array = np.asarray(im)
-    #     # print(f"im_array.shape {im_array.shape}")
-    #     produce_cell_coords = False
-    #
-    #     if produce_cell_coords:
-    #         produce_cell_coord_from_cnn_validated_cells(param)
-    #
-    #     images[frame_index] = im_array
+    for frame_index, n_cells in enumerate(np.arange(1, len(coords) // 4, 2)):
+        print(f"frame_index {frame_index}")
+        new_coords = []
+        for n_cell in np.arange(0, min(n_cells+1, len(coords) // 4)):
+            new_coords.append(coords[n_cell])
+        # raise Exception()
+        coord_obj = CoordClass(coord=new_coords, nb_col=200,
+                               nb_lines=200)
+        ms_fusion = MouseSession(age=10, session_id="fusion", nb_ms_by_frame=100, param=param)
+        ms_fusion.coord_obj = coord_obj
+        fig = ms_fusion.plot_all_cells_on_map(save_plot=False, return_fig=True)
+        im = fig2img(fig)
+        if first_im is None:
+            first_im = im
+        else:
+            im_to_append.append(im)
+        plt.close()
+        # im = im.convert('L')
+        # print(f"coord[0].shape {coord[0].shape}")
 
-    # outvid_avi = os.path.join(param.path_data, param.path_results, "test_vid.avi")
+        im.thumbnail((lw, lh), Image.ANTIALIAS)
+        # im.show()
+        im_array = np.asarray(im)
+        # print(f"im_array.shape {im_array.shape}")
+        produce_cell_coords = False
+
+        if produce_cell_coords:
+            produce_cell_coord_from_cnn_validated_cells(param)
+
+        images[frame_index] = im_array
+
+    outvid_avi = os.path.join(param.path_data, param.path_results, "test_vid.avi")
     outvid_tiff = os.path.join(param.path_data, param.path_results, "test_vid.tiff")
     outvid_tiff_bis = os.path.join(param.path_data, param.path_results, "test_vid_bis.tiff")
     outvid_tiff_bw = os.path.join(param.path_data, param.path_results, "test_vid_b_w_gauss.tiff")
+
+
+    with tifffile.TiffWriter(outvid_tiff_bis) as tiff:
+        for img in im_to_append:
+            # to convert in gray
+            # img = img.convert('L')
+            # to reduce the size
+            # img.thumbnail((lw, lh), Image.ANTIALIAS)
+            tiff.save(np.asarray(img), compress=6)
+
+    # to avoid this error: error: (-215) src.depth() == CV_8U
+    images = np.uint8(255 * images)
+    make_video(images, outvid=outvid_avi, fps=5, size=None,
+                is_color=True, format="XVID")
+
+    raise Exception("toto")
 
     images = np.ones((n_frames, lw, lh))
     images *= 0.1
@@ -413,22 +436,12 @@ def test_generate_movie_with_cells(coords, param):
 
     raise Exception()
 
-    # to avoid this error: error: (-215) src.depth() == CV_8U
-    # images = np.uint8(255 * images)
-    # make_video(images, outvid=outvid_avi, fps=5, size=None,
-    #             is_color=False, format="XVID")
+
 
     # doesn't work
     # first_im.save(outvid_tiff, format="tiff", append_images=im_to_append, save_all=True,
     #               compression="tiff_jpeg")
 
-    with tifffile.TiffWriter(outvid_tiff_bis) as tiff:
-        for img in im_to_append:
-            # to convert in gray
-            # img = img.convert('L')
-            # to reduce the size
-            # img.thumbnail((lw, lh), Image.ANTIALIAS)
-            tiff.save(np.asarray(img), compress=6)
 
     with tifffile.TiffWriter(outvid_tiff_bw) as tiff:
         for img in im_to_append:
@@ -559,7 +572,7 @@ def noisy(noise_typ, image):
         return noisy
 
 
-def build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline):
+def build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline, use_traces_for_amplitude=None):
     n_cells = raster_dur.shape[0]
     n_frames = raster_dur.shape[1]
 
@@ -583,13 +596,16 @@ def build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline):
             len_period = last_frame - period[0]
             x_coords = [period[0], last_frame]
             low_amplitude = traces[cell, period[0]]
-            if len_period <= 2:
-                amplitude_max = random.randint(2, 5)
-            elif len_period <= 5:
-                amplitude_max = random.randint(3, 8)
+            if use_traces_for_amplitude is not None:
+                amplitude_max = np.max(use_traces_for_amplitude[cell, period[0]:last_frame+1])
             else:
-                amplitude_max = random.randint(5, 10)
-            amplitude_max *= n_pixels_by_cell[cell]
+                if len_period <= 2:
+                    amplitude_max = random.randint(2, 5)
+                elif len_period <= 5:
+                    amplitude_max = random.randint(3, 8)
+                else:
+                    amplitude_max = random.randint(5, 10)
+                amplitude_max *= n_pixels_by_cell[cell]
             amplitude_max += low_amplitude
             y_coords = [low_amplitude, amplitude_max]
             traces_values = give_values_on_linear_line_between_2_points(x_coords, y_coords)
@@ -1117,7 +1133,7 @@ def build_somas(coord_obj, dimensions):
 
 
 def produce_movie(map_coords, raster_dur, param, cells_with_overlap, overlapping_cells,
-                  padding, vessels):
+                  padding, vessels, use_traces_for_amplitude=None, file_name=None):
     start_time = time.time()
     n_frames = raster_dur.shape[1]
     n_cells = raster_dur.shape[0]
@@ -1141,7 +1157,8 @@ def produce_movie(map_coords, raster_dur, param, cells_with_overlap, overlapping
 
     # default value at rest for a pixel
     baseline = 1
-    traces = build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline)
+    traces = build_traces(raster_dur, param, n_pixels_by_cell, dimensions, baseline,
+                          use_traces_for_amplitude=use_traces_for_amplitude)
 
     # images = construct_movie_images(coord_obj=coord_obj, traces=traces, dimensions=dimensions,
     #                                 n_pixels_by_cell=n_pixels_by_cell, baseline=baseline, soma_geoms=soma_geoms,
@@ -1149,8 +1166,10 @@ def produce_movie(map_coords, raster_dur, param, cells_with_overlap, overlapping
     # cells_activity_mask
     noise_str = "gauss"
     # in ["s&p", "poisson", "gauss", "speckle"]:
+    if file_name is None:
+        file_name = "artificial_movie"
     outvid_tiff = os.path.join(param.path_data, param.path_results,
-                               f"p10_artificial.tiff")
+                               f"{file_name}_{param.time_str}.tiff")
 
     # used to add mvt
     # images_with_padding = np.ones((images.shape[0], dimensions[0], dimensions[1]))
@@ -1508,7 +1527,7 @@ def main():
     true_cells = data["true_cells"][0]
     fake_cells = data["fake_cells"][0]
 
-    do_test_generate_movie_with_cells = False
+    do_test_generate_movie_with_cells = True
     if do_test_generate_movie_with_cells:
         test_generate_movie_with_cells(coords=coords, param=param)
 

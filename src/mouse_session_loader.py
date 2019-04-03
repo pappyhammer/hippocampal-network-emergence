@@ -886,6 +886,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
         #                      "spike_nums": "filt_Bin100ms_spikedigital",
         #                      "spike_durations": "LOC3"}
+
+        # caiman version
+        variables_mapping = {"spike_nums_dur": "rasterdur"}
+        p12_171110_a000_ms.load_data_from_file(file_name_to_load=
+                                                 "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur.mat",
+                                                 variables_mapping=variables_mapping)
         if not try_suite_2p:
             if for_cell_classifier or for_transient_classifier:
                 variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
@@ -901,6 +907,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                     p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
                                                                            "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
             else:
+                pass
                 # variables_mapping = {"spike_nums_dur": "spike_nums_dur_predicted"}
                 # not the best prediction, but done on all CNN validated cells
                 # p12_171110_a000_ms.\
@@ -910,11 +917,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 # trained on 50 cells + artificial data, 3 inputs, with overlap 0.9 and 3 transformations
                 # rnn trained on 26/02/2019 17-20-11 on 391 cells
 
-                variables_mapping = {"predictions": "predictions"}
-                p12_171110_a000_ms.load_raster_dur_from_predictions(
-                    file_name="p12/p12_17_11_10_a000/" +
-                              "P12_17_11_10_a000_predictions_2019_03_14.20-19-48.mat",
-                    prediction_threshold=0.5, variables_mapping=variables_mapping)
+                # prediction based on rnn trained on 50 cells, BO
+                # variables_mapping = {"predictions": "predictions"}
+                # p12_171110_a000_ms.load_raster_dur_from_predictions(
+                #     file_name="p12/p12_17_11_10_a000/" +
+                #               "P12_17_11_10_a000_predictions_2019_03_14.20-19-48.mat",
+                #     prediction_threshold=0.5, variables_mapping=variables_mapping)
 
                 # if p12_171110_a000_ms.cell_cnn_predictions is not None:
                 #     print(f"Using cnn predictions from {p12_171110_a000_ms.description}")

@@ -2279,10 +2279,10 @@ def main():
     just_plot_all_cells_on_map = False
     do_plot_psth_twitches = False
     just_do_seqnmf = False
-    just_generate_artificial_movie_from_rasterdur = False
+    just_generate_artificial_movie_from_rasterdur = True
     just_do_pca_on_raster = False
     just_display_seq_with_cell_assembly = False
-    just_produce_animation = True
+    just_produce_animation = False
 
     # for events (sce) detection
     perc_threshold = 99
@@ -2428,7 +2428,8 @@ def main():
             produce_movie(map_coords=ms.coord, raster_dur=ms.spike_struct.spike_nums_dur, param=param_movie,
                           cells_with_overlap=None,
                           overlapping_cells=None, padding=0,
-                          vessels=[])
+                          vessels=[], use_traces_for_amplitude=ms.raw_traces,
+                          file_name=f"{ms.description}_artificial_reverse")
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("momo")
             continue
