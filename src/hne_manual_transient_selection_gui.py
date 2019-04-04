@@ -1169,7 +1169,7 @@ class ManualOnsetFrame(tk.Frame):
 
                 # deal with fusion over onsets & peaks over 2 different gui selections
                 self.agree_button = Button(top_frame)
-                self.agree_button["text"] = 'YES'
+                self.agree_button["text"] = 'Y'
                 self.agree_button["fg"] = 'red'
                 self.agree_button["command"] = self.agree_switch_mode
                 self.agree_button.pack(side=LEFT)
@@ -1188,7 +1188,7 @@ class ManualOnsetFrame(tk.Frame):
                 empty_label.pack(side=LEFT)
 
                 self.dont_agree_button = Button(top_frame)
-                self.dont_agree_button["text"] = 'NO'
+                self.dont_agree_button["text"] = 'N'
                 self.dont_agree_button["fg"] = 'red'
                 self.dont_agree_button["command"] = self.dont_agree_switch_mode
                 self.dont_agree_button.pack(side=LEFT)
@@ -4048,12 +4048,17 @@ class ManualOnsetFrame(tk.Frame):
 
     def start_playing_movie(self, x_from, x_to):
         self.play_movie = True
-        self.first_frame_movie = x_from
-        self.last_frame_movie = x_to
-        self.n_frames_movie = x_to - x_from
+        self.first_frame_movie = min(x_from, x_to)
+        self.last_frame_movie = max(x_to, x_from)
+        self.n_frames_movie = np.abs(x_to - x_from)
+        if self.n_frames_movie < 3:
+            self.play_movie = False
+            self.update_plot()
+            return
         self.cell_contour_movie = None
-        self.movie_frames = cycle((frame_tiff, frame_index + x_from)
-                                  for frame_index, frame_tiff in enumerate(self.tiff_movie[x_from:x_to]))
+        self.movie_frames = cycle((frame_tiff, frame_index + self.first_frame_movie)
+                                  for frame_index, frame_tiff in
+                                  enumerate(self.tiff_movie[self.first_frame_movie:self.last_frame_movie+1]))
 
         self.update_plot_map_img()
 
