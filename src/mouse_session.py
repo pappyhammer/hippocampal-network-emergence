@@ -621,17 +621,17 @@ class MouseSession:
 
     def produce_animation(self):
         # self.load_tiff_movie_in_memory()
-        animation = hne_anim.HNEAnimation(n_frames=12500, n_rows=1, n_cols=1)
-        # raw_movie_box = hne_anim.RawMovieBox(tiff_file_name=self.tif_movie_file_name)
-        # animation.add_box(row=0, col=0, box=raw_movie_box)
+        animation = hne_anim.HNEAnimation(n_frames=12500, n_rows=2, n_cols=1)
+        raw_movie_box = hne_anim.RawMovieBox(tiff_file_name=self.tif_movie_file_name)
+        animation.add_box(row=0, col=0, box=raw_movie_box)
         # raw_movie_box.width
-        activity_box = hne_anim.ActivitySumBox(width=200, height=80,
+        activity_box = hne_anim.ActivitySumBox(width=raw_movie_box.width, height=80,
                                                raster=self.spike_struct.spike_nums_dur,
                                                show_sum_spikes_as_percentage=True,
                                                n_frames_to_display=100)
-        animation.add_box(row=0, col=0, box=activity_box)
+        animation.add_box(row=1, col=0, box=activity_box)
         animation.produce_animation(path_results=self.param.path_results, file_name=f"test_raw_movie_{self.description}",
-                               save_formats=["tiff", "avi"], #
+                               save_formats=["tiff"],  # , "avi"
                                frames_to_display=np.arange(100, 300))
 
     def build_raw_traces_from_movie(self):

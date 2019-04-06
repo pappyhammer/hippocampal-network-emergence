@@ -5046,11 +5046,41 @@ def print_save(text, file, to_write, no_print=False):
     if to_write:
         file.write(text + '\n')
 
+def merge_close_values(raster, cell, merging_threshold):
+    """
+
+    :param raster: Raster is a 2d binary array, lines represents cells, columns binary values
+    :param cell: which cell to merge
+    :param merging_threshold: times separation between two values under which to merge them
+    :return:
+    """
+    values = raster[cell]
+    indices = np.where(values)[0]
+    peaks_diff = np.diff(indices)
+    to_merge_indices = np.where(peaks_diff < merging_threshold)[0]
+    for index_to_merge in to_merge_indices:
+        value_1 = indices[index_to_merge]
+        if raster[cell, value_1] == 0:
+            # could be the case if more than 2 peaks were closes, then the first 2 would be already merge
+            # then the next loop in n_gound_truther will do the job
+            continue
+        value_2 = indices[index_to_merge + 1]
+        new_peak_index = (value_1 + value_2) // 2
+        raster[cell, value_1] = 0
+        raster[cell, value_2] = 0
+        raster[cell, new_peak_index] = 1
 
 def fusion_gui_selection(path_data):
     rep_fusion = "for_fusion"
     file_names = []
     txt_to_read = None
+    # merge close ones
+    # if True merge spikes or peaks that are less then merging_threshold, taking the average value
+    merge_close_ones = False
+    merging_threshold = 5
+    # how many people did ground truth, useulf to merge close ones
+    # should be superior to 1
+    n_ground_truther = 2
 
     # look for filenames in the fisrst directory, if we don't break, it will go through all directories
     for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(path_data, rep_fusion)):
@@ -5103,6 +5133,14 @@ def fusion_gui_selection(path_data):
     inter_neurons = np.zeros(0, dtype="int16")
     cells_to_remove = np.zeros(0, dtype="int16")
     cells_fusioned = []
+
+    # in case if one of the file is a fusion file
+    for index_data, data_file in enumerate(data_files):
+        if "to_agree_peak_nums" in data_file:
+            to_agree_peak_nums = data_file['to_agree_peak_nums'].astype(int)
+        if "to_agree_spike_nums" in data_file:
+            to_agree_spike_nums = data_file['to_agree_spike_nums'].astype(int)
+
     for index_data, data_file in enumerate(data_files):
         if "inter_neurons" in data_file:
             inter_neurons_data = data_file['inter_neurons'].astype(int)
@@ -5155,8 +5193,15 @@ def fusion_gui_selection(path_data):
                 if np.sum(mvt_frames_nums_data[cell]) > 0:
                     mvt_frames_nums[cell, mvt_frames_nums_data[cell] > 0] = 1
 
+    cells_fusioned = np.unique(cells_fusioned)
+    if merge_close_ones:
+        for n in np.arange(n_ground_truther-1):
+            for cell in cells_fusioned:
+                merge_close_values(raster=to_agree_peak_nums, cell=cell, merging_threshold=merging_threshold)
+                merge_close_values(raster=to_agree_spike_nums, cell=cell, merging_threshold=merging_threshold)
+
     # now we want to fill the cells that didn't have to be fusionned, using one the data file
-    cells_to_fill = np.setxor1d(np.unique(cells_fusioned), np.arange(n_cells), assume_unique=True)
+    cells_to_fill = np.setxor1d(cells_fusioned, np.arange(n_cells), assume_unique=True)
     for cell in cells_to_fill:
         peak_nums_data = data_files[0]['LocPeakMatrix_Python'].astype(int)
         spike_nums_data = data_files[0]['Bin100ms_spikedigital_Python'].astype(int)

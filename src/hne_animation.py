@@ -8,8 +8,10 @@ import time
 from ScanImageTiffReader import ScanImageTiffReader
 import PIL
 from PIL import ImageSequence
-# import matplotlib
 # matplotlib.use('TkAgg')
+import matplotlib
+# useful on mac to create movie from fig
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 def loading_tiff_movie(tiff_file_name):
@@ -167,13 +169,57 @@ class RawMovieBox(AnimationBox):
     def __init__(self, tiff_file_name):
         super().__init__(description="raw movie")
         self.tiff_movie = loading_tiff_movie(tiff_file_name)
-        self.width = self.tiff_movie.shape[2]
-        self.height = self.tiff_movie.shape[1]
+        self.zoom_factor=2
+        self.dpi = 100*self.zoom_factor
+        self.width = self.tiff_movie.shape[2]*self.zoom_factor
+        self.height = self.tiff_movie.shape[1]*self.zoom_factor
         self.n_frames = self.tiff_movie.shape[0]
 
-    def get_frame_img(self, frame):
-        return self.tiff_movie[frame]
+    # def get_frame_img(self, frame):
+    #     return self.tiff_movie[frame]
 
+    def get_frame_img(self, frame):
+        fig_size_width = 10
+        background_color = "black"
+        fig_size_height = fig_size_width * (self.height / self.width)
+        fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                gridspec_kw={'height_ratios': [1], 'width_ratios': [1]},
+                                # figsize=plt.figaspect(self.tiff_movie[frame]))
+                                # figsize=(self.width*dpi, self.height*dpi), dpi=dpi)
+                                figsize=(fig_size_width, fig_size_height), dpi=self.dpi)
+        # fig, ax = plt.subplots(figsize=plt.figaspect(a))
+        # fig.subplots_adjust(0, 0, 1, 1)
+        fig.patch.set_facecolor(background_color)
+        ax1.imshow(self.tiff_movie[frame],
+                                     cmap=plt.get_cmap('gray'))
+
+        # ax1.legend()
+        axes_to_clean = [ax1]
+        # plt.setp(ax1.spines.values(), color="black")
+        for ax in axes_to_clean:
+            ax.axes.get_xaxis().set_visible(False)
+            ax.axes.get_yaxis().set_visible(False)
+            ax.spines['bottom'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            # ax.spines['left'].set_color('black')
+            ax.spines['left'].set_visible(False)
+            ax.margins(0)
+        fig.tight_layout()
+        # plt.show()
+
+        im = fig2img(fig)
+        plt.close()
+        # im = im.convert('L')
+        # im = im.convert('RGB')
+        # print(f"coord[0].shape {coord[0].shape}")
+
+        # im.thumbnail((self.width, self.height), Image.ANTIALIAS)
+        im = im.resize((self.width, self.height), Image.ANTIALIAS)
+        # im.show()
+        # raise Exception("trial")
+        # im_array = np.asarray(im)
+        return im
 
 class FrameCountBox(AnimationBox):
     def __init__(self):
@@ -232,12 +278,13 @@ class ActivitySumBox(AnimationBox):
 
     def get_frame_img(self, frame):
         fig_size_width = 12
+        background_color = "black"
         fig_size_height = fig_size_width * (self.height / self.width)
         fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex='col',
                                 gridspec_kw={'height_ratios': [1], 'width_ratios': [1]},
                                 figsize=(fig_size_width, fig_size_height))
-
-        ax1.set_facecolor("black")
+        fig.patch.set_facecolor(background_color)
+        ax1.set_facecolor(background_color)
         if (frame - (self.n_frames_to_display // 2)) >= 0:
             x_value = np.arange(0, (self.n_frames_to_display // 2)+1)
             sum_spikes = self.sum_spikes[frame - (self.n_frames_to_display // 2):frame + 1]
@@ -276,7 +323,7 @@ class ActivitySumBox(AnimationBox):
             ax.spines['bottom'].set_visible(False)
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
-            # ax.spines['left'].set_color('white')
+            # ax.spines['left'].set_color('black')
             ax.spines['left'].set_visible(False)
             ax.margins(0)
         fig.tight_layout()
@@ -292,8 +339,8 @@ class ActivitySumBox(AnimationBox):
         # im = im.resize((self.width, self.height), Image.ANTIALIAS)
         # im.show()
         # raise Exception("trial")
-        im_array = np.asarray(im)
-        return im_array
+        # im_array = np.asarray(im)
+        return im
 
 class HNEAnimation:
     def __init__(self, n_frames, n_rows=1, n_cols=1):
@@ -357,8 +404,10 @@ class HNEAnimation:
                         print(f"box {box.description} at position {(row, col)} has a width that doesn't match"
                               f" the width of other boxes")
                     height_by_row[row] = box.height
-                    self.width += box.width
-                    self.height += box.height
+        print(f"width_by_col {width_by_col}")
+        print(f"height_by_row {height_by_row}")
+        self.width = np.sum(width_by_col)
+        self.height = np.sum(height_by_row)
 
         # then filling the empty space by empty boxes
         for row in np.arange(self.n_rows):
@@ -387,11 +436,20 @@ class HNEAnimation:
         if (self.height is None) or (self.height is None):
             self.set_size()
         img = np.zeros((self.height, self.width, 4))
+        # print(f"img.shape {img.shape}")
         for row in np.arange(self.n_rows):
             for col in np.arange(self.n_cols):
                 box = self.boxes[(row, col)]
                 if box is not None:
                     img_box = box.get_frame_img(frame=frame)
+                    img_box = np.asarray(img_box)
+                    if len(img_box.shape) < 3:
+                        # print(f"img_box.shape {img_box.shape}")
+                        # stacked_img = np.stack((img_box,) * 4, axis=-1)
+                        # img_box = stacked_img
+                        img_box = Image.fromarray(obj=img_box)
+                        img_box = img_box.convert("RGBA", dither=Image.FLOYDSTEINBERG)
+                        # print(f"post PIL: img_box.shape {np.asarray(img_box).shape}")
                     x_top_left = box.boundaries[0][0]
                     y_top_left = box.boundaries[0][1]
                     # print(f"x_top_left {x_top_left}, y_top_left {y_top_left}")
@@ -443,10 +501,13 @@ class HNEAnimation:
             with tifffile.TiffWriter(output_filenames['tiff']) as tiff:
                 for frame in frames_to_display:
                     img = self.get_frame_img(frame=frame)
-                    # normalized_img = img
-                    normalized_img = np.uint8(255 * img)
+                    # print(f"img.shape {img.shape}")
+                    normalized_img = img
+                    normalized_img = normalized_img.astype(dtype="uint8")
+                    # print(f"normalized_img.shape {normalized_img.shape}")
+                    # normalized_img = np.uint8(255 * img)
                     # normalized_img = normalize_array_0_255(img)
-                    tiff.save(np.asarray(normalized_img), compress=6)
+                    tiff.save(normalized_img, compress=6)
                     if 'avi' in output_filenames:
                         if vid_avi is None:
                             if size_avi is None:

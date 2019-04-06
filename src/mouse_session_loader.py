@@ -952,9 +952,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if load_movie:
             p12_171110_a000_ms.load_tif_movie(path="p12/p12_17_11_10_a000/")
 
-        if not try_suite_2p:
-            if (not for_cell_classifier) and (not for_transient_classifier):
-                p12_171110_a000_ms.clean_data_using_cells_to_remove()
+        # if not try_suite_2p:
+        #     if for_transient_classifier:
+        #         p12_171110_a000_ms.clean_data_using_cells_to_remove()
+            # if (not for_cell_classifier) and (not for_transient_classifier):
+            #     p12_171110_a000_ms.clean_data_using_cells_to_remove()
 
         p12_171110_a000_ms.load_suite2p_data(data_path="p12/p12_17_11_10_a000/suite2p/", with_coord=try_suite_2p)
 
