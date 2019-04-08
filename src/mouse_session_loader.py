@@ -76,6 +76,23 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["artificial_ms_2"] = artificial_ms
 
+    if "p5_19_03_25_a001_ms" in ms_str_to_load:
+        p5_19_03_25_a001_ms = MouseSession(age=5, session_id="19_03_25_a001", nb_ms_by_frame=100, param=param)
+
+        variables_mapping = {"global_roi": "global_roi"}
+        p5_19_03_25_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p5/p5_19_03_25_a001/p5_19_03_25_a001_global_roi.mat",
+                                                variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xshifts",
+                             "yshifts": "yshifts"}
+        p5_19_03_25_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p5/p5_19_03_25_a001/MichelMotC_p5_19_03_25_a001_params.mat",
+                                                variables_mapping=variables_mapping)
+        if load_movie:
+            p5_19_03_25_a001_ms.load_tif_movie(path="p5/p5_19_03_25_a001/")
+
+        ms_str_to_ms_dict["p5_19_03_25_a001_ms"] = p5_19_03_25_a001_ms
+
     if "p6_18_02_07_a001_ms" in ms_str_to_load:
         p6_18_02_07_a001_ms = MouseSession(age=6, session_id="18_02_07_a001", nb_ms_by_frame=100, param=param,
                                            weight=4.35)
@@ -765,6 +782,24 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                               threshold_piezo=0.06, piezo_channel=2, sampling_rate=10000,
                                               offset=0.1)
         ms_str_to_ms_dict["p9_18_09_27_a003_ms"] = p9_18_09_27_a003_ms
+
+    if "p9_19_02_20_a002_ms" in ms_str_to_load:
+        p9_19_02_20_a002_ms = MouseSession(age=9, session_id="19_02_20_a002", nb_ms_by_frame=100, param=param)
+
+        variables_mapping = {"global_roi": "global_roi"}
+        p9_19_02_20_a002_ms.load_data_from_file(file_name_to_load=
+                                                "p9/p9_19_02_20_a002/p9_19_02_20_a002_global_roi.mat",
+                                                variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xshifts",
+                             "yshifts": "yshifts"}
+        p9_19_02_20_a002_ms.load_data_from_file(file_name_to_load=
+                                                "p9/p9_19_02_20_a002/MichelMotC_p9_19_02_20_a002_params.mat",
+                                                variables_mapping=variables_mapping)
+        if load_movie:
+            p9_19_02_20_a002_ms.load_tif_movie(path="p9/p9_19_02_20_a002/")
+
+        ms_str_to_ms_dict["p9_19_02_20_a002_ms"] = p9_19_02_20_a002_ms
+
 
     if "p10_17_11_16_a003_ms" in ms_str_to_load:
         p10_17_11_16_a003_ms = MouseSession(age=10, session_id="17_11_16_a003", nb_ms_by_frame=100, param=param,

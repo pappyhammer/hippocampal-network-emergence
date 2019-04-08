@@ -79,6 +79,11 @@ class MouseSession:
         self.z_score_traces = None
         self.z_score_raw_traces = None
         self.z_score_smooth_traces = None
+        # average of the all frame pixels, array of float same length as the number of frames
+        self.global_roi = None
+        # two arrays of size n_frames, representing the shift used to correct the motion from the movie
+        self.x_shifts = None
+        self.y_shifts = None
         self.coord = None
         # comes from the gui
         self.cells_to_remove = None
@@ -619,20 +624,49 @@ class MouseSession:
 
                 self.tiff_movie = tiff_movie
 
+    def produce_roi_shift_animation(self):
+        if (self.global_roi is None) or (self.x_shifts is None):
+            return
+        animation = hne_anim.HNEAnimation(n_frames=12500, n_rows=3, n_cols=1)
+        raw_movie_box = hne_anim.RawMovieBox(tiff_file_name=self.tif_movie_file_name)
+        animation.add_box(row=0, col=0, box=raw_movie_box)
+        # raw_movie_box.width
+        roi = self.global_roi
+        roi = (roi - np.mean(roi)) / np.std(roi)
+        roi += np.abs(np.min(roi))
+
+        shifts = np.sqrt(self.x_shifts**2 + self.y_shifts**2)
+        # normalization
+        shifts = (shifts - np.mean(shifts)) / np.std(shifts)
+        shifts += np.abs(np.min(shifts))
+        roi_box = hne_anim.PlotBox(width=raw_movie_box.width, height=80,
+                                               values_array=roi,
+                                               n_frames_to_display=100)
+        animation.add_box(row=1, col=0, box=roi_box)
+        shift_box = hne_anim.PlotBox(width=raw_movie_box.width, height=80,
+                                    values_array=shifts, color_past_and_present="cornflowerblue",
+                                   color_future="white",
+                                   n_frames_to_display=100)
+        animation.add_box(row=2, col=0, box=shift_box)
+        animation.produce_animation(path_results=self.param.path_results, file_name=f"test_raw_movie_{self.description}",
+                               save_formats=["tiff"],  # , "avi"
+                               frames_to_display=np.arange(1000, 3000))
+
     def produce_animation(self):
         # self.load_tiff_movie_in_memory()
         animation = hne_anim.HNEAnimation(n_frames=12500, n_rows=2, n_cols=1)
         raw_movie_box = hne_anim.RawMovieBox(tiff_file_name=self.tif_movie_file_name)
         animation.add_box(row=0, col=0, box=raw_movie_box)
         # raw_movie_box.width
-        activity_box = hne_anim.ActivitySumBox(width=raw_movie_box.width, height=80,
-                                               raster=self.spike_struct.spike_nums_dur,
-                                               show_sum_spikes_as_percentage=True,
+        sum_spikes = tools_misc.get_activity_sum(raster=self.spike_struct.spike_nums_dur,
+                                                 get_sum_spikes_as_percentage=True)
+        activity_box = hne_anim.PlotBox(width=raw_movie_box.width, height=80,
+                                               values_array=sum_spikes,
                                                n_frames_to_display=100)
         animation.add_box(row=1, col=0, box=activity_box)
         animation.produce_animation(path_results=self.param.path_results, file_name=f"test_raw_movie_{self.description}",
                                save_formats=["tiff"],  # , "avi"
-                               frames_to_display=np.arange(100, 300))
+                               frames_to_display=np.arange(12400, 12499))
 
     def build_raw_traces_from_movie(self):
         if self.tiff_movie is None:
@@ -3007,6 +3041,12 @@ class MouseSession:
             if self.spike_struct.n_in_matrix is None:
                 self.spike_struct.n_in_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
                 self.spike_struct.n_out_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
+        if "global_roi" in variables_mapping:
+            self.global_roi = data[variables_mapping["global_roi"]][0]
+        if "xshifts" in variables_mapping:
+            self.x_shifts = data[variables_mapping["xshifts"]][0]
+        if "yshifts" in variables_mapping:
+            self.y_shifts = data[variables_mapping["yshifts"]][0]
         if "spike_nums_dur" in variables_mapping:
             self.spike_struct.spike_nums_dur = data[variables_mapping["spike_nums_dur"]].astype(int)
             if frames_filter is not None:

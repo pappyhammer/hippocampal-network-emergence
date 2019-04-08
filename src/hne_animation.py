@@ -139,11 +139,11 @@ class AnimationBox(ABC):
         # list of 4 tuples, in order top left, top right, bottom left, bottom right
         self.boundaries = []
         self.boundaries.append(top_left_coord)
-        top_right_coord = (top_left_coord[0]+self.width, top_left_coord[1])
+        top_right_coord = (top_left_coord[0]+self.width-1, top_left_coord[1])
         self.boundaries.append(top_right_coord)
-        bottom_left_coord = (top_left_coord[0], top_left_coord[1] + self.height)
+        bottom_left_coord = (top_left_coord[0], top_left_coord[1] + self.height-1)
         self.boundaries.append(bottom_left_coord)
-        bottom_right_coord = (bottom_left_coord[0]+self.width, bottom_left_coord[1])
+        bottom_right_coord = (bottom_left_coord[0]+self.width-1, bottom_left_coord[1])
         self.boundaries.append(bottom_right_coord)
 
         if "bottom" in self.neighbors:
@@ -229,9 +229,9 @@ class FrameCountBox(AnimationBox):
         return None
 
 
-class ActivitySumBox(AnimationBox):
-    def __init__(self, width, height, raster, show_sum_spikes_as_percentage=True,
-                 n_frames_to_display=100):
+class PlotBox(AnimationBox):
+    def __init__(self, width, height, values_array, color_past_and_present="red", color_future="white",
+                 show_v_line_at_active_frame=False, n_frames_to_display=100):
         """
 
         :param width:
@@ -241,39 +241,17 @@ class ActivitySumBox(AnimationBox):
         :param n_frames_to_display: number of frames to display, should an even number
         """
         super().__init__(description="activity sum")
-        self.raster = raster
-        self.n_cells = raster.shape[0]
-        self.n_times = raster.shape[1]
         self.width = width
         self.height = height
-        self.sum_spikes = np.zeros(self.n_times)
-        self.show_sum_spikes_as_percentage = show_sum_spikes_as_percentage
         self.n_frames_to_display = n_frames_to_display
+        self.color_past_and_present = color_past_and_present
+        self.color_future = color_future
+        self.show_v_line_at_active_frame = show_v_line_at_active_frame
 
-        sliding_window_duration = 1
-        bin_size = 1
-        if sliding_window_duration > 1:
-            for t in np.arange(0, (self.n_times - sliding_window_duration)):
-                # One spike by cell max in the sum process
-                sum_value = np.sum(raster[:, t:(t + sliding_window_duration)], axis=1)
-                self.sum_spikes[t] = len(np.where(sum_value)[0])
-            self.sum_spikes[(self.n_times - sliding_window_duration):] = len(np.where(sum_value)[0])
-        else:
-            binary_spikes = np.zeros((self.n_cells, self.n_times), dtype="int8")
-            for cell, spikes in enumerate(raster):
-                binary_spikes[cell, spikes > 0] = 1
-            if bin_size > 1:
-                self.sum_spikes = np.mean(np.split(np.sum(binary_spikes, axis=0), self.n_times // bin_size), axis=1)
-                self.sum_spikes = np.repeat(self.sum_spikes, bin_size)
-            else:
-                self.sum_spikes = np.sum(binary_spikes, axis=0)
-
-        if self.show_sum_spikes_as_percentage:
-            self.sum_spikes = self.sum_spikes / self.n_cells
-            self.sum_spikes *= 100
-
-        self.min_value = np.min(self.sum_spikes)
-        self.max_value = np.max(self.sum_spikes)
+        self.values_array = values_array
+        self.n_times = len(self.values_array)
+        self.min_value = np.min(self.values_array)
+        self.max_value = np.max(self.values_array)
         # print(f"bounds : {(self.min_value, self.max_value)}")
 
     def get_frame_img(self, frame):
@@ -287,29 +265,29 @@ class ActivitySumBox(AnimationBox):
         ax1.set_facecolor(background_color)
         if (frame - (self.n_frames_to_display // 2)) >= 0:
             x_value = np.arange(0, (self.n_frames_to_display // 2)+1)
-            sum_spikes = self.sum_spikes[frame - (self.n_frames_to_display // 2):frame + 1]
+            sum_spikes = self.values_array[frame - (self.n_frames_to_display // 2):frame + 1]
         else:
             n_frames = np.abs((frame - (self.n_frames_to_display // 2)))
             x_value = np.arange(n_frames, (self.n_frames_to_display // 2)+1)
-            sum_spikes = self.sum_spikes[0:frame + 1]
+            sum_spikes = self.values_array[0:frame + 1]
         # print(f"frame {frame}")
         # print(f"x_value {x_value}")
         # print(f"sum_spikes {sum_spikes}")
-        ax1.fill_between(x_value, 0, sum_spikes, facecolor="red")
+        ax1.fill_between(x_value, 0, sum_spikes, facecolor=self.color_past_and_present)
 
         if frame < self.n_times - 1:
             if (frame + (self.n_frames_to_display // 2)) < self.n_times:
                 x_value = np.arange((self.n_frames_to_display // 2), self.n_frames_to_display)
-                sum_spikes = self.sum_spikes[frame: frame + (self.n_frames_to_display // 2)]
+                sum_spikes = self.values_array[frame: frame + (self.n_frames_to_display // 2)]
             else:
                 n_frames = self.n_times - frame
                 x_value = np.arange((self.n_frames_to_display // 2), (self.n_frames_to_display // 2) + n_frames)
-                sum_spikes = self.sum_spikes[frame:]
+                sum_spikes = self.values_array[frame:]
             # print(f"----")
             # print(f"frame {frame}")
             # print(f"x_value {x_value} {len(x_value)}")
             # print(f"sum_spikes {sum_spikes} {len(sum_spikes)}")
-            ax1.fill_between(x_value, 0, sum_spikes, facecolor="white")
+            ax1.fill_between(x_value, 0, sum_spikes, facecolor=self.color_future)
 
         ax1.set_ylim(self.min_value, self.max_value)
         ax1.set_xlim(0, self.n_frames_to_display-1)
@@ -335,8 +313,8 @@ class ActivitySumBox(AnimationBox):
         # im = im.convert('RGB')
         # print(f"coord[0].shape {coord[0].shape}")
 
-        im.thumbnail((self.width, self.height), Image.ANTIALIAS)
-        # im = im.resize((self.width, self.height), Image.ANTIALIAS)
+        # im.thumbnail((self.width, self.height), Image.ANTIALIAS)
+        im = im.resize((self.width, self.height), Image.ANTIALIAS)
         # im.show()
         # raise Exception("trial")
         # im_array = np.asarray(im)
