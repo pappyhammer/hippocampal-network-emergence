@@ -927,11 +927,14 @@ def correlate_global_roi_and_shift(path_data, param):
     # now we produce 2 subplots to plot the mvt and roi value of each session
     for value in data_dict.values():
         roi = value["global_roi"]
+
+        roi = signal.detrend(roi)
         # normalization
         roi = (roi - np.mean(roi)) / np.std(roi)
 
         # print(f'value["xshifts"] {np.abs(value["xshifts"])}')
         mvt = np.abs(value["xshifts"]) + np.abs(value["yshifts"])
+        mvt = signal.detrend(mvt)
         # normalization
         mvt = (mvt - np.mean(mvt)) / np.std(mvt)
         mvt = mvt - np.abs(np.min(roi)) - np.max(mvt)
@@ -1014,8 +1017,8 @@ def correlate_global_roi_and_shift(path_data, param):
 
         ax1.set_facecolor("black")
         
-        ax1.plot(np.arange(n_frames), roi, color="cornflowerblue", lw=1, label=f"ROI", zorder=10)
-        ax1.plot(np.arange(n_frames), mvt, color="red", lw=1, label=f"SHIFT", zorder=10)
+        ax1.plot(np.arange(n_frames), roi, color="red", lw=1, label=f"ROI", zorder=10)
+        ax1.plot(np.arange(n_frames), mvt, color="cornflowerblue", lw=1, label=f"SHIFT", zorder=10)
         min_value = np.min(mvt)
         max_value = np.max(roi)
         interval = 200
@@ -2103,7 +2106,7 @@ def main():
 
     path_data = root_path + "data/"
     path_results_raw = root_path + "results_hne/"
-    cell_assemblies_data_path = path_data + "cell_assemblies/v3/"
+    cell_assemblies_data_path = path_data + "cell_assemblies/v4/"
     best_order_data_path = path_data + "best_order_data/v2/"
 
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
@@ -2123,13 +2126,13 @@ def main():
                           no_reverse_seq=False, spike_rate_weight=False, path_data=path_data)
 
     just_compute_significant_seq_stat = False
-    just_correlate_global_roi_and_shift = False
     if just_compute_significant_seq_stat:
         compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v4/", param=param,
                                            save_formats=["pdf"],
                                            color_option="manual", cmap_name="Reds")
         return
 
+    just_correlate_global_roi_and_shift = False
     if just_correlate_global_roi_and_shift:
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
@@ -2253,8 +2256,12 @@ def main():
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
     # ms_str_to_load = ["p12_171110_a000_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
-    ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
     ms_str_to_load = ["p9_19_02_20_a002_ms"]
+    ms_str_to_load = ["p9_19_03_22_a001_ms"]
+    ms_str_to_load = ["p5_19_03_20_a000_ms"]
+    ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
+    ms_str_to_load = ["p6_18_02_07_a002_ms"]
 
     # 256
 
@@ -2284,7 +2291,7 @@ def main():
     just_generate_artificial_movie_from_rasterdur = False
     just_do_pca_on_raster = False
     just_display_seq_with_cell_assembly = False
-    just_produce_animation = True
+    just_produce_animation = False
 
     # for events (sce) detection
     perc_threshold = 99
@@ -2305,7 +2312,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = False
+    do_clustering = True
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
@@ -2320,8 +2327,8 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 10)
-    # range_n_clusters_k_mean = np.array([5])
+    # range_n_clusters_k_mean = np.arange(5, 7)
+    range_n_clusters_k_mean = np.array([6])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
 

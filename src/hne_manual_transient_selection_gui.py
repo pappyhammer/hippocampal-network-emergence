@@ -1161,6 +1161,8 @@ class ManualOnsetFrame(tk.Frame):
         self.remove_all_button["command"] = self.remove_all_switch_mode
         self.remove_all_button.pack(side=LEFT)
 
+        self.agree_button = None
+        self.dont_agree_button = None
         if (self.to_agree_spike_nums is not None) and (self.to_agree_peak_nums is not None):
             if (np.sum(self.to_agree_spike_nums) > 0) or (np.sum(self.to_agree_peak_nums) > 0):
                 empty_label = Label(top_frame)
@@ -1835,6 +1837,11 @@ class ManualOnsetFrame(tk.Frame):
             #     print("s with control")
         elif (event.keysym == "space") and (self.tiff_movie is not None):
             self.switch_movie_mode()
+        elif (event.keysym in ["y", "Y"]) and (self.agree_button is not None):
+            self.agree_switch_mode()
+        elif (event.keysym in ["n", "N"]) and (self.dont_agree_button is not None):
+            self.dont_agree_switch_mode()
+
         if event.keysym == 'Right':
             # C as cell
             if ("Meta_L" in self.keys_pressed) or ("Control_L" in self.keys_pressed):
@@ -5046,7 +5053,8 @@ def print_save(text, file, to_write, no_print=False):
     if to_write:
         file.write(text + '\n')
 
-def merge_close_values(raster, cell, merging_threshold):
+
+def merge_close_values(raster, raster_to_fill, cell, merging_threshold):
     """
 
     :param raster: Raster is a 2d binary array, lines represents cells, columns binary values
@@ -5068,7 +5076,8 @@ def merge_close_values(raster, cell, merging_threshold):
         new_peak_index = (value_1 + value_2) // 2
         raster[cell, value_1] = 0
         raster[cell, value_2] = 0
-        raster[cell, new_peak_index] = 1
+        raster_to_fill[cell, new_peak_index] = 1
+        # raster[cell, new_peak_index] = 1
 
 def fusion_gui_selection(path_data):
     rep_fusion = "for_fusion"
@@ -5076,8 +5085,8 @@ def fusion_gui_selection(path_data):
     txt_to_read = None
     # merge close ones
     # if True merge spikes or peaks that are less then merging_threshold, taking the average value
-    merge_close_ones = False
-    merging_threshold = 5
+    merge_close_ones = True
+    merging_threshold = 7
     # how many people did ground truth, useulf to merge close ones
     # should be superior to 1
     n_ground_truther = 2
@@ -5197,8 +5206,10 @@ def fusion_gui_selection(path_data):
     if merge_close_ones:
         for n in np.arange(n_ground_truther-1):
             for cell in cells_fusioned:
-                merge_close_values(raster=to_agree_peak_nums, cell=cell, merging_threshold=merging_threshold)
-                merge_close_values(raster=to_agree_spike_nums, cell=cell, merging_threshold=merging_threshold)
+                merge_close_values(raster=to_agree_peak_nums, raster_to_fill=peak_nums,
+                                   cell=cell, merging_threshold=merging_threshold)
+                merge_close_values(raster=to_agree_spike_nums, raster_to_fill=spike_nums,
+                                   cell=cell, merging_threshold=merging_threshold)
 
     # now we want to fill the cells that didn't have to be fusionned, using one the data file
     cells_to_fill = np.setxor1d(cells_fusioned, np.arange(n_cells), assume_unique=True)

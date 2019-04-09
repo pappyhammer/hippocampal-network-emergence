@@ -20,6 +20,8 @@ def loading_tiff_movie(tiff_file_name):
         start_time = time.time()
         tiff_movie = ScanImageTiffReader(tiff_file_name).data()
         stop_time = time.time()
+        print(f"tiff_movie.dtype.name {tiff_movie.dtype.name}")
+        raise Exception("titi")
         print(f"Time for loading movie {value['tiff_file']} with scan_image_tiff: "
               f"{np.round(stop_time - start_time, 3)} s")
         return tiff_movie
@@ -35,6 +37,7 @@ def loading_tiff_movie(tiff_file_name):
         stop_time = time.time()
         print(f"Time for loading movie: "
               f"{np.round(stop_time - start_time, 3)} s")
+        print(f"PIL tiff_movie.dtype.name {tiff_movie.dtype.name}")
         return tiff_movie
 
 def normalize_array_0_255(img_array):
@@ -42,10 +45,23 @@ def normalize_array_0_255(img_array):
     # minv = 0
     maxv = np.amax(img_array)
     if maxv - minv == 0:
+        print(f"maxv - min == 0")
         img_array = img_array.astype(np.uint8)
     else:
         img_array = (255 * (img_array - minv) / (maxv - minv)).astype(np.uint8)
     return img_array
+
+
+def normalize_array_16_bits(img_array):
+    minv = np.amin(img_array)
+    # minv = 0
+    maxv = np.amax(img_array)
+    if maxv - minv == 0:
+        img_array = img_array.astype(np.uint16)
+    else:
+        img_array = (((2**16)- 1) * (img_array - minv) / (maxv - minv)).astype(np.uint16)
+    return img_array
+
 
 def make_video(images, outvid=None, fps=5, size=None,
                is_color=True, format="XVID"):
@@ -94,6 +110,8 @@ def fig2data(fig):
     # Get the RGBA buffer from the figure
     w, h = fig.canvas.get_width_height()
     buf = np.fromstring(fig.canvas.tostring_argb(), dtype=np.uint8)
+    # print(f"buf.shape {buf.shape}")
+    # raise Exception("toto")
     buf.shape = (w, h, 4)
 
     # canvas.tostring_argb give pixmap in ARGB mode. Roll the ALPHA channel to have it in RGBA mode
@@ -155,6 +173,11 @@ class AnimationBox(ABC):
     def get_frame_img(self, frame):
         pass
 
+    @abstractmethod
+    def set_frames_range(self, frames):
+        # define a range, that is serve for exemple to normalize over a range of frames
+        pass
+
 
 class EmptyBox(AnimationBox):
     def __init__(self, width, height):
@@ -165,11 +188,15 @@ class EmptyBox(AnimationBox):
     def get_frame_img(self, frame):
         return np.zeros((self.width, self.height))
 
+    def set_frames_range(self, frames):
+        pass
+
+
 class RawMovieBox(AnimationBox):
-    def __init__(self, tiff_file_name):
+    def __init__(self, tiff_file_name, zoom_factor=1):
         super().__init__(description="raw movie")
         self.tiff_movie = loading_tiff_movie(tiff_file_name)
-        self.zoom_factor=2
+        self.zoom_factor=zoom_factor
         self.dpi = 100*self.zoom_factor
         self.width = self.tiff_movie.shape[2]*self.zoom_factor
         self.height = self.tiff_movie.shape[1]*self.zoom_factor
@@ -178,7 +205,11 @@ class RawMovieBox(AnimationBox):
     # def get_frame_img(self, frame):
     #     return self.tiff_movie[frame]
 
+    def set_frames_range(self, frames):
+        pass
+
     def get_frame_img(self, frame):
+        # return self.tiff_movie[frame]
         fig_size_width = 10
         background_color = "black"
         fig_size_height = fig_size_width * (self.height / self.width)
@@ -253,6 +284,10 @@ class PlotBox(AnimationBox):
         self.min_value = np.min(self.values_array)
         self.max_value = np.max(self.values_array)
         # print(f"bounds : {(self.min_value, self.max_value)}")
+
+    def set_frames_range(self, frames):
+        self.min_value = np.min(self.values_array[frames])
+        self.max_value = np.max(self.values_array[frames])
 
     def get_frame_img(self, frame):
         fig_size_width = 12
@@ -332,7 +367,7 @@ class HNEAnimation:
         # key is a tuple representing a box as it line and col
         self.boxes = dict()
         for row in np.arange(n_rows):
-            for col in np.arange(n_rows):
+            for col in np.arange(n_cols):
                 self.boxes[(row, col)] = None
         # width and height in pixels
         self.width = None
@@ -426,7 +461,8 @@ class HNEAnimation:
                         # stacked_img = np.stack((img_box,) * 4, axis=-1)
                         # img_box = stacked_img
                         img_box = Image.fromarray(obj=img_box)
-                        img_box = img_box.convert("RGBA", dither=Image.FLOYDSTEINBERG)
+                        img_box = img_box.convert("RGBA", dither=Image.FLOYDSTEINBERG, colors=2**16)
+                        print(f"post PIL: img_box.dtype.name {np.asarray(img_box, dtype='uint16').dtype.name}")
                         # print(f"post PIL: img_box.shape {np.asarray(img_box).shape}")
                     x_top_left = box.boundaries[0][0]
                     y_top_left = box.boundaries[0][1]
@@ -466,6 +502,10 @@ class HNEAnimation:
                 print(f"min frame index is 0")
                 return
 
+        for row in np.arange(self.n_rows):
+            for col in np.arange(self.n_cols):
+                self.boxes[(row, col)].set_frames_range(frames_to_display)
+
         if 'avi' in output_filenames:
             fourcc = VideoWriter_fourcc(*"XVID")
         else:
@@ -480,12 +520,13 @@ class HNEAnimation:
                 for frame in frames_to_display:
                     img = self.get_frame_img(frame=frame)
                     # print(f"img.shape {img.shape}")
-                    normalized_img = img
-                    normalized_img = normalized_img.astype(dtype="uint8")
+                    # normalized_img = normalize_array_16_bits(img)
+                    normalized_img = img  # *256
+                    # normalized_img = normalized_img.astype(dtype="uint8")
                     # print(f"normalized_img.shape {normalized_img.shape}")
                     # normalized_img = np.uint8(255 * img)
-                    # normalized_img = normalize_array_0_255(img)
-                    tiff.save(normalized_img, compress=6)
+                    normalized_img = normalize_array_0_255(img)
+                    tiff.save(normalized_img, compress=0) #, compress=6, photometric='RGB')
                     if 'avi' in output_filenames:
                         if vid_avi is None:
                             if size_avi is None:

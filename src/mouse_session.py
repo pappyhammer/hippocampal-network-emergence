@@ -627,30 +627,36 @@ class MouseSession:
     def produce_roi_shift_animation(self):
         if (self.global_roi is None) or (self.x_shifts is None):
             return
-        animation = hne_anim.HNEAnimation(n_frames=12500, n_rows=3, n_cols=1)
-        raw_movie_box = hne_anim.RawMovieBox(tiff_file_name=self.tif_movie_file_name)
-        animation.add_box(row=0, col=0, box=raw_movie_box)
+        animation = hne_anim.HNEAnimation(n_frames=12500, n_rows=2, n_cols=1)
+        # raw_movie_box = hne_anim.RawMovieBox(tiff_file_name=self.tif_movie_file_name, zoom_factor=1)
+        # animation.add_box(row=0, col=0, box=raw_movie_box)
+
         # raw_movie_box.width
         roi = self.global_roi
-        roi = (roi - np.mean(roi)) / np.std(roi)
-        roi += np.abs(np.min(roi))
+        # roi = (roi - np.mean(roi)) / np.std(roi)
+        # roi += np.abs(np.min(roi))
 
         shifts = np.sqrt(self.x_shifts**2 + self.y_shifts**2)
         # normalization
-        shifts = (shifts - np.mean(shifts)) / np.std(shifts)
-        shifts += np.abs(np.min(shifts))
-        roi_box = hne_anim.PlotBox(width=raw_movie_box.width, height=80,
+        # shifts = (shifts - np.mean(shifts)) / np.std(shifts)
+        # shifts += np.abs(np.min(shifts))
+        roi_box = hne_anim.PlotBox(width=178, height=80,  # raw_movie_box.width
                                                values_array=roi,
-                                               n_frames_to_display=100)
-        animation.add_box(row=1, col=0, box=roi_box)
-        shift_box = hne_anim.PlotBox(width=raw_movie_box.width, height=80,
+                                               n_frames_to_display=200)
+        animation.add_box(row=0, col=0, box=roi_box)
+        shift_box = hne_anim.PlotBox(width=178, height=80,
                                     values_array=shifts, color_past_and_present="cornflowerblue",
                                    color_future="white",
-                                   n_frames_to_display=100)
-        animation.add_box(row=2, col=0, box=shift_box)
+                                   n_frames_to_display=200)
+        animation.add_box(row=1, col=0, box=shift_box)
         animation.produce_animation(path_results=self.param.path_results, file_name=f"test_raw_movie_{self.description}",
                                save_formats=["tiff"],  # , "avi"
-                               frames_to_display=np.arange(1000, 3000))
+                               frames_to_display=np.arange(2600, 4000))
+        #P5: width 178, range: 501 to 2001
+        # P9: 0 3100
+        # p9_19_03_22_a001: 2000 3400
+        # p5 oriens: 2600 4000
+        # p10 oriens: 8000 - 10500
 
     def produce_animation(self):
         # self.load_tiff_movie_in_memory()
@@ -2291,7 +2297,7 @@ class MouseSession:
                                       cells_groups=self.cell_assemblies,
                                       cells_groups_colors=cells_groups_colors,
                                       dont_fill_cells_not_in_groups=True,
-                                      with_cell_numbers=True, save_formats=["png"])
+                                      with_cell_numbers=False, save_formats=["png", "pdf", "eps"])
 
     def set_low_activity_threshold(self, threshold, percentile_value):
         self.low_activity_threshold_by_percentile[percentile_value] = threshold
@@ -2939,10 +2945,16 @@ class MouseSession:
                 return
 
     def load_tif_movie(self, path):
+        """
+
+        :param path:
+        :param non_corrected: if True, load movie from "non_corrected" dir
+        :return:
+        """
         file_names = []
 
         # look for filenames in the fisrst directory, if we don't break, it will go through all directories
-        for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path):
+        for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data, path)):
             file_names.extend(local_filenames)
             break
         if len(file_names) == 0:
@@ -2955,7 +2967,7 @@ class MouseSession:
             descr_ff = self.description.lower() + ".tiff"
             if (descr != file_name) and (descr_ff != file_name):
                 continue
-            self.tif_movie_file_name = self.param.path_data + path + file_name_original
+            self.tif_movie_file_name = os.path.join(self.param.path_data, path, file_name_original)
             # print(f"self.tif_movie_file_name {self.tif_movie_file_name}")
 
     def load_raster_dur_from_predictions(self, file_name, prediction_threshold, variables_mapping):
