@@ -2138,7 +2138,7 @@ def main():
                                            color_option="manual", cmap_name="Reds")
         return
 
-    just_correlate_global_roi_and_shift = True
+    just_correlate_global_roi_and_shift = False
     if just_correlate_global_roi_and_shift:
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
@@ -2267,8 +2267,8 @@ def main():
     # ms_str_to_load = ["p9_19_03_22_a001_ms"]
     # ms_str_to_load = ["p5_19_03_20_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
-    ms_str_to_load = ["p6_18_02_07_a002_ms"]
-    # ms_str_to_load = ["p10_17_11_16_a003_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    ms_str_to_load = ["p10_17_11_16_a003_ms"]
 
     # 256
 
@@ -2288,17 +2288,18 @@ def main():
     just_plot_raster = False
     just_plot_time_correlation_graph_over_twitches = False
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
+    just_plot_raster_with_cells_assemblies_and_shifts = False
     just_plot_traces_raster = False
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
-    just_plot_cell_assemblies_on_map = True
+    just_plot_cell_assemblies_on_map = False
     just_plot_all_cells_on_map = False
     do_plot_psth_twitches = False
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
     just_do_pca_on_raster = False
     just_display_seq_with_cell_assembly = False
-    just_produce_animation = False
+    just_produce_animation = True
 
     # for events (sce) detection
     perc_threshold = 99
@@ -2385,7 +2386,8 @@ def main():
             continue
 
         if just_produce_animation:
-            ms.produce_roi_shift_animation()
+            ms.produce_roi_shift_animation_with_cell_assemblies()
+            # ms.produce_roi_shift_animation()
             # ms.produce_animation()
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_produce_animation exception")
@@ -2434,6 +2436,12 @@ def main():
             ms.plot_raster_with_cells_assemblies_events_and_mvts()
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("koko")
+            continue
+
+        if just_plot_raster_with_cells_assemblies_and_shifts:
+            ms.plot_raster_with_cells_assemblies_and_shifts()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("momo")
             continue
 
         if just_generate_artificial_movie_from_rasterdur:

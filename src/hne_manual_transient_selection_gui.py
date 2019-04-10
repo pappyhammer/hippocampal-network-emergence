@@ -168,6 +168,7 @@ class ChooseSessionFrame(tk.Frame):
         self.data_and_param = data_and_param
 
         self.available_ms_str = ["artificial_ms",
+                                 "p5_19_03_25_a001_ms",
                                  "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
                                  "p7_171012_a000_ms", "p7_18_02_08_a000_ms",
                                  "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",

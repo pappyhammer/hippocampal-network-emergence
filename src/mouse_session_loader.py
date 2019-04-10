@@ -91,6 +91,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if load_movie:
             p5_19_03_25_a001_ms.load_tif_movie(path="p5/p5_19_03_25_a001")
 
+        p5_19_03_25_a001_ms.load_suite2p_data(data_path="p5/p5_19_03_25_a001/suite2p/", with_coord=True)
+
         ms_str_to_ms_dict["p5_19_03_25_a001_ms"] = p5_19_03_25_a001_ms
 
     if "p5_19_03_20_a000_ms" in ms_str_to_load:
@@ -160,6 +162,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         variables_mapping = {"spike_nums_dur": "rasterdur"}
         p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load=
                                                 "p6/p6_18_02_07_a002/p6_18_02_07_a002_RasterDur_2nd_dec.mat",
+                                                variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xoff",
+                             "yshifts": "yoff"}
+        p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load=
+                                                 "p6/p6_18_02_07_a002/p6_18_02_07_a002_ops_params.npy",
+                                                 variables_mapping=variables_mapping)
+        variables_mapping = {"global_roi": "global_roi"}
+        p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load=
+                                                "p6/p6_18_02_07_a002/p6_18_02_07_a002_global_roi.mat",
                                                 variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
@@ -575,7 +586,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # 6.4
         p8_18_10_24_a005_ms = MouseSession(age=8, session_id="18_10_24_a005", nb_ms_by_frame=100, param=param,
                                            weight=6.4)
-        # if True will not use the coord from suite2p, if False, will just load the info concerning suite2p in
+        # if True will  use the coord from suite2p, if False, will just load the info concerning suite2p in
         # if the dict suit2p_data in mouse_session
         try_suite_2p = False
         # calculated with 99th percentile on raster dur
@@ -848,6 +859,17 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load=
                                                  "p10/p10_17_11_16_a003/p10_17_11_16_a003_Corrected_RasterDur.mat",
                                                  variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xoff",
+                             "yshifts": "yoff"}
+        p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load=
+                                                "p10/p10_17_11_16_a003/p10_17_11_16_a003_ops_params.npy",
+                                                variables_mapping=variables_mapping)
+
+        variables_mapping = {"global_roi": "global_roi"}
+        p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load=
+                                                "p10/p10_17_11_16_a003/p10_17_11_16_a003_global_roi.mat",
+                                                variables_mapping=variables_mapping)
+
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p10_17_11_16_a003_ms.load_data_from_file(

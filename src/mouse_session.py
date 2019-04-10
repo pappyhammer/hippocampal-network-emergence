@@ -624,6 +624,56 @@ class MouseSession:
 
                 self.tiff_movie = tiff_movie
 
+    def produce_roi_shift_animation_with_cell_assemblies(self):
+        if (self.global_roi is None) or (self.x_shifts is None):
+            return
+        if (self.cell_assemblies is None) or (self.coord_obj is None):
+            return
+        n_assemblies = len(self.cell_assemblies)
+        cells_groups_colors = []
+        for i in np.arange(n_assemblies):
+            # print(f"cm.nipy_spectral(float(i + 1) / (n_assemblies + 1)) "
+            #       f"{cm.nipy_spectral(float(i + 1) / (n_assemblies + 1))}")
+            cells_groups_colors.append(cm.nipy_spectral(float(i + 1) / (n_assemblies + 1)))
+        # print(f"cells_groups_colors {cells_groups_colors}")
+        # self.coord_obj.compute_center_coord(cells_groups=self.cell_assemblies,
+        #                                     cells_groups_colors=cells_groups_colors,
+        #                                     dont_fill_cells_not_in_groups=True)
+
+
+        animation = hne_anim.HNEAnimation(n_frames=12500, n_rows=3, n_cols=1)
+        raw_movie_box = hne_anim.RawMovieBox(tiff_file_name=self.tif_movie_file_name, zoom_factor=2,
+                                             cells_groups_to_color=self.cell_assemblies,
+                                             colors_for_cells_groups=cells_groups_colors,
+                                             coord_obj=self.coord_obj, cells_groups_alpha=None,
+                                             raster_dur=self.spike_struct.spike_nums_dur
+                                             )
+        animation.add_box(row=0, col=0, box=raw_movie_box)
+
+        # raw_movie_box.width
+        roi = self.global_roi
+        # roi = (roi - np.mean(roi)) / np.std(roi)
+        # roi += np.abs(np.min(roi))
+
+        shifts = np.sqrt(self.x_shifts ** 2 + self.y_shifts ** 2)
+        # normalization
+        # shifts = (shifts - np.mean(shifts)) / np.std(shifts)
+        # shifts += np.abs(np.min(shifts))
+        roi_box = hne_anim.PlotBox(width=raw_movie_box.width, height=80,  # raw_movie_box.width
+                                   values_array=roi,
+                                   n_frames_to_display=200)
+        animation.add_box(row=1, col=0, box=roi_box)
+        shift_box = hne_anim.PlotBox(width=raw_movie_box.width, height=80,
+                                     values_array=shifts, color_past_and_present="cornflowerblue",
+                                     color_future="white",
+                                     n_frames_to_display=200)
+        animation.add_box(row=2, col=0, box=shift_box)
+        animation.produce_animation(path_results=self.param.path_results,
+                                    file_name=f"test_raw_movie_{self.description}",
+                                    save_formats=["tiff"],  # , "avi"
+                                    frames_to_display=np.arange(2000, 4000))
+        #p10 2000 to 4000
+
     def produce_roi_shift_animation(self):
         if (self.global_roi is None) or (self.x_shifts is None):
             return
@@ -680,7 +730,7 @@ class MouseSession:
         raw_traces = np.zeros((self.coord_obj.n_cells, self.tiff_movie.shape[0]))
         for cell in np.arange(self.coord_obj.n_cells):
             mask = self.coord_obj.get_cell_mask(cell=cell,
-                                         dimensions=(self.tiff_movie.shape[2], self.tiff_movie.shape[1]))
+                                         dimensions=(self.tiff_movie.shape[1], self.tiff_movie.shape[2]))
             raw_traces[cell, :] = np.mean(self.tiff_movie[:, mask], axis=1)
         return raw_traces
 
@@ -1943,6 +1993,59 @@ class MouseSession:
                            without_activity_sum=False,
                            size_fig=(15, 6))
 
+    def plot_raster_with_cells_assemblies_and_shifts(self):
+        if self.sce_times_in_cell_assemblies is None:
+            return
+
+        cells_to_highlight = []
+        cells_to_highlight_colors = []
+        n_cells = len(self.spike_struct.spike_nums_dur)
+        new_cell_order = np.zeros(n_cells, dtype="uint16")
+        n_cell_assemblies = len(self.cell_assemblies)
+        cells_in_assemblies = []
+        last_group_index = 0
+        for cell_assembly_index, cell_assembly in enumerate(self.cell_assemblies):
+            color = cm.nipy_spectral(float(cell_assembly_index + 1) / (n_cell_assemblies + 1))
+            cell_indices_to_color = []
+            new_cell_order[last_group_index:last_group_index+len(cell_assembly)] = \
+                np.array(cell_assembly).astype("uint16")
+            cell_indices_to_color = list(range(last_group_index, last_group_index+len(cell_assembly)))
+            cells_to_highlight.extend(cell_indices_to_color)
+            cells_to_highlight_colors.extend([color] * len(cell_indices_to_color))
+            last_group_index += len(cell_assembly)
+            cells_in_assemblies.extend(list(cell_assembly))
+
+        other_cells = np.setdiff1d(np.arange(n_cells), cells_in_assemblies)
+        new_cell_order[last_group_index:] = other_cells
+
+        shifts = np.abs(self.x_shifts) + np.abs(self.y_shifts)
+        # shifts = signal.detrend(shifts)
+        # normalization
+        shifts = (shifts - np.mean(shifts)) / np.std(shifts)
+        if np.min(shifts) < 0:
+            shifts -= np.min(shifts)
+
+        labels = np.arange(len(self.spike_struct.spike_nums_dur))
+        plot_spikes_raster(spike_nums=self.spike_struct.spike_nums_dur[new_cell_order, :], param=self.param,
+                           title=f"{self.description}_spike_nums_with_mvt_and_cell_assemblies_events",
+                           spike_train_format=False,
+                           file_name=f"{self.description}_spike_nums_with_mvt_and_cell_assemblies_events",
+                           y_ticks_labels=labels,
+                           save_raster=True,
+                           show_raster=False,
+                           sliding_window_duration=1,
+                           show_sum_spikes_as_percentage=True,
+                           plot_with_amplitude=False,
+                           save_formats=["pdf", "png"],
+                           cells_to_highlight=cells_to_highlight,
+                           cells_to_highlight_colors=cells_to_highlight_colors,
+                           spike_shape="o",
+                           spike_shape_size=1,
+                           span_area_only_on_raster=False,
+                           without_activity_sum=False,
+                           spikes_sum_to_use=shifts,
+                           size_fig=(15, 6))
+
     def plot_each_inter_neuron_connect_map(self):
         # plot n_in and n_out map of the interneurons
         inter_neurons = self.spike_struct.inter_neurons
@@ -3039,7 +3142,14 @@ class MouseSession:
         :param frames_filter: if not None, will keep only the frames in frames_filter
         :return:
         """
-        data = hdf5storage.loadmat(self.param.path_data + file_name_to_load)
+        matlab_format = True
+        if file_name_to_load.endswith(".npy") and ("params" in file_name_to_load.lower()):
+            matlab_format = False
+            # valid only for shifts data so far
+            ops = np.load(os.path.join(self.param.path_data, file_name_to_load))
+            data = ops.item()
+        else:
+            data = hdf5storage.loadmat(self.param.path_data + file_name_to_load)
         # print(f"data.keys() {list(data.keys())}")
 
         if "spike_nums" in variables_mapping:
@@ -3056,9 +3166,15 @@ class MouseSession:
         if "global_roi" in variables_mapping:
             self.global_roi = data[variables_mapping["global_roi"]][0]
         if "xshifts" in variables_mapping:
-            self.x_shifts = data[variables_mapping["xshifts"]][0]
+            if matlab_format:
+                self.x_shifts = data[variables_mapping["xshifts"]][0]
+            else:
+                self.x_shifts = data[variables_mapping["xshifts"]]
         if "yshifts" in variables_mapping:
-            self.y_shifts = data[variables_mapping["yshifts"]][0]
+            if matlab_format:
+                self.y_shifts = data[variables_mapping["yshifts"]][0]
+            else:
+                self.y_shifts = data[variables_mapping["yshifts"]]
         if "spike_nums_dur" in variables_mapping:
             self.spike_struct.spike_nums_dur = data[variables_mapping["spike_nums_dur"]].astype(int)
             if frames_filter is not None:

@@ -3536,12 +3536,12 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p8_18_10_24_a006_ms"], param=param, overlap_value=0.9,
+        transients_prediction_from_movie(ms_to_use=["p5_19_03_25_a001_ms"], param=param, overlap_value=0.5,
                                          use_data_augmentation=True, using_cnn_predictions=False,
-                                         cells_to_predict=np.array([0, 1, 6, 7, 9, 10, 11, 18, 24, 28, 32, 33]))
+                                         cells_to_predict=None)
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])

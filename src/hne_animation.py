@@ -14,6 +14,8 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
+from matplotlib import patches
+
 def loading_tiff_movie(tiff_file_name):
     # loading the movie
     try:
@@ -193,7 +195,8 @@ class EmptyBox(AnimationBox):
 
 
 class RawMovieBox(AnimationBox):
-    def __init__(self, tiff_file_name, zoom_factor=1):
+    def __init__(self, tiff_file_name, zoom_factor=1, cells_groups_to_color=None, colors_for_cells_groups=None,
+                 coord_obj=None, cells_groups_alpha=None, raster_dur=None):
         super().__init__(description="raw movie")
         self.tiff_movie = loading_tiff_movie(tiff_file_name)
         self.zoom_factor=zoom_factor
@@ -201,6 +204,15 @@ class RawMovieBox(AnimationBox):
         self.width = self.tiff_movie.shape[2]*self.zoom_factor
         self.height = self.tiff_movie.shape[1]*self.zoom_factor
         self.n_frames = self.tiff_movie.shape[0]
+        self.cells_groups_to_color = cells_groups_to_color
+        self.colors_for_cells_groups = colors_for_cells_groups
+        self.cells_groups_alpha = cells_groups_alpha
+        self.coord_obj = coord_obj
+        self.raster_dur = raster_dur
+
+        self.do_color_cells = (self.cells_groups_to_color is not None) and \
+                              (self.colors_for_cells_groups is not None) and (self.coord_obj is not None) \
+                              and (self.raster_dur is not None)
 
     # def get_frame_img(self, frame):
     #     return self.tiff_movie[frame]
@@ -223,6 +235,39 @@ class RawMovieBox(AnimationBox):
         fig.patch.set_facecolor(background_color)
         ax1.imshow(self.tiff_movie[frame],
                                      cmap=plt.get_cmap('gray'))
+        if self.do_color_cells:
+            cells_alpha = 0.2
+            line_width = 0
+            edge_color = None
+            z_order_cells = 10
+            for group_index, cell_group in enumerate(self.cells_groups_to_color):
+                for cell in cell_group:
+                    if self.raster_dur[cell, frame] == 0:
+                        continue
+                    xy = self.coord_obj.coord[cell].transpose()
+                    # if with_edge:
+                    #     line_width = edge_line_width
+                    #     if cells_groups_edge_colors is None:
+                    #         edge_color = default_edge_color
+                    #     else:
+                    #         edge_color = cells_groups_edge_colors[group_index]
+                    # else:
+                    #     edge_color = cells_groups_colors[group_index]
+                    #     line_width = 0
+                    # allow to set alpha of the edge to 1
+                    face_color = list(self.colors_for_cells_groups[group_index])
+                    # changing alpha
+                    if self.cells_groups_alpha is not None:
+                        face_color[3] = self.cells_groups_alpha[group_index]
+                    else:
+                        face_color[3] = cells_alpha
+                    face_color = tuple(face_color)
+                    cell_contour = patches.Polygon(xy=xy,
+                                                   fill=True, linewidth=0,
+                                                   facecolor=face_color,
+                                                   edgecolor=edge_color,
+                                                   zorder=z_order_cells)  # lw=2
+                    ax1.add_patch(cell_contour)
 
         # ax1.legend()
         axes_to_clean = [ax1]
@@ -474,6 +519,7 @@ class HNEAnimation:
         return img
 
     def produce_animation(self, path_results, file_name, save_formats, frames_to_display=None):
+        # TODO: produce in the console a progression barline
         if self.width is None:
             self.set_size()
         if isinstance(save_formats, str):
