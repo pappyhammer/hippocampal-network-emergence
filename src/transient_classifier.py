@@ -2626,20 +2626,21 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # np.array([3, 52, 53, 75, 81, 83, 93, 115])
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
-        # ms_to_use = ["p12_171110_a000_ms"]
-        # cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0, 3])} # 3, 6
+        ms_to_use = ["artificial_ms_1", "p12_171110_a000_ms"]
+        cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 11, 22, 31, 38, 43, 56, 64]),
+                              "p12_171110_a000_ms": np.array([0, 3])} # 3, 6
         # ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms"]
         # cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 14, 27, 40, 57, 75, 88, 103, 112]),
         #                       "p11_17_11_24_a000_ms": np.array([3, 22, 24, 29])} # 3, 6
         # ms_to_use = ["artificial_ms_1", "p8_18_10_24_a006_ms"]
         # cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 14, 27, 40]),
         #                       "p8_18_10_24_a006_ms": np.array([0, 1])}
-        ms_to_use = ["p8_18_10_24_a006_ms"]
-        cell_to_load_by_ms = {"p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 10, 11])}
+        # ms_to_use = ["p8_18_10_24_a006_ms"]
+        # cell_to_load_by_ms = {"p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 10, 11])} #
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     else:
-        ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms", # p8_18_10_24_a005_ms  "p7_171012_a000_ms",
+        ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms",  # p8_18_10_24_a005_ms  "p7_171012_a000_ms",
                      "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
         #  "p9_18_09_27_a003_ms",
         cell_to_load_by_ms = {
@@ -3540,7 +3541,7 @@ def train_model():
     if go_predict_from_movie:
         transients_prediction_from_movie(ms_to_use=["p8_18_10_24_a006_ms"], param=param, overlap_value=0.9,
                                          use_data_augmentation=True, using_cnn_predictions=False,
-                                         cells_to_predict=np.array([0, 1, 6, 7, 10, 11]))
+                                         cells_to_predict=np.array([0, 1, 6, 7, 9, 10, 11, 18, 24, 28, 32, 33]))
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
@@ -3578,9 +3579,9 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 40
-    batch_size = 16
-    window_len = 50
+    n_epochs = 25
+    batch_size = 8
+    window_len = 100
     max_width = 25
     max_height = 25
     overlap_value = 0.9

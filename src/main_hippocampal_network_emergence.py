@@ -881,6 +881,12 @@ def correlate_global_roi_and_shift(path_data, param):
                             mvt_x_y = hdf5storage.loadmat(os.path.join(dir_path, file_name))
                             data_dict[parent_dir]["xshifts"] = mvt_x_y['xshifts'][0]
                             data_dict[parent_dir]["yshifts"] = mvt_x_y['yshifts'][0]
+                    if file_name.endswith(".npy"):
+                        if "params" in file_name.lower():
+                            ops = np.load(os.path.join(dir_path, file_name))
+                            ops = ops.item()
+                            data_dict[parent_dir]["xshifts"] = ops['xoff']
+                            data_dict[parent_dir]["yshifts"] = ops['yoff']
                     if (file_name.endswith(".tif") or file_name.endswith(".tiff")) and ("avg" not in file_name.lower()):
                         data_dict[parent_dir]["tiff_file"] = file_name
 
@@ -2132,7 +2138,7 @@ def main():
                                            color_option="manual", cmap_name="Reds")
         return
 
-    just_correlate_global_roi_and_shift = False
+    just_correlate_global_roi_and_shift = True
     if just_correlate_global_roi_and_shift:
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
@@ -2257,11 +2263,12 @@ def main():
     # ms_str_to_load = ["p12_171110_a000_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms"]
-    ms_str_to_load = ["p9_19_02_20_a002_ms"]
-    ms_str_to_load = ["p9_19_03_22_a001_ms"]
-    ms_str_to_load = ["p5_19_03_20_a000_ms"]
-    ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
+    # ms_str_to_load = ["p9_19_02_20_a002_ms"]
+    # ms_str_to_load = ["p9_19_03_22_a001_ms"]
+    # ms_str_to_load = ["p5_19_03_20_a000_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
     ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    # ms_str_to_load = ["p10_17_11_16_a003_ms"]
 
     # 256
 
@@ -2284,7 +2291,7 @@ def main():
     just_plot_traces_raster = False
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
-    just_plot_cell_assemblies_on_map = False
+    just_plot_cell_assemblies_on_map = True
     just_plot_all_cells_on_map = False
     do_plot_psth_twitches = False
     just_do_seqnmf = False
@@ -2312,14 +2319,14 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = True
+    do_clustering = False
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
     with_cells_in_cluster_seq_sorted = False
     use_richard_option = False
     # wake, sleep, quiet_wake, sleep_quiet_wake, active_wake
-    richard_option = "wake"
+    richard_option = "active_wake"
 
     # ##### for fca #####
     n_surrogate_fca = 20
@@ -2327,8 +2334,8 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    # range_n_clusters_k_mean = np.arange(5, 7)
-    range_n_clusters_k_mean = np.array([6])
+    range_n_clusters_k_mean = np.arange(4, 8)
+    # range_n_clusters_k_mean = np.array([2])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
 
@@ -3257,6 +3264,55 @@ def main():
                 frames_selected = np.unique(ms.richard_dict["Quiet_Wake_Frames"])
             elif richard_option == "active_wake":
                 frames_selected = np.unique(ms.richard_dict["Active_Wake_Frames"])
+                # now we want to fusion frames that are close to each other
+                frames_diff = np.diff(frames_selected)
+                fusion_thr = 50
+                for frame_index in np.arange(len(frames_diff)):
+                    if 1 < frames_diff[frame_index] < fusion_thr:
+                        frames_selected = np.concatenate((frames_selected, np.arange(frames_selected[frame_index]+1,
+                        frames_selected[frame_index+1])))
+                binary_array = np.zeros(spike_nums_to_use.shape[1], dtype="int8")
+                frames_selected = np.unique(frames_selected)
+                # frames_selected = frames_selected[frames_selected < spike_nums_to_use.shape[1]]
+                binary_array[frames_selected] = 1
+                run_periods = get_continous_time_periods(binary_array)
+                frame_extension = 10
+                for run_period in run_periods:
+                    if run_period[0] > frame_extension:
+                        frames_selected = np.concatenate((frames_selected, np.arange(run_period[0]-frame_extension,
+                                                                                     run_period[0])))
+                    if run_period[1] < (spike_nums_to_use.shape[1] - frame_extension):
+                        frames_selected = np.concatenate((frames_selected, np.arange(run_period[1]+1,
+                                                                                     run_period[1]+frame_extension+1)))
+                binary_array = np.zeros(spike_nums_to_use.shape[1], dtype="int8")
+                frames_selected = np.unique(frames_selected)
+                # frames_selected = frames_selected[frames_selected < spike_nums_to_use.shape[1]]
+                binary_array[frames_selected] = 1
+                run_periods = get_continous_time_periods(binary_array)
+
+                span_area_coords = [run_periods]
+                span_area_colors = ["red"]
+
+                plot_spikes_raster(spike_nums=spike_nums_to_use, param=ms.param,
+                                   spike_train_format=False,
+                                   title=f"raster plot {data_descr}",
+                                   file_name=f"spike_nums_test_run_{data_descr}",
+                                   y_ticks_labels=spike_struct.labels,
+                                   y_ticks_labels_size=4,
+                                   save_raster=True,
+                                   show_raster=False,
+                                   plot_with_amplitude=False,
+                                   activity_threshold=spike_struct.activity_threshold,
+                                   # 500 ms window
+                                   sliding_window_duration=sliding_window_duration,
+                                   show_sum_spikes_as_percentage=True,
+                                   span_area_coords=span_area_coords,
+                                   span_area_colors=span_area_colors,
+                                   spike_shape="|",
+                                   spike_shape_size=1,
+                                   save_formats="pdf")
+                # raise Exception("Richard_boyce")
+
             elif richard_option == "sleep_quiet_wake":
                 frames_selected = np.concatenate((ms.richard_dict["REMs_Frames"],
                                                   ms.richard_dict["NREMs_Frames"]))

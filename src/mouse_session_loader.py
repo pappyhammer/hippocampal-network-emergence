@@ -632,16 +632,16 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         p8_18_10_24_a006_ms.set_avg_cell_map_tif(file_name="p8/p8_18_10_24_a006/AVG_p8_18_10_24_a006.tif")
 
-        # if for_cell_classifier or for_transient_classifier:
-        #     variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
-        #                          "peak_nums": "LocPeakMatrix_Python",
-        #                          "cells_to_remove": "cells_to_remove",
-        #                          "inter_neurons_from_gui": "inter_neurons"}
-        #     p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load=
-        #                                            "p8/p8_18_10_24_a006/p8_18_10_24_a006_GUI_transientsRD.mat",
-        #                                            variables_mapping=variables_mapping,
-        #                                            from_gui=True)
-        #     p8_18_10_24_a006_ms.build_spike_nums_dur()
+        if for_cell_classifier or for_transient_classifier:
+            variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                 "peak_nums": "LocPeakMatrix_Python",
+                                 "cells_to_remove": "cells_to_remove",
+                                 "inter_neurons_from_gui": "inter_neurons"}
+            p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load=
+                                                   "p8/p8_18_10_24_a006/p8_18_10_24_a006_GUI_transients_RD.mat",
+                                                   variables_mapping=variables_mapping,
+                                                   from_gui=True)
+            p8_18_10_24_a006_ms.build_spike_nums_dur()
 
         if load_traces:
             variables_mapping = {"traces": "C_df"}
@@ -967,7 +967,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "cells_to_remove": "cells_to_remove",
                                      "inter_neurons_from_gui": "inter_neurons"}
                 p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                                                       "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_JD.mat",
+                                                       "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_fusion_validation.mat",
                                                        variables_mapping=variables_mapping,
                                                        from_gui=True)
                 p12_171110_a000_ms.build_spike_nums_dur()
