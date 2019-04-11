@@ -996,11 +996,22 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         #                      "spike_nums": "filt_Bin100ms_spikedigital",
         #                      "spike_durations": "LOC3"}
 
+        variables_mapping = {"global_roi": "global_roi"}
+        p12_171110_a000_ms.load_data_from_file(file_name_to_load=
+                                                "p12/p12_17_11_10_a000/p12_17_11_10_a000_global_roi.mat",
+                                                variables_mapping=variables_mapping)
         # caiman version
-        variables_mapping = {"spike_nums_dur": "rasterdur"}
+        variables_mapping = {"spike_nums_dur": "corrected_rasterdur"} # rasterdur before
         p12_171110_a000_ms.load_data_from_file(file_name_to_load=
                                                  "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur.mat",
                                                  variables_mapping=variables_mapping)
+
+        variables_mapping = {"xshifts": "xshifts",
+                             "yshifts": "yshifts"}
+        p12_171110_a000_ms.load_data_from_file(file_name_to_load=
+                                                "p12/p12_17_11_10_a000/p12_17_11_10_a000_params.mat",
+                                                variables_mapping=variables_mapping)
+
         if not try_suite_2p:
             if for_cell_classifier or for_transient_classifier:
                 variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
@@ -1075,6 +1086,26 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # p12_171110_a000_ms.load_caiman_results(path_data="p12/p12_17_11_10_a000/")
 
         ms_str_to_ms_dict["p12_171110_a000_ms"] = p12_171110_a000_ms
+
+    if "p12_19_02_08_a000_ms" in ms_str_to_load:
+        p12_19_02_08_a000_ms = MouseSession(age=12, session_id="19_02_08_a000", nb_ms_by_frame=100, param=param)
+
+        variables_mapping = {"global_roi": "global_roi"}
+        p12_19_02_08_a000_ms.load_data_from_file(file_name_to_load=
+                                                "p12/p12_19_02_08_a000/p12_19_02_08_a000_global_roi.mat",
+                                                variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xshifts",
+                             "yshifts": "yshifts"}
+        p12_19_02_08_a000_ms.load_data_from_file(file_name_to_load=
+                                                "p12/p12_19_02_08_a000/MichelMotC_p12_19_02_08_a000_params.mat",
+                                                variables_mapping=variables_mapping)
+
+
+        if load_movie:
+            p12_19_02_08_a000_ms.load_tif_movie(path="p12/p12_19_02_08_a000")
+        # p12_19_02_08_a000_ms.build_raw_traces_from_movie()
+
+        ms_str_to_ms_dict["p12_19_02_08_a000_ms"] = p12_19_02_08_a000_ms
 
     if "p12_17_11_10_a002_ms" in ms_str_to_load:
         p12_17_11_10_a002_ms = MouseSession(age=12, session_id="17_11_10_a002", nb_ms_by_frame=100, param=param,

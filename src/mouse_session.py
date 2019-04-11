@@ -694,21 +694,24 @@ class MouseSession:
         # shifts += np.abs(np.min(shifts))
         roi_box = hne_anim.PlotBox(width=178, height=80,  # raw_movie_box.width
                                                values_array=roi,
-                                               n_frames_to_display=200)
+                                               n_frames_to_display=800)
         animation.add_box(row=0, col=0, box=roi_box)
         shift_box = hne_anim.PlotBox(width=178, height=80,
                                     values_array=shifts, color_past_and_present="cornflowerblue",
                                    color_future="white",
-                                   n_frames_to_display=200)
+                                   n_frames_to_display=800)
         animation.add_box(row=1, col=0, box=shift_box)
         animation.produce_animation(path_results=self.param.path_results, file_name=f"test_raw_movie_{self.description}",
                                save_formats=["tiff"],  # , "avi"
-                               frames_to_display=np.arange(2600, 4000))
+                               frames_to_display=np.arange(200, 1600))
         #P5: width 178, range: 501 to 2001
         # P9: 0 3100
         # p9_19_03_22_a001: 2000 3400
         # p5 oriens: 2600 4000
         # p10 oriens: 8000 - 10500
+        # P12_19_02_08_a000 (oriens): 200 1600
+        # P12_17_11_10_a000: 3600 - 4800
+
 
     def produce_animation(self):
         # self.load_tiff_movie_in_memory()
