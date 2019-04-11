@@ -2139,6 +2139,8 @@ def main():
         return
 
     just_correlate_global_roi_and_shift = False
+    # look in the data file for a params matlab file and a tif movie, and do correlation between shift during motion
+    # motion correction and global activity (using a global ROI)
     if just_correlate_global_roi_and_shift:
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
@@ -2260,7 +2262,7 @@ def main():
     # ms_str_to_load = ["richard_018_D28_P2_ms"]
     # ms_str_to_load = ["richard_028_D1_P1_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
-    ms_str_to_load = ["p12_171110_a000_ms"]
+    # ms_str_to_load = ["p12_171110_a000_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p9_19_02_20_a002_ms"]
@@ -2269,7 +2271,7 @@ def main():
     # ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p10_17_11_16_a003_ms"]
-    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
 
     # 256
@@ -2337,7 +2339,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 8)
+    range_n_clusters_k_mean = np.arange(2, 20)
     # range_n_clusters_k_mean = np.array([4])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
@@ -2388,8 +2390,8 @@ def main():
             continue
 
         if just_produce_animation:
-            # ms.produce_roi_shift_animation_with_cell_assemblies()
-            ms.produce_roi_shift_animation()
+            ms.produce_roi_shift_animation_with_cell_assemblies()
+            # ms.produce_roi_shift_animation()
             # ms.produce_animation()
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_produce_animation exception")
@@ -2529,7 +2531,7 @@ def main():
             continue
 
         if just_plot_raster_with_cells_assemblies_and_shifts:
-            ms.plot_raster_with_cells_assemblies_and_shifts()
+            ms.plot_raster_with_cells_assemblies_and_shifts(only_cell_assemblies=True)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("momo")
             continue

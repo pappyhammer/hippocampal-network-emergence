@@ -81,8 +81,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # for threshold prediction at 0.5
         # p5_19_03_25_a001_ms.activity_threshold = 7
         # for threshold prediction at 0.25
-        p5_19_03_25_a001_ms.activity_threshold = 12
-
+        # p5_19_03_25_a001_ms.activity_threshold = 12
+        # for threshold prediction at 0.15
+        # p5_19_03_25_a001_ms.activity_threshold = 17
+        #
 
         variables_mapping = {"global_roi": "global_roi"}
         p5_19_03_25_a001_ms.load_data_from_file(file_name_to_load=
@@ -100,7 +102,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             file_name="p5/p5_19_03_25_a001/" +
                       "P5_19_03_25_a001_predictions_2019_04_11.00-04-33_all_cells_rnn_26_02_19_17-20-11.mat",
             prediction_threshold=0.25, variables_mapping=variables_mapping)
-        # TODO: try with 0.25 predictions
 
         # if load_movie:
         p5_19_03_25_a001_ms.load_tif_movie(path="p5/p5_19_03_25_a001")
@@ -849,6 +850,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "p9_19_03_22_a001_ms" in ms_str_to_load:
         p9_19_03_22_a001_ms = MouseSession(age=9, session_id="19_03_22_a001", nb_ms_by_frame=100, param=param)
 
+
+        # for threshold prediction at 0.5
+        # p9_19_03_22_a001_ms.activity_threshold =
+
         variables_mapping = {"global_roi": "global_roi"}
         p9_19_03_22_a001_ms.load_data_from_file(file_name_to_load=
                                                 "p9/p9_19_03_22_a001/p9_19_03_22_a001_global_roi.mat",
@@ -858,8 +863,18 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p9_19_03_22_a001_ms.load_data_from_file(file_name_to_load=
                                                 "p9/p9_19_03_22_a001/MichelMotC_p9_19_03_22_a001_params.mat",
                                                 variables_mapping=variables_mapping)
-        if load_movie:
-            p9_19_03_22_a001_ms.load_tif_movie(path="p9/p9_19_03_22_a001/non_corrected")
+        # if load_movie:
+        p9_19_03_22_a001_ms.load_tif_movie(path="p9/p9_19_03_22_a001/")
+        p9_19_03_22_a001_ms.build_raw_traces_from_movie()
+
+        # prediction based on rnn trained on 50 cells, BO,
+        # variables_mapping = {"predictions": "predictions"}
+        # p5_19_03_25_a001_ms.load_raster_dur_from_predictions(
+        #     file_name="p9/p9_19_03_22_a001/" +
+        #               ".mat",
+        #     prediction_threshold=0.5, variables_mapping=variables_mapping)
+
+        p9_19_03_22_a001_ms.load_suite2p_data(data_path="p9/p9_19_03_22_a001/suite2p/", with_coord=True)
 
         ms_str_to_ms_dict["p9_19_03_22_a001_ms"] = p9_19_03_22_a001_ms
 

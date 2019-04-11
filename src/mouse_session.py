@@ -663,17 +663,17 @@ class MouseSession:
         # shifts += np.abs(np.min(shifts))
         roi_box = hne_anim.PlotBox(width=raw_movie_box.width, height=80,  # raw_movie_box.width
                                    values_array=roi,
-                                   n_frames_to_display=200)
+                                   n_frames_to_display=100)
         animation.add_box(row=1, col=0, box=roi_box)
         shift_box = hne_anim.PlotBox(width=raw_movie_box.width, height=80,
                                      values_array=shifts, color_past_and_present="cornflowerblue",
                                      color_future="white",
-                                     n_frames_to_display=200)
+                                     n_frames_to_display=100)
         animation.add_box(row=2, col=0, box=shift_box)
         animation.produce_animation(path_results=self.param.path_results,
                                     file_name=f"test_raw_movie_{self.description}",
                                     save_formats=["tiff"],  # , "avi"
-                                    frames_to_display=np.arange(2000, 4000))
+                                    frames_to_display=np.arange(4000, 4600))
         #p10 2000 to 4000
 
     def produce_roi_shift_animation(self):
@@ -1998,15 +1998,24 @@ class MouseSession:
                            without_activity_sum=False,
                            size_fig=(15, 6))
 
-    def plot_raster_with_cells_assemblies_and_shifts(self):
+    def plot_raster_with_cells_assemblies_and_shifts(self, only_cell_assemblies=False):
         if self.sce_times_in_cell_assemblies is None:
             return
 
         cells_to_highlight = []
         cells_to_highlight_colors = []
         n_cells = len(self.spike_struct.spike_nums_dur)
-        new_cell_order = np.zeros(n_cells, dtype="uint16")
         n_cell_assemblies = len(self.cell_assemblies)
+        n_cells_in_assemblies = 0
+        for cell_assembly in self.cell_assemblies:
+            n_cells_in_assemblies += len(cell_assembly)
+
+        # if only_cell_assemblies:
+        #     new_cell_order = np.zeros(n_cells_in_assemblies, dtype="uint16")
+        # else:
+        #     new_cell_order = np.zeros(n_cells, dtype="uint16")
+        new_cell_order = np.zeros(n_cells, dtype="uint16")
+
         cells_in_assemblies = []
         last_group_index = 0
         for cell_assembly_index, cell_assembly in enumerate(self.cell_assemblies):
@@ -2020,8 +2029,12 @@ class MouseSession:
             last_group_index += len(cell_assembly)
             cells_in_assemblies.extend(list(cell_assembly))
 
+
         other_cells = np.setdiff1d(np.arange(n_cells), cells_in_assemblies)
         new_cell_order[last_group_index:] = other_cells
+        spike_nums_dur = self.spike_struct.spike_nums_dur[new_cell_order, :]
+        if only_cell_assemblies:
+            spike_nums_dur = spike_nums_dur[:n_cells_in_assemblies]
 
         span_area_coords = None
         span_area_colors = None
@@ -2037,9 +2050,12 @@ class MouseSession:
         shifts = (shifts - np.mean(shifts)) / np.std(shifts)
         if np.min(shifts) < 0:
             shifts -= np.min(shifts)
+        if only_cell_assemblies:
+            labels = new_cell_order[:n_cells_in_assemblies]
+        else:
+            labels = new_cell_order
 
-        labels = np.arange(len(self.spike_struct.spike_nums_dur))
-        plot_spikes_raster(spike_nums=self.spike_struct.spike_nums_dur[new_cell_order, :], param=self.param,
+        plot_spikes_raster(spike_nums=spike_nums_dur, param=self.param,
                            title=f"{self.description}_spike_nums_with_mvt_and_cell_assemblies_events",
                            spike_train_format=False,
                            file_name=f"{self.description}_spike_nums_with_mvt_and_cell_assemblies_events",
@@ -2059,7 +2075,7 @@ class MouseSession:
                            span_area_only_on_raster=False,
                            without_activity_sum=False,
                            spikes_sum_to_use=shifts,
-                           size_fig=(15, 6))
+                           size_fig=(15, 5))
 
     def plot_each_inter_neuron_connect_map(self):
         # plot n_in and n_out map of the interneurons

@@ -236,7 +236,7 @@ class RawMovieBox(AnimationBox):
         ax1.imshow(self.tiff_movie[frame],
                                      cmap=plt.get_cmap('gray'))
         if self.do_color_cells:
-            cells_alpha = 0.2
+            cells_alpha = 0.4
             line_width = 0
             edge_color = None
             z_order_cells = 10
