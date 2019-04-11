@@ -233,6 +233,25 @@ class HNESpikeStructure:
 
                 self.spike_nums_dur[cell, onset_index:peak_after+1] = 1
 
+    def build_spike_nums_and_peak_nums(self):
+        if self.spike_nums_dur is None:
+            return
+
+        n_cells = len(self.spike_nums_dur)
+        n_frames = self.spike_nums_dur.shape[1]
+        ms = self.mouse_session
+        self.spike_nums = np.zeros((n_cells, n_frames), dtype="int8")
+        self.peak_nums = np.zeros((n_cells, n_frames), dtype="int8")
+        for cell in np.arange(n_cells):
+            transient_periods = get_continous_time_periods(self.spike_nums_dur[cell])
+            for transient_period in transient_periods:
+                onset = transient_period[0]
+                peak = transient_period[1]
+                # if onset == peak:
+                #     print("onset == peak")
+                self.spike_nums[cell, onset] = 1
+                self.peak_nums[cell, peak] = 1
+
     def detect_n_in_n_out(self):
         # look neuron by neuron, at each spike and make a pair wise for each other neurons according to the spike
         # distribution around 500ms before and after. If the distribution is not uniform then we look where is the max

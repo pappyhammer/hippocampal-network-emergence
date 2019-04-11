@@ -2704,7 +2704,10 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
 
     movies_descr = []
     movie_count = 0
+    # split_order will indicated the order in which data_set should be filled (train, validation and test data)
+    # it is shuffled so it's change each time
     split_order = np.arange(3)
+    # if seed_value is given, then the shuffle indices will be always the same.
     if seed_value is not None:
         np.random.seed(seed_value)
     np.random.shuffle(split_order)
@@ -2745,6 +2748,14 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                         # in case the number of frames is not divisible by sliding_window_len
                         first_frame = n_frames - sliding_window_len
                         break_it = True
+                    # TODO: take in consideration doubtful frames
+                    if ms.doubtful_frames_nums is not None:
+                        if np.sum(ms.doubtful_frames_nums[cell,
+                                                          np.arange(first_frame,
+                                                                    first_frame + sliding_window_len)]) > 0:
+                            # TODO: to finish
+                            pass
+
                     movie_data = MoviePatchData(ms=ms, cell=cell, index_movie=first_frame,
                                                 window_len=sliding_window_len,
                                                 max_n_transformations=max_n_transformations,
@@ -3536,7 +3547,7 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         transients_prediction_from_movie(ms_to_use=["p5_19_03_25_a001_ms"], param=param, overlap_value=0.5,

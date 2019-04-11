@@ -2266,9 +2266,10 @@ def main():
     # ms_str_to_load = ["p9_19_02_20_a002_ms"]
     # ms_str_to_load = ["p9_19_03_22_a001_ms"]
     # ms_str_to_load = ["p5_19_03_20_a000_ms"]
-    # ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
+    ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
-    ms_str_to_load = ["p10_17_11_16_a003_ms"]
+    # ms_str_to_load = ["p10_17_11_16_a003_ms"]
+    ms_str_to_load = ["p5_19_03_25_a001_ms"]
 
     # 256
 
@@ -2299,7 +2300,7 @@ def main():
     just_generate_artificial_movie_from_rasterdur = False
     just_do_pca_on_raster = False
     just_display_seq_with_cell_assembly = False
-    just_produce_animation = True
+    just_produce_animation = False
 
     # for events (sce) detection
     perc_threshold = 99
@@ -2335,15 +2336,15 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(4, 8)
-    # range_n_clusters_k_mean = np.array([2])
+    range_n_clusters_k_mean = np.arange(10, 20)
+    # range_n_clusters_k_mean = np.array([4])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
 
     # ##########################################################################################
     # ################################ PATTERNS SEARCH #########################################
     # ##########################################################################################
-    do_pattern_search = False
+    do_pattern_search = True
     keep_the_longest_seq = False
     split_pattern_search = False
     use_only_uniformity_method = False
@@ -2438,11 +2439,6 @@ def main():
                 raise Exception("koko")
             continue
 
-        if just_plot_raster_with_cells_assemblies_and_shifts:
-            ms.plot_raster_with_cells_assemblies_and_shifts()
-            if ms_index == len(ms_to_analyse) - 1:
-                raise Exception("momo")
-            continue
 
         if just_generate_artificial_movie_from_rasterdur:
             param_movie = art_movie_gen.DataForMs(path_data=param.path_data, path_results=param.path_results,
@@ -2496,6 +2492,46 @@ def main():
         ms.SCE_times = SCE_times
 
         print(f"n_cells {ms.spike_struct.n_cells}, n_sces {len(ms.SCE_times)}")
+
+        if just_plot_raster:
+            span_area_coords = []
+            span_area_colors = []
+            span_area_coords.append(ms.SCE_times)
+            span_area_colors.append("red")
+            n_cells = len(spike_nums_to_use)
+            spike_shape = '|' if use_raster_dur else 'o'
+            plot_spikes_raster(spike_nums=spike_nums_to_use, param=ms.param,
+                               spike_train_format=False,
+                               title=f"{ms.description}",
+                               file_name=f"{ms.description}_raster",
+                               y_ticks_labels=np.arange(n_cells),
+                               y_ticks_labels_size=2,
+                               save_raster=True,
+                               show_raster=False,
+                               plot_with_amplitude=False,
+                               activity_threshold=ms.spike_struct.activity_threshold,
+                               # 500 ms window
+                               sliding_window_duration=sliding_window_duration,
+                               show_sum_spikes_as_percentage=True,
+                               # vertical_lines=SCE_times,
+                               # vertical_lines_colors=['white'] * len(SCE_times),
+                               # vertical_lines_sytle="solid",
+                               # vertical_lines_linewidth=[0.2] * len(SCE_times),
+                               span_area_coords=span_area_coords,
+                               span_area_colors=span_area_colors,
+                               span_area_only_on_raster=False,
+                               spike_shape=spike_shape,
+                               spike_shape_size=0.5,
+                               save_formats=["pdf", "png"])
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("fifi")
+            continue
+
+        if just_plot_raster_with_cells_assemblies_and_shifts:
+            ms.plot_raster_with_cells_assemblies_and_shifts()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("momo")
+            continue
 
         if just_plot_traces_raster:
             print("just_plot_traces_raster")
@@ -2974,7 +3010,7 @@ def main():
                                        span_area_only_on_raster=False,
                                        spike_shape=spike_shape,
                                        spike_shape_size=0.5,
-                                       save_formats="pdf")
+                                       save_formats=["pdf", "png"])
                     if just_plot_raster:
                         continue
                     plot_psth_interneurons_events(ms=ms, spike_nums_dur=ms.spike_struct.spike_nums_dur,

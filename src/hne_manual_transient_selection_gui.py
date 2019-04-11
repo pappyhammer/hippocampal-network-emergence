@@ -220,30 +220,36 @@ class ChooseSessionFrame(tk.Frame):
         n_times = len(self.data_and_param.traces[0, :])
 
         if (self.data_and_param.peak_nums is None) or (self.data_and_param.spike_nums is None):
-            # then we do an automatic detection
-            self.data_and_param.peak_nums = np.zeros((n_cells, n_times), dtype="int8")
-            for cell in np.arange(n_cells):
-                peaks, properties = signal.find_peaks(x=self.data_and_param.traces[cell], distance=2)
-                # print(f"peaks {peaks}")
-                self.data_and_param.peak_nums[cell, peaks] = 1
-            self.data_and_param.spike_nums = np.zeros((n_cells, n_times), dtype="int8")
-            for cell in np.arange(n_cells):
-                # first_derivative = np.diff(self.data_and_param.traces[cell]) / np.diff(np.arange(n_times))
-                # onsets = np.where(np.abs(first_derivative) < 0.1)[0]
-                # print(f"np.min(first_derivative) {np.min(first_derivative)}")
-                # fig = plt.figure()
-                # plt.plot(first_derivative)
-                # plt.show()
-                onsets = []
-                diff_values = np.diff(self.data_and_param.traces[cell])
-                for index, value in enumerate(diff_values):
-                    if index == (len(diff_values) - 1):
-                        continue
-                    if value < 0:
-                        if diff_values[index + 1] >= 0:
-                            onsets.append(index + 1)
-                # print(f"onsets {len(onsets)}")
-                self.data_and_param.spike_nums[cell, np.array(onsets)] = 1
+            # look if spike_nums_dur exists
+            if self.data_and_param.ms.spike_struct.spike_nums_dur is not None:
+                self.data_and_param.ms.spike_struct.build_spike_nums_and_peak_nums()
+                self.data_and_param.peak_nums = self.data_and_param.ms.spike_struct.peak_nums
+                self.data_and_param.spike_nums = self.data_and_param.ms.spike_struct.spike_nums
+            else:
+                # then we do an automatic detection
+                self.data_and_param.peak_nums = np.zeros((n_cells, n_times), dtype="int8")
+                for cell in np.arange(n_cells):
+                    peaks, properties = signal.find_peaks(x=self.data_and_param.traces[cell], distance=2)
+                    # print(f"peaks {peaks}")
+                    self.data_and_param.peak_nums[cell, peaks] = 1
+                self.data_and_param.spike_nums = np.zeros((n_cells, n_times), dtype="int8")
+                for cell in np.arange(n_cells):
+                    # first_derivative = np.diff(self.data_and_param.traces[cell]) / np.diff(np.arange(n_times))
+                    # onsets = np.where(np.abs(first_derivative) < 0.1)[0]
+                    # print(f"np.min(first_derivative) {np.min(first_derivative)}")
+                    # fig = plt.figure()
+                    # plt.plot(first_derivative)
+                    # plt.show()
+                    onsets = []
+                    diff_values = np.diff(self.data_and_param.traces[cell])
+                    for index, value in enumerate(diff_values):
+                        if index == (len(diff_values) - 1):
+                            continue
+                        if value < 0:
+                            if diff_values[index + 1] >= 0:
+                                onsets.append(index + 1)
+                    # print(f"onsets {len(onsets)}")
+                    self.data_and_param.spike_nums[cell, np.array(onsets)] = 1
         f = ManualOnsetFrame(data_and_param=self.data_and_param,
                              default_path=self.last_path_open)
         f.mainloop()
@@ -2685,7 +2691,7 @@ class ManualOnsetFrame(tk.Frame):
         predictions = predict_transient_from_saved_model(ms=self.data_and_param.ms, cell=cell,
                                                          weights_file=self.transient_classifier_weights_file,
                                                          json_file=self.transient_classifier_json_file,
-                                                         overlap_value=0.8, use_data_augmentation=True,
+                                                         overlap_value=0.5, use_data_augmentation=True,
                                                          buffer=1)
         # predictions as two dimension, first one represents the frame, the second one the prediction
         # for each class

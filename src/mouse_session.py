@@ -86,6 +86,8 @@ class MouseSession:
         self.y_shifts = None
         self.coord = None
         # comes from the gui
+        # used by the transient classifier to indicated which frames are doubtful and should not be used for training
+        self.doubtful_frames_nums = None
         self.cells_to_remove = None
         # array of float, each index corresponds to a cell and the value is the prediction made by the cell classifier
         self.cell_cnn_predictions = None
@@ -2018,6 +2020,14 @@ class MouseSession:
         other_cells = np.setdiff1d(np.arange(n_cells), cells_in_assemblies)
         new_cell_order[last_group_index:] = other_cells
 
+        span_area_coords = None
+        span_area_colors = None
+        if self.SCE_times is not None:
+            span_area_coords = []
+            span_area_colors = []
+            span_area_coords.append(self.SCE_times)
+            span_area_colors.append('red')
+
         shifts = np.abs(self.x_shifts) + np.abs(self.y_shifts)
         # shifts = signal.detrend(shifts)
         # normalization
@@ -2039,6 +2049,8 @@ class MouseSession:
                            save_formats=["pdf", "png"],
                            cells_to_highlight=cells_to_highlight,
                            cells_to_highlight_colors=cells_to_highlight_colors,
+                           span_area_coords=span_area_coords,
+                           span_area_colors=span_area_colors,
                            spike_shape="o",
                            spike_shape_size=1,
                            span_area_only_on_raster=False,
@@ -3165,6 +3177,9 @@ class MouseSession:
                 self.spike_struct.n_out_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
         if "global_roi" in variables_mapping:
             self.global_roi = data[variables_mapping["global_roi"]][0]
+        if "doubtful_frames_nums" in variables_mapping:
+            if variables_mapping["spike_nums_dur"] in data:
+                self.doubtful_frames_nums = data[variables_mapping["spike_nums_dur"]].astype(int)
         if "xshifts" in variables_mapping:
             if matlab_format:
                 self.x_shifts = data[variables_mapping["xshifts"]][0]

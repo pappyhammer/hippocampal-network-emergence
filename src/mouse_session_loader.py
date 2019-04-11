@@ -78,6 +78,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "p5_19_03_25_a001_ms" in ms_str_to_load:
         p5_19_03_25_a001_ms = MouseSession(age=5, session_id="19_03_25_a001", nb_ms_by_frame=100, param=param)
+        # for threshold prediction at 0.5
+        # p5_19_03_25_a001_ms.activity_threshold = 7
+        # for threshold prediction at 0.25
+        p5_19_03_25_a001_ms.activity_threshold = 12
+
 
         variables_mapping = {"global_roi": "global_roi"}
         p5_19_03_25_a001_ms.load_data_from_file(file_name_to_load=
@@ -88,8 +93,18 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p5_19_03_25_a001_ms.load_data_from_file(file_name_to_load=
                                                 "p5/p5_19_03_25_a001/MichelMotC_p5_19_03_25_a001_params.mat",
                                                 variables_mapping=variables_mapping)
-        if load_movie:
-            p5_19_03_25_a001_ms.load_tif_movie(path="p5/p5_19_03_25_a001")
+
+        # prediction based on rnn trained on 50 cells, BO,
+        variables_mapping = {"predictions": "predictions"}
+        p5_19_03_25_a001_ms.load_raster_dur_from_predictions(
+            file_name="p5/p5_19_03_25_a001/" +
+                      "P5_19_03_25_a001_predictions_2019_04_11.00-04-33_all_cells_rnn_26_02_19_17-20-11.mat",
+            prediction_threshold=0.25, variables_mapping=variables_mapping)
+        # TODO: try with 0.25 predictions
+
+        # if load_movie:
+        p5_19_03_25_a001_ms.load_tif_movie(path="p5/p5_19_03_25_a001")
+        p5_19_03_25_a001_ms.build_raw_traces_from_movie()
 
         p5_19_03_25_a001_ms.load_suite2p_data(data_path="p5/p5_19_03_25_a001/suite2p/", with_coord=True)
 
@@ -216,7 +231,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
                                  "peak_nums": "LocPeakMatrix_Python",
                                  "cells_to_remove": "cells_to_remove",
-                                 "inter_neurons_from_gui": "inter_neurons"}
+                                 "inter_neurons_from_gui": "inter_neurons",
+                                  "doubtful_frames_nums": "doubtful_frames_nums"}
             p7_171012_a000_ms.load_data_from_file(file_name_to_load=
                                                    "p7/p7_17_10_12_a000/p7_17_10_12_a000_GUI_transients_RD.mat",
                                                    variables_mapping=variables_mapping,
@@ -608,7 +624,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
                                      "peak_nums": "LocPeakMatrix_Python",
                                      "cells_to_remove": "cells_to_remove",
-                                     "inter_neurons_from_gui": "inter_neurons"}
+                                     "inter_neurons_from_gui": "inter_neurons",
+                                     "doubtful_frames_nums": "doubtful_frames_nums"}
                 p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load=
                                                        "p8/p8_18_10_24_a005/p8_18_10_24_a005_GUI_transientsRD.mat",
                                                        variables_mapping=variables_mapping,
@@ -647,7 +664,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
                                  "peak_nums": "LocPeakMatrix_Python",
                                  "cells_to_remove": "cells_to_remove",
-                                 "inter_neurons_from_gui": "inter_neurons"}
+                                 "inter_neurons_from_gui": "inter_neurons",
+                                  "doubtful_frames_nums": "doubtful_frames_nums"}
             p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load=
                                                    "p8/p8_18_10_24_a006/p8_18_10_24_a006_GUI_transients_RD.mat",
                                                    variables_mapping=variables_mapping,
@@ -907,7 +925,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
                                  "peak_nums": "LocPeakMatrix_Python",
                                  "cells_to_remove": "cells_to_remove",
-                                 "inter_neurons_from_gui": "inter_neurons"}
+                                 "inter_neurons_from_gui": "inter_neurons",
+                                  "doubtful_frames_nums": "doubtful_frames_nums"}
             p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load=
                                                     "p11/p11_17_11_24_a000/p11_17_11_24_a000_GUI_transients_RD.mat",
                                                     variables_mapping=variables_mapping,
@@ -987,7 +1006,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
                                      "peak_nums": "LocPeakMatrix_Python",
                                      "cells_to_remove": "cells_to_remove",
-                                     "inter_neurons_from_gui": "inter_neurons"}
+                                     "inter_neurons_from_gui": "inter_neurons",
+                                     "doubtful_frames_nums": "doubtful_frames_nums"}
                 p12_171110_a000_ms.load_data_from_file(file_name_to_load=
                                                        "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_fusion_validation.mat",
                                                        variables_mapping=variables_mapping,
@@ -1137,7 +1157,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
                                  "peak_nums": "LocPeakMatrix_Python",
                                  "cells_to_remove": "cells_to_remove",
-                                 "inter_neurons_from_gui": "inter_neurons"}
+                                 "inter_neurons_from_gui": "inter_neurons",
+                                  "doubtful_frames_nums": "doubtful_frames_nums"}
             p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
                                                   "p13/p13_18_10_29_a001/p13_18_10_29_a001_GUI_transients_RD.mat",
                                                   variables_mapping=variables_mapping,
