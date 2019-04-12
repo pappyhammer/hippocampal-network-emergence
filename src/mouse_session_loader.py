@@ -237,7 +237,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                  "inter_neurons_from_gui": "inter_neurons",
                                   "doubtful_frames_nums": "doubtful_frames_nums"}
             p7_171012_a000_ms.load_data_from_file(file_name_to_load=
-                                                   "p7/p7_17_10_12_a000/p7_17_10_12_a000_GUI_transients_RD.mat",
+                                                   "p7/p7_17_10_12_a000/p7_17_10_12_a000_fusion_validation.mat",
                                                    variables_mapping=variables_mapping,
                                                    from_gui=True)
 
@@ -630,7 +630,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "inter_neurons_from_gui": "inter_neurons",
                                      "doubtful_frames_nums": "doubtful_frames_nums"}
                 p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load=
-                                                       "p8/p8_18_10_24_a005/p8_18_10_24_a005_GUI_transientsRD.mat",
+                                                       "p8/p8_18_10_24_a005/p8_18_10_24_a005_fusion_validation.mat",
                                                        variables_mapping=variables_mapping,
                                                        from_gui=True)
                 # p8_18_10_24_a005_GUI_Transiant MP.mat
@@ -670,9 +670,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                  "inter_neurons_from_gui": "inter_neurons",
                                   "doubtful_frames_nums": "doubtful_frames_nums"}
             p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load=
-                                                   "p8/p8_18_10_24_a006/p8_18_10_24_a006_GUI_transients_RD.mat",
+                                                   "p8/p8_18_10_24_a006/p8_18_10_24_a006_fusion_validation.mat",
                                                    variables_mapping=variables_mapping,
                                                    from_gui=True)
+            # used for training before: p8_18_10_24_a006_GUI_transients_RD.mat
             p8_18_10_24_a006_ms.build_spike_nums_dur()
 
         if load_traces:
@@ -949,7 +950,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                  "inter_neurons_from_gui": "inter_neurons",
                                   "doubtful_frames_nums": "doubtful_frames_nums"}
             p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load=
-                                                    "p11/p11_17_11_24_a000/p11_17_11_24_a000_GUI_transients_RD.mat",
+                                                    "p11/p11_17_11_24_a000/p11_17_11_24_a000_fusion_validation.mat",
                                                     variables_mapping=variables_mapping,
                                                     from_gui=True)
             p11_17_11_24_a000_ms.build_spike_nums_dur()
@@ -1041,9 +1042,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "inter_neurons_from_gui": "inter_neurons",
                                      "doubtful_frames_nums": "doubtful_frames_nums"}
                 p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                                                       "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_fusion_validation.mat",
+                                                       "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_JD.mat",
                                                        variables_mapping=variables_mapping,
                                                        from_gui=True)
+                # keeping JD gui selection for test, then using: p12_17_11_10_a000_GUI_fusion_validation.mat
                 p12_171110_a000_ms.build_spike_nums_dur()
                 if for_cell_classifier:
                     p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
@@ -1212,7 +1214,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                  "inter_neurons_from_gui": "inter_neurons",
                                   "doubtful_frames_nums": "doubtful_frames_nums"}
             p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
-                                                  "p13/p13_18_10_29_a001/p13_18_10_29_a001_GUI_transients_RD.mat",
+                                                  "p13/p13_18_10_29_a001/p13_18_10_29_a001_fusion_validation.mat",
                                                   variables_mapping=variables_mapping,
                                                   from_gui=True)
 

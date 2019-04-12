@@ -92,6 +92,7 @@ class MouseSession:
         # array of float, each index corresponds to a cell and the value is the prediction made by the cell classifier
         self.cell_cnn_predictions = None
         self.load_cnn_cell_classifier_results()
+        self.rnn_transients_predictions = None
         self.activity_threshold = None
         self.low_activity_threshold_by_percentile = dict()
         self.percentile_for_low_activity_threshold = percentile_for_low_activity_threshold
@@ -3108,6 +3109,7 @@ class MouseSession:
         data = hdf5storage.loadmat(os.path.join(self.param.path_data, file_name))
         if "predictions" in variables_mapping:
             predictions = data[variables_mapping["predictions"]]
+            self.rnn_transients_predictions = predictions
             predicted_raster_dur_dict = np.zeros((len(predictions), len(predictions[0])), dtype="int8")
             for cell in np.arange(len(predictions)):
                 pred = predictions[cell]
@@ -3197,8 +3199,8 @@ class MouseSession:
         if "global_roi" in variables_mapping:
             self.global_roi = data[variables_mapping["global_roi"]][0]
         if "doubtful_frames_nums" in variables_mapping:
-            if variables_mapping["spike_nums_dur"] in data:
-                self.doubtful_frames_nums = data[variables_mapping["spike_nums_dur"]].astype(int)
+            if variables_mapping["doubtful_frames_nums"] in data:
+                self.doubtful_frames_nums = data[variables_mapping["doubtful_frames_nums"]].astype(int)
         if "xshifts" in variables_mapping:
             if matlab_format:
                 self.x_shifts = data[variables_mapping["xshifts"]][0]

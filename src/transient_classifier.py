@@ -404,9 +404,9 @@ class StratificationCamembert:
                                                            self.n_full_transient_total[which_ones]) * 100
                 if self.debug_mode:
                     print(perc_color + f"1 full {which_ones} transient perc: "
-                                       f"{str(np.round(self.full_1_transient_perc[which_ones], 2))} %" + reset_color)
+                    f"{str(np.round(self.full_1_transient_perc[which_ones], 2))} %" + reset_color)
                     print(perc_color + f"2+ full {which_ones} transient perc: "
-                                       f"{str(np.round(self.full_2p_transient_perc[which_ones], 2))} %" + reset_color)
+                    f"{str(np.round(self.full_2p_transient_perc[which_ones], 2))} %" + reset_color)
             if self.debug_mode:
                 print(f"{which_ones}: n_cropped_transient_dict {self.n_cropped_transient_dict[which_ones]}")
             self.n_cropped_transient_total[which_ones] = 0
@@ -424,9 +424,9 @@ class StratificationCamembert:
                                                            self.n_transient_total[which_ones]) * 100
                 if self.debug_mode:
                     print(perc_color + f"Full {which_ones}: "
-                                       f"{str(np.round(self.full_transient_perc[which_ones], 2))} %" + reset_color)
+                    f"{str(np.round(self.full_transient_perc[which_ones], 2))} %" + reset_color)
                     print(perc_color + f"Cropped {which_ones}: "
-                                       f"{str(np.round(self.cropped_transient_perc[which_ones], 2))} %" + reset_color)
+                    f"{str(np.round(self.cropped_transient_perc[which_ones], 2))} %" + reset_color)
             if self.debug_mode and (len(self.transient_lengths[which_ones]) > 0):
                 print(f"{which_ones}: transient_lengths n {len(self.transient_lengths[which_ones])} / "
                       f"min-max {np.min(self.transient_lengths[which_ones])} - "
@@ -438,9 +438,9 @@ class StratificationCamembert:
         if self.debug_mode:
             for which_ones in ["real", "fake"]:
                 print(perc_color + f"Total movie with {which_ones} transients {self.n_transient_total[which_ones]}: "
-                                   f"{str(np.round(self.total_transient_perc[which_ones], 2))} %" + reset_color)
+                f"{str(np.round(self.total_transient_perc[which_ones], 2))} %" + reset_color)
             print(perc_color + f"n_only_neuropil {self.n_only_neuropil}: "
-                               f"{str(np.round(self.only_neuropil_perc, 2))} %" + reset_color)
+            f"{str(np.round(self.only_neuropil_perc, 2))} %" + reset_color)
             print("")
             print("")
 
@@ -1675,7 +1675,7 @@ class MoviePatchGeneratorGlobalWithContour(MoviePatchGenerator):
             source_profile_frames = get_source_profile_frames(frames=frames, ms=ms, coords=coords)
 
             contour_mask = np.zeros((source_profile_frames.shape[1], source_profile_frames.shape[2]),
-                                     dtype="int8")
+                                    dtype="int8")
             # "deleting" the cells
             source_profile_frames[:, 1 - mask_source_profile] = 0
             # TODO: visualizing the frame to check the contour is good
@@ -2607,6 +2607,9 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     # p13_18_10_29_a001_GUI_transients_RD.mat
     """
     print("load_data_for_generator")
+    # add doubt at movie concatenation frames in order to remove this frames from the learning
+    add_doubt_at_movie_concatenation_frames = False
+    use_cnn_to_select_cells = False
     use_small_sample = True
     # used for counting how many cells and transients available
     load_them_all = False
@@ -2620,15 +2623,17 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                               "p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])}
     elif use_small_sample:
         # ms_to_use = ["p7_171012_a000_ms"]
-        # cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([52, 53, 75, 81, 83, 93, 115])}
+        # cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([8])}
         # ms_to_use = ["p8_18_10_24_a005_ms"]
         # cell_to_load_by_ms = {"p8_18_10_24_a005_ms": np.array([13, 41, 42])}
         # np.array([3, 52, 53, 75, 81, 83, 93, 115])
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
+
         ms_to_use = ["artificial_ms_1", "p12_171110_a000_ms"]
         cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 11, 22, 31, 38, 43, 56, 64]),
-                              "p12_171110_a000_ms": np.array([0, 3])} # 3, 6
+                              "p12_171110_a000_ms": np.array([0, 3])}  # 3, 6
+
         # ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms"]
         # cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 14, 27, 40, 57, 75, 88, 103, 112]),
         #                       "p11_17_11_24_a000_ms": np.array([3, 22, 24, 29])} # 3, 6
@@ -2644,14 +2649,14 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                      "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
         #  "p9_18_09_27_a003_ms",
         cell_to_load_by_ms = {
-                            #"p7_171012_a000_ms": np.array([52, 53, 75, 81]),  #
-                              # "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10]),  #
-                              "artificial_ms_1":
-                                  np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
-                              # "p9_18_09_27_a003_ms": np.array([3, 5]), # 7, 9
-                              "p11_17_11_24_a000_ms": np.arange(25),  #
-                              "p12_171110_a000_ms": np.arange(11),  # 3
-                              "p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77])}  # 12, 13
+            # "p7_171012_a000_ms": np.array([52, 53, 75, 81]),  #
+            # "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10]),  #
+            "artificial_ms_1":
+                np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
+            # "p9_18_09_27_a003_ms": np.array([3, 5]), # 7, 9
+            "p11_17_11_24_a000_ms": np.arange(25),  #
+            "p12_171110_a000_ms": np.arange(11),  # 3
+            "p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77])}  # 12, 13
         # max p7: 117, max p9: 30, max p12: 6 .build_spike_nums_dur()
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
@@ -2673,8 +2678,24 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     # filtering the cells, to keep only the one not removed or with a good source profile according to cell classifier
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
+        spike_nums_dur = ms.spike_struct.spike_nums_dur
+        n_frames = spike_nums_dur.shape[1]
+
+        if add_doubt_at_movie_concatenation_frames and (n_frames == 12500):
+
+            if ms.doubtful_frames_nums is None:
+                # then we create it
+                ms.doubtful_frames_nums = np.zeros(spike_nums_dur.shape, dtype="int8")
+            # we put the first 50 and last 50 frames in doubt
+            doubt_window = 50
+            ms.doubtful_frames_nums[:, :doubt_window] = 1
+            ms.doubtful_frames_nums[:, -doubt_window:] = 1
+            for concat_index in [2500, 5000, 7500, 10000]:
+                ms.doubtful_frames_nums[:, concat_index-doubt_window:concat_index] = 1
+                ms.doubtful_frames_nums[:, concat_index:concat_index+doubt_window] = 1
+
         cells_to_load = np.setdiff1d(cell_to_load_by_ms[ms_str], ms.cells_to_remove)
-        if (not load_them_all) and ms.cell_cnn_predictions is not None:
+        if use_cnn_to_select_cells and (not load_them_all) and ms.cell_cnn_predictions is not None:
             print(f"Using cnn predictions from {ms.description}")
             # not taking into consideration cells that are not predicted as true from the cell classifier
             cells_predicted_as_false = np.where(ms.cell_cnn_predictions < 0.5)[0]
@@ -2748,23 +2769,25 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                         # in case the number of frames is not divisible by sliding_window_len
                         first_frame = n_frames - sliding_window_len
                         break_it = True
-                    # TODO: take in consideration doubtful frames
-                    if ms.doubtful_frames_nums is not None:
-                        if np.sum(ms.doubtful_frames_nums[cell,
-                                                          np.arange(first_frame,
-                                                                    first_frame + sliding_window_len)]) > 0:
-                            # TODO: to finish
-                            pass
+                    # if some frames have been marked as doubtful, we remove then of the training dataset
+                    if (ms.doubtful_frames_nums is not None) and \
+                            (np.sum(ms.doubtful_frames_nums[cell,
+                                                            np.arange(first_frame,
+                                                                      first_frame + sliding_window_len)]) == 0):
+                        movie_data = MoviePatchData(ms=ms, cell=cell, index_movie=first_frame,
+                                                    window_len=sliding_window_len,
+                                                    max_n_transformations=max_n_transformations,
+                                                    with_info=True, encoded_frames=encoded_frames,
+                                                    decoding_frame_dict=decoding_frame_dict)
+                        data_list_to_fill.append(movie_data)
+                        if split_index == 2:
+                            test_movie_descr.append(f"{ms.description}_cell_{cell}_first_frame_{first_frame}")
+                        movie_count += 1
+                    # else:
+                    #     if ms.doubtful_frames_nums is not None:
+                    #         print(f"doubtful frames in {ms.description}, cell {cell}, first_frame {first_frame}, "
+                    #               f"sliding_window_len {sliding_window_len}")
 
-                    movie_data = MoviePatchData(ms=ms, cell=cell, index_movie=first_frame,
-                                                window_len=sliding_window_len,
-                                                max_n_transformations=max_n_transformations,
-                                                with_info=True, encoded_frames=encoded_frames,
-                                                decoding_frame_dict=decoding_frame_dict)
-                    data_list_to_fill.append(movie_data)
-                    if split_index == 2:
-                        test_movie_descr.append(f"{ms.description}_cell_{cell}_first_frame_{first_frame}")
-                    movie_count += 1
                     if break_it:
                         break
 
@@ -3024,7 +3047,7 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, bin_
                 # there was a bug here, recurrent_dropout was taking return_sequences as value
                 encoded_video = Bidirectional(LSTM(lstm_size, dropout=dropout_rnn_rate,
                                                    recurrent_dropout=dropout_rnn_rate,
-                                                   return_sequences=return_sequences), merge_mode='concat',)(rnn_input)
+                                                   return_sequences=return_sequences), merge_mode='concat', )(rnn_input)
                 # From Bin et al. test adding merging LSTM results + CNN represnetation then attention
                 if use_bin_at_al_version:
                     encoded_video = layers.concatenate([encoded_video, encoded_frame_sequence])
@@ -3063,7 +3086,7 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, bin_
         if apply_attention and (not apply_attention_before_lstm):
             # adding attention mechanism
             merged = attention_3d_block(inputs=merged, time_steps=n_frames,
-                                               use_single_attention_vector=use_single_attention_vector)
+                                        use_single_attention_vector=use_single_attention_vector)
         if using_multi_class <= 1:
             merged = Flatten()(merged)
 
@@ -3547,7 +3570,7 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         transients_prediction_from_movie(ms_to_use=["p9_19_03_22_a001_ms"], param=param, overlap_value=0.6,
@@ -3590,9 +3613,9 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 25
-    batch_size = 8
-    window_len = 100
+    n_epochs = 20
+    batch_size = 16
+    window_len = 50
     max_width = 25
     max_height = 25
     overlap_value = 0.9
@@ -3623,7 +3646,7 @@ def train_model():
     apply_attention_before_lstm = True
     use_single_attention_vector = False
     with_early_stopping = True
-    early_stop_patience = 20  # 10
+    early_stop_patience = 10  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
@@ -3652,8 +3675,8 @@ def train_model():
 
     movie_patch_generator_choices["GlobalWithContour"] = \
         MoviePatchGeneratorGlobalWithContour(window_len=window_len, max_width=max_width, max_height=max_height,
-                                          pixels_around=pixels_around, buffer=buffer,
-                                          using_multi_class=using_multi_class)
+                                             pixels_around=pixels_around, buffer=buffer,
+                                             using_multi_class=using_multi_class)
 
     movie_patch_generator_for_training = movie_patch_generator_choices["MaskedVersions"]
     movie_patch_generator_for_validation = movie_patch_generator_choices["MaskedVersions"]
@@ -3907,7 +3930,6 @@ def train_model():
 
     if n_test_frames > 0:
         print(f"Default test accuracy {str(np.round(n_rights / n_test_frames, 3))}")
-
 
     start_time = time.time()
 
