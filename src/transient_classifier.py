@@ -3409,7 +3409,7 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
                 predictions[frame_index, class_index] = np.mean(prediction_values)
     else:
         # to flatten all but last dimensions
-        predictions = predictions.reshape(-1, predictions.shape[-1])
+        predictions = predictions.reshape((-1, predictions.shape[-1]))
         # predictions = np.ndarray.flatten(predictions)
 
         # now we remove the extra prediction in case the number of frames was not divisible by the window length

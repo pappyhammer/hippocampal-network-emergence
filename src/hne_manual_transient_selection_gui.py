@@ -180,6 +180,7 @@ class ChooseSessionFrame(tk.Frame):
                                  "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
                                  "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
                                  "p9_18_09_27_a003_ms",  # new
+                                 "p9_19_03_22_a001_ms",
                                  "p10_17_11_16_a003_ms",
                                  "p11_17_11_24_a001_ms", "p11_17_11_24_a000_ms",
                                  "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
@@ -959,12 +960,20 @@ class ManualOnsetFrame(tk.Frame):
                 break
         self.show_transient_classifier = False
         self.transient_classifier_threshold = 0.05
-        # key is int representing the cell number, and value will be an array of float reprenseing for each frame
-        # the probability for the cell to be active
+        # key is int representing the cell number, and value will be an array of 2D with line representing the frame index
+        # and the colums being a float reprenseing for each frame
+        # the probability for the cell to be active for each class
         self.transient_prediction = dict()
         # first key is an int (cell), value is a dict
         # the second key is a float representing a threshold, and the value is a list of tuple
         self.transient_prediction_periods = dict()
+        # checking if a prediction results are already loaded in mouse_sessions
+        if self.data_and_param.ms.rnn_transients_predictions is not None:
+            for cell in np.arange(self.nb_neurons):
+                self.transient_prediction_periods[cell] = dict()
+                cell_predictions = self.data_and_param.ms.rnn_transients_predictions[cell]
+                cell_predictions = cell_predictions.reshape((len(cell_predictions), 1))
+                self.transient_prediction[cell] = cell_predictions
         # each key is a cell, the value is a binary array with 1 between onsets and peaks
         self.raster_dur_for_a_cell = dict()
         # to print transient predictions stat only once
@@ -2691,8 +2700,8 @@ class ManualOnsetFrame(tk.Frame):
         predictions = predict_transient_from_saved_model(ms=self.data_and_param.ms, cell=cell,
                                                          weights_file=self.transient_classifier_weights_file,
                                                          json_file=self.transient_classifier_json_file,
-                                                         overlap_value=0.5, use_data_augmentation=True,
-                                                         buffer=1)
+                                                         overlap_value=0.8, use_data_augmentation=True,
+                                                         buffer=0)
         # predictions as two dimension, first one represents the frame, the second one the prediction
         # for each class
         # print(f"predictions.shape {predictions.shape}")

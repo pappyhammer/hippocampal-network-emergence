@@ -2266,13 +2266,13 @@ def main():
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p9_19_02_20_a002_ms"]
-    # ms_str_to_load = ["p9_19_03_22_a001_ms"]
     # ms_str_to_load = ["p5_19_03_20_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p10_17_11_16_a003_ms"]
     ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
+    # ms_str_to_load = ["p9_19_03_22_a001_ms"]
 
     # 256
 
@@ -2296,7 +2296,7 @@ def main():
     just_plot_traces_raster = False
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
-    just_plot_cell_assemblies_on_map = False
+    just_plot_cell_assemblies_on_map = True
     just_plot_all_cells_on_map = False
     do_plot_psth_twitches = False
     just_do_seqnmf = False
@@ -2324,7 +2324,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = True
+    do_clustering = False
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
@@ -2357,12 +2357,12 @@ def main():
     n_surrogate_for_pattern_search = 100
     # seq params:
     # TODO: error_rate that change with the number of element in the sequence
-    param.error_rate = 0.25  # 0.25
+    param.error_rate = 0.25  # 0.25 0.1
     param.max_branches = 10
-    param.time_inter_seq = 30  # 50
+    param.time_inter_seq = 30  # 30 3
     param.min_duration_intra_seq = 0
     param.min_len_seq = 5  # 5
-    param.min_rep_nb = 5
+    param.min_rep_nb = 5 # 3
 
     debug_mode = False
 
@@ -3358,7 +3358,7 @@ def main():
                                    spike_shape="|",
                                    spike_shape_size=1,
                                    save_formats="pdf")
-                # raise Exception("Richard_boyce")
+                raise Exception("Richard_boyce")
 
             elif richard_option == "sleep_quiet_wake":
                 frames_selected = np.concatenate((ms.richard_dict["REMs_Frames"],
