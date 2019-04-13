@@ -2244,7 +2244,6 @@ def main():
                  "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
     ms_str_to_load = for_graph
     ms_str_to_load = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
-    ms_str_to_load = ["p13_18_10_29_a001_ms"]
     ms_str_to_load = ["p6_18_02_07_a002_ms"]
     ms_str_to_load = ["p6_18_02_07_a001_ms"]
     ms_str_to_load = ["p7_18_02_08_a000_ms"]
@@ -2270,9 +2269,10 @@ def main():
     # ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p10_17_11_16_a003_ms"]
-    ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
-    # ms_str_to_load = ["p9_19_03_22_a001_ms"]
+    ms_str_to_load = ["p9_19_03_22_a001_ms"]
+    ms_str_to_load = ["p13_18_10_29_a001_ms"]
 
     # 256
 
@@ -2297,7 +2297,7 @@ def main():
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = True
-    just_plot_all_cells_on_map = False
+    just_plot_all_cells_on_map = True
     do_plot_psth_twitches = False
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False

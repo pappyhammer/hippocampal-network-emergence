@@ -27,6 +27,7 @@ import scipy.signal as signal
 import scipy.io as sio
 import sys
 import platform
+import tifffile
 from pattern_discovery.tools.signal import smooth_convolve
 
 print(f"sys.maxsize {sys.maxsize}, platform.architecture {platform.architecture()}")
@@ -1501,6 +1502,7 @@ class MoviePatchGeneratorMaskedAndGlobal(MoviePatchGenerator):
             if src_profile_key in source_profiles_dict:
                 mask_source_profile, coords = source_profiles_dict[src_profile_key]
             else:
+                # does not load the movie
                 mask_source_profile, coords = \
                     get_source_profile_param(cell=cell, ms=ms, pixels_around=self.pixels_around,
                                              buffer=self.buffer,
@@ -2353,8 +2355,11 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
     The mask consist on a binary array of with 0 for all pixels in the cell, 1 otherwise
     :return:
     """
-    len_frame_x = ms.tiff_movie_normalized[0].shape[1]
-    len_frame_y = ms.tiff_movie_normalized[0].shape[0]
+    # TODO: find a way to get len x and y without having to load the whole movie
+    # len_frame_x = ms.tiff_movie_normalized[0].shape[1]
+    # len_frame_y = ms.tiff_movie_normalized[0].shape[0]
+    len_frame_x = ms.movie_len_x
+    len_frame_y = ms.movie_len_x
 
     # determining the size of the square surrounding the cell so it includes all overlapping cells around
     overlapping_cells = ms.coord_obj.intersect_cells[cell]
@@ -2421,7 +2426,22 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
 
 def get_source_profile_frames(ms, frames, coords):
     (minx, maxx, miny, maxy) = coords
-    source_profile = ms.tiff_movie_normalized[frames, miny:maxy + 1, minx:maxx + 1]
+    if ms.tiff_movie_normalized is not None:
+        source_profile = ms.tiff_movie_normalized[frames, miny:maxy + 1, minx:maxx + 1]
+    else:
+        # print(f"get_source_profile_frames {ms.description} {frames[0]}-{frames[-1]}")
+        mean_value = np.load(os.path.join(ms.tiffs_for_transient_classifier_path, ms.description.lower(), "mean.npy"))
+        std_value = np.load(os.path.join(ms.tiffs_for_transient_classifier_path, ms.description.lower(), "std.npy"))
+        source_profile = np.zeros((len(frames), maxy - miny + 1, maxx - minx + 1))
+        for frame_index, frame in enumerate(frames):
+            im = PIL.Image.open(os.path.join(ms.tiffs_for_transient_classifier_path,
+                                             ms.description.lower(), f"{frame}.tiff"))
+            # n_frames = len(list(ImageSequence.Iterator(im)))
+            im = np.array(im)
+
+            source_profile[frame_index] = im[miny:maxy + 1, minx:maxx + 1]
+        # normalizing using the mean and std from the whole movie
+        source_profile = (source_profile - mean_value) / std_value
 
     return source_profile
 
@@ -2499,7 +2519,7 @@ def cell_encoding(ms, cell):
     # we need spike_nums_dur and trace
     if ms.spike_struct.spike_nums_dur is None:
         if (ms.spike_struct.spike_nums is None) or (ms.spike_struct.peak_nums is None):
-            raise Exception(f"{ms.decription} spike_nums and peak_nums should not be None")
+            raise Exception(f"{ms.description} spike_nums and peak_nums should not be None")
         ms.build_spike_nums_dur()
 
     # first we add the real transient
@@ -2584,7 +2604,8 @@ def load_data_for_prediction(ms, cell, sliding_window_len, overlap_value, augmen
 
 
 def load_data_for_generator(param, split_values, sliding_window_len, overlap_value,
-                            max_n_transformations,
+                            tiffs_for_transient_classifier_path,
+                            max_n_transformations, loading_movie=False,
                             movies_shuffling=None, with_shuffling=False, main_ratio_balance=(0.6, 0.25, 0.15),
                             crop_non_crop_ratio_balance=(0.9, 0.1),
                             non_crop_ratio_balance=(0.6, 0.4),
@@ -2592,6 +2613,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     """
     Stratification is the technique to allocate the samples evenly based on sample classes
     so that training set and validation set have similar ratio of classes
+    loading_movie: if False, movies are not load into memory, but the full tiff movie should have been splited
+    in multiple tiff (one by frame), using the function create_tiffs_for_data_generator
     p7_171012_a000_ms: up to cell 117 included, interesting cells:
     52 (69t), 75 (59t), 81 (50t), 93 (35t), 115 (28t), 83, 53 (51 mvt), 3
     p8_18_10_24_a005_ms: up to cell 22 included (MP)
@@ -2608,11 +2631,17 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     """
     print("load_data_for_generator")
     # add doubt at movie concatenation frames in order to remove this frames from the learning
-    add_doubt_at_movie_concatenation_frames = False
+    add_doubt_at_movie_concatenation_frames = True
     use_cnn_to_select_cells = False
-    use_small_sample = True
+    use_small_sample = False
+    use_triple_blinded_data = True
     # used for counting how many cells and transients available
     load_them_all = False
+
+    # list of string representing the session that should be used only for training and validation
+    # but not for testing
+    ms_to_remove_from_test = []
+
     if load_them_all:
         ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p9_18_09_27_a003_ms", "p11_17_11_24_a000_ms",
                      "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
@@ -2622,8 +2651,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                               "p12_171110_a000_ms": np.arange(10),
                               "p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])}
     elif use_small_sample:
-        ms_to_use = ["p7_171012_a000_ms"]
-        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([8])}
+        # ms_to_use = ["p7_171012_a000_ms"]
+        # cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([8])}
         # ms_to_use = ["p8_18_10_24_a005_ms"]
         # cell_to_load_by_ms = {"p8_18_10_24_a005_ms": np.array([13, 41, 42])}
         # np.array([3, 52, 53, 75, 81, 83, 93, 115])
@@ -2633,6 +2662,9 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # ms_to_use = ["artificial_ms_1", "p12_171110_a000_ms"]
         # cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 11, 22, 31, 38, 43, 56, 64]),
         #                       "p12_171110_a000_ms": np.array([0, 3])}  # 3, 6
+
+        ms_to_use = ["p12_171110_a000_ms"]
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.array([0])}  # 3, 6
 
         # ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms"]
         # cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 14, 27, 40, 57, 75, 88, 103, 112]),
@@ -2644,6 +2676,29 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # cell_to_load_by_ms = {"p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 10, 11])} #
         # ms_to_use = ["p13_18_10_29_a001_ms"]
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
+    elif use_triple_blinded_data:
+        ms_to_remove_from_test.append("artificial_ms_1")
+        ms_to_use = ["artificial_ms_1", "p7_171012_a000_ms", "p8_18_10_24_a006_ms",
+                     "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
+                     "p13_18_10_29_a001_ms"]
+        cell_to_load_by_ms = {"artificial_ms_1":
+                               np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
+                              "p7_171012_a000_ms": np.array([3, 8, 11, 12, 14, 17, 18, 24]),
+                              "p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
+                              "p11_17_11_24_a000_ms": np.array([17, 22, 24, 25, 29, 30, 33]),
+                              "p12_171110_a000_ms": np.array([0, 3, 6, 7, 12, 14, 15, 19]),
+                              "p13_18_10_29_a001_ms": np.array([0, 2, 5, 12, 13, 31, 42, 44, 48, 51])}
+
+        """
+        cells for validation (from triple blind data)
+        p7_171012_a000_ms: 2, 25
+        p8_18_10_24_a005_ms (session) not used for training at all): 0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321
+        p8_18_10_24_a006_ms (oriens): 28, 32, 33 (need to be done by JD before triple blind)
+        p11_17_11_24_a000_ms: 3, 45
+        p12_171110_a000_ms: 9, 10
+        p13_18_10_29_a001_ms: 77, 117 (need to be done by JD before triple blind) 
+        """
+
     else:
         ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms",  # p8_18_10_24_a005_ms  "p7_171012_a000_ms",
                      "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
@@ -2678,10 +2733,15 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     # filtering the cells, to keep only the one not removed or with a good source profile according to cell classifier
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
+        # indicating where to find the frames tiffs
+        ms.tiffs_for_transient_classifier_path = tiffs_for_transient_classifier_path
         spike_nums_dur = ms.spike_struct.spike_nums_dur
         n_frames = spike_nums_dur.shape[1]
 
-        cells_to_load = np.setdiff1d(cell_to_load_by_ms[ms_str], ms.cells_to_remove)
+        # cells_to_load = np.setdiff1d(cell_to_load_by_ms[ms_str], ms.cells_to_remove)
+        # ms.cells_to_remove should have been removed earlier using clean_data_using_cells_to_remove()
+        # when loading the mouse_session
+        cells_to_load = cell_to_load_by_ms[ms_str]
         if use_cnn_to_select_cells and (not load_them_all) and ms.cell_cnn_predictions is not None:
             print(f"Using cnn predictions from {ms.description}")
             # not taking into consideration cells that are not predicted as true from the cell classifier
@@ -2700,20 +2760,21 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                 # then we create it
                 ms.doubtful_frames_nums = np.zeros(spike_nums_dur.shape, dtype="int8")
             # we put the first 50 and last 50 frames in doubt
-            doubt_window = 50
+            doubt_window = 10
             ms.doubtful_frames_nums[:, :doubt_window] = 1
             ms.doubtful_frames_nums[:, -doubt_window:] = 1
             for concat_index in [2500, 5000, 7500, 10000]:
-                ms.doubtful_frames_nums[:, concat_index-doubt_window:concat_index] = 1
-                ms.doubtful_frames_nums[:, concat_index:concat_index+doubt_window] = 1
+                ms.doubtful_frames_nums[:, concat_index - doubt_window:concat_index] = 1
+                ms.doubtful_frames_nums[:, concat_index:concat_index + doubt_window] = 1
 
         if load_them_all:
             for cell in cells_to_load:
                 n_transients_available += len(get_continous_time_periods(ms.spike_struct.spike_nums_dur[cell]))
         else:
-            movie_loaded = load_movie(ms)
-            if not movie_loaded:
-                raise Exception(f"could not load movie of ms {ms.description}")
+            if loading_movie:
+                movie_loaded = load_movie(ms)
+                if not movie_loaded:
+                    raise Exception(f"could not load movie of ms {ms.description}")
 
     if load_them_all:
         print(f"n_sessions {len(ms_to_use)}")
@@ -2740,20 +2801,24 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         ms = ms_str_to_ms_dict[ms_str]
         spike_nums_dur = ms.spike_struct.spike_nums_dur
         n_frames = spike_nums_dur.shape[1]
+        skip_test_part = ms_str in ms_to_remove_from_test
+        ms_split_values = np.copy(split_values)
+        if skip_test_part:
+            ms_split_values[0] += ms_split_values[2]
+
         for cell in cell_to_load_by_ms[ms_str]:
             index_so_far = 0
             encoded_frames, decoding_frame_dict = cell_encoding(ms=ms, cell=cell)
             for split_index in split_order:
-                start_index = index_so_far
-                end_index = start_index + int(n_frames * split_values[split_index])
-                index_so_far = end_index
-
                 if split_index > 0:
                     # then we create validation and test dataset with no data transformation
                     frames_step = sliding_window_len
                     if split_index == 1:
                         data_list_to_fill = valid_data
                     else:
+                        if skip_test_part:
+                            # we don't put frames from this session in the test section
+                            continue
                         data_list_to_fill = test_data
                 else:
                     # we create training dataset with overlap
@@ -2761,6 +2826,18 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                     # frames index of the beginning of each movie
                     frames_step = int(np.ceil(sliding_window_len * (1 - overlap_value)))
                     data_list_to_fill = train_data
+
+                # means we don't use data for this part, it should be for test data, otherwise the program will
+                # crash
+                if ms_split_values[split_index] == 0:
+                    if split_index != 2:
+                        raise Exception(f"Only the test data can be empty")
+                    continue
+
+                start_index = index_so_far
+                end_index = start_index + int(n_frames * ms_split_values[split_index])
+                index_so_far = end_index
+
                 indices_movies = np.arange(start_index, end_index, frames_step)
                 for i, index_movie in enumerate(indices_movies):
                     break_it = False
@@ -2785,96 +2862,31 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                         if split_index == 2:
                             test_movie_descr.append(f"{ms.description}_cell_{cell}_first_frame_{first_frame}")
                         movie_count += 1
-                    else:
-                        if ms.doubtful_frames_nums is not None:
-                            print(f"doubtful frames in {ms.description}, cell {cell}, first_frame {first_frame}, "
-                                  f"sliding_window_len {sliding_window_len}")
+                    # else:
+                    #     if ms.doubtful_frames_nums is not None:
+                    #         print(f"doubtful frames in {ms.description}, cell {cell}, first_frame {first_frame}, "
+                    #               f"sliding_window_len {sliding_window_len}")
 
                     if break_it:
                         break
 
     print(f"movie_count {movie_count}")
-    # cells shuffling
-    # if movies_shuffling is None:
-    #     movies_shuffling = np.arange(movie_count)
-    #     if with_shuffling:
-    #         if seed_value is not None:
-    #             np.random.seed(seed_value)
-    #         sc = StratificationCamembert(data_list=full_data,
-    #                                 description="FULL DATA",
-    #                                 n_max_transformations=6,
-    #                                 debug_mode=True)
-    #         try_balancing = False
-    #         # shuffle seems to work better
-    #         if try_balancing:
-    #             full_data = []
-    #             index_fake = 0
-    #             index_real = 0
-    #             index_neuropil = 0
-    #             batch_size = 100
-    #             len_fake = len(sc.transient_movies["fake"])
-    #             len_real = len(sc.transient_movies["real"])
-    #             len_neuropil = len(sc.neuropil_movies)
-    #             n_fake_by_batch = int((len_fake / movie_count) * batch_size)
-    #             n_real_by_batch = int((len_real / movie_count) * batch_size)
-    #             n_neuropil_by_batch = int((len_neuropil / movie_count) * batch_size)
-    #
-    #             while True:
-    #                 no_patches_added = True
-    #                 if index_real < len_real:
-    #                     end_index = min(index_real + n_real_by_batch, len_real)
-    #                     for i in np.arange(index_real, end_index):
-    #                         full_data.append(sc.transient_movies["real"][i])
-    #                     index_real = end_index
-    #                     no_patches_added = False
-    #
-    #                 if index_fake < len_fake:
-    #                     end_index = min(index_fake + n_fake_by_batch, len_fake)
-    #                     for i in np.arange(index_fake, end_index):
-    #                         full_data.append(sc.transient_movies["fake"][i])
-    #                     index_fake = end_index
-    #                     no_patches_added = False
-    #
-    #                 if index_neuropil < len_neuropil:
-    #                     end_index = min(index_neuropil + n_neuropil_by_batch, len_neuropil)
-    #                     for i in np.arange(index_neuropil, end_index):
-    #                         full_data.append(sc.neuropil_movies[i])
-    #                     index_neuropil = end_index
-    #                     no_patches_added = False
-    #
-    #                 if no_patches_added:
-    #                     break
-    #         else:
-    #             np.random.shuffle(movies_shuffling)
 
-    # n_movies_for_training = int(movie_count * split_values[0])
-    # n_movies_for_validation = int(movie_count * split_values[1])
-    # train_data = []
-    # for index in movies_shuffling[:n_movies_for_training]:
-    #     train_data.append(full_data[index])
-    #
-    # valid_data = []
-    # for index in movies_shuffling[n_movies_for_training:n_movies_for_training + n_movies_for_validation]:
-    #     valid_data.append(full_data[index])
-
+    # just to display stat
     StratificationCamembert(data_list=valid_data,
                             description="VALIDATION DATA",
                             n_max_transformations=6,
                             debug_mode=True)
-    # test_data = []
-    # for index in movies_shuffling[n_movies_for_training + n_movies_for_validation:]:
-    #     test_data.append(full_data[index])
 
-    StratificationCamembert(data_list=test_data,
-                            description="TEST DATA",
-                            n_max_transformations=6,
-                            debug_mode=True)
-
-    # test_movie_descr = []
-    # for movie in movies_shuffling[n_movies_for_training + n_movies_for_validation:]:
-    #     test_movie_descr.append(movies_descr[movie])
+    if len(test_data) > 0:
+        # just to display stat
+        StratificationCamembert(data_list=test_data,
+                                description="TEST DATA",
+                                n_max_transformations=6,
+                                debug_mode=True)
 
     n_max_transformations = train_data[0].n_available_augmentation_fct
+
     strat_process = StratificationDataProcessor(data_list=train_data, n_max_transformations=n_max_transformations,
                                                 description="TRAINING DATA",
                                                 debug_mode=False, main_ratio_balance=main_ratio_balance,
@@ -3206,6 +3218,62 @@ def get_source_profile_for_prediction(ms, cell, augmentation_functions=None, buf
     #       f"{np.round(np.mean(times_for_get_source_profile_frames), 10)} s")
 
     return full_data, full_data_masked, full_data_frame_indices
+
+
+def create_tiffs_for_data_generator(ms_to_use, param, path_for_tiffs):
+    ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
+                                            param=param,
+                                            load_traces=False, load_abf=False,
+                                            for_transient_classifier=True)
+    dir_names = []
+    # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+    for (dirpath, dirnames, local_filenames) in os.walk(path_for_tiffs):
+        dir_names.extend([x.lower() for x in dirnames])
+        break
+
+    print("create_tiffs_for_data_generator")
+
+    for ms in ms_str_to_ms_dict.values():
+        if ms.description.lower() in dirnames:
+            # it means we've already created the tiffs
+            continue
+
+        print(f"{ms.description}")
+        start_time = time.time()
+        im = PIL.Image.open(ms.tif_movie_file_name)
+        n_frames = len(list(ImageSequence.Iterator(im)))
+        dim_x, dim_y = np.array(im).shape
+        print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
+        tiff_movie = np.zeros((n_frames, dim_x, dim_y), dtype="uint16")
+        for frame, page in enumerate(ImageSequence.Iterator(im)):
+            tiff_movie[frame] = np.array(page)
+        stop_time = time.time()
+        print(f"Time for loading movie: "
+              f"{np.round(stop_time - start_time, 3)} s")
+
+        ms_path = os.path.join(path_for_tiffs, ms.description.lower())
+        os.mkdir(ms_path)
+
+        # we can either save the file in 64 bits normalized
+        # or save it in 16 bits and then normalizing it using the mean and std values saved
+        # # normalizing movie
+        # tiff_movie = (tiff_movie - np.mean(tiff_movie)) / np.std(tiff_movie)
+
+        mean_value = np.mean(tiff_movie)
+        std_value = np.std(tiff_movie)
+
+        np.save(os.path.join(ms_path, "mean.npy"), mean_value)
+        np.save(os.path.join(ms_path, "std.npy"), std_value)
+
+        start_time = time.time()
+        # then saving each frame as a unique tiff
+        for frame in np.arange(n_frames):
+            tiff_file_name = os.path.join(ms_path, f"{frame}.tiff")
+            with tifffile.TiffWriter(tiff_file_name) as tiff:
+                tiff.save(tiff_movie[frame], compress=0)
+        stop_time = time.time()
+        print(f"Time for writing the tiffs: "
+              f"{np.round(stop_time - start_time, 3)} s")
 
 
 def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
@@ -3564,6 +3632,7 @@ def train_model():
     if root_path is None:
         raise Exception("Root path is None")
     path_data = root_path + "data/"
+    path_for_tiffs = path_data + "tiffs_for_transient_classifier/"
     result_path = root_path + "results_classifier/"
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     result_path = result_path + "/" + time_str
@@ -3572,7 +3641,14 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = True
+    go_create_tiffs_for_data_generator = False
+    if go_create_tiffs_for_data_generator:
+        create_tiffs_for_data_generator(ms_to_use=["p7_171012_a000_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms",
+                                                   "p12_171110_a000_ms",
+                                                   "p13_18_10_29_a001_ms", "artificial_ms_1"],
+                                        param=param, path_for_tiffs=path_for_tiffs)
+        # raise Exception("GOGOGO")
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.9,
@@ -3615,9 +3691,9 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 20
-    batch_size = 16
-    window_len = 50
+    n_epochs = 30
+    batch_size = 8
+    window_len = 100
     max_width = 25
     max_height = 25
     overlap_value = 0.9
@@ -3630,7 +3706,7 @@ def train_model():
     with_augmentation_for_training_data = True
     buffer = 1
     # between training, validation and test data
-    split_values = (0.7, 0.2, 0.1)
+    split_values = [0.8, 0.2, 0]
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
     if using_multi_class > 1:
@@ -3648,7 +3724,7 @@ def train_model():
     apply_attention_before_lstm = True
     use_single_attention_vector = False
     with_early_stopping = True
-    early_stop_patience = 10  # 10
+    early_stop_patience = 20  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
@@ -3706,7 +3782,8 @@ def train_model():
                                 crop_non_crop_ratio_balance=crop_non_crop_ratio_balance,
                                 non_crop_ratio_balance=non_crop_ratio_balance,
                                 max_n_transformations=max_n_transformations,
-                                seed_value=seed_value
+                                seed_value=seed_value, loading_movie=False,
+                                tiffs_for_transient_classifier_path=path_for_tiffs
                                 )
 
     stop_time = time.time()
@@ -3748,7 +3825,7 @@ def train_model():
                         bin_lstm_size=bin_lstm_size)
 
     print(model.summary())
-    raise Exception("TOTOOO")
+    # raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(
@@ -3900,7 +3977,7 @@ def train_model():
             file.write("\n")
         file.write("" + '\n')
 
-    val_acc = history_dict['val_acc'][-1]
+    # val_acc = history_dict['val_acc'][-1]
     # model.save_weights(
     #     f'{param.path_results}/transient_classifier_weights_{model_descr}_val_acc_{val_acc}_{param.time_str}.h5')
 
@@ -3908,69 +3985,42 @@ def train_model():
     print(f"Time for saving the model: "
           f"{np.round(stop_time - start_time, 3)} s")
 
-    start_time = time.time()
-    source_profiles_dict = dict()
-    test_data_dict, test_labels = \
-        movie_patch_generator_for_test.generate_movies_from_metadata(movie_data_list=test_data_list,
-                                                                     memory_dict=source_profiles_dict)
-    stop_time = time.time()
-    print(f"Time for generating test data: "
-          f"{np.round(stop_time - start_time, 3)} s")
-    # calculating default accuracy by putting all predictions to zero
+    if len(test_data_list) > 0:
 
-    # test_labels
-    n_test_frames = 0
-    n_rights = 0
+        start_time = time.time()
+        source_profiles_dict = dict()
+        test_data_dict, test_labels = \
+            movie_patch_generator_for_test.generate_movies_from_metadata(movie_data_list=test_data_list,
+                                                                         memory_dict=source_profiles_dict)
+        stop_time = time.time()
+        print(f"Time for generating test data: "
+              f"{np.round(stop_time - start_time, 3)} s")
+        # calculating default accuracy by putting all predictions to zero
 
-    for batch_labels in test_labels:
-        if len(batch_labels.shape) == 1:
-            n_rights += len(batch_labels) - np.sum(batch_labels)
-            n_test_frames += len(batch_labels)
-        else:
-            n_rights += len(batch_labels) - np.sum(batch_labels[:, 0])
-            n_test_frames += len(batch_labels)
+        # test_labels
+        n_test_frames = 0
+        n_rights = 0
 
-    if n_test_frames > 0:
-        print(f"Default test accuracy {str(np.round(n_rights / n_test_frames, 3))}")
+        for batch_labels in test_labels:
+            if len(batch_labels.shape) == 1:
+                n_rights += len(batch_labels) - np.sum(batch_labels)
+                n_test_frames += len(batch_labels)
+            else:
+                n_rights += len(batch_labels) - np.sum(batch_labels[:, 0])
+                n_test_frames += len(batch_labels)
 
-    start_time = time.time()
+        if n_test_frames > 0:
+            print(f"Default test accuracy {str(np.round(n_rights / n_test_frames, 3))}")
 
-    test_loss, test_acc, test_sensitivity, test_specificity, test_precision = \
-        model.evaluate(test_data_dict,
-                       test_labels, verbose=2)
+        start_time = time.time()
 
-    print(f"test_acc {test_acc}, test_sensitivity {test_sensitivity}, test_specificity {test_specificity}, "
-          f"test_precision {test_precision}")
+        test_loss, test_acc, test_sensitivity, test_specificity, test_precision = \
+            model.evaluate(test_data_dict,
+                           test_labels, verbose=2)
 
-    stop_time = time.time()
-    print(f"Time for evaluating test data: "
-          f"{np.round(stop_time - start_time, 3)} s")
+        print(f"test_acc {test_acc}, test_sensitivity {test_sensitivity}, test_specificity {test_specificity}, "
+              f"test_precision {test_precision}")
 
-    # start_time = time.time()
-    # if use_mulimodal_inputs:
-    #     prediction = model.predict({'video_input': test_data,
-    #                                 'video_input_masked': test_data_masked})
-    # else:
-    #     prediction = model.predict(test_data_masked)
-    # print(f"prediction.shape {prediction.shape}")
-    # stop_time = time.time()
-    # print(f"Time to predict test data: "
-    #       f"{np.round(stop_time - start_time, 3)} s")
-
-    # for i in np.arange(prediction.shape[0]):
-    #     print(f"Sum {i}: {np.sum(prediction[i])}")
-    # for i, test_label in enumerate(test_labels):
-    #     if i > 5:
-    #         break
-    #     print(f"####### video {i}  ##########")
-    #     for j, label in enumerate(test_label):
-    #         predict_value = str(round(prediction[i, j], 2))
-    #         bonus = ""
-    #         if label == 1:
-    #             bonus = "# "
-    #         print(f"{bonus} f {j}: {predict_value} / {label} ")
-    #     print("")
-    #     print("")
-    #     # predict_value = str(round(predict_value, 2))
-    #     # print(f"{i}: : {predict_value} / {test_labels[i]}")
-    # print(f"test_acc {test_acc}")
+        stop_time = time.time()
+        print(f"Time for evaluating test data: "
+              f"{np.round(stop_time - start_time, 3)} s")

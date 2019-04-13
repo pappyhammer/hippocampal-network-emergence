@@ -572,7 +572,7 @@ class HNEAnimation:
                     # print(f"normalized_img.shape {normalized_img.shape}")
                     # normalized_img = np.uint8(255 * img)
                     normalized_img = normalize_array_0_255(img)
-                    tiff.save(normalized_img, compress=0) #, compress=6, photometric='RGB')
+                    tiff.save(normalized_img, compress=6) #, compress=6, photometric='RGB')
                     if 'avi' in output_filenames:
                         if vid_avi is None:
                             if size_avi is None:

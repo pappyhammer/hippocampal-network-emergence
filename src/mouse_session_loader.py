@@ -213,6 +213,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "p7_171012_a000_ms" in ms_str_to_load:
         p7_171012_a000_ms = MouseSession(age=7, session_id="17_10_12_a000", nb_ms_by_frame=100, param=param,
                                          weight=None)
+
+
+        p7_171012_a000_ms.load_tif_movie(path="p7/p7_17_10_12_a000/")
         try_suite_2p = False
         # calculated with 99th percentile on raster dur
         # p7_171012_a000_ms.activity_threshold = 19
@@ -269,9 +272,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             if not for_cell_classifier:
                 p7_171012_a000_ms.clean_data_using_cells_to_remove()
 
-        if load_movie:
-            p7_171012_a000_ms.load_tif_movie(path="p7/p7_17_10_12_a000/")
-        p7_171012_a000_ms.load_caiman_results(path_data="p7/p7_17_10_12_a000/")
+        # p7_171012_a000_ms.load_caiman_results(path_data="p7/p7_17_10_12_a000/")
         ms_str_to_ms_dict["p7_171012_a000_ms"] = p7_171012_a000_ms
 
     if "p7_17_10_18_a002_ms" in ms_str_to_load:
@@ -659,6 +660,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if load_movie:
             p8_18_10_24_a005_ms.load_tif_movie(path="p8/p8_18_10_24_a005/")
 
+        if not try_suite_2p:
+            if not for_cell_classifier:
+                p8_18_10_24_a005_ms.clean_data_using_cells_to_remove()
+
         p8_18_10_24_a005_ms.load_suite2p_data(data_path="p8/p8_18_10_24_a005/suite2p/", with_coord=try_suite_2p)
 
         ms_str_to_ms_dict["p8_18_10_24_a005_ms"] = p8_18_10_24_a005_ms
@@ -666,6 +671,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     # Oriens movie
     if "p8_18_10_24_a006_ms" in ms_str_to_load:
         p8_18_10_24_a006_ms = MouseSession(age=8, session_id="18_10_24_a006", nb_ms_by_frame=100, param=param)
+
+        p8_18_10_24_a006_ms.load_tif_movie(path="p8/p8_18_10_24_a006/")
 
         p8_18_10_24_a006_ms.set_avg_cell_map_tif(file_name="p8/p8_18_10_24_a006/AVG_p8_18_10_24_a006.tif")
 
@@ -696,8 +703,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # if load_abf:
         #     p8_18_10_24_a006_ms.load_abf_file(abf_file_name="p8/p8_18_10_24_a005/p8_18_10_24_a006.abf",
         #                                       threshold_piezo=0.5)  # used to be 0.4
-        if load_movie:
-            p8_18_10_24_a006_ms.load_tif_movie(path="p8/p8_18_10_24_a006/")
+
+        if not for_cell_classifier:
+            p8_18_10_24_a006_ms.clean_data_using_cells_to_remove()
+
         ms_str_to_ms_dict["p8_18_10_24_a006_ms"] = p8_18_10_24_a006_ms
     # p9_17_11_29_a002 low participation comparing to other, dead shortly after the recording
     # p9_17_11_29_a002_ms = MouseSession(age=9, session_id="17_11_29_a002", nb_ms_by_frame=100, param=param,
@@ -858,7 +867,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "p9_19_03_22_a001_ms" in ms_str_to_load:
         p9_19_03_22_a001_ms = MouseSession(age=9, session_id="19_03_22_a001", nb_ms_by_frame=100, param=param)
-
+        # if load_movie:
+        p9_19_03_22_a001_ms.load_tif_movie(path="p9/p9_19_03_22_a001/")
 
         # for threshold prediction at 0.25
         # p9_19_03_22_a001_ms.activity_threshold = 16
@@ -881,8 +891,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             prediction_threshold=0.5, variables_mapping=variables_mapping)
 
 
-        # if load_movie:
-        p9_19_03_22_a001_ms.load_tif_movie(path="p9/p9_19_03_22_a001/")
+
         p9_19_03_22_a001_ms.build_raw_traces_from_movie()
 
         p9_19_03_22_a001_ms.load_suite2p_data(data_path="p9/p9_19_03_22_a001/suite2p/", with_coord=True)
@@ -937,6 +946,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "p11_17_11_24_a000_ms" in ms_str_to_load:
         p11_17_11_24_a000_ms = MouseSession(age=11, session_id="17_11_24_a000", nb_ms_by_frame=100, param=param,
                                             weight=6.7)
+        p11_17_11_24_a000_ms.load_tif_movie(path="p11/p11_17_11_24_a000/")
+
         # calculated with 99th percentile on raster dur
         # p11_17_11_24_a000_ms.activity_threshold = 11
         # p11_17_11_24_a000_ms.set_low_activity_threshold(threshold=1, percentile_value=1)
@@ -974,8 +985,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
             variables_mapping=variables_mapping)
         p11_17_11_24_a000_ms.set_avg_cell_map_tif(file_name="p11/p11_17_11_24_a000/AVG_p11_17_11_24_a000.tif")
-        if load_movie:
-            p11_17_11_24_a000_ms.load_tif_movie(path="p11/p11_17_11_24_a000/")
+
+        if not for_cell_classifier:
+            p11_17_11_24_a000_ms.clean_data_using_cells_to_remove()
+
         # p11_17_11_24_a000_ms.plot_cell_assemblies_on_map()
         ms_str_to_ms_dict["p11_17_11_24_a000_ms"] = p11_17_11_24_a000_ms
 
@@ -1023,6 +1036,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
         #                      "spike_nums": "filt_Bin100ms_spikedigital",
         #                      "spike_durations": "LOC3"}
+
+        p12_171110_a000_ms.load_tif_movie(path="p12/p12_17_11_10_a000/")
 
         variables_mapping = {"global_roi": "global_roi"}
         p12_171110_a000_ms.load_data_from_file(file_name_to_load=
@@ -1099,12 +1114,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_CellDetect.mat",
                 variables_mapping=variables_mapping)
         p12_171110_a000_ms.set_avg_cell_map_tif(file_name="p12/p12_17_11_10_a000/AVG_p12_17_11_10_a000.tif")
-        if load_movie:
-            p12_171110_a000_ms.load_tif_movie(path="p12/p12_17_11_10_a000/")
 
-        # if not try_suite_2p:
-        #     if not for_cell_classifier:
-        #         p12_171110_a000_ms.clean_data_using_cells_to_remove()
+        if not try_suite_2p:
+            if not for_cell_classifier:
+                p12_171110_a000_ms.clean_data_using_cells_to_remove()
 
         p12_171110_a000_ms.load_suite2p_data(data_path="p12/p12_17_11_10_a000/suite2p/", with_coord=try_suite_2p)
 
@@ -1205,6 +1218,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "p13_18_10_29_a001_ms" in ms_str_to_load:
         p13_18_10_29_a001_ms = MouseSession(age=13, session_id="18_10_29_a001", nb_ms_by_frame=100, param=param,
                                             weight=9.4)
+
+        p13_18_10_29_a001_ms.load_tif_movie(path="p13/p13_18_10_29_a001/")
         # calculated with 99th percentile on raster dur
         # p13_18_10_29_a001_ms.activity_threshold = 11
         # p13_18_10_29_a001_ms.set_low_activity_threshold(threshold=2, percentile_value=1)
@@ -1244,11 +1259,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                  "p13/p13_18_10_29_a001/p13_18_10_29_a001_CellDetect.mat",
                                                  variables_mapping=variables_mapping)
         p13_18_10_29_a001_ms.set_avg_cell_map_tif(file_name="p13/p13_18_10_29_a001/AVG_p13_18_10_29_a001.tif")
+
+        if not for_cell_classifier:
+            p13_18_10_29_a001_ms.clean_data_using_cells_to_remove()
+
         if load_abf:
             p13_18_10_29_a001_ms.load_abf_file(abf_file_name="p13/p13_18_10_29_a001/p13_18_10_29_a001.abf",
                                                threshold_piezo=None, with_run=True, sampling_rate=10000)
-        if load_movie:
-            p13_18_10_29_a001_ms.load_tif_movie(path="p13/p13_18_10_29_a001/")
         ms_str_to_ms_dict["p13_18_10_29_a001_ms"] = p13_18_10_29_a001_ms
 
     if "p14_18_10_23_a000_ms" in ms_str_to_load:

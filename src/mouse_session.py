@@ -98,6 +98,8 @@ class MouseSession:
         self.cell_cnn_predictions = None
         self.load_cnn_cell_classifier_results()
         self.rnn_transients_predictions = None
+        # use to load part of a full tiff movie, should be initialized before using rnn
+        self.tiffs_for_transient_classifier_path = None
         self.activity_threshold = None
         self.low_activity_threshold_by_percentile = dict()
         self.percentile_for_low_activity_threshold = percentile_for_low_activity_threshold
@@ -107,6 +109,9 @@ class MouseSession:
         self.tif_movie_file_name = None
         # will be use by the cell classifier
         self.tiff_movie = None
+        # movie dimensions (x = shape[1] and y = shape[0] for a given frame)
+        self.movie_len_x = None
+        self.movie_len_y = None
         # will be use by the cell and transient classifier, normalize between 0 and 1
         self.tiff_movie_norm_0_1 = None
         self.tiff_movie_normalized = None
@@ -216,6 +221,11 @@ class MouseSession:
         self.events_by_twitches_group = SortedDict()
 
     def load_caiman_results(self, path_data):
+        """
+        Load caiman prediction, used to be displayed in the GUI
+        :param path_data:
+        :return:
+        """
         start_time = time.time()
         if self.traces is None:
             return
@@ -337,10 +347,10 @@ class MouseSession:
         if do_z_score_normalization:
             # z-score standardization
             if (self.tiff_movie is not None) and (self.tiff_movie_normalized is None):
-                max_value = np.max(self.tiff_movie)
-                print(f"{self.description} max tiff_movie {str(np.round(max_value, 3))}, "
-                      f"mean tiff_movie {str(np.round(np.mean(self.tiff_movie), 3))}, "
-                      f"std tiff_movie {str(np.round(np.std(self.tiff_movie), 3))}")
+                # max_value = np.max(self.tiff_movie)
+                # print(f"{self.description} max tiff_movie {str(np.round(max_value, 3))}, "
+                #       f"mean tiff_movie {str(np.round(np.mean(self.tiff_movie), 3))}, "
+                #       f"std tiff_movie {str(np.round(np.std(self.tiff_movie), 3))}")
                 self.tiff_movie_normalized = (self.tiff_movie - np.mean(self.tiff_movie)) / np.std(self.tiff_movie)
 
     def normalize_traces(self):
@@ -631,6 +641,24 @@ class MouseSession:
                           f"{np.round(stop_time - start_time, 3)} s")
 
                 self.tiff_movie = tiff_movie
+
+    def load_movie_dimensions(self):
+        """
+        Will load the dimension of the movie in self.movie_len_x and self.movie_len_y
+        :return:
+        """
+        if (self.movie_len_x is not None) and (self.movie_len_y is not None):
+            return
+
+        if self.tiff_movie is None:
+            im = PIL.Image.open(self.tif_movie_file_name)
+            im_array = np.array(im)
+            self.movie_len_x = im_array.shape[1]
+            self.movie_len_y = im_array.shape[0]
+        else:
+            self.movie_len_x = self.tiff_movie[0].shape[1]
+            self.movie_len_y = self.tiff_movie[0].shape[0]
+
 
     def produce_roi_shift_animation_with_cell_assemblies(self):
         if (self.global_roi is None) or (self.x_shifts is None):
@@ -2174,12 +2202,12 @@ class MouseSession:
         if with_coord:
             self.coord = coord
             print(f"self.coord len: {len(self.coord)}")
-            self.coord_obj = CoordClass(coord=self.coord, nb_col=200,
-                                        nb_lines=200, from_suite_2p=True)
+            self.coord_obj = CoordClass(coord=self.coord, nb_col=self.movie_len_x,
+                                        nb_lines=self.movie_len_y, from_suite_2p=True)
         else:
             # test trying to findout to which caiman cell those cells correspond
-            suite2p_coord_obj = CoordClass(coord=coord, nb_col=200,
-                                   nb_lines=200, from_suite_2p=True)
+            suite2p_coord_obj = CoordClass(coord=coord, nb_col=self.movie_len_x,
+                                   nb_lines=self.movie_len_y, from_suite_2p=True)
             # for each suite2p cell, will give the estimate of the caiman cell index, will put -1 if no cell is found
             caiman_suite2p_mapping = self.coord_obj.match_cells_indices(suite2p_coord_obj, param=self.param,
                                                                         plot_title_opt=f"{self.description}_suite2p_vs_caiman")
@@ -3086,7 +3114,8 @@ class MouseSession:
 
     def load_tif_movie(self, path):
         """
-
+        Don't load the tif movie in memory but will look for the tiff in the path, the tiff should have the name
+        of the mouse session defined by self.description(), unsensitive of the case
         :param path:
         :param non_corrected: if True, load movie from "non_corrected" dir
         :return:
@@ -3109,6 +3138,9 @@ class MouseSession:
                 continue
             self.tif_movie_file_name = os.path.join(self.param.path_data, path, file_name_original)
             # print(f"self.tif_movie_file_name {self.tif_movie_file_name}")
+        self.load_movie_dimensions()
+        # print(f"{self.description}: self.movie_len_x {self.movie_len_x}, self.movie_len_y {self.movie_len_y}")
+        # raise Exception("JOJO")
 
     def load_raster_dur_from_predictions(self, file_name, prediction_threshold, variables_mapping):
         data = hdf5storage.loadmat(os.path.join(self.param.path_data, file_name))
@@ -3248,8 +3280,8 @@ class MouseSession:
         if "coord" in variables_mapping:
             # coming from matlab
             self.coord = data[variables_mapping["coord"]][0]
-            self.coord_obj = CoordClass(coord=self.coord, nb_col=200,
-                                        nb_lines=200)
+            self.coord_obj = CoordClass(coord=self.coord, nb_col=self.movie_len_x,
+                                        nb_lines=self.movie_len_y)
         if "spike_durations" in variables_mapping:
             self.spike_struct.set_spike_durations(data[variables_mapping["spike_durations"]])
         elif self.spike_struct.spike_nums_dur is not None:
@@ -3294,8 +3326,8 @@ class MouseSession:
             self.removed_cells_mapping[cell] = new_cell_index
             new_cell_index += 1
 
-        self.coord_obj = CoordClass(coord=new_coord, nb_col=200,
-                                    nb_lines=200)
+        self.coord_obj = CoordClass(coord=new_coord, nb_col=self.movie_len_x,
+                                    nb_lines=self.movie_len_y)
 
         cells_to_remove = np.array(self.cells_to_remove)
         mask = np.ones(n_cells, dtype="bool")
@@ -3318,7 +3350,7 @@ class MouseSession:
 
         new_cell_indices_array = self.removed_cells_mapping[cell_indices_array]
         # removing cell indices of cell that has been removed
-        new_cell_indices_array = new_cell_indices_array[new_cell_indices_array > 0]
+        new_cell_indices_array = new_cell_indices_array[new_cell_indices_array >= 0]
 
         return new_cell_indices_array
 
