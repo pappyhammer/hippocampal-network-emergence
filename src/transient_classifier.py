@@ -2622,17 +2622,17 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                               "p12_171110_a000_ms": np.arange(10),
                               "p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])}
     elif use_small_sample:
-        # ms_to_use = ["p7_171012_a000_ms"]
-        # cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([8])}
+        ms_to_use = ["p7_171012_a000_ms"]
+        cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([8])}
         # ms_to_use = ["p8_18_10_24_a005_ms"]
         # cell_to_load_by_ms = {"p8_18_10_24_a005_ms": np.array([13, 41, 42])}
         # np.array([3, 52, 53, 75, 81, 83, 93, 115])
         # np.arange(1) np.array([8])
         # np.array([52, 53, 75, 81, 83, 93, 115]
 
-        ms_to_use = ["artificial_ms_1", "p12_171110_a000_ms"]
-        cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 11, 22, 31, 38, 43, 56, 64]),
-                              "p12_171110_a000_ms": np.array([0, 3])}  # 3, 6
+        # ms_to_use = ["artificial_ms_1", "p12_171110_a000_ms"]
+        # cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 11, 22, 31, 38, 43, 56, 64]),
+        #                       "p12_171110_a000_ms": np.array([0, 3])}  # 3, 6
 
         # ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms"]
         # cell_to_load_by_ms = {"artificial_ms_1": np.array([0, 14, 27, 40, 57, 75, 88, 103, 112]),
@@ -2681,6 +2681,19 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         spike_nums_dur = ms.spike_struct.spike_nums_dur
         n_frames = spike_nums_dur.shape[1]
 
+        cells_to_load = np.setdiff1d(cell_to_load_by_ms[ms_str], ms.cells_to_remove)
+        if use_cnn_to_select_cells and (not load_them_all) and ms.cell_cnn_predictions is not None:
+            print(f"Using cnn predictions from {ms.description}")
+            # not taking into consideration cells that are not predicted as true from the cell classifier
+            cells_predicted_as_false = np.where(ms.cell_cnn_predictions < 0.5)[0]
+            cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
+
+        # if cells have been removed we need to updated indices that were given
+        cells_to_load = ms.get_new_cell_indices_if_cells_removed(np.array(cells_to_load))
+
+        total_n_cells += len(cells_to_load)
+        cell_to_load_by_ms[ms_str] = cells_to_load
+
         if add_doubt_at_movie_concatenation_frames and (n_frames == 12500):
 
             if ms.doubtful_frames_nums is None:
@@ -2693,17 +2706,6 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
             for concat_index in [2500, 5000, 7500, 10000]:
                 ms.doubtful_frames_nums[:, concat_index-doubt_window:concat_index] = 1
                 ms.doubtful_frames_nums[:, concat_index:concat_index+doubt_window] = 1
-
-        cells_to_load = np.setdiff1d(cell_to_load_by_ms[ms_str], ms.cells_to_remove)
-        if use_cnn_to_select_cells and (not load_them_all) and ms.cell_cnn_predictions is not None:
-            print(f"Using cnn predictions from {ms.description}")
-            # not taking into consideration cells that are not predicted as true from the cell classifier
-            cells_predicted_as_false = np.where(ms.cell_cnn_predictions < 0.5)[0]
-            cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
-
-        total_n_cells += len(cells_to_load)
-        cells_to_load = np.array(cells_to_load)
-        cell_to_load_by_ms[ms_str] = cells_to_load
 
         if load_them_all:
             for cell in cells_to_load:
@@ -2783,10 +2785,10 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                         if split_index == 2:
                             test_movie_descr.append(f"{ms.description}_cell_{cell}_first_frame_{first_frame}")
                         movie_count += 1
-                    # else:
-                    #     if ms.doubtful_frames_nums is not None:
-                    #         print(f"doubtful frames in {ms.description}, cell {cell}, first_frame {first_frame}, "
-                    #               f"sliding_window_len {sliding_window_len}")
+                    else:
+                        if ms.doubtful_frames_nums is not None:
+                            print(f"doubtful frames in {ms.description}, cell {cell}, first_frame {first_frame}, "
+                                  f"sliding_window_len {sliding_window_len}")
 
                     if break_it:
                         break
@@ -3237,13 +3239,13 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
             cells_predicted_as_false = np.where(ms.cell_cnn_predictions < 0.5)[0]
             cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
 
+    cells_to_load = ms.get_new_cell_indices_if_cells_removed(cells_to_load)
+
     total_n_cells = len(cells_to_load)
     print(f'total_n_cells {total_n_cells}')
     # raise Exception("TITI")
     if total_n_cells == 0:
         raise Exception(f"No cells loaded")
-
-    cells_to_load = np.array(cells_to_load)
 
     movie_loaded = load_movie(ms)
     if not movie_loaded:
@@ -3570,17 +3572,17 @@ def train_model():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p9_19_03_22_a001_ms"], param=param, overlap_value=0.6,
+        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.9,
                                          use_data_augmentation=True, using_cnn_predictions=False,
-                                         cells_to_predict=None)
+                                         cells_to_predict=np.array([0, 3, 6, 7, 9, 10, 12, 14, 15, 19]))
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
         # p12_171110_a000_ms
-        # np.concatenate((np.arange(11), [14]))
+        # np.array([0, 3, 6, 7, 9, 10, 12, 14, 15, 19]) fusion_validation
         # p7_171012_a000_ms
         # np.arange(118)
         # "artificial_ms_1": np.array([0, 11, 16, 27, 36, 46, 53, 68, 83, 94, 109, 115, 128, 137, 146, 156])
@@ -3746,7 +3748,7 @@ def train_model():
                         bin_lstm_size=bin_lstm_size)
 
     print(model.summary())
-    # raise Exception("TOTOOO")
+    raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(

@@ -88,7 +88,12 @@ class MouseSession:
         # comes from the gui
         # used by the transient classifier to indicated which frames are doubtful and should not be used for training
         self.doubtful_frames_nums = None
+        # an array of int with the index of the cells to remove
         self.cells_to_remove = None
+        # if cells have been removed using self.cells_to_remove, then it will be an array of length the original numbers
+        # of cells and as value either of positive int representing the new index of the cell or -1 if the cell has been
+        # removed
+        self.removed_cells_mapping = None
         # array of float, each index corresponds to a cell and the value is the prediction made by the cell classifier
         self.cell_cnn_predictions = None
         self.load_cnn_cell_classifier_results()
@@ -3278,18 +3283,44 @@ class MouseSession:
         if (self.cells_to_remove is None) or len(self.cells_to_remove) == 0:
             return
         n_cells = self.spike_struct.n_cells
-        # print(f"self.coord[1].shape {self.coord[1].shape}")
-        # raise Exception("titi")
+        self.removed_cells_mapping = np.ones(n_cells, dtype="int16")
+        self.removed_cells_mapping *= -1
         new_coord = []
+        new_cell_index = 0
         for cell in np.arange(n_cells):
             if cell in self.cells_to_remove:
                 continue
             new_coord.append(self.coord[cell])
+            self.removed_cells_mapping[cell] = new_cell_index
+            new_cell_index += 1
 
         self.coord_obj = CoordClass(coord=new_coord, nb_col=200,
                                     nb_lines=200)
+
+        cells_to_remove = np.array(self.cells_to_remove)
+        mask = np.ones(n_cells, dtype="bool")
+        mask[cells_to_remove] = False
+        if self.doubtful_frames_nums is not None:
+            self.doubtful_frames_nums = self.doubtful_frames_nums[mask]
+
         self.spike_struct.clean_data_using_cells_to_remove(cells_to_remove=self.cells_to_remove)
         # raise Exception("titi")
+
+    def get_new_cell_indices_if_cells_removed(self, cell_indices_array):
+        """
+        Take an array of int, and return another one with new index in case some cells would have been removed
+        using clean_data_using_cells_to_remove()
+        :param cell_indices_array:
+        :return:
+        """
+        if self.removed_cells_mapping is None:
+            return np.copy(cell_indices_array)
+
+        new_cell_indices_array = self.removed_cells_mapping[cell_indices_array]
+        # removing cell indices of cell that has been removed
+        new_cell_indices_array = new_cell_indices_array[new_cell_indices_array > 0]
+
+        return new_cell_indices_array
 
     def clean_raster_at_concatenation(self):
         self.spike_struct.clean_raster_at_concatenation()

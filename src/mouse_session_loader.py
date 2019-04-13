@@ -213,6 +213,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "p7_171012_a000_ms" in ms_str_to_load:
         p7_171012_a000_ms = MouseSession(age=7, session_id="17_10_12_a000", nb_ms_by_frame=100, param=param,
                                          weight=None)
+        try_suite_2p = False
         # calculated with 99th percentile on raster dur
         # p7_171012_a000_ms.activity_threshold = 19
         # p7_171012_a000_ms.set_low_activity_threshold(threshold=6, percentile_value=1)
@@ -263,6 +264,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # variables_mapping = {"coord": "ContoursAll"} ContoursSoma ContoursIntNeur
         # p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_CellDetect.mat",
         #                                          variables_mapping=variables_mapping)
+
+        if not try_suite_2p:
+            if not for_cell_classifier:
+                p7_171012_a000_ms.clean_data_using_cells_to_remove()
+
         if load_movie:
             p7_171012_a000_ms.load_tif_movie(path="p7/p7_17_10_12_a000/")
         p7_171012_a000_ms.load_caiman_results(path_data="p7/p7_17_10_12_a000/")
@@ -1023,10 +1029,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                 "p12/p12_17_11_10_a000/p12_17_11_10_a000_global_roi.mat",
                                                 variables_mapping=variables_mapping)
         # caiman version
-        variables_mapping = {"spike_nums_dur": "corrected_rasterdur"} # rasterdur before
-        p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                                                 "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur.mat",
-                                                 variables_mapping=variables_mapping)
+        # variables_mapping = {"spike_nums_dur": "corrected_rasterdur"} # rasterdur before
+        # p12_171110_a000_ms.load_data_from_file(file_name_to_load=
+        #                                          "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur.mat",
+        #                                          variables_mapping=variables_mapping)
 
         variables_mapping = {"xshifts": "xshifts",
                              "yshifts": "yshifts"}
@@ -1042,10 +1048,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "inter_neurons_from_gui": "inter_neurons",
                                      "doubtful_frames_nums": "doubtful_frames_nums"}
                 p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                                                       "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_JD.mat",
+                                                       "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_fusion_validation.mat",
                                                        variables_mapping=variables_mapping,
                                                        from_gui=True)
-                # keeping JD gui selection for test, then using: p12_17_11_10_a000_GUI_fusion_validation.mat
+                # keeping JD gui selection for test, then using: p12_17_11_10_a000_GUI_JD.mat
                 p12_171110_a000_ms.build_spike_nums_dur()
                 if for_cell_classifier:
                     p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
@@ -1097,10 +1103,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             p12_171110_a000_ms.load_tif_movie(path="p12/p12_17_11_10_a000/")
 
         # if not try_suite_2p:
-        #     if for_transient_classifier:
+        #     if not for_cell_classifier:
         #         p12_171110_a000_ms.clean_data_using_cells_to_remove()
-            # if (not for_cell_classifier) and (not for_transient_classifier):
-            #     p12_171110_a000_ms.clean_data_using_cells_to_remove()
 
         p12_171110_a000_ms.load_suite2p_data(data_path="p12/p12_17_11_10_a000/suite2p/", with_coord=try_suite_2p)
 
