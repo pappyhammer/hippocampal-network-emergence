@@ -1723,7 +1723,7 @@ def test_seq_detect(ms, span_area_coords=None, span_area_colors=None):
         #     print(f"Original: {cells_seq_with_correct_indices[index]}")
         #     print(f"Cell assemblies {seq}")
     else:
-        max_index_seq = len(spike_nums_dur_ordered)  # 50
+        max_index_seq = 100 # len(spike_nums_dur_ordered)  # 50
 
     cells_to_highlight = []
     cells_to_highlight_colors = []
@@ -1771,10 +1771,10 @@ def test_seq_detect(ms, span_area_coords=None, span_area_colors=None):
                        # link_seq_alpha=0.9,
                        jitter_links_range=0,
                        min_len_links_seq=3,
-                       # spike_shape="o",
-                       # spike_shape_size=1,
-                       spike_shape="|",
-                       spike_shape_size=10,
+                       spike_shape="o",
+                       spike_shape_size=1,
+                       # spike_shape="|",
+                       # spike_shape_size=10,
                        # span_area_coords=span_area_coords,
                        # span_area_colors=span_area_colors,
                        # span_area_coords=span_area_coords,
@@ -2272,7 +2272,7 @@ def main():
     # ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
     ms_str_to_load = ["p9_19_03_22_a001_ms"]
-    ms_str_to_load = ["p13_18_10_29_a001_ms"]
+    # ms_str_to_load = ["p13_18_10_29_a001_ms"]
 
     # 256
 
@@ -2296,7 +2296,7 @@ def main():
     just_plot_traces_raster = False
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
-    just_plot_cell_assemblies_on_map = True
+    just_plot_cell_assemblies_on_map = False
     just_plot_all_cells_on_map = True
     do_plot_psth_twitches = False
     just_do_seqnmf = False
@@ -2401,7 +2401,7 @@ def main():
             print("test_seq_detect")
             span_area_coords = None
             span_area_colors = None
-            show_richard_active_frames = True
+            show_richard_active_frames = False
             if show_richard_active_frames:
                 active_frames = ms.richard_dict["Active_Wake_Frames"]
                 bin_array = np.zeros(ms.spike_struct.spike_nums_dur.shape[1], dtype="int8")
@@ -2410,7 +2410,7 @@ def main():
                 span_area_coords = [periods]
                 span_area_colors = ["red"]
             test_seq_detect(ms, span_area_coords=span_area_coords, span_area_colors=span_area_colors)
-            raise Exception("toto")
+            raise Exception("just_display_seq_with_cell_assembly")
 
         if just_do_pca_on_raster:
             spike_nums_to_use = ms.spike_struct.spike_nums_dur
