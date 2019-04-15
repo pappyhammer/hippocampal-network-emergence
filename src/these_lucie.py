@@ -227,17 +227,80 @@ class CleanerCoder(Cleaner):
             for index in indices_sorted[::-1]:
                 file.write(f"- {etiology_dict[index]}: {n_patients_list[index]}")
                 file.write("\n")
+
             file.write("\n")
             file.write("\n")
-            # for dict_name, values in cleaner_coder_without_original.mapping_dict.items():
-            #     file.write(f"{dict_name}: ")
-            #     first = True
-            #     for key, value in values.items():
-            #         if not first:
-            #             file.write(f" / ")
-            #         file.write(f"{value} -> {key}")
-            #         first = False
+
+            # details of neurotrophique causes
+            # dict take key as str reprensenting the categorie of NK, and the vlaue is a dict with cause_NK as key
+            # and value an int representing the number of patients, "NA" is unknown
+            nk_category_dict = {}
+            n_patients_by_nk_category = {}
+            self.reverse_categorie_nk_mapping = {}
+            for item, value in self.categorie_nk_mapping.items():
+                self.reverse_categorie_nk_mapping[value] = item
+            self.reverse_cause_nk_mapping = {}
+            for item, value in self.cause_nk_mapping.items():
+                self.reverse_cause_nk_mapping[value] = item
+            neurotrophique_indices = self.df_clean.loc[self.df_clean['etiologie'] ==
+                                                       self.etiology_mapping["neurotrophique"]].index
+            for index, value in enumerate(self.df_clean.loc[neurotrophique_indices, "categorie_NK"]):
+                if pd.isna(value):
+                    n_patients_by_nk_category["NA"] = n_patients_by_nk_category.get("NA", 0) + 1
+                else:
+                    str_value = self.reverse_categorie_nk_mapping[value]
+                    n_patients_by_nk_category[str_value] = n_patients_by_nk_category.get(str_value, 0) + 1
+                    if str_value not in nk_category_dict:
+                        nk_category_dict[str_value] = dict()
+                    value_cause_nk = self.df_clean.loc[neurotrophique_indices[index], "cause_NK"]
+                    value_cause_nk = self.reverse_cause_nk_mapping[value_cause_nk]
+                    if pd.isna(value_cause_nk):
+                        value_cause_nk = "NA"
+                    nk_category_dict[str_value][value_cause_nk] = nk_category_dict[str_value].get(value_cause_nk, 0) + 1
+
+            file.write("Number of patients by Neurotrophique categories with causes:")
+            file.write("\n")
+
+            list_nk_categories = list(n_patients_by_nk_category.keys())
+            list_nk_categories_nb = []
+            for cat in list_nk_categories:
+                list_nk_categories_nb.append(n_patients_by_nk_category[cat])
+
+            n_patients_by_nk_category_sorted_indices = np.argsort(list_nk_categories_nb)
+            for index in n_patients_by_nk_category_sorted_indices[::-1]:
+                file.write(f"### {list_nk_categories[index]}: {list_nk_categories_nb[index]}\n")
+                n_patients_by_nk_cause_dict = nk_category_dict[list_nk_categories[index]]
+                list_nk_causes = list(n_patients_by_nk_cause_dict.keys())
+                list_nk_causes_nb = []
+                for cat in list_nk_causes:
+                    list_nk_causes_nb.append(n_patients_by_nk_cause_dict[cat])
+
+                n_patients_by_nk_causes_sorted_indices = np.argsort(list_nk_causes_nb)
+                for index in n_patients_by_nk_causes_sorted_indices[::-1]:
+                    file.write(f"- {list_nk_causes[index]}: {list_nk_causes_nb[index]}")
+                    file.write("\n")
+                file.write("\n")
+                file.write("\n")
+
+                file.write("\n")
+            file.write("\n")
+            # file.write("\n")
+            # file.write("\n")
+
+            # file.write("Number of patients by causes of Neurotrophique categories:")
+            # file.write("\n")
             #
+            # for nk_category, n_patients_by_nk_cause_dict in nk_category_dict.items():
+            #     file.write(f"## {nk_category}:\n")
+            #     list_nk_causes = list(n_patients_by_nk_cause_dict.keys())
+            #     list_nk_causes_nb = []
+            #     for cat in list_nk_causes:
+            #         list_nk_causes_nb.append(n_patients_by_nk_cause_dict[cat])
+            #
+            #     n_patients_by_nk_causes_sorted_indices = np.argsort(list_nk_causes_nb)
+            #     for index in n_patients_by_nk_causes_sorted_indices[::-1]:
+            #         file.write(f"- {list_nk_causes[index]}: {list_nk_causes_nb[index]}")
+            #         file.write("\n")
             #     file.write("\n")
             #     file.write("\n")
 
@@ -255,7 +318,6 @@ class CleanerCoder(Cleaner):
                                        pattern_dict=self.categorie_nk_patterns)
         self.clean_column_with_reg_exp(column_name="cause_NK", map_dict=self.cause_nk_mapping,
                                        pattern_dict=self.cause_nk_patterns)
-
 
 class CleanerMulti(Cleaner):
     def __init__(self, df_data):
