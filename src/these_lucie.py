@@ -4,6 +4,7 @@ from datetime import datetime
 import unidecode
 # reg exp
 import re
+from sortedcontainers import SortedDict
 
 
 def add_key_to_map_dict(map_dict, key_to_add):
@@ -24,6 +25,34 @@ class Cleaner:
         self.n_lines = self.df_clean.shape[0]
         self.dates_columns = ["date_greffe", "date_naissance"]
 
+    def create_patient_id_column(self):
+        patient_ids_list = []
+        patient_str_dict = {}
+        patient_id = 0
+        for index, value in enumerate(self.df_clean.loc[:, "nom"]):
+            last_name = value
+            first_name = self.df_clean.loc[index, "prenom"]
+            birth_date = self.df_clean.loc[index, "date_naissance"]
+            patient_str = first_name + last_name + birth_date
+            if patient_str not in patient_str_dict:
+                patient_str_dict[patient_str] = patient_id
+                patient_ids_list.append(patient_id)
+                patient_id += 1
+            else:
+                patient_ids_list.append(patient_str_dict[patient_str])
+
+        self.df_clean.insert(loc=0, column="patient_id",
+                             value=patient_ids_list,
+                             allow_duplicates=False)
+
+    def do_anonymization(self):
+        # will earse first_name, name and birth_date columns
+        # we will keep only the graft year
+        self.df_clean.drop(columns=['prenom', 'nom', "date_naissance"], inplace=True)
+        for index, value in enumerate(self.df_clean.loc[:, "date_greffe"]):
+            date_time = datetime.strptime(value, '%d/%m/%Y')
+            self.df_clean.at[index, "date_greffe"] = date_time.year
+
     def clean(self):
         # first we change the name of the columns
         # removing the space and the accentuation
@@ -39,14 +68,29 @@ class Cleaner:
             columns_name[i] = new_name
         self.df_clean.columns = columns_name
 
-        # dealing with data format
-        for date_name in self.dates_columns:
-            self.df_clean[date_name] = pd.to_datetime(self.df_clean[date_name])
-            self.df_clean[date_name] = self.df_clean[date_name].dt.strftime('%d/%m/%Y')
-
         # setting indices
         self.df_clean = self.df_clean.set_index(np.arange(self.n_lines))
 
+        # dealing with data format
+        for date_name in self.dates_columns:
+            self.df_clean[date_name] = pd.to_datetime(self.df_clean[date_name])
+            for index, value in enumerate(self.df_clean.loc[:, date_name]):
+                date_time = value
+                if date_time.year > datetime.now().year:
+                    # then we remove a century
+                    self.df_clean.at[index, date_name] = datetime(date_time.year - 100, date_time.month, date_time.day)
+            # print(f"self.df_clean[date_name].dt.year {self.df_clean[date_name].dt.year}")
+
+        # add age column
+        index_column = self.df_clean.columns.get_loc("date_naissance")
+        self.df_clean.insert(loc=index_column + 1, column="age",
+                             value=(self.df_clean.loc[:, "date_greffe"] - self.df_clean.loc[:, "date_naissance"]).astype('<m8[Y]') ,
+                             allow_duplicates=False)
+
+        for date_name in self.dates_columns:
+            self.df_clean[date_name] = self.df_clean[date_name].dt.strftime('%d/%m/%Y')
+
+        self.create_patient_id_column()
 
 class CleanerCoder(Cleaner):
     def __init__(self, df_data, keep_original):
@@ -68,7 +112,7 @@ class CleanerCoder(Cleaner):
         etiologies_to_map = ["ulcere inflammatoire", "ulcere mecanique", "keratite infectieuse",
                              "insuffisance limbique",
                              "anomalie statique palpebrale", "decompensation bulleuse epitheliale",
-                             "destruction aigue surface", "neurotrophique", "BF perforee", "Keratopathie en bandelette",
+                             "destruction aigue surface", "neurotrophique", "Keratopathie en bandelette",
                              "reconstruction", "refection BF"]
         self.etiology_mapping = {"NA": -1}
         for code, etiology in enumerate(etiologies_to_map):
@@ -79,11 +123,11 @@ class CleanerCoder(Cleaner):
         self.etiology_patterns = {"ulcere.* inflammatoire": "ulcere inflammatoire",
                                   "keratite.*infectieuse": "keratite infectieuse",
                                   "insuffisance limbique": "insuffisance limbique",
-                                  "anomalie statique.*brale": "anomalie statique palpebrale",
+                                  "anomalie statique.*rale": "anomalie statique palpebrale",
                                   "decompensation bulleuse.*": "decompensation bulleuse epitheliale",
                                   "destruction aigue surface": "destruction aigue surface",
-                                  "neurotrophique": "neurotrophique", "BF perforee": "BF perforee",
-                                  "keratopathie.*bandelette": "Keratopathie en bandelette",
+                                  ("neurotrophique", "neurotrophiqe"): "neurotrophique",
+                                  ("keratopathie.*bandelette", "keratite.*bandelette"): "Keratopathie en bandelette",
                                   "recon.*ction": "reconstruction", "refection.*bf": "refection BF"}
 
         categorie_nk_to_map = ["infectieuse", "brulure", "diabete", "iatrogenie", "atteinte chronique surface",
@@ -94,7 +138,7 @@ class CleanerCoder(Cleaner):
         self.mapping_dict["categorie_nk"] = self.categorie_nk_mapping
         # each key is a tuple of reg_ex, and the value is a key to etiology_mapping
         # the key should be lower case
-        self.categorie_nk_patterns = {"infect.*":"infectieuse",
+        self.categorie_nk_patterns = {("infect.*", "infetcieuse"):"infectieuse",
                                       "brulure":"brulure", "diabete":"diabete",
                                       "iatrogenie":"iatrogenie",
                                       "atteinte chronique surface":"atteinte chronique surface",
@@ -113,6 +157,24 @@ class CleanerCoder(Cleaner):
                                       "3.*kt": "3e kt", "ains": "ains", "vzv": "vzv",
                                       "col.*atb": "collyres atb",
                                   "goug.*rot":"gougerot"}
+
+        facteur_favorisant_to_map = ["brulure"]
+        self.facteur_favorisant_mapping = {"NA": -1}
+        for code, etiology in enumerate(facteur_favorisant_to_map):
+            self.facteur_favorisant_mapping[etiology] = code
+        self.mapping_dict["facteur_favorisant"] = self.facteur_favorisant_mapping
+        # each key is a tuple of reg_ex, and the value is a key to etiology_mapping
+        # the key should be lower case
+        self.facteur_favorisant_patterns = {"brulure.*": "brulure"}
+
+        facteur_associe_to_map = []
+        self.facteur_associe_mapping = {"NA": -1}
+        for code, etiology in enumerate(facteur_associe_to_map):
+            self.facteur_associe_mapping[etiology] = code
+        self.mapping_dict["facteur_associe"] = self.facteur_associe_mapping
+        # each key is a tuple of reg_ex, and the value is a key to etiology_mapping
+        # the key should be lower case
+        self.facteur_associe_patterns = {}
 
         etat_corneen_to_map = ["preperforatif", "perfore"]
         self.etat_corneen_mapping = {"NA": -1}
@@ -180,6 +242,7 @@ class CleanerCoder(Cleaner):
     def clean_column(self, column_name, map_dict, special_cases=None, use_upper=True):
         if self.keep_original:
             index_column = self.df_clean.columns.get_loc(column_name)
+
             self.df_clean.insert(loc=index_column+1, column=column_name+"_originale",
                                  value=self.df_clean.loc[:, column_name],
                                  allow_duplicates=False)
@@ -268,7 +331,7 @@ class CleanerCoder(Cleaner):
 
             n_patients_by_nk_category_sorted_indices = np.argsort(list_nk_categories_nb)
             for index in n_patients_by_nk_category_sorted_indices[::-1]:
-                file.write(f"### {list_nk_categories[index]}: {list_nk_categories_nb[index]}\n")
+                file.write(f"# {list_nk_categories[index]}: {list_nk_categories_nb[index]}\n")
                 n_patients_by_nk_cause_dict = nk_category_dict[list_nk_categories[index]]
                 list_nk_causes = list(n_patients_by_nk_cause_dict.keys())
                 list_nk_causes_nb = []
@@ -279,30 +342,99 @@ class CleanerCoder(Cleaner):
                 for index in n_patients_by_nk_causes_sorted_indices[::-1]:
                     file.write(f"- {list_nk_causes[index]}: {list_nk_causes_nb[index]}")
                     file.write("\n")
-                file.write("\n")
-                file.write("\n")
 
                 file.write("\n")
             file.write("\n")
-            # file.write("\n")
-            # file.write("\n")
+            file.write("\n")
 
-            # file.write("Number of patients by causes of Neurotrophique categories:")
-            # file.write("\n")
-            #
-            # for nk_category, n_patients_by_nk_cause_dict in nk_category_dict.items():
-            #     file.write(f"## {nk_category}:\n")
-            #     list_nk_causes = list(n_patients_by_nk_cause_dict.keys())
-            #     list_nk_causes_nb = []
-            #     for cat in list_nk_causes:
-            #         list_nk_causes_nb.append(n_patients_by_nk_cause_dict[cat])
-            #
-            #     n_patients_by_nk_causes_sorted_indices = np.argsort(list_nk_causes_nb)
-            #     for index in n_patients_by_nk_causes_sorted_indices[::-1]:
-            #         file.write(f"- {list_nk_causes[index]}: {list_nk_causes_nb[index]}")
-            #         file.write("\n")
-            #     file.write("\n")
-            #     file.write("\n")
+            file.write(f"Number of patients by promoting and associated factors for each etiology\n")
+            file.write("\n")
+            file.write("\n")
+            # for each etiology, except neurotrophique, we want the number of patients
+            # for each "facteur_favorisant" and "facteur_associe"
+            self.reverse_facteur_favorisant_mapping = {}
+            for item, value in self.facteur_favorisant_mapping.items():
+                self.reverse_facteur_favorisant_mapping[value] = item
+            self.reverse_facteur_associe_mapping = {}
+            for item, value in self.facteur_associe_mapping.items():
+                self.reverse_facteur_associe_mapping[value] = item
+
+            for etiology_str, etiology_code in self.etiology_mapping.items():
+                if etiology_str == "neurotrophique":
+                    continue
+
+                file.write(f"/// Etiology: {etiology_str}\n")
+                n_patients_by_facteur_favorisant = {}
+                n_patients_by_facteur_associe = {}
+
+                etiology_indices = self.df_clean.loc[self.df_clean['etiologie'] ==
+                                                     etiology_code].index
+
+                for index, value in enumerate(self.df_clean.loc[etiology_indices, "facteur_favorisant"]):
+                    if pd.isna(value):
+                        n_patients_by_facteur_favorisant["NA"] = n_patients_by_facteur_favorisant.get("NA", 0) + 1
+                    else:
+                        str_value = self.reverse_facteur_favorisant_mapping[value]
+                        n_patients_by_facteur_favorisant[str_value] = \
+                            n_patients_by_facteur_favorisant.get(str_value, 0) + 1
+
+                for index, value in enumerate(self.df_clean.loc[etiology_indices, "facteur_associe"]):
+                    if pd.isna(value):
+                        n_patients_by_facteur_associe["NA"] = n_patients_by_facteur_associe.get("NA", 0) + 1
+                    else:
+                        str_value = self.reverse_facteur_associe_mapping[value]
+                        n_patients_by_facteur_associe[str_value] = \
+                            n_patients_by_facteur_associe.get(str_value, 0) + 1
+
+                # then printing the values
+                # first ordering them
+                list_facteur_favorisant = list(n_patients_by_facteur_favorisant.keys())
+                list_facteur_favorisant_nb = []
+                for cat in list_facteur_favorisant:
+                    list_facteur_favorisant_nb.append(n_patients_by_facteur_favorisant[cat])
+
+                list_facteur_associe = list(n_patients_by_facteur_associe.keys())
+                list_facteur_associe_nb = []
+                for cat in list_facteur_associe:
+                    list_facteur_associe_nb.append(n_patients_by_facteur_associe[cat])
+
+                file.write(f"/ promoting factors:\n")
+                n_patients_by_facteur_favorisant_sorted_indices = np.argsort(list_facteur_favorisant_nb)
+                for index in n_patients_by_facteur_favorisant_sorted_indices[::-1]:
+                    file.write(f"# {list_facteur_favorisant[index]}: {list_facteur_favorisant_nb[index]}\n")
+
+                file.write(f"/ associated factors:\n")
+                n_patients_by_facteur_associe_sorted_indices = np.argsort(list_facteur_associe_nb)
+                for index in n_patients_by_facteur_associe_sorted_indices[::-1]:
+                    file.write(f"# {list_facteur_associe[index]}: {list_facteur_associe_nb[index]}\n")
+                file.write("\n")
+            # nb of unique patients, and nb of patients depending on how greffe
+            # we could use df.duplicated to count unique patients
+            indices_found = []
+            # key represent the number of grafts, value the number of patients with this number of grafts
+            patients_count = SortedDict()
+            for index, value in enumerate(self.df_clean.loc[:, "nom"]):
+                if index in indices_found:
+                    # patients already counted
+                    continue
+                last_name = value
+                first_name = self.df_clean.loc[index, "prenom"]
+                birth_date = self.df_clean.loc[index, "date_naissance"]
+                # getting the list of indices
+                patients_indices = self.df_clean.loc[(self.df_clean['nom'] == last_name) &
+                                  (self.df_clean['prenom'] == first_name) &
+                                  (self.df_clean['date_naissance'] == birth_date)].index
+                n_grafts = len(patients_indices)
+                patients_count[n_grafts] = patients_count.get(n_grafts, 0) + 1
+                indices_found.extend(patients_indices)
+
+            total_unique_patients = 0
+            for value in patients_count.values():
+                total_unique_patients += value
+            file.write("Number of patients:\n")
+            file.write(f"- Unique patients: {total_unique_patients}\n")
+            for n_grafts, value in patients_count.items():
+                file.write(f"- Patients with {n_grafts} grafts: {value}\n")
 
     def clean(self):
         super().clean()
@@ -318,6 +450,11 @@ class CleanerCoder(Cleaner):
                                        pattern_dict=self.categorie_nk_patterns)
         self.clean_column_with_reg_exp(column_name="cause_NK", map_dict=self.cause_nk_mapping,
                                        pattern_dict=self.cause_nk_patterns)
+        self.clean_column_with_reg_exp(column_name="facteur_favorisant", map_dict=self.facteur_favorisant_mapping,
+                                       pattern_dict=self.facteur_favorisant_patterns)
+        self.clean_column_with_reg_exp(column_name="facteur_associe", map_dict=self.facteur_associe_mapping,
+                                       pattern_dict=self.facteur_associe_patterns)
+        # TODO: anonymize database
 
 class CleanerMulti(Cleaner):
     def __init__(self, df_data):
@@ -470,7 +607,15 @@ def main():
         print(f"shape: {cleaner_multi.df_clean.shape}")
         print(f"columns multi: {cleaner_multi.df_clean.columns}")
 
+    cleaner_coder_without_original.produce_stats(file_name=f'{path_results}/stats_Lucie_{time_str}.txt')
+
     writer = pd.ExcelWriter(f'{path_results}/these_lucie_data_clean_code_with_original_{time_str}.xlsx')
+    # df_summary.to_excel(writer, 'summary', index=False)
+    cleaner_coder_with_original.df_clean.to_excel(writer, 'data', index=False)
+    writer.save()
+
+    cleaner_coder_with_original.do_anonymization()
+    writer = pd.ExcelWriter(f'{path_results}/these_lucie_data_clean_code_with_original_anonymized_{time_str}.xlsx')
     # df_summary.to_excel(writer, 'summary', index=False)
     cleaner_coder_with_original.df_clean.to_excel(writer, 'data', index=False)
     writer.save()
@@ -480,7 +625,12 @@ def main():
     cleaner_coder_without_original.df_clean.to_excel(writer, 'data', index=False)
     writer.save()
 
-    cleaner_coder_without_original.produce_stats(file_name=f'{path_results}/stats_Lucie_{time_str}.txt')
+    cleaner_coder_without_original.do_anonymization()
+    writer = pd.ExcelWriter(f'{path_results}/these_lucie_data_clean_code_anonymized_{time_str}.xlsx')
+    # df_summary.to_excel(writer, 'summary', index=False)
+    cleaner_coder_without_original.df_clean.to_excel(writer, 'data', index=False)
+    writer.save()
+
 
     with open(f'{path_results}/code_mapping_{time_str}.txt', "w", encoding='UTF-8') as file:
         for dict_name, values in cleaner_coder_without_original.mapping_dict.items():
