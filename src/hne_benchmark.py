@@ -72,8 +72,40 @@ class BenchmarkRasterDur:
         :param other:
         :return:
         """
-        pass
-        
+        ground_truth_raster_dur = np.copy(self.ground_truth_raster_dur)
+        raster_dict = {}
+        for key, value in self.predicted_raster_dur_dict.items():
+            raster_dict[key] = np.copy(value)
+        cells = np.copy(self.cells)
+        if self.traces is not None:
+            traces = np.copy(self.traces)
+        else:
+            traces = None
+
+        description = self.description
+
+        ground_truth_raster_dur = np.concatenate((ground_truth_raster_dur, other.ground_truth_raster_dur))
+
+        for key, value in other.predicted_raster_dur_dict.items():
+            # only keeping the key that are in previous BenchmarkRasterDur otherwise it will mess up the cells indices
+            if key in raster_dict:
+                raster_dict[key] = np.concatenate((raster_dict[key], value))
+            # else:
+            #     raster_dict[key] = np.copy(value)
+
+        cells = np.copy(other.cells + np.max(cells))
+
+        if other.traces is not None:
+            if traces is None:
+                traces = np.copy(other.traces)
+            else:
+                traces = np.concatenate((traces, other.traces))
+
+        description += "_" + other.description
+
+        return BenchmarkRasterDur(description=description, ground_truth_raster_dur=ground_truth_raster_dur,
+                                  predicted_raster_dur_dict=raster_dict, cells=cells, traces=traces,
+                                  debug_mode=False)
 
     def compute_stats(self):
         if self.debug_mode:
