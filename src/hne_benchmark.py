@@ -33,38 +33,47 @@ class BenchmarkRasterDur:
         self.debug_mode = debug_mode
         self.traces = traces
 
-    def compute_stats_on_onsets(self):
-        if self.debug_mode:
-            print(f"{self.description} stats on onsets")
-        for cell in self.cells:
-            if self.debug_mode:
-                print(f"Cell {cell}")
-            for key, raster_dur in self.predicted_raster_dur_dict.items():
-                gt_rd = self.ground_truth_raster_dur[cell]
-                p_rd = raster_dur[cell]
-                frames_stat = cs.compute_stats_on_onsets(spike_nums=gt_rd, predicted_spike_nums=p_rd)
-                # frames stats
-                if self.debug_mode:
-                    print(f"raster {key}")
-                    print(f"Onsets stat:")
-                    for k, value in frames_stat.items():
-                        print(f"{k}: {str(np.round(value, 4))}")
-            if self.debug_mode:
-                print("")
-                print("/////////////////")
-                print("")
-        if self.debug_mode:
-            print("All cells")
-        for key, raster_dur in self.predicted_raster_dur_dict.items():
-            gt_rd = self.ground_truth_raster_dur[self.cells]
-            p_rd = raster_dur[self.cells]
-            frames_stat = cs.compute_stats_on_onsets(gt_rd, p_rd)
-            # frames stats
-            if self.debug_mode:
-                print(f"raster {key}")
-                print(f"Onsets stat:")
-                for k, value in frames_stat.items():
-                    print(f"{k}: {str(np.round(value, 4))}")
+    # def compute_stats_on_onsets(self):
+    #     if self.debug_mode:
+    #         print(f"{self.description} stats on onsets")
+    #     for cell in self.cells:
+    #         if self.debug_mode:
+    #             print(f"Cell {cell}")
+    #         for key, raster_dur in self.predicted_raster_dur_dict.items():
+    #             gt_rd = self.ground_truth_raster_dur[cell]
+    #             p_rd = raster_dur[cell]
+    #             frames_stat = cs.compute_stats_on_onsets(spike_nums=gt_rd, predicted_spike_nums=p_rd)
+    #             # frames stats
+    #             if self.debug_mode:
+    #                 print(f"raster {key}")
+    #                 print(f"Onsets stat:")
+    #                 for k, value in frames_stat.items():
+    #                     print(f"{k}: {str(np.round(value, 4))}")
+    #         if self.debug_mode:
+    #             print("")
+    #             print("/////////////////")
+    #             print("")
+    #     if self.debug_mode:
+    #         print("All cells")
+    #     for key, raster_dur in self.predicted_raster_dur_dict.items():
+    #         gt_rd = self.ground_truth_raster_dur[self.cells]
+    #         p_rd = raster_dur[self.cells]
+    #         frames_stat = cs.compute_stats_on_onsets(gt_rd, p_rd)
+    #         # frames stats
+    #         if self.debug_mode:
+    #             print(f"raster {key}")
+    #             print(f"Onsets stat:")
+    #             for k, value in frames_stat.items():
+    #                 print(f"{k}: {str(np.round(value, 4))}")
+
+    def fusion(self, other):
+        """
+        Do fusion with another benchmark, return a new benchmark object
+        :param other:
+        :return:
+        """
+        pass
+        
 
     def compute_stats(self):
         if self.debug_mode:
@@ -102,28 +111,29 @@ class BenchmarkRasterDur:
                 print("/////////////////")
                 print("")
         if self.debug_mode:
+            # just for display
             print("All cells")
-        for key, raster_dur in self.predicted_raster_dur_dict.items():
-            gt_rd = self.ground_truth_raster_dur[self.cells]
-            p_rd = raster_dur[self.cells]
-            if self.traces is not None:
-                traces = self.traces[self.cells]
-            else:
-                traces = None
-            frames_stat, transients_stat = cs.compute_stats(gt_rd, p_rd,
-                                                            traces=traces)
-            # frames stats
-            if self.debug_mode:
-                print(f"raster {key}")
-                print(f"Frames stat:")
-                for k, value in frames_stat.items():
-                    print(f"{k}: {str(np.round(value, 4))}")
-            if self.debug_mode:
-                print(f"###")
-                print(f"Transients stat:")
-                for k, value in transients_stat.items():
-                    print(f"{k}: {str(np.round(value, 4))}")
-                print("")
+            for key, raster_dur in self.predicted_raster_dur_dict.items():
+                gt_rd = self.ground_truth_raster_dur[self.cells]
+                p_rd = raster_dur[self.cells]
+                if self.traces is not None:
+                    traces = self.traces[self.cells]
+                else:
+                    traces = None
+                frames_stat, transients_stat = cs.compute_stats(gt_rd, p_rd,
+                                                                traces=traces)
+                # frames stats
+                if self.debug_mode:
+                    print(f"raster {key}")
+                    print(f"Frames stat:")
+                    for k, value in frames_stat.items():
+                        print(f"{k}: {str(np.round(value, 4))}")
+                if self.debug_mode:
+                    print(f"###")
+                    print(f"Transients stat:")
+                    for k, value in transients_stat.items():
+                        print(f"{k}: {str(np.round(value, 4))}")
+                    print("")
 
     def plot_boxplots_full_stat(self, path_results, description, time_str, for_frames=True, save_formats="pdf"):
         result_dict_to_use = self.results_frames_dict_by_cell
@@ -863,15 +873,14 @@ def main_benchmark():
         data_dict["gt"]["path"] = "p12/p12_17_11_10_a000"
         data_dict["gt"]["gui_file"] = "p12_17_11_10_a000_GUI_fusion_validation.mat"
         # p12_17_11_10_a000_GUI_JD.mat
-        data_dict["gt"]["gt_file"] = "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt"
+        # data_dict["gt"]["gt_file"] = "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt"
         # data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P12_17_11_10_a000.txt"
         # data_dict["gt"]["cnn_threshold"] = 0.5
-        # TODO: with cell 10, we need to re-make the prediction
-        data_dict["gt"]["cells"] = np.array([0, 3, 6, 7, 9, 10, 12, 14, 15, 19]) #np.concatenate((np.arange(11), [14])) # np.array([14])
+        data_dict["gt"]["cells"] = np.array([0, 3, 6, 7, 9, 10, 12, 14, 15, 19])
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
-        # if traces is given, then rnn will be boosted
+        # if traces is given, then rnn will be boosted if boost_rnn is True
         data_dict["rnn"]["trace_file_name"] = "p12_17_11_10_a000_Traces.mat"
         data_dict["rnn"]["trace_var_name"] = "C_df"
         data_dict["rnn"]["boost_rnn"] = False
@@ -1483,13 +1492,13 @@ def main_benchmark():
     benchmarks = BenchmarkRasterDur(description=ms_to_benchmark, ground_truth_raster_dur=ground_truth_raster_dur,
                                     predicted_raster_dur_dict=predicted_raster_dur_dict, cells=cells_for_benchmark,
                                     traces=traces)
-
+    # TODO: function to fusion two benchmarks objects
     benchmarks.compute_stats()
 
     description = ms_to_benchmark
-    if "prediction_threshold" in data_dict["rnn"]:
-        threshold_value = data_dict["rnn"]["prediction_threshold"]
-        description += f"_thr_{threshold_value}_"
+    # if "prediction_threshold" in data_dict["rnn"]:
+    #     threshold_value = data_dict["rnn"]["prediction_threshold"]
+    #     description += f"_thr_{threshold_value}_"
 
     benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
                                        for_frames=True, save_formats="pdf")

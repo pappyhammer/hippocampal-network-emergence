@@ -97,7 +97,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                 variables_mapping=variables_mapping)
 
         # prediction based on rnn trained on 50 cells, BO,
-        variables_mapping = {"predictions": "predictions"}
+        # variables_mapping = {"predictions": "predictions"}
         p5_19_03_25_a001_ms.load_raster_dur_from_predictions(
             file_name="p5/p5_19_03_25_a001/" +
                       "P5_19_03_25_a001_predictions_2019_04_11.00-04-33_all_cells_rnn_26_02_19_17-20-11.mat",

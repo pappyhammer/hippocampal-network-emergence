@@ -2505,6 +2505,12 @@ def find_all_onsets_and_peaks_on_traces(ms, cell, threshold_factor=0.5):
 
 
 def cell_encoding(ms, cell):
+    """
+    Give for each frame of the cell what kind of activity is going on (real transient, fake etc...)
+    :param ms:
+    :param cell:
+    :return:
+    """
     # so far we need ms.traces
     n_frames = ms.smooth_traces.shape[1]
     encoded_frames = np.zeros(n_frames, dtype="int16")
@@ -3278,8 +3284,18 @@ def create_tiffs_for_data_generator(ms_to_use, param, path_for_tiffs):
 
 def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
                                      use_data_augmentation=True, cells_to_predict=None,
-                                     using_cnn_predictions=False):
-    # TODO: Pass a dict to predict more than one session at once
+                                     using_cnn_predictions=False, file_name_bonus_str=""):
+    """
+
+    :param ms_to_use: List of string coding for the mouse_ ession
+    :param param:
+    :param overlap_value:
+    :param use_data_augmentation:
+    :param cells_to_predict: Dict with key the string of the mouse session and value an array of int
+    :param using_cnn_predictions:
+    :param file_name_bonus_str:
+    :return:
+    """
     if len(ms_to_use) > 1:
         ms_to_use = list(ms_to_use[0])
 
@@ -3287,109 +3303,109 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
                                             param=param,
                                             load_traces=False, load_abf=False,
                                             for_transient_classifier=True)
+    for ms_str in ms_to_use:
+        ms = ms_str_to_ms_dict[ms_str]
 
-    ms = ms_str_to_ms_dict[ms_to_use[0]]
+        n_cells = len(ms.coord)
+        print(f"n_cells {n_cells}")
+        # raise Exception("TITI")
+        if cells_to_predict is None:
+            cells_to_load = np.arange(n_cells)
+        else:
+            cells_to_load = np.array(cells_to_predict[ms_str])
 
-    n_cells = len(ms.coord)
-    print(f"n_cells {n_cells}")
-    # raise Exception("TITI")
-    if cells_to_predict is None:
-        cells_to_load = np.arange(n_cells)
-    else:
-        cells_to_load = np.array(cells_to_predict)
+        using_cnn_predictions = using_cnn_predictions
+        if using_cnn_predictions:
+            cells_to_load = np.setdiff1d(cells_to_load, ms.cells_to_remove)
+            if ms.cell_cnn_predictions is not None:
+                print(f"Using cnn predictions from {ms.description}")
+                # not taking into consideration cells that are not predicted as true from the cell classifier
+                cells_predicted_as_false = np.where(ms.cell_cnn_predictions < 0.5)[0]
+                cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
 
-    using_cnn_predictions = using_cnn_predictions
-    if using_cnn_predictions:
-        cells_to_load = np.setdiff1d(cells_to_load, ms.cells_to_remove)
-        if ms.cell_cnn_predictions is not None:
-            print(f"Using cnn predictions from {ms.description}")
-            # not taking into consideration cells that are not predicted as true from the cell classifier
-            cells_predicted_as_false = np.where(ms.cell_cnn_predictions < 0.5)[0]
-            cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
+        cells_to_load = ms.get_new_cell_indices_if_cells_removed(cells_to_load)
 
-    cells_to_load = ms.get_new_cell_indices_if_cells_removed(cells_to_load)
+        total_n_cells = len(cells_to_load)
+        print(f'total_n_cells {total_n_cells}')
+        # raise Exception("TITI")
+        if total_n_cells == 0:
+            raise Exception(f"No cells loaded")
 
-    total_n_cells = len(cells_to_load)
-    print(f'total_n_cells {total_n_cells}')
-    # raise Exception("TITI")
-    if total_n_cells == 0:
-        raise Exception(f"No cells loaded")
+        movie_loaded = load_movie(ms)
+        if not movie_loaded:
+            raise Exception(f"could not load movie of ms {ms.description}")
 
-    movie_loaded = load_movie(ms)
-    if not movie_loaded:
-        raise Exception(f"could not load movie of ms {ms.description}")
+        n_frames = ms.tiff_movie_normalized.shape[0]
+        print(f"transients_prediction_from_movie n_frames {n_frames}")
 
-    n_frames = ms.tiff_movie_normalized.shape[0]
-    print(f"transients_prediction_from_movie n_frames {n_frames}")
+        spike_nums_dur = np.zeros((n_cells, n_frames), dtype="int8")
+        predictions_by_cell = np.zeros((n_cells, n_frames))
 
-    spike_nums_dur = np.zeros((n_cells, n_frames), dtype="int8")
-    predictions_by_cell = np.zeros((n_cells, n_frames))
+        # loading model
+        path_to_tc_model = param.path_data + "transient_classifier_model/"
+        json_file = None
+        weights_file = None
+        # checking if the path exists
+        if os.path.isdir(path_to_tc_model):
+            # then we look for the json file (representing the model architecture) and the weights file
+            # we will assume there is only one file of each in this directory
+            # look for filenames in the first directory, if we don't break, it will go through all directories
+            for (dirpath, dirnames, local_filenames) in os.walk(path_to_tc_model):
+                for file_name in local_filenames:
+                    if file_name.endswith(".json"):
+                        json_file = path_to_tc_model + file_name
+                    if "weights" in file_name:
+                        weights_file = path_to_tc_model + file_name
+                # looking only in the top directory
+                break
+        if (json_file is None) or (weights_file is None):
+            raise Exception("model could not be loaded")
 
-    # loading model
-    path_to_tc_model = param.path_data + "transient_classifier_model/"
-    json_file = None
-    weights_file = None
-    # checking if the path exists
-    if os.path.isdir(path_to_tc_model):
-        # then we look for the json file (representing the model architecture) and the weights file
-        # we will assume there is only one file of each in this directory
-        # look for filenames in the first directory, if we don't break, it will go through all directories
-        for (dirpath, dirnames, local_filenames) in os.walk(path_to_tc_model):
-            for file_name in local_filenames:
-                if file_name.endswith(".json"):
-                    json_file = path_to_tc_model + file_name
-                if "weights" in file_name:
-                    weights_file = path_to_tc_model + file_name
-            # looking only in the top directory
-            break
-    if (json_file is None) or (weights_file is None):
-        raise Exception("model could not be loaded")
+        start_time = time.time()
+        # Model reconstruction from JSON file
+        with open(json_file, 'r') as f:
+            model = model_from_json(f.read())
 
-    start_time = time.time()
-    # Model reconstruction from JSON file
-    with open(json_file, 'r') as f:
-        model = model_from_json(f.read())
+        # Load weights into the new model
+        model.load_weights(weights_file)
+        stop_time = time.time()
+        print(f"Time for loading model: "
+              f"{np.round(stop_time - start_time, 3)} s")
 
-    # Load weights into the new model
-    model.load_weights(weights_file)
-    stop_time = time.time()
-    print(f"Time for loading model: "
-          f"{np.round(stop_time - start_time, 3)} s")
+        start_time = time.time()
+        predictions_threshold = 0.5
+        for cell in cells_to_load:
+            predictions = predict_transient_from_model(ms=ms, cell=cell, model=model, overlap_value=overlap_value,
+                                                       use_data_augmentation=use_data_augmentation)
+            if len(predictions.shape) == 1:
+                predictions_by_cell[cell] = predictions
+            elif (len(predictions.shape) == 2) and (predictions.shape[1] == 1):
+                predictions_by_cell[cell] = predictions[:, 0]
+            elif (len(predictions.shape) == 2) and (predictions.shape[1] == 3):
+                # real transient, fake ones, other (neuropil, decay etc...)
+                # keeping predictions about real transient when superior
+                # to other prediction on the same frame
+                max_pred_by_frame = np.max(predictions, axis=1)
+                real_transient_frames = (predictions[:, 0] == max_pred_by_frame)
+                predictions_by_cell[cell, real_transient_frames] = 1
+            elif predictions.shape[1] == 2:
+                # real transient, fake ones
+                # keeping predictions about real transient superior to the threshold
+                # and superior to other prediction on the same frame
+                max_pred_by_frame = np.max(predictions, axis=1)
+                real_transient_frames = np.logical_and((predictions[:, 0] >= predictions_threshold),
+                                                       (predictions[:, 0] == max_pred_by_frame))
+                predictions_by_cell[cell, real_transient_frames] = 1
 
-    start_time = time.time()
-    predictions_threshold = 0.5
-    for cell in cells_to_load:
-        predictions = predict_transient_from_model(ms=ms, cell=cell, model=model, overlap_value=overlap_value,
-                                                   use_data_augmentation=use_data_augmentation)
-        if len(predictions.shape) == 1:
-            predictions_by_cell[cell] = predictions
-        elif (len(predictions.shape) == 2) and (predictions.shape[1] == 1):
-            predictions_by_cell[cell] = predictions[:, 0]
-        elif (len(predictions.shape) == 2) and (predictions.shape[1] == 3):
-            # real transient, fake ones, other (neuropil, decay etc...)
-            # keeping predictions about real transient when superior
-            # to other prediction on the same frame
-            max_pred_by_frame = np.max(predictions, axis=1)
-            real_transient_frames = (predictions[:, 0] == max_pred_by_frame)
-            predictions_by_cell[cell, real_transient_frames] = 1
-        elif predictions.shape[1] == 2:
-            # real transient, fake ones
-            # keeping predictions about real transient superior to the threshold
-            # and superior to other prediction on the same frame
-            max_pred_by_frame = np.max(predictions, axis=1)
-            real_transient_frames = np.logical_and((predictions[:, 0] >= predictions_threshold),
-                                                   (predictions[:, 0] == max_pred_by_frame))
-            predictions_by_cell[cell, real_transient_frames] = 1
+            spike_nums_dur[cell, predictions_by_cell[cell] >= predictions_threshold] = 1
 
-        spike_nums_dur[cell, predictions_by_cell[cell] >= predictions_threshold] = 1
+        stop_time = time.time()
+        print(f"Time to predict {total_n_cells} cells: "
+              f"{np.round(stop_time - start_time, 3)} s")
 
-    stop_time = time.time()
-    print(f"Time to predict {total_n_cells} cells: "
-          f"{np.round(stop_time - start_time, 3)} s")
-
-    file_name = f"/{ms.description}_predictions_{param.time_str}.mat"
-    sio.savemat(param.path_results + file_name, {'spike_nums_dur_predicted': spike_nums_dur,
-                                                 'predictions': predictions_by_cell})
+        file_name = f"/{ms.description}_predictions_{file_name_bonus_str}_{param.time_str}.mat"
+        sio.savemat(param.path_results + file_name, {'spike_nums_dur_predicted': spike_nums_dur,
+                                                     'predictions': predictions_by_cell})
 
 
 def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
@@ -3643,17 +3659,28 @@ def train_model():
 
     go_create_tiffs_for_data_generator = False
     if go_create_tiffs_for_data_generator:
+        # use to create a single tiff for each frame, then use by data_generator during training of the RNN
         create_tiffs_for_data_generator(ms_to_use=["p7_171012_a000_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms",
                                                    "p12_171110_a000_ms",
                                                    "p13_18_10_29_a001_ms", "artificial_ms_1"],
                                         param=param, path_for_tiffs=path_for_tiffs)
         # raise Exception("GOGOGO")
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
-        transients_prediction_from_movie(ms_to_use=["p12_171110_a000_ms"], param=param, overlap_value=0.9,
+        ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
+                     "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
+                     "p13_18_10_29_a001_ms"]
+        # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
+        cells_to_predict = { "p7_171012_a000_ms": np.array([2, 25]),
+                             "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
+                              "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
+                              "p11_17_11_24_a000_ms": np.array([3, 45]),
+                              "p12_171110_a000_ms": np.array([9, 10]),
+                              "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
+        transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0.9,
                                          use_data_augmentation=True, using_cnn_predictions=False,
-                                         cells_to_predict=np.array([0, 3, 6, 7, 9, 10, 12, 14, 15, 19]))
+                                         cells_to_predict=cells_to_predict, file_name_bonus_str="")
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
@@ -3825,7 +3852,7 @@ def train_model():
                         bin_lstm_size=bin_lstm_size)
 
     print(model.summary())
-    # raise Exception("TOTOOO")
+    raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(

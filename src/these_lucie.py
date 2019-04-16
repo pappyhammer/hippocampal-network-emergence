@@ -5,6 +5,7 @@ import unidecode
 # reg exp
 import re
 from sortedcontainers import SortedDict
+import os
 
 
 def add_key_to_map_dict(map_dict, key_to_add):
@@ -89,7 +90,6 @@ class Cleaner:
 
         for date_name in self.dates_columns:
             self.df_clean[date_name] = self.df_clean[date_name].dt.strftime('%d/%m/%Y')
-
         self.create_patient_id_column()
 
 class CleanerCoder(Cleaner):
@@ -550,46 +550,65 @@ def main():
 
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
 
-    original_file_name = "GMA Toulouse.xlsx"
-    df_summary = pd.read_excel(path_data + original_file_name, sheet_name=f"Feuil1")
-    list_dfs = []
-    names_col = None
-    n_columns_full = 43
-    n_columns_empty = 2
-    # going through all the sheets
-    for n in np.arange(2, 7):
-        df = pd.read_excel(path_data + original_file_name, sheet_name=f"Feuil{n}")
-        df = df.iloc[:, :n_columns_full + n_columns_empty]
-        if n == 4:
-            # switiching in Feuil4 column date of birth and gender column to respect the order of others
-            columnsTitles = list(df.columns)
-            tmp = columnsTitles[3]
-            columnsTitles[3] = columnsTitles[4]
-            columnsTitles[4] = tmp
-            df = df.reindex(columns=columnsTitles)
-        columns_name = list(df.columns)
-        print(f"{n}: columns_name: {columns_name}")
-        # changing names of the columns so they are the same in all the sheets
-        columns_name[24] = "catégorie NK"
-        columns_name[26] = "facteur favorisant"
-        columns_name[27] = "facteur associé"
-        columns_name[29] = "CF (nb de j)"
-        columns_name[30] = "antifongiques"
-        columns_name[32] = "date ttt chir"
-        columns_name[35] = "taille ulcère"
-        df.columns = columns_name
-        if names_col is None:
-            names_col = list(df.columns)
-        else:
-            for index, col_name in enumerate(list(df.columns)):
-                if col_name not in names_col:
-                    print(f"{n}: {col_name} not in columns, index: {index}")
-        # print(f"{n}: shape: {df.shape}")
-        # print(f"{n}: columns: {df.columns}")
-        list_dfs.append(df)
-    # raise Exception("TOTO")
+    use_mutli_sheets_excel = False
+    single_sheet_file_name = "GMA_Toulouse_single_sheet.xlsx"
 
-    df_data = pd.concat(list_dfs)
+    if use_mutli_sheets_excel:
+        original_file_name = "GMA Toulouse.xlsx"
+        df_summary = pd.read_excel(path_data + original_file_name, sheet_name=f"Feuil1")
+        list_dfs = []
+        names_col = None
+        n_columns_full = 43
+        n_columns_empty = 2
+        # going through all the sheets
+        for n in np.arange(2, 7):
+            df = pd.read_excel(path_data + original_file_name, sheet_name=f"Feuil{n}")
+            df = df.iloc[:, :n_columns_full + n_columns_empty]
+            if n == 4:
+                # switiching in Feuil4 column date of birth and gender column to respect the order of others
+                columnsTitles = list(df.columns)
+                tmp = columnsTitles[3]
+                columnsTitles[3] = columnsTitles[4]
+                columnsTitles[4] = tmp
+                df = df.reindex(columns=columnsTitles)
+            columns_name = list(df.columns)
+            print(f"{n}: columns_name: {columns_name}")
+            # changing names of the columns so they are the same in all the sheets
+            columns_name[24] = "catégorie NK"
+            columns_name[26] = "facteur favorisant"
+            columns_name[27] = "facteur associé"
+            columns_name[29] = "CF (nb de j)"
+            columns_name[30] = "antifongiques"
+            columns_name[32] = "date ttt chir"
+            columns_name[35] = "taille ulcère"
+            df.columns = columns_name
+            if names_col is None:
+                names_col = list(df.columns)
+            else:
+                for index, col_name in enumerate(list(df.columns)):
+                    if col_name not in names_col:
+                        print(f"{n}: {col_name} not in columns, index: {index}")
+            # print(f"{n}: shape: {df.shape}")
+            # print(f"{n}: columns: {df.columns}")
+            list_dfs.append(df)
+        # raise Exception("TOTO")
+
+        df_data = pd.concat(list_dfs)
+        dates_columns = ["date greffe", "date naissance"]
+        # dealing with data format
+        for date_name in dates_columns:
+            df_data[date_name] = pd.to_datetime(df_data[date_name])
+            df_data[date_name] = df_data[date_name].dt.strftime('%d/%m/%Y')
+
+        writer = pd.ExcelWriter(f'{path_results}/GMA_Toulouse_single_sheet.xlsx')
+        # df_summary.to_excel(writer, 'summary', index=False)
+        df_data.to_excel(writer, 'data', index=False)
+        writer.save()
+        # df_data = pd.read_excel(os.path.join(path_results, single_sheet_file_name), sheet_name="data")
+    else:
+        original_file_name = single_sheet_file_name
+        df_data = pd.read_excel(os.path.join(path_data, original_file_name), sheet_name="data")
+
 
     # print(f"shape: {df_data.shape}")
     # print(f"columns: {df_data.columns}")
