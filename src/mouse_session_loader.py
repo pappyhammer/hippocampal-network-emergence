@@ -156,6 +156,14 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         variables_mapping = {"coord": "ContoursAll"}
         p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+
+        variables_mapping = {"xshifts": "xoff",
+                             "yshifts": "yoff"}
+        p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load=
+                                                 "p6/p6_18_02_07_a001/p6_18_02_07_a001_ops_params.npy",
+                                                 variables_mapping=variables_mapping)
+
+
         p6_18_02_07_a001_ms.set_avg_cell_map_tif(file_name="p6/p6_18_02_07_a001/AVG_p6_18_02_07_a001.tif")
         if load_abf:
             p6_18_02_07_a001_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a001/p6_18_02_07_001.abf",
@@ -253,7 +261,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         else:
             variables_mapping = {"predictions": "predictions"}
             p7_171012_a000_ms.load_raster_dur_from_predictions(
-                file_name="p7/p7_17_10_12_a000/" +
+                file_name="p7/p7_17_10_12_a000/predictions/" +
                           "P7_17_10_12_a000_predictions_2019_03_19.08-35-56.mat",
                 prediction_threshold=0.3, variables_mapping=variables_mapping)
         if load_traces:
@@ -301,6 +309,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                     variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_18_a002/p7_17_10_18_a002_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+
+        variables_mapping = {"xshifts": "xoff",
+                             "yshifts": "yoff"}
+        p7_17_10_18_a002_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_17_10_18_a002/p7_17_10_18_a002_ops_params.npy",
                                                 variables_mapping=variables_mapping)
         if load_movie:
             p7_17_10_18_a002_ms.load_tif_movie(path="p7/p7_17_10_18_a002/")
@@ -364,6 +378,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         variables_mapping = {"coord": "ContoursAll"}
         p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a000/p7_18_02_08_a000_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+
+        variables_mapping = {"xshifts": "xoff",
+                             "yshifts": "yoff"}
+        p7_18_02_08_a000_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_18_02_08_a000/p7_18_02_08_a000_ops_params.npy",
+                                                variables_mapping=variables_mapping)
+
         if load_movie:
             p7_18_02_08_a000_ms.load_tif_movie(path="p7/p7_18_02_08_a000/")
 
@@ -399,6 +420,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         variables_mapping = {"coord": "ContoursAll"}
         p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+
+        variables_mapping = {"xshifts": "xoff",
+                             "yshifts": "yoff"}
+        p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_18_02_08_a001/p7_18_02_08_a001_ops_params.npy",
+                                                variables_mapping=variables_mapping)
+
         if load_abf:
             p7_18_02_08_a001_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a001/p7_18_02_08_a001.abf",
                                               threshold_piezo=4)
@@ -433,6 +461,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         variables_mapping = {"coord": "ContoursAll"}
         p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a002/p7_18_02_08_a002_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        # variables_mapping = {"xshifts": "xoff",
+        #                      "yshifts": "yoff"}
+        # p7_18_02_08_a002_ms.load_data_from_file(file_name_to_load=
+        #                                         "p7/p7_18_02_08_a002/p7_18_02_08_a002_ops_params.npy",
+        #                                         variables_mapping=variables_mapping)
         if load_movie:
             p7_18_02_08_a002_ms.load_tif_movie(path="p7/p7_18_02_08_a002/")
         if load_abf:
@@ -501,6 +534,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         variables_mapping = {"coord": "ContoursAll"}
         p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a000/p8_18_02_09_a000_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xoff",
+                             "yshifts": "yoff"}
+        p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load=
+                                                "p8/p8_18_02_09_a000/p8_18_02_09_a000_ops_params.npy",
+                                                variables_mapping=variables_mapping)
         if load_abf:
             p8_18_02_09_a000_ms.load_abf_file(abf_file_name="p8/p8_18_02_09_a000/p8_18_02_09_a000.abf",
                                               threshold_piezo=2)  # used to be 1.5
@@ -533,6 +571,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 variables_mapping=variables_mapping)
         variables_mapping = {"coord": "ContoursAll"}
         p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_CellDetect.mat",
+                                                variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xoff",
+                             "yshifts": "yoff"}
+        p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p8/p8_18_02_09_a001/p8_18_02_09_a001_ops_params.npy",
                                                 variables_mapping=variables_mapping)
         p8_18_02_09_a001_ms.set_avg_cell_map_tif(file_name="p8/p8_18_02_09_a001/AVG_p8_18_02_09_a001.tif")
         if load_abf:
@@ -759,6 +802,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         variables_mapping = {"coord": "ContoursAll"}
         p9_17_12_06_a001_ms.load_data_from_file(file_name_to_load="p9/p9_17_12_06_a001/p9_17_12_06_a001_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xoff",
+                             "yshifts": "yoff"}
+        p9_17_12_06_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p9/p9_17_12_06_a001/p9_17_12_06_a001_ops_params.npy",
+                                                variables_mapping=variables_mapping)
         if load_abf:
             p9_17_12_06_a001_ms.load_abf_file(abf_file_name="p9/p9_17_12_06_a001/p9_17_12_06_a001.abf",
                                               threshold_piezo=1.5)
@@ -939,6 +987,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p10_17_11_16_a003_ms.load_data_from_file(
             file_name_to_load="p10/p10_17_11_16_a003/p10_17_11_16_a003_CellDetect.mat",
             variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xoff",
+                             "yshifts": "yoff"}
+        p10_17_11_16_a003_ms.load_data_from_file(file_name_to_load=
+                                                "p10/p10_17_11_16_a003/p10_17_11_16_a003_ops_params.npy",
+                                                variables_mapping=variables_mapping)
         if load_movie:
             p10_17_11_16_a003_ms.load_tif_movie(path="p10/p10_17_11_16_a003/")
         ms_str_to_ms_dict["p10_17_11_16_a003_ms"] = p10_17_11_16_a003_ms
@@ -1019,6 +1072,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p11_17_11_24_a001_ms.load_data_from_file(
             file_name_to_load="p11/p11_17_11_24_a001/p11_17_11_24_a001_CellDetect.mat",
             variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xoff",
+                             "yshifts": "yoff"}
+        p11_17_11_24_a001_ms.load_data_from_file(file_name_to_load=
+                                                 "p11/p11_17_11_24_a001/p11_17_11_24_a001_ops_params.npy",
+                                                 variables_mapping=variables_mapping)
         p11_17_11_24_a001_ms.set_avg_cell_map_tif(file_name="p11/p11_17_11_24_a001/AVG_p11_17_11_24_a001.tif")
         if load_movie:
             p11_17_11_24_a001_ms.load_tif_movie(path="p11/p11_17_11_24_a001/")
@@ -1174,6 +1232,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p12_17_11_10_a002_ms.load_data_from_file(
             file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_CellDetect.mat",
             variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xoff",
+                             "yshifts": "yoff"}
+        p12_17_11_10_a002_ms.load_data_from_file(file_name_to_load=
+                                                 "p12/p12_17_11_10_a002/p12_17_11_10_a002_ops_params.npy",
+                                                 variables_mapping=variables_mapping)
         p12_17_11_10_a002_ms.set_avg_cell_map_tif(file_name="p12/p12_17_11_10_a002/AVG_p12_17_11_10_a002.tif")
         if load_movie:
             p12_17_11_10_a002_ms.load_tif_movie(path="p12/p12_17_11_10_a002/")
@@ -1361,6 +1424,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             file_name_to_load="p14/p14_18_10_30_a001/p14_18_10_30_a001_CellDetect.mat",
             variables_mapping=variables_mapping)
         p14_18_10_30_a001_ms.set_avg_cell_map_tif(file_name="p14/p14_18_10_30_a001/AVG_p14_18_10_30_a001.tif")
+        variables_mapping = {"xshifts": "xoff",
+                             "yshifts": "yoff"}
+        p14_18_10_30_a001_ms.load_data_from_file(file_name_to_load=
+                                                 "p14/p14_18_10_30_a001/p14_18_10_30_a001_ops_params.npy",
+                                                 variables_mapping=variables_mapping)
         if load_movie:
             p14_18_10_30_a001_ms.load_tif_movie(path="p14/p14_18_10_30_a001/")
         ms_str_to_ms_dict["p14_18_10_30_a001_ms"] = p14_18_10_30_a001_ms

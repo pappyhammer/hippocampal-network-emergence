@@ -50,6 +50,7 @@ from mouse_session import MouseSession
 from hne_parameters import HNEParameters
 from hne_spike_structure import HNESpikeStructure
 from mouse_session_loader import load_mouse_sessions
+from lexi_mouse_session_loader import load_lexi_mouse_sessions
 import networkx as nxfrom
 from articifical_movie_patch_generator import produce_movie
 import articifical_movie_patch_generator as art_movie_gen
@@ -920,7 +921,7 @@ def correlate_global_roi_and_shift(path_data, param):
                 for frame, page in enumerate(ImageSequence.Iterator(im)):
                     tiff_movie[frame] = np.array(page)
                 stop_time = time.time()
-                print(f"Time for loading movie: "
+                print(f"Time for loading movie {value['tiff_file']}: "
                       f"{np.round(stop_time - start_time, 3)} s")
             global_roi = np.mean(tiff_movie, axis=(1, 2))
             # print(f"global_roi {global_roi.shape}")
@@ -933,17 +934,79 @@ def correlate_global_roi_and_shift(path_data, param):
     # now we produce 2 subplots to plot the mvt and roi value of each session
     for value in data_dict.values():
         roi = value["global_roi"]
+        n_frames = len(roi)
 
-        roi = signal.detrend(roi)
+        # roi = signal.detrend(roi)
         # normalization
-        roi = (roi - np.mean(roi)) / np.std(roi)
+        if np.nanstd(roi) != 0:
+            roi = (roi - np.mean(roi)) / np.std(roi)
+        else:
+            roi = (roi - np.mean(roi))
 
-        # print(f'value["xshifts"] {np.abs(value["xshifts"])}')
-        mvt = np.abs(value["xshifts"]) + np.abs(value["yshifts"])
-        mvt = signal.detrend(mvt)
+        # mvt = np.abs(value["xshifts"]) + np.abs(value["yshifts"])
+        mvt = np.sqrt((value["xshifts"]**2) + (value["yshifts"]**2))
+        mvt -= np.nanmedian(mvt)
+        mvt = np.abs(mvt)
+        # mvt = signal.detrend(mvt)
+        # if value["id"] == "p7_19_03_05_a000":
+        #     print(f"{value['id']}: ValueError mvt: {mvt}")
+        #     print(f"{value['id']}: ValueError np.mean(mvt): {np.nanmean(mvt)}")
+
         # normalization
-        mvt = (mvt - np.mean(mvt)) / np.std(mvt)
-        mvt = mvt - np.abs(np.min(roi)) - np.max(mvt)
+        if np.nanstd(mvt) != 0:
+            mvt = (mvt - np.nanmean(mvt)) / np.nanstd(mvt)
+        else:
+            mvt = (mvt - np.nanmean(mvt))
+        mvt = mvt - np.abs(np.min(roi)) - np.nanmax(mvt)
+
+        # plotting mvt vs ROI
+        fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex='col',
+                                gridspec_kw={'height_ratios': [1], 'width_ratios': [1]},
+                                figsize=(15, 5))
+
+        ax1.set_facecolor("black")
+
+        ax1.plot(np.arange(n_frames), roi, color="red", lw=1, label=f"ROI", zorder=10)
+        ax1.plot(np.arange(n_frames), mvt, color="cornflowerblue", lw=1, label=f"SHIFT", zorder=10)
+        min_value = np.nanmin(mvt)
+        max_value = np.max(roi)
+        interval = 200
+
+        ax1.vlines(np.arange(interval, n_frames, interval), min_value, max_value,
+                   color="white", linewidth=0.2,
+                   linestyles="dashed", zorder=5)
+        try:
+            ax1.set_ylim(min_value, max_value)
+        except ValueError:
+            print(f"{value['id']}: ValueError roi: {roi}")
+            print(f"{value['id']}: ValueError mvt: {mvt}")
+            print(f"{value['id']}: ValueError mvt: {value['xshifts']}")
+            print(f"{value['id']}: ValueError mvt: {value['yshifts']}")
+        ax1.set_xlim(0, n_frames)
+        # ax1.text(x=n_frames-500, y=np.max(roi)-1, s=f"{value['id']}", color="cornflowerblue", zorder=20,
+        #          ha='center', va="center", fontsize=5, fontweight='bold')
+        plt.title(value['id'], color="blue")
+
+        ax1.legend()
+        axes_to_clean = [ax1]
+        for ax in axes_to_clean:
+            ax.axes.get_xaxis().set_visible(False)
+            ax.axes.get_yaxis().set_visible(False)
+            ax.spines['bottom'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+            ax1.margins(0)
+        fig.tight_layout()
+
+        save_formats = ["pdf"]
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+        for save_format in save_formats:
+            fig.savefig(f'{param.path_results}/roi_vs_shift_{value["id"]}'
+                        f'_{param.time_str}.{save_format}',
+                        format=f"{save_format}")
+        plt.close()
 
         non_lag_roi = np.copy(roi)
         non_lag_mvt = np.copy(mvt)
@@ -1015,50 +1078,6 @@ def correlate_global_roi_and_shift(path_data, param):
         # rho_filter, p_filter = scipy_stats.pearsonr(roi_filter, mvt_filter)
         # print(f"{value['id']} rho_filter {str(np.round(rho_filter, 3))}, p_filter {p_filter}")
 
-        n_frames = len(roi)
-
-        fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex='col',
-                                gridspec_kw={'height_ratios': [1], 'width_ratios': [1]},
-                                figsize=(15, 5))
-
-        ax1.set_facecolor("black")
-        
-        ax1.plot(np.arange(n_frames), roi, color="red", lw=1, label=f"ROI", zorder=10)
-        ax1.plot(np.arange(n_frames), mvt, color="cornflowerblue", lw=1, label=f"SHIFT", zorder=10)
-        min_value = np.min(mvt)
-        max_value = np.max(roi)
-        interval = 200
-
-        ax1.vlines(np.arange(interval, n_frames, interval), min_value, max_value,
-                   color="white", linewidth=0.2,
-                   linestyles="dashed", zorder=5)
-
-        ax1.set_ylim(min_value, max_value)
-        ax1.set_xlim(0, n_frames)
-        # ax1.text(x=n_frames-500, y=np.max(roi)-1, s=f"{value['id']}", color="cornflowerblue", zorder=20,
-        #          ha='center', va="center", fontsize=5, fontweight='bold')
-        plt.title(value['id'], color="blue")
-
-        ax1.legend()
-        axes_to_clean = [ax1]
-        for ax in axes_to_clean:
-            ax.axes.get_xaxis().set_visible(False)
-            ax.axes.get_yaxis().set_visible(False)
-            ax.spines['bottom'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['top'].set_visible(False)
-            ax.spines['left'].set_visible(False)
-            ax1.margins(0)
-        fig.tight_layout()
-
-        save_formats = ["pdf"]
-        if isinstance(save_formats, str):
-            save_formats = [save_formats]
-        for save_format in save_formats:
-            fig.savefig(f'{param.path_results}/roi_vs_shift_{value["id"]}'
-                        f'_{param.time_str}.{save_format}',
-                        format=f"{save_format}")
-        plt.close()
 
         # then we plot the correlation graph
         fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex='col',
@@ -2097,56 +2116,16 @@ def print_surprise_for_michou(n_lines, actual_line):
 
     print(f"{result}")
 
+def lexi_loading_process(param, load_traces):
+    ms_str_to_load = ["ms"]
 
-def main():
-    # for line in np.arange(15):
-    #     print_surprise_for_michou(n_lines=15, actual_line=line)
-    # loading the root_path
-    root_path = None
-    with open("param_hne.txt", "r", encoding='UTF-8') as file:
-        for nb_line, line in enumerate(file):
-            line_list = line.split('=')
-            root_path = line_list[1]
-    if root_path is None:
-        raise Exception("Root path is None")
+    # loading data
+    ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
+                                            load_traces=load_traces)
+    return ms_str_to_ms_dict
 
-    path_data = root_path + "data/"
-    path_results_raw = root_path + "results_hne/"
-    cell_assemblies_data_path = path_data + "cell_assemblies/v4/"
-    best_order_data_path = path_data + "best_order_data/v2/"
 
-    time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
-    path_results = path_results_raw + f"{time_str}"
-    os.mkdir(path_results)
-
-    # --------------------------------------------------------------------------------
-    # ------------------------------ param section ------------------------------
-    # --------------------------------------------------------------------------------
-
-    # param will be set later when the spike_nums will have been constructed
-    param = HNEParameters(time_str=time_str, path_results=path_results, error_rate=2,
-                          cell_assemblies_data_path=cell_assemblies_data_path,
-                          best_order_data_path=best_order_data_path,
-                          time_inter_seq=50, min_duration_intra_seq=-3, min_len_seq=10, min_rep_nb=4,
-                          max_branches=20, stop_if_twin=False,
-                          no_reverse_seq=False, spike_rate_weight=False, path_data=path_data)
-
-    just_compute_significant_seq_stat = False
-    if just_compute_significant_seq_stat:
-        compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v4/", param=param,
-                                           save_formats=["pdf"],
-                                           color_option="manual", cmap_name="Reds")
-        return
-
-    just_correlate_global_roi_and_shift = False
-    # look in the data file for a params matlab file and a tif movie, and do correlation between shift during motion
-    # motion correction and global activity (using a global ROI)
-    if just_correlate_global_roi_and_shift:
-        correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
-        return
-
-    load_traces = True
-
+def robin_loading_process(param, load_traces, load_abf=True):
     available_ms_str = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
                         "p7_171012_a000_ms", "p7_18_02_08_a000_ms",
                         "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
@@ -2271,7 +2250,7 @@ def main():
     # ms_str_to_load = ["p10_17_11_16_a003_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
-    ms_str_to_load = ["p9_19_03_22_a001_ms"]
+    # ms_str_to_load = ["p9_19_03_22_a001_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
 
     # 256
@@ -2279,10 +2258,69 @@ def main():
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=True)
+    return ms_str_to_ms_dict
 
-    available_ms = []
-    for ms_str in ms_str_to_load:
-        available_ms.append(ms_str_to_ms_dict[ms_str])
+
+
+def main():
+    # for line in np.arange(15):
+    #     print_surprise_for_michou(n_lines=15, actual_line=line)
+
+    for_lexi = False
+    for_richard = False
+
+    # loading the root_path
+    root_path = None
+    with open("param_hne.txt", "r", encoding='UTF-8') as file:
+        for nb_line, line in enumerate(file):
+            line_list = line.split('=')
+            root_path = line_list[1]
+    if root_path is None:
+        raise Exception("Root path is None")
+
+    path_data = root_path + "data/"
+    path_results_raw = root_path + "results_hne/"
+    cell_assemblies_data_path = path_data + "cell_assemblies/v4/"
+    best_order_data_path = path_data + "best_order_data/v2/"
+
+    time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
+    path_results = path_results_raw + f"{time_str}"
+    os.mkdir(path_results)
+
+    # --------------------------------------------------------------------------------
+    # ------------------------------ param section ------------------------------
+    # --------------------------------------------------------------------------------
+
+    # param will be set later when the spike_nums will have been constructed
+    param = HNEParameters(time_str=time_str, path_results=path_results, error_rate=2,
+                          cell_assemblies_data_path=cell_assemblies_data_path,
+                          best_order_data_path=best_order_data_path,
+                          time_inter_seq=50, min_duration_intra_seq=-3, min_len_seq=10, min_rep_nb=4,
+                          max_branches=20, stop_if_twin=False,
+                          no_reverse_seq=False, spike_rate_weight=False, path_data=path_data)
+
+    just_compute_significant_seq_stat = False
+    if just_compute_significant_seq_stat:
+        compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v4/", param=param,
+                                           save_formats=["pdf"],
+                                           color_option="manual", cmap_name="Reds")
+        return
+
+    just_correlate_global_roi_and_shift = True
+    # look in the data file for a params matlab file and a tif movie, and do correlation between shift during motion
+    # motion correction and global activity (using a global ROI)
+    if just_correlate_global_roi_and_shift:
+        correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
+        return
+
+    load_traces = True
+
+    if for_lexi:
+        ms_str_to_ms_dict = lexi_loading_process(param=param, load_traces=load_traces)
+    else:
+        ms_str_to_ms_dict = robin_loading_process(param=param, load_traces=load_traces, load_abf=True)
+
+    available_ms = list(ms_str_to_ms_dict.values())
     # for ms in available_ms:
     #     ms.plot_each_inter_neuron_connect_map()
     #     return
@@ -2329,7 +2367,7 @@ def main():
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
     with_cells_in_cluster_seq_sorted = False
-    use_richard_option = False
+    use_richard_option = for_richard
     # wake, sleep, quiet_wake, sleep_quiet_wake, active_wake
     richard_option = "active_wake"
 

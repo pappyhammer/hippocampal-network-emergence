@@ -3143,7 +3143,11 @@ class MouseSession:
         # raise Exception("JOJO")
 
     def load_raster_dur_from_predictions(self, file_name, prediction_threshold, variables_mapping):
-        data = hdf5storage.loadmat(os.path.join(self.param.path_data, file_name))
+        try:
+            data = hdf5storage.loadmat(os.path.join(self.param.path_data, file_name))
+        except (FileNotFoundError, OSError) as e:
+            print(f"Load_raster_dur_from_predictions File not fount: {file_name}")
+            return
         if "predictions" in variables_mapping:
             predictions = data[variables_mapping["predictions"]]
             self.rnn_transients_predictions = predictions
@@ -3213,14 +3217,17 @@ class MouseSession:
         :return:
         """
         matlab_format = True
-        if file_name_to_load.endswith(".npy") and ("params" in file_name_to_load.lower()):
-            matlab_format = False
-            # valid only for shifts data so far
-            ops = np.load(os.path.join(self.param.path_data, file_name_to_load))
-            data = ops.item()
-        else:
-            data = hdf5storage.loadmat(self.param.path_data + file_name_to_load)
-        # print(f"data.keys() {list(data.keys())}")
+        try:
+            if file_name_to_load.endswith(".npy") and ("params" in file_name_to_load.lower()):
+                matlab_format = False
+                # valid only for shifts data so far
+                ops = np.load(os.path.join(self.param.path_data, file_name_to_load))
+                data = ops.item()
+            else:
+                data = hdf5storage.loadmat(self.param.path_data + file_name_to_load)
+        except (FileNotFoundError, OSError) as e:
+            print(f"File not fount: {file_name_to_load}")
+            return
 
         if "spike_nums" in variables_mapping:
             self.spike_struct.spike_nums = data[variables_mapping["spike_nums"]].astype(int)
