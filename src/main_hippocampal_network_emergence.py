@@ -945,6 +945,7 @@ def correlate_global_roi_and_shift(path_data, param):
 
         # mvt = np.abs(value["xshifts"]) + np.abs(value["yshifts"])
         mvt = np.sqrt((value["xshifts"]**2) + (value["yshifts"]**2))
+        np.save(os.path.join(value["dirpath"], f"{value['id']}_shift.npy"), mvt)
         mvt -= np.nanmedian(mvt)
         mvt = np.abs(mvt)
         # mvt = signal.detrend(mvt)
