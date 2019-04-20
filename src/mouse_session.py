@@ -84,6 +84,8 @@ class MouseSession:
         # two arrays of size n_frames, representing the shift used to correct the motion from the movie
         self.x_shifts = None
         self.y_shifts = None
+        # array of boolean indicating at which frame there is some shifting
+        self.shift_periods_bool = None
         self.coord = None
         # comes from the gui
         # used by the transient classifier to indicated which frames are doubtful and should not be used for training
@@ -2123,20 +2125,25 @@ class MouseSession:
 
     def load_suite2p_data(self, data_path, with_coord=False):
         self.suite2p_data = dict()
-        f = np.load(os.path.join(self.param.path_data, data_path, 'F.npy'))
-        self.suite2p_data["F"] = f
-        f_neu = np.load(os.path.join(self.param.path_data, data_path,  'Fneu.npy'))
-        self.suite2p_data["Fneu"] = f_neu
-        spks = np.load(os.path.join(self.param.path_data, data_path,  'spks.npy'))
-        self.suite2p_data["spks"] = spks
+        if os.path.isfile(os.path.join(self.param.path_data, data_path, 'F.npy')):
+            f = np.load(os.path.join(self.param.path_data, data_path, 'F.npy'))
+            self.suite2p_data["F"] = f
+        if os.path.isfile(os.path.join(self.param.path_data, data_path, 'Fneu.npy')):
+            f_neu = np.load(os.path.join(self.param.path_data, data_path,  'Fneu.npy'))
+            self.suite2p_data["Fneu"] = f_neu
+        if os.path.isfile(os.path.join(self.param.path_data, data_path, 'spks.npy')):
+            spks = np.load(os.path.join(self.param.path_data, data_path,  'spks.npy'))
+            self.suite2p_data["spks"] = spks
         # print(f"spks.shape {spks}")
         stat = np.load(os.path.join(self.param.path_data, data_path,  'stat.npy'))
         self.suite2p_data["stat"] = stat
         # print(f"len(stat) {len(stat)}")
         # stat = stat[0]
-        ops = np.load(os.path.join(self.param.path_data, data_path,  'ops.npy'))
-        ops = ops.item()
-        self.suite2p_data["ops"] = ops
+        if os.path.isfile(os.path.join(self.param.path_data, data_path, 'ops.npy')):
+            ops = np.load(os.path.join(self.param.path_data, data_path,  'ops.npy'))
+            ops = ops.item()
+            self.suite2p_data["ops"] = ops
+
         is_cell = np.load(os.path.join(self.param.path_data, data_path,  'iscell.npy'))
         self.suite2p_data["is_cell"] = is_cell
         # print(f"len(is_cell) {len(is_cell)}")
@@ -3223,12 +3230,17 @@ class MouseSession:
                 # valid only for shifts data so far
                 ops = np.load(os.path.join(self.param.path_data, file_name_to_load))
                 data = ops.item()
+            elif file_name_to_load.endswith(".npz"):
+                matlab_format = False
+                data = np.load(os.path.join(self.param.path_data, file_name_to_load))
             else:
                 data = hdf5storage.loadmat(self.param.path_data + file_name_to_load)
         except (FileNotFoundError, OSError) as e:
             print(f"File not fount: {file_name_to_load}")
             return
-
+        if "shift_periods_bool" in variables_mapping:
+            if matlab_format is False:
+                self.shift_periods_bool = data[variables_mapping["shift_periods_bool"]]
         if "spike_nums" in variables_mapping:
             self.spike_struct.spike_nums = data[variables_mapping["spike_nums"]].astype(int)
             if frames_filter is not None:

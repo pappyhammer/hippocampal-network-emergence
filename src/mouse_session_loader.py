@@ -81,7 +81,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # for threshold prediction at 0.5
         # p5_19_03_25_a001_ms.activity_threshold = 7
         # for threshold prediction at 0.25
-        # p5_19_03_25_a001_ms.activity_threshold = 12
+        p5_19_03_25_a001_ms.activity_threshold = 12
         # for threshold prediction at 0.15
         # p5_19_03_25_a001_ms.activity_threshold = 17
         #
@@ -97,11 +97,16 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                 variables_mapping=variables_mapping)
 
         # prediction based on rnn trained on 50 cells, BO,
-        # variables_mapping = {"predictions": "predictions"}
+        variables_mapping = {"predictions": "predictions"}
         p5_19_03_25_a001_ms.load_raster_dur_from_predictions(
             file_name="p5/p5_19_03_25_a001/" +
                       "P5_19_03_25_a001_predictions_2019_04_11.00-04-33_all_cells_rnn_26_02_19_17-20-11.mat",
             prediction_threshold=0.25, variables_mapping=variables_mapping)
+
+        variables_mapping = {"shift_periods_bool": "shift"}
+        p5_19_03_25_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p5/p5_19_03_25_a001/p5_19_03_25_a001_shift_period_selection.npz",
+                                                variables_mapping=variables_mapping)
 
         # if load_movie:
         p5_19_03_25_a001_ms.load_tif_movie(path="p5/p5_19_03_25_a001")
@@ -110,6 +115,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p5_19_03_25_a001_ms.load_suite2p_data(data_path="p5/p5_19_03_25_a001/suite2p/", with_coord=True)
 
         p5_19_03_25_a001_ms.clean_raster_at_concatenation()
+
+        p5_19_03_25_a001_ms.spike_struct.build_spike_nums_and_peak_nums()
 
         ms_str_to_ms_dict["p5_19_03_25_a001_ms"] = p5_19_03_25_a001_ms
 
@@ -1142,10 +1149,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
                 # prediction based on rnn trained on 50 cells, BO
                 # variables_mapping = {"predictions": "predictions"}
-                # p12_171110_a000_ms.load_raster_dur_from_predictions(
-                #     file_name="p12/p12_17_11_10_a000/" +
-                #               "P12_17_11_10_a000_predictions_2019_03_14.20-19-48.mat",
-                #     prediction_threshold=0.5, variables_mapping=variables_mapping)
+                p12_171110_a000_ms.load_raster_dur_from_predictions(
+                    file_name="p12/p12_17_11_10_a000/predictions/" +
+                              "P12_17_11_10_a000_predictions_2019_03_14.20-19-48.mat",
+                    prediction_threshold=0.5, variables_mapping=variables_mapping)
 
                 # if p12_171110_a000_ms.cell_cnn_predictions is not None:
                 #     print(f"Using cnn predictions from {p12_171110_a000_ms.description}")

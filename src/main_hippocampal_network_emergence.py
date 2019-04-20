@@ -746,8 +746,8 @@ def plot_duration_spikes_by_age(mouse_sessions, ms_ages,
     plt.close()
 
 
-def plot_hist_ratio_spikes_events(ratio_spikes_events, description, values_to_scatter,
-                                  labels, scatter_shapes, colors, param, tight_x_range=False,
+def plot_hist_ratio_spikes_events(ratio_spikes_events, description, param, values_to_scatter=None,
+                                  labels=None, scatter_shapes=None, colors=None, tight_x_range=False,
                                   twice_more_bins=False,
                                   xlabel="", ylabel=None, save_formats="pdf"):
     distribution = np.array(ratio_spikes_events)
@@ -772,40 +772,42 @@ def plot_hist_ratio_spikes_events(ratio_spikes_events, description, values_to_sc
                                                 facecolor=hist_color,
                                                 edgecolor=edge_color,
                                                 weights=weights, log=False)
+    if values_to_scatter is not None:
+        scatter_bins = np.ones(len(values_to_scatter), dtype="int16")
+        scatter_bins *= -1
 
-    scatter_bins = np.ones(len(values_to_scatter), dtype="int16")
-    scatter_bins *= -1
+        for i, edge in enumerate(edges_plt):
+            # print(f"i {i}, edge {edge}")
+            if i >= len(hist_plt):
+                # means that scatter left are on the edge of the last bin
+                scatter_bins[scatter_bins == -1] = i - 1
+                break
 
-    for i, edge in enumerate(edges_plt):
-        # print(f"i {i}, edge {edge}")
-        if i >= len(hist_plt):
-            # means that scatter left are on the edge of the last bin
-            scatter_bins[scatter_bins == -1] = i - 1
-            break
+            if len(values_to_scatter[values_to_scatter <= edge]) > 0:
+                if (i + 1) < len(edges_plt):
+                    bool_list = values_to_scatter < edge  # edges_plt[i + 1]
+                    for i_bool, bool_value in enumerate(bool_list):
+                        if bool_value:
+                            if scatter_bins[i_bool] == -1:
+                                new_i = max(0, i - 1)
+                                scatter_bins[i_bool] = new_i
+                else:
+                    bool_list = values_to_scatter < edge
+                    for i_bool, bool_value in enumerate(bool_list):
+                        if bool_value:
+                            if scatter_bins[i_bool] == -1:
+                                scatter_bins[i_bool] = i
 
-        if len(values_to_scatter[values_to_scatter <= edge]) > 0:
-            if (i + 1) < len(edges_plt):
-                bool_list = values_to_scatter < edge  # edges_plt[i + 1]
-                for i_bool, bool_value in enumerate(bool_list):
-                    if bool_value:
-                        if scatter_bins[i_bool] == -1:
-                            new_i = max(0, i - 1)
-                            scatter_bins[i_bool] = new_i
+        decay = np.linspace(1.1, 1.15, len(values_to_scatter))
+        for i, value_to_scatter in enumerate(values_to_scatter):
+            if i < len(labels):
+                plt.scatter(x=value_to_scatter, y=hist_plt[scatter_bins[i]] * decay[i], marker=scatter_shapes[i],
+                            color=colors[i], s=60, zorder=20, label=labels[i])
             else:
-                bool_list = values_to_scatter < edge
-                for i_bool, bool_value in enumerate(bool_list):
-                    if bool_value:
-                        if scatter_bins[i_bool] == -1:
-                            scatter_bins[i_bool] = i
+                plt.scatter(x=value_to_scatter, y=hist_plt[scatter_bins[i]] * decay[i], marker=scatter_shapes[i],
+                            color=colors[i], s=60, zorder=20)
+        ax1.legend()
 
-    decay = np.linspace(1.1, 1.15, len(values_to_scatter))
-    for i, value_to_scatter in enumerate(values_to_scatter):
-        if i < len(labels):
-            plt.scatter(x=value_to_scatter, y=hist_plt[scatter_bins[i]] * decay[i], marker=scatter_shapes[i],
-                        color=colors[i], s=60, zorder=20, label=labels[i])
-        else:
-            plt.scatter(x=value_to_scatter, y=hist_plt[scatter_bins[i]] * decay[i], marker=scatter_shapes[i],
-                        color=colors[i], s=60, zorder=20)
     if tight_x_range:
         plt.xlim(min_range, max_range)
     else:
@@ -816,13 +818,13 @@ def plot_hist_ratio_spikes_events(ratio_spikes_events, description, values_to_sc
         # sce clusters labels
         ax1.set_xticklabels(xticks)
 
+
     if ylabel is None:
         ax1.set_ylabel("Distribution (%)")
     else:
         ax1.set_ylabel(ylabel)
     ax1.set_xlabel(xlabel)
 
-    ax1.legend()
 
     if isinstance(save_formats, str):
         save_formats = [save_formats]
@@ -1612,13 +1614,14 @@ def plot_psth_interneurons_events(ms, spike_nums_dur, spike_nums, SCE_times, sli
 
 def get_ratio_spikes_on_events_vs_total_events_by_cell(spike_nums,
                                                        spike_nums_dur,
-                                                       sce_times_numbers):
+                                                       sce_times_numbers,
+                                                       use_only_onsets=False):
     n_cells = len(spike_nums)
     result = np.zeros(n_cells)
 
     for cell in np.arange(n_cells):
         n_sces = np.max(sce_times_numbers) + 1
-        if spike_nums_dur is not None:
+        if (not use_only_onsets) and (spike_nums_dur is not None):
             spikes_index = np.where(spike_nums_dur[cell, :])[0]
         else:
             spikes_index = np.where(spike_nums[cell, :])[0]
@@ -2019,16 +2022,51 @@ function B=GaussBlur1d(A,dw,dim)
     B=real(ifft(ifftshift(tfA.*Fil),[],dim));
 """
 
+def plot_ratio_spikes_on_events_by_cell(spike_nums,
+                                        spike_nums_dur,
+                                        times_numbers,
+                                        param,
+                                        use_only_onsets=False,
+                                        event_description="",
+                                        session_description=""):
+    """
+
+    :param spike_nums:
+    :param spike_nums_dur:
+    :param times_numbers:
+    :param use_only_onsets:
+    :return:
+    """
+    ratio_spikes_events = get_ratio_spikes_on_events_vs_total_spikes_by_cell(
+        spike_nums=spike_nums,
+        spike_nums_dur=spike_nums_dur,
+        sce_times_numbers=times_numbers, use_only_onsets=use_only_onsets)
+
+    ratio_spikes_total_events = get_ratio_spikes_on_events_vs_total_events_by_cell(
+        spike_nums=spike_nums,
+        spike_nums_dur=spike_nums_dur,
+        sce_times_numbers=times_numbers, use_only_onsets=use_only_onsets)
+
+    plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes_events,
+                                  description=f"{session_description}_hist_spike_{event_description}_ratio",
+                                  xlabel=f"spikes in {event_description} vs total spikes (%)",
+                                  param=param)
+
+    plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes_total_events,
+                                  description=f"{session_description}_hist_spike_total_{event_description}_ratio",
+                                  xlabel=f"spikes in {event_description} vs total {event_description} (%)",
+                                  param=param)
 
 def get_ratio_spikes_on_events_vs_total_spikes_by_cell(spike_nums,
                                                        spike_nums_dur,
-                                                       sce_times_numbers):
+                                                       sce_times_numbers,
+                                                       use_only_onsets=False):
     n_cells = len(spike_nums)
     result = np.zeros(n_cells)
 
     for cell in np.arange(n_cells):
         n_spikes = np.sum(spike_nums[cell, :])
-        if spike_nums_dur is not None:
+        if (not use_only_onsets) and (spike_nums_dur is not None):
             spikes_index = np.where(spike_nums_dur[cell, :])[0]
         else:
             spikes_index = np.where(spike_nums[cell, :])[0]
@@ -2249,7 +2287,7 @@ def robin_loading_process(param, load_traces, load_abf=True):
     # ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p10_17_11_16_a003_ms"]
-    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
     # ms_str_to_load = ["p9_19_03_22_a001_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
@@ -2307,7 +2345,7 @@ def main():
                                            color_option="manual", cmap_name="Reds")
         return
 
-    just_correlate_global_roi_and_shift = True
+    just_correlate_global_roi_and_shift = False
     # look in the data file for a params matlab file and a tif movie, and do correlation between shift during motion
     # motion correction and global activity (using a global ROI)
     if just_correlate_global_roi_and_shift:
@@ -2336,13 +2374,14 @@ def main():
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = True
+    just_plot_all_cells_on_map = False
     do_plot_psth_twitches = False
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
     just_do_pca_on_raster = False
     just_display_seq_with_cell_assembly = False
     just_produce_animation = False
+    just_plot_ratio_spikes_for_shift = True
 
     # for events (sce) detection
     perc_threshold = 99
@@ -2435,6 +2474,48 @@ def main():
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_produce_animation exception")
             continue
+        if just_plot_ratio_spikes_for_shift:
+            shift_periods = get_continous_time_periods(ms.shift_periods_bool.astype("int8"))
+            shift_times_numbers = np.ones(len(ms.shift_periods_bool), dtype="int16")
+            shift_times_numbers *= -1
+            for shift_index, shift_period in enumerate(shift_periods):
+                shift_times_numbers[shift_period[0]:shift_period[1] + 1] = shift_index
+            plot_ratio_spikes_on_events_by_cell(spike_nums=ms.spike_struct.spike_nums,
+                                                spike_nums_dur=ms.spike_struct.spike_nums_dur,
+                                                times_numbers=shift_times_numbers,
+                                                param=param,
+                                                use_only_onsets=True,
+                                                event_description="shift",
+                                                session_description=ms.description)
+            span_area_coords = []
+            span_area_colors = []
+            span_area_coords.append(shift_periods)
+            span_area_colors.append("red")
+            n_cells = len(ms.spike_struct.spike_nums_dur)
+            spike_shape = '|' if use_raster_dur else 'o'
+            plot_spikes_raster(spike_nums=ms.spike_struct.spike_nums_dur, param=ms.param,
+                               spike_train_format=False,
+                               title=f"{ms.description}",
+                               file_name=f"{ms.description}_raster_with_shifts",
+                               y_ticks_labels=np.arange(n_cells),
+                               y_ticks_labels_size=2,
+                               save_raster=True,
+                               show_raster=False,
+                               plot_with_amplitude=False,
+                               activity_threshold=ms.activity_threshold,
+                               # 500 ms window
+                               sliding_window_duration=1,
+                               show_sum_spikes_as_percentage=False,
+                               # vertical_lines=SCE_times,
+                               # vertical_lines_colors=['white'] * len(SCE_times),
+                               # vertical_lines_sytle="solid",
+                               # vertical_lines_linewidth=[0.2] * len(SCE_times),
+                               span_area_coords=span_area_coords,
+                               span_area_colors=span_area_colors,
+                               span_area_only_on_raster=False,
+                               spike_shape=spike_shape,
+                               spike_shape_size=0.5,
+                               save_formats=["pdf", "png"])
 
         if just_display_seq_with_cell_assembly:
             print("test_seq_detect")
@@ -2554,7 +2635,7 @@ def main():
                                activity_threshold=ms.spike_struct.activity_threshold,
                                # 500 ms window
                                sliding_window_duration=sliding_window_duration,
-                               show_sum_spikes_as_percentage=True,
+                               show_sum_spikes_as_percentage=False,
                                # vertical_lines=SCE_times,
                                # vertical_lines_colors=['white'] * len(SCE_times),
                                # vertical_lines_sytle="solid",
