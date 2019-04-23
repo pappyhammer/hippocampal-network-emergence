@@ -52,10 +52,12 @@ import classification_stat
 if sys.version_info[0] < 3:
     import Tkinter as tk
     from Tkinter import *
+    from Tkinter import ttk
 else:
     import tkinter as tk
     import tkinter.filedialog as filedialog
     from tkinter import *
+    from tkinter import ttk
 
 
 # ---------- code for function: event_lambda (begin) --------
@@ -986,251 +988,222 @@ class ManualOnsetFrame(tk.Frame):
             #     self.caiman_active_periods[cell] = \
             #         get_continous_time_periods(self.data_and_param.ms.caiman_spike_nums_dur[cell, :])
 
-        # Three horizontal frames to start
-        # -------------- top frame (start) ----------------
-        top_frame = Frame(self)
-        top_frame.pack(side=TOP, expand=YES, fill=BOTH)
+        # Three Vertical frames to start
+        # -------------- left frame (start) ----------------
+        left_side_frame = Frame(self)
+        left_side_frame.pack(side=LEFT, expand=YES, fill=BOTH)
 
-        # self.spin_box_button = Spinbox(top_frame, from_=0, to=self.nb_neurons - 1, fg="blue", justify=CENTER,
+        # self.spin_box_button = Spinbox(left_side_frame, from_=0, to=self.nb_neurons - 1, fg="blue", justify=CENTER,
         #                                width=4, state="readonly")
         # self.spin_box_button["command"] = event_lambda(self.spin_box_update)
         # # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
         # self.spin_box_button.pack(side=LEFT)
 
+        empty_label = Label(left_side_frame)
+        empty_label["text"] = ""
+        empty_label.pack(side=TOP, expand=YES, fill=BOTH)
+
         # self.neuron_string_var = StringVar()
-        self.neuron_entry_widget = Entry(top_frame, fg="blue", justify=CENTER,
+        entry_neuron_frame = Frame(left_side_frame)
+        entry_neuron_frame.pack(side=TOP, expand=NO, fill="x")
+        self.neuron_entry_widget = Entry(entry_neuron_frame, fg="blue", justify=CENTER,
                                          width=3)
         self.neuron_entry_widget.insert(0, "0")
         self.neuron_entry_widget.bind("<KeyRelease>", self.go_to_neuron_button_action)
         # self.neuron_string_var.set("0")
         # self.neuron_string_var.trace("w", self.neuron_entry_change)
         # self.neuron_entry_widget.focus_set()
-        self.neuron_entry_widget.pack(side=LEFT)
+        self.neuron_entry_widget.pack(side=LEFT, expand=YES, fill="x")
 
-        # empty_label = Label(top_frame)
-        # empty_label["text"] = " " * 2
-        # empty_label.pack(side=LEFT)
-
-        self.go_button = Button(top_frame)
+        self.go_button = Button(entry_neuron_frame)
         self.go_button["text"] = ' GO '
         self.go_button["fg"] = "blue"
         self.go_button["command"] = event_lambda(self.go_to_neuron_button_action)
-        self.go_button.pack(side=LEFT)
+        self.go_button.pack(side=LEFT, expand=YES, fill="x")
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = " " * 5
-        empty_label.pack(side=LEFT)
+        change_neuron_frame = Frame(left_side_frame)
+        change_neuron_frame.pack(side=TOP, expand=NO, fill="x")
 
-        self.prev_button = Button(top_frame)
+        self.prev_button = Button(change_neuron_frame)
         self.prev_button["text"] = ' <- '
         self.prev_button["fg"] = "blue"
         self.prev_button['state'] = DISABLED  # ''normal
         self.prev_button["command"] = event_lambda(self.select_previous_neuron)
+        self.prev_button.pack(side=LEFT, expand=YES, fill="x")
 
-        self.prev_button.pack(side=LEFT)
+        # empty_label = Label(change_neuron_frame)
+        # empty_label["text"] = ""
+        # empty_label.pack(side=LEFT)
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = ""
-        empty_label.pack(side=LEFT)
-
-        self.neuron_label = Label(top_frame)
+        self.neuron_label = Label(change_neuron_frame)
         self.neuron_label["text"] = "0"
         self.neuron_label["fg"] = "red"
-        self.neuron_label.pack(side=LEFT)
+        self.neuron_label.pack(side=LEFT, expand=YES, fill="x")
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = ""
-        empty_label.pack(side=LEFT)
+        # empty_label = Label(change_neuron_frame)
+        # empty_label["text"] = ""
+        # empty_label.pack(side=LEFT)
 
-        self.next_button = Button(top_frame)
+        self.next_button = Button(change_neuron_frame)
         self.next_button["text"] = ' -> '
         self.next_button["fg"] = 'blue'
         self.next_button["command"] = event_lambda(self.select_next_neuron)
-        self.next_button.pack(side=LEFT)
+        self.next_button.pack(side=LEFT, expand=YES, fill="x")
 
-        # empty_label = Label(top_frame)
-        # empty_label["text"] = " " * 3
+        # empty_label = Label(left_side_frame)
+        # empty_label["text"] = " " * 2
         # empty_label.pack(side=LEFT)
-        #
-        # self.zoom_fit_button = Button(top_frame)
-        # self.zoom_fit_button["text"] = ' y zoom fit '
-        # self.zoom_fit_button["fg"] = 'blue'
-        # self.zoom_fit_button["command"] = event_lambda(self.update_plot, amplitude_zoom_fit=True)
-        # self.zoom_fit_button.pack(side=LEFT)
+        sep = ttk.Separator(left_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = " " * 2
-        empty_label.pack(side=LEFT)
-
-        self.add_doubtful_frames_mode_button = Button(top_frame)
+        self.add_doubtful_frames_mode_button = Button(left_side_frame)
         self.add_doubtful_frames_mode_button["text"] = ' + DOUBT OFF '
         self.add_doubtful_frames_mode_button["fg"] = 'red'
         self.add_doubtful_frames_mode_button["command"] = self.add_doubtful_frames_switch_mode
-        self.add_doubtful_frames_mode_button.pack(side=LEFT)
+        self.add_doubtful_frames_mode_button.pack(side=TOP, expand=NO, fill="x")
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = " " * 1
-        empty_label.pack(side=LEFT)
+        # empty_label = Label(left_side_frame)
+        # empty_label["text"] = " " * 1
+        # empty_label.pack(side=LEFT)
 
-        self.remove_doubtful_frames_button = Button(top_frame)
+        self.remove_doubtful_frames_button = Button(left_side_frame)
         self.remove_doubtful_frames_button["text"] = ' - DOUBT OFF '
         self.remove_doubtful_frames_button["fg"] = 'red'
         self.remove_doubtful_frames_button["command"] = self.remove_doubtful_frames_switch_mode
-        self.remove_doubtful_frames_button.pack(side=LEFT)
+        self.remove_doubtful_frames_button.pack(side=TOP, expand=NO, fill="x")
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = " " * 2
-        empty_label.pack(side=LEFT)
+        sep = ttk.Separator(left_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-        self.add_mvt_frames_mode_button = Button(top_frame)
+        self.add_mvt_frames_mode_button = Button(left_side_frame)
         self.add_mvt_frames_mode_button["text"] = ' + MVT OFF '
         self.add_mvt_frames_mode_button["fg"] = 'red'
         self.add_mvt_frames_mode_button["command"] = self.add_mvt_frames_switch_mode
-        self.add_mvt_frames_mode_button.pack(side=LEFT)
+        self.add_mvt_frames_mode_button.pack(side=TOP, expand=NO, fill="x")
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = " " * 1
-        empty_label.pack(side=LEFT)
-
-        self.remove_mvt_frames_button = Button(top_frame)
+        self.remove_mvt_frames_button = Button(left_side_frame)
         self.remove_mvt_frames_button["text"] = ' - MVT OFF '
         self.remove_mvt_frames_button["fg"] = 'red'
         self.remove_mvt_frames_button["command"] = self.remove_mvt_frames_switch_mode
-        self.remove_mvt_frames_button.pack(side=LEFT)
+        self.remove_mvt_frames_button.pack(side=TOP, expand=NO, fill="x")
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = " " * 2
-        empty_label.pack(side=LEFT)
+        sep = ttk.Separator(left_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-        # empty_label = Label(top_frame)
-        # empty_label["text"] = " " * 5
-        # empty_label.pack(side=LEFT)
 
-        self.add_onset_button = Button(top_frame)
+        self.add_onset_button = Button(left_side_frame)
         self.add_onset_button["text"] = ' + ONSET OFF '
         self.add_onset_button["fg"] = 'red'
         self.add_onset_button["command"] = self.add_onset_switch_mode
-        self.add_onset_button.pack(side=LEFT)
+        self.add_onset_button.pack(side=TOP, expand=NO, fill="x")
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = "" * 1
-        empty_label.pack(side=LEFT)
+        # empty_label = Label(left_side_frame)
+        # empty_label["text"] = "" * 1
+        # empty_label.pack(side=TOP)
 
-        self.onset_numbers_label = Label(top_frame)
+        self.onset_numbers_label = Label(left_side_frame)
         self.onset_numbers_label["text"] = f"{self.numbers_of_onset()}"
-        self.onset_numbers_label.pack(side=LEFT)
+        self.onset_numbers_label.pack(side=TOP)
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = "" * 1
-        empty_label.pack(side=LEFT)
-
-        self.remove_onset_button = Button(top_frame)
+        self.remove_onset_button = Button(left_side_frame)
         self.remove_onset_button["text"] = ' - ONSET OFF '
         self.remove_onset_button["fg"] = 'red'
         self.remove_onset_button["command"] = self.remove_onset_switch_mode
-        self.remove_onset_button.pack(side=LEFT)
+        self.remove_onset_button.pack(side=TOP, expand=NO, fill="x")
 
-        # empty_label = Label(top_frame)
-        # empty_label["text"] = " " * 5
-        # empty_label.pack(side=LEFT)
-        #
-        # onset_label = Label(top_frame)
-        # onset_label["text"] = f"Numbers of onset: "
-        # onset_label.pack(side=LEFT)
+        sep = ttk.Separator(left_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = " " * 3
-        empty_label.pack(side=LEFT)
-
-        self.add_peak_button = Button(top_frame)
+        self.add_peak_button = Button(left_side_frame)
         self.add_peak_button["text"] = ' + PEAK OFF '
         self.add_peak_button["fg"] = 'red'
         self.add_peak_button["command"] = self.add_peak_switch_mode
-        self.add_peak_button.pack(side=LEFT)
+        self.add_peak_button.pack(side=TOP, expand=NO, fill="x")
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = "" * 1
-        empty_label.pack(side=LEFT)
-
-        self.peak_numbers_label = Label(top_frame)
+        self.peak_numbers_label = Label(left_side_frame)
         self.peak_numbers_label["text"] = f"{self.numbers_of_peak()}"
-        self.peak_numbers_label.pack(side=LEFT)
+        self.peak_numbers_label.pack(side=TOP)
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = "" * 1
-        empty_label.pack(side=LEFT)
-
-        self.remove_peak_button = Button(top_frame)
+        self.remove_peak_button = Button(left_side_frame)
         self.remove_peak_button["text"] = ' - PEAK OFF '
         self.remove_peak_button["fg"] = 'red'
         self.remove_peak_button["command"] = self.remove_peak_switch_mode
-        self.remove_peak_button.pack(side=LEFT)
+        self.remove_peak_button.pack(side=TOP, expand=NO, fill="x")
 
-        empty_label = Label(top_frame)
-        empty_label["text"] = " " * 1
-        empty_label.pack(side=LEFT)
+        sep = ttk.Separator(left_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-        self.remove_all_button = Button(top_frame)
+        # empty_label = Label(left_side_frame)
+        # empty_label["text"] = " " * 1
+        # empty_label.pack(side=TOP)
+
+        self.remove_all_button = Button(left_side_frame)
         self.remove_all_button["text"] = ' - ALL OFF '
         self.remove_all_button["fg"] = 'red'
         self.remove_all_button["command"] = self.remove_all_switch_mode
-        self.remove_all_button.pack(side=LEFT)
+        self.remove_all_button.pack(side=TOP, expand=NO, fill="x")
 
         self.agree_button = None
         self.dont_agree_button = None
         if (self.to_agree_spike_nums is not None) and (self.to_agree_peak_nums is not None):
             if (np.sum(self.to_agree_spike_nums) > 0) or (np.sum(self.to_agree_peak_nums) > 0):
-                empty_label = Label(top_frame)
+                empty_label = Label(left_side_frame)
                 empty_label["text"] = " " * 1
-                empty_label.pack(side=LEFT)
+                empty_label.pack(side=TOP)
 
                 # deal with fusion over onsets & peaks over 2 different gui selections
-                self.agree_button = Button(top_frame)
+                self.agree_button = Button(left_side_frame)
                 self.agree_button["text"] = 'Y'
                 self.agree_button["fg"] = 'red'
                 self.agree_button["command"] = self.agree_switch_mode
-                self.agree_button.pack(side=LEFT)
+                self.agree_button.pack(side=TOP)
 
-                empty_label = Label(top_frame)
-                empty_label["text"] = "" * 1
-                empty_label.pack(side=LEFT)
+                # empty_label = Label(left_side_frame)
+                # empty_label["text"] = "" * 1
+                # empty_label.pack(side=TOP)
 
-                self.to_agree_label = Label(top_frame)
+                self.to_agree_label = Label(left_side_frame)
                 self.to_agree_label["text"] = f"{self.numbers_of_onset_to_agree()}/" \
                                               f"{self.numbers_of_peak_to_agree()}"
-                self.to_agree_label.pack(side=LEFT)
+                self.to_agree_label.pack(side=TOP)
 
-                empty_label = Label(top_frame)
-                empty_label["text"] = "" * 1
-                empty_label.pack(side=LEFT)
+                # empty_label = Label(left_side_frame)
+                # empty_label["text"] = "" * 1
+                # empty_label.pack(side=TOP)
 
-                self.dont_agree_button = Button(top_frame)
+                self.dont_agree_button = Button(left_side_frame)
                 self.dont_agree_button["text"] = 'N'
                 self.dont_agree_button["fg"] = 'red'
                 self.dont_agree_button["command"] = self.dont_agree_switch_mode
-                self.dont_agree_button.pack(side=LEFT)
+                self.dont_agree_button.pack(side=TOP)
         else:
             self.to_agree_label = None
 
-        # -------------- top frame (end) ----------------
+        empty_label = Label(left_side_frame)
+        empty_label["text"] = ""
+        empty_label.pack(side=TOP, expand=YES, fill=BOTH)
+        # -------------- left side frame (end) ----------------
 
         ################################################################################
         ################################ Middle frame with plot ################################
         ################################################################################
-        canvas_frame = Frame(self)
-        canvas_frame.pack(side=TOP, expand=YES, fill=BOTH)
+        canvas_frame = Frame(self, padx=0, pady=0)
+        canvas_frame.pack(side=LEFT, expand=YES, fill=BOTH)
 
-        main_plot_frame = Frame(canvas_frame)
-        main_plot_frame.pack(side=LEFT, expand=YES, fill=BOTH)
+        top_bar_canvas_frame = Frame(canvas_frame, padx=0, pady=0)
+        top_bar_canvas_frame.pack(side=TOP, expand=YES, fill=BOTH)
+
+        main_plot_frame = Frame(canvas_frame, padx=0, pady=0)
+        main_plot_frame.pack(side=TOP, expand=YES, fill=BOTH)
         self.main_plot_frame = main_plot_frame
 
         self.display_michou = False
 
         # plt.ion()
         if self.robin_mac:
-            self.fig = plt.figure(figsize=(8, 4))
+            self.fig = plt.figure(figsize=(8, 3))
         else:
-            self.fig = plt.figure(figsize=(10, 6))
+            self.fig = plt.figure(figsize=(10, 4))
         # self.plot_canvas = MyCanvas(self.fig, canvas_frame, self)
         self.plot_canvas = FigureCanvasTkAgg(self.fig, main_plot_frame)
         self.fig.canvas.mpl_connect('button_press_event', self.onclick)
@@ -1259,13 +1232,10 @@ class ManualOnsetFrame(tk.Frame):
 
         self.toolbar = NavigationToolbar2Tk(self.plot_canvas, main_plot_frame)
         self.toolbar.update()
-        self.toolbar.pack(side=TOP, fill=BOTH, expand=YES)
+        self.toolbar.pack(side=TOP, fill=BOTH, expand=NO)
 
-        side_bar_frame = Frame(canvas_frame)
-        side_bar_frame.pack(side=LEFT, expand=YES, fill=BOTH)
-
-        self.map_frame = Frame(side_bar_frame)
-        self.map_frame.pack(side=TOP, expand=YES, fill=BOTH)
+        self.map_frame = Frame(top_bar_canvas_frame)
+        self.map_frame.pack(side=LEFT, expand=NO, fill="x")
 
         # tif movie loading
         self.last_img_displayed = None
@@ -1332,6 +1302,8 @@ class ManualOnsetFrame(tk.Frame):
                 self.map_img_fig = plt.figure(figsize=(3, 3))
             else:
                 self.map_img_fig = plt.figure(figsize=(4, 4))
+            self.map_img_fig.patch.set_facecolor('black')
+
             self.background_map_fig = None
             self.axe_plot_map_img = None
             self.cell_contour = None
@@ -1379,6 +1351,7 @@ class ManualOnsetFrame(tk.Frame):
                     self.raw_traces_median[cell, :] = np.median(self.tiff_movie[:, mask_img], axis=1)
 
             self.map_img_canvas = FigureCanvasTkAgg(self.map_img_fig, self.map_frame)
+            # self.map_img_canvas.get_tk_widget().configure(bg="blue")
             self.map_img_fig.canvas.mpl_connect('button_release_event', self.onrelease_map)
             self.plot_map_img(first_time=True)
 
@@ -1390,8 +1363,8 @@ class ManualOnsetFrame(tk.Frame):
         self.normalize_traces()
         self.update_plot(new_neuron=True)
 
-        self.magnifier_frame = Frame(side_bar_frame)
-        self.magnifier_frame.pack(side=TOP, expand=YES, fill=BOTH)
+        self.magnifier_frame = Frame(top_bar_canvas_frame)
+        self.magnifier_frame.pack(side=LEFT, expand=YES, fill="x")
         if self.robin_mac:
             self.magnifier_fig = plt.figure(figsize=(3, 3))
         else:
@@ -1412,143 +1385,136 @@ class ManualOnsetFrame(tk.Frame):
         self.magnifier_canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=YES)
 
         ################################################################################
-        ################################ Bottom frame ################################
+        ################################ right side frame ################################
         ################################################################################
-        bottom_frame = Frame(self)
-        bottom_frame.pack(side=TOP, expand=YES, fill=BOTH)
+        right_side_frame = Frame(self)
+        right_side_frame.pack(side=LEFT, expand=YES, fill=BOTH)
 
-        # end_button = Button(bottom_frame)
-        # end_button["text"] = ' FINISH '
-        # end_button["fg"] = "red"
-        # end_button["command"] = event_lambda(self.save_spike_nums, and_close=False)
-        # end_button.pack(side=RIGHT)
-        #
-        # empty_label = Label(bottom_frame)
-        # empty_label["text"] = " " * 5
-        # empty_label.pack(side=RIGHT)
+        # tells if the movie is active
+        self.movie_mode = False
+        # Then we zoom on the active cell
+        self.movie_zoom_mode = True
+        # show the source profile of the active cell associate to the transient profile of the selected transient
+        # as well as source profile of overlapping cells, and then display the correlation between each source profile
+        # and their corresponding transient
+        self.source_mode = False
 
-        self.save_as_button = Button(bottom_frame)
-        self.save_as_button["text"] = ' SAVE AS '
-        self.save_as_button["fg"] = "blue"
-        self.save_as_button['state'] = "normal"
-        self.save_as_button["command"] = event_lambda(self.save_as_spike_nums)
-        self.save_as_button.pack(side=RIGHT)
+        # to vertically center the buttons
+        empty_label = Label(right_side_frame)
+        empty_label["text"] = ""
+        empty_label.pack(side=TOP, expand=YES, fill=BOTH)
 
-        empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 2
-        empty_label.pack(side=RIGHT)
+        # to display the source profile of a transient
+        self.source_var = IntVar()
+        self.source_check_box = Checkbutton(right_side_frame, text="source", variable=self.source_var,
+                                            onvalue=1,
+                                            offvalue=0)
+        # zoom on by default
+        if self.source_mode:
+            self.source_check_box.select()
+        self.source_check_box["command"] = event_lambda(self.switch_source_profile_mode)
+        self.source_check_box.pack(side=TOP)
 
-        self.save_button = Button(bottom_frame)
-        self.save_button["text"] = ' SAVE '
-        self.save_button["fg"] = "blue"
-        self.save_button['state'] = DISABLED  # ''normal
-        self.save_button["command"] = event_lambda(self.save_spike_nums)
-        self.save_button.pack(side=RIGHT)
+        sep = ttk.Separator(right_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-        empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 2
-        empty_label.pack(side=RIGHT)
+        self.zoom_movie_var = IntVar()
+        self.zoom_movie_check_box = Checkbutton(right_side_frame, text="zoom", variable=self.zoom_movie_var,
+                                                onvalue=1,
+                                                offvalue=0)
+        # zoom on by default
+        if self.movie_zoom_mode:
+            self.zoom_movie_check_box.select()
+        self.zoom_movie_check_box["command"] = event_lambda(self.activate_movie_zoom)
+        self.zoom_movie_check_box.pack(side=TOP)
 
-        self.redo_button = Button(bottom_frame)
-        self.redo_button["text"] = ' REDO '
-        self.redo_button["fg"] = "blue"
-        self.redo_button['state'] = DISABLED  # ''normal
-        self.redo_button["command"] = event_lambda(self.redo_action)
-        self.redo_button.pack(side=RIGHT)
+        sep = ttk.Separator(right_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-        empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 2
-        empty_label.pack(side=RIGHT)
+        if self.tiff_movie is not None:
+            # empty_label = Label(right_side_frame)
+            # empty_label["text"] = " " * 1
+            # empty_label.pack(side=TOP)
 
-        self.undo_button = Button(bottom_frame)
-        self.undo_button["text"] = ' UNDO '
-        self.undo_button["fg"] = "blue"
-        self.undo_button['state'] = DISABLED  # ''normal
-        self.undo_button["command"] = event_lambda(self.undo_action)
-        self.undo_button.pack(side=RIGHT)
+            self.movie_button = Button(right_side_frame)
+            self.movie_button["text"] = ' movie OFF '
+            self.movie_button["fg"] = "black"
+            self.movie_button["command"] = event_lambda(self.switch_movie_mode)
+            self.movie_button.pack(side=TOP)
 
-        empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 5
-        empty_label.pack(side=RIGHT)
+        sep = ttk.Separator(right_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-        self.remove_peaks_under_threshold_button = Button(bottom_frame)
-        self.remove_peaks_under_threshold_button["text"] = ' DEL PEAKS '
-        self.remove_peaks_under_threshold_button["fg"] = "red"
-        self.remove_peaks_under_threshold_button['state'] = DISABLED  # ''normal
-        self.remove_peaks_under_threshold_button["command"] = event_lambda(self.remove_peaks_under_threshold)
-        self.remove_peaks_under_threshold_button.pack(side=RIGHT)
+        if self.mvt_frames_periods is not None:
+            # empty_label = Label(right_side_frame)
+            # empty_label["text"] = " " * 1
+            # empty_label.pack(side=TOP)
 
-        empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 1
-        empty_label.pack(side=RIGHT)
-        # from_=1, to=3
-        # self.var_spin_box_threshold = StringVar(bottom_frame)
-        self.spin_box_threshold = Spinbox(bottom_frame, values=list(np.arange(0.1, 5, 0.1)), fg="blue", justify=CENTER,
-                                          width=3, state="readonly")  # , textvariable=self.var_spin_box_threshold)
-        # self.var_spin_box_threshold.set(0.9)
-        self.spin_box_threshold["command"] = event_lambda(self.spin_box_threshold_update)
-        # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
-        self.spin_box_threshold.pack(side=RIGHT)
+            self.display_mvt_button = Button(right_side_frame)
 
-        empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 1
-        empty_label.pack(side=RIGHT)
+            self.display_mvt_button["text"] = ' mvt OFF '
+            self.display_mvt_button["fg"] = "black"
 
-        self.treshold_var = IntVar()
-        self.threshold_check_box = Checkbutton(bottom_frame, text="std", variable=self.treshold_var, onvalue=1,
-                                               offvalue=0, fg=self.color_threshold_line)
-        self.threshold_check_box["command"] = event_lambda(self.threshold_check_box_action)
-        self.threshold_check_box.pack(side=RIGHT)
+            self.display_mvt_button["command"] = event_lambda(self.switch_mvt_display)
+            self.display_mvt_button.pack(side=TOP)
 
-        if self.tiff_movie is not None and self.correlation_for_each_peak_option:
-            self.peaks_correlation = np.ones(self.traces.shape)
-            self.peaks_correlation *= -2
+        sep = ttk.Separator(right_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-            empty_label = Label(bottom_frame)
-            empty_label["text"] = " " * 2
-            empty_label.pack(side=RIGHT)
+        self.magnifier_button = Button(right_side_frame)
+        self.magnifier_button["text"] = ' magnified OFF '
+        self.magnifier_button["fg"] = "black"
+        self.magnifier_mode = False
+        self.magnifier_button["command"] = event_lambda(self.switch_magnifier)
+        self.magnifier_button.pack(side=TOP)
 
-            self.spin_box_correlation = Spinbox(bottom_frame, values=list(np.arange(0.5, 1, 0.05)), fg="blue",
-                                                justify=CENTER,
-                                                width=3,
-                                                state="readonly")  # , textvariable=self.var_spin_box_threshold)
+        sep = ttk.Separator(right_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
+
+        if (self.transient_classifier_weights_file is not None) and (self.transient_classifier_json_file is not None):
+            transient_classifier_frame = Frame(right_side_frame)
+            transient_classifier_frame.pack(side=TOP, expand=NO, fill=BOTH)
+
+            self.transient_classifier_var = IntVar()
+            self.transient_classifier_check_box = Checkbutton(transient_classifier_frame, text="tc",
+                                                              variable=self.transient_classifier_var, onvalue=1,
+                                                              offvalue=0, fg=self.color_threshold_line)
+            self.transient_classifier_check_box["command"] = event_lambda(self.transient_classifier_check_box_action)
+            self.transient_classifier_check_box.pack(side=LEFT)
+            
+            # empty_label = Label(right_side_frame)
+            # empty_label["text"] = " " * 1
+            # empty_label.pack(side=TOP)
+            # from_=1, to=3
+            # self.var_spin_box_threshold = StringVar(right_side_frame)
+            self.spin_box_transient_classifier = Spinbox(transient_classifier_frame, values=list(np.arange(0.05, 1, 0.05)),
+                                                         fg="blue", justify=CENTER,
+                                                         width=3,
+                                                         state="readonly")  # , textvariable=self.var_spin_box_threshold)
             # self.var_spin_box_threshold.set(0.9)
-            self.spin_box_correlation["command"] = event_lambda(self.spin_box_correlation_update)
+            self.spin_box_transient_classifier["command"] = event_lambda(self.spin_box_transient_classifier_update)
             # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
-            self.spin_box_correlation.pack(side=RIGHT)
+            self.spin_box_transient_classifier.pack(side=LEFT)
 
-            empty_label = Label(bottom_frame)
-            empty_label["text"] = " " * 1
-            empty_label.pack(side=RIGHT)
+        sep = ttk.Separator(right_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-            self.correlation_var = IntVar()
-            self.correlation_check_box = Checkbutton(bottom_frame, text="corr", variable=self.correlation_var,
-                                                     onvalue=1,
-                                                     offvalue=0, fg=self.color_threshold_line)
-            self.correlation_check_box["command"] = event_lambda(self.correlation_check_box_action)
-            # self.correlation_check_box.select()
+        self.remove_cell_button = Button(right_side_frame)
+        if self.cells_to_remove[self.current_neuron] == 0:
+            self.remove_cell_button["text"] = ' not removed '
+            self.remove_cell_button["fg"] = "black"
+        else:
+            self.remove_cell_button["text"] = ' removed '
+            self.remove_cell_button["fg"] = "red"
+        self.remove_cell_button["command"] = event_lambda(self.remove_cell)
+        self.remove_cell_button.pack(side=TOP)
 
-            self.correlation_check_box.pack(side=RIGHT)
+        sep = ttk.Separator(right_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-        # if self.raw_traces is not None:
-        #     empty_label = Label(bottom_frame)
-        #     empty_label["text"] = " " * 2
-        #     empty_label.pack(side=RIGHT)
-        #
-        #     self.raw_trace_var = IntVar()
-        #     self.raw_trace_check_box = Checkbutton(bottom_frame, text="Raw trace", variable=self.raw_trace_var,
-        #                                            onvalue=1,
-        #                                            offvalue=0, fg=self.color_raw_trace)
-        #     if self.display_raw_traces:
-        #         self.raw_trace_check_box.select()
-        #     self.raw_trace_check_box["command"] = event_lambda(self.display_raw_tracecheck_box_action)
-        #     self.raw_trace_check_box.pack(side=RIGHT)
-
-        empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 2
-        empty_label.pack(side=RIGHT)
-
-        self.inter_neuron_button = Button(bottom_frame)
+        # identify an interneuron as such
+        # TODO: See to be put instead a field that allow to put a "marker" on a cell
+        self.inter_neuron_button = Button(right_side_frame)
         if self.inter_neurons[self.current_neuron] == 0:
             self.inter_neuron_button["text"] = ' not IN '
             self.inter_neuron_button["fg"] = "black"
@@ -1556,122 +1522,111 @@ class ManualOnsetFrame(tk.Frame):
 
             self.inter_neuron_button["text"] = ' IN '
             self.inter_neuron_button["fg"] = "red"
-
         self.inter_neuron_button["command"] = event_lambda(self.set_inter_neuron)
-        self.inter_neuron_button.pack(side=RIGHT)
+        self.inter_neuron_button.pack(side=TOP)
 
-        empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 1
-        empty_label.pack(side=RIGHT)
+        sep = ttk.Separator(right_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-        self.remove_cell_button = Button(bottom_frame)
+        if self.tiff_movie is not None and self.correlation_for_each_peak_option:
+            correlation_frame = Frame(right_side_frame)
+            correlation_frame.pack(side=TOP, expand=NO, fill=BOTH)
+            self.peaks_correlation = np.ones(self.traces.shape)
+            self.peaks_correlation *= -2
 
-        if self.cells_to_remove[self.current_neuron] == 0:
-            self.remove_cell_button["text"] = ' not removed '
-            self.remove_cell_button["fg"] = "black"
-        else:
-            self.remove_cell_button["text"] = ' removed '
-            self.remove_cell_button["fg"] = "red"
+            self.correlation_var = IntVar()
+            self.correlation_check_box = Checkbutton(correlation_frame, text="corr", variable=self.correlation_var,
+                                                     onvalue=1,
+                                                     offvalue=0, fg=self.color_threshold_line)
+            self.correlation_check_box["command"] = event_lambda(self.correlation_check_box_action)
+            # self.correlation_check_box.select()
 
-        self.remove_cell_button["command"] = event_lambda(self.remove_cell)
-        self.remove_cell_button.pack(side=RIGHT)
+            self.correlation_check_box.pack(side=LEFT)
 
-        if (self.transient_classifier_weights_file is not None) and (self.transient_classifier_json_file is not None):
-            empty_label = Label(bottom_frame)
-            empty_label["text"] = " " * 1
-            empty_label.pack(side=RIGHT)
-            # from_=1, to=3
-            # self.var_spin_box_threshold = StringVar(bottom_frame)
-            self.spin_box_transient_classifier = Spinbox(bottom_frame, values=list(np.arange(0.05, 1, 0.05)),
-                                                         fg="blue", justify=CENTER,
-                                                         width=3,
-                                                         state="readonly")  # , textvariable=self.var_spin_box_threshold)
+            self.spin_box_correlation = Spinbox(correlation_frame, values=list(np.arange(0.5, 1, 0.05)), fg="blue",
+                                                justify=CENTER,
+                                                width=3,
+                                                state="readonly")  # , textvariable=self.var_spin_box_threshold)
             # self.var_spin_box_threshold.set(0.9)
-            self.spin_box_transient_classifier["command"] = event_lambda(self.spin_box_transient_classifier_update)
+            self.spin_box_correlation["command"] = event_lambda(self.spin_box_correlation_update)
             # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
-            self.spin_box_transient_classifier.pack(side=RIGHT)
+            self.spin_box_correlation.pack(side=LEFT)
 
-            empty_label = Label(bottom_frame)
-            empty_label["text"] = " " * 1
-            empty_label.pack(side=RIGHT)
+            # empty_label = Label(right_side_frame)
+            # empty_label["text"] = " " * 1
+            # empty_label.pack(side=TOP)
 
-            self.transient_classifier_var = IntVar()
-            self.transient_classifier_check_box = Checkbutton(bottom_frame, text="tc",
-                                                              variable=self.transient_classifier_var, onvalue=1,
-                                                              offvalue=0, fg=self.color_threshold_line)
-            self.transient_classifier_check_box["command"] = event_lambda(self.transient_classifier_check_box_action)
-            self.transient_classifier_check_box.pack(side=RIGHT)
+        sep = ttk.Separator(right_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
+        
+        threshold_frame = Frame(right_side_frame)
+        threshold_frame.pack(side=TOP, expand=NO, fill=BOTH)
 
-        empty_label = Label(bottom_frame)
-        empty_label["text"] = " " * 1
-        empty_label.pack(side=RIGHT)
+        self.treshold_var = IntVar()
+        self.threshold_check_box = Checkbutton(threshold_frame, text="std", variable=self.treshold_var, onvalue=1,
+                                               offvalue=0, fg=self.color_threshold_line)
+        self.threshold_check_box["command"] = event_lambda(self.threshold_check_box_action)
+        self.threshold_check_box.pack(side=LEFT)
 
-        self.magnifier_button = Button(bottom_frame)
 
-        self.magnifier_button["text"] = ' magnified OFF '
-        self.magnifier_button["fg"] = "black"
-        self.magnifier_mode = False
+        # from_=1, to=3
+        # self.var_spin_box_threshold = StringVar(right_side_frame)
+        self.spin_box_threshold = Spinbox(threshold_frame, values=list(np.arange(0.1, 5, 0.1)), fg="blue",
+                                          justify=CENTER,
+                                          width=3, state="readonly")  # , textvariable=self.var_spin_box_threshold)
+        # self.var_spin_box_threshold.set(0.9)
+        self.spin_box_threshold["command"] = event_lambda(self.spin_box_threshold_update)
+        # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
+        self.spin_box_threshold.pack(side=LEFT)
 
-        self.magnifier_button["command"] = event_lambda(self.switch_magnifier)
-        self.magnifier_button.pack(side=RIGHT)
+        sep = ttk.Separator(right_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-        self.movie_mode = False
-        self.movie_zoom_mode = True
-        self.source_mode = False
-        if self.mvt_frames_periods is not None:
-            empty_label = Label(bottom_frame)
-            empty_label["text"] = " " * 1
-            empty_label.pack(side=RIGHT)
+        self.remove_peaks_under_threshold_button = Button(right_side_frame)
+        self.remove_peaks_under_threshold_button["text"] = ' DEL PEAKS '
+        self.remove_peaks_under_threshold_button["fg"] = "red"
+        self.remove_peaks_under_threshold_button['state'] = DISABLED  # ''normal
+        self.remove_peaks_under_threshold_button["command"] = event_lambda(self.remove_peaks_under_threshold)
+        self.remove_peaks_under_threshold_button.pack(side=TOP)
 
-            self.display_mvt_button = Button(bottom_frame)
+        sep = ttk.Separator(right_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-            self.display_mvt_button["text"] = ' mvt OFF '
-            self.display_mvt_button["fg"] = "black"
+        self.undo_button = Button(right_side_frame)
+        self.undo_button["text"] = ' UNDO '
+        self.undo_button["fg"] = "blue"
+        self.undo_button['state'] = DISABLED  # ''normal
+        self.undo_button["command"] = event_lambda(self.undo_action)
+        self.undo_button.pack(side=TOP)
 
-            self.display_mvt_button["command"] = event_lambda(self.switch_mvt_display)
-            self.display_mvt_button.pack(side=RIGHT)
+        self.redo_button = Button(right_side_frame)
+        self.redo_button["text"] = ' REDO '
+        self.redo_button["fg"] = "blue"
+        self.redo_button['state'] = DISABLED  # ''normal
+        self.redo_button["command"] = event_lambda(self.redo_action)
+        self.redo_button.pack(side=TOP)
 
-        if self.tiff_movie is not None:
-            empty_label = Label(bottom_frame)
-            empty_label["text"] = " " * 1
-            empty_label.pack(side=RIGHT)
+        sep = ttk.Separator(right_side_frame)
+        sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-            self.movie_button = Button(bottom_frame)
+        self.save_button = Button(right_side_frame)
+        self.save_button["text"] = ' SAVE '
+        self.save_button["fg"] = "blue"
+        self.save_button['state'] = DISABLED  # ''normal
+        self.save_button["command"] = event_lambda(self.save_spike_nums)
+        self.save_button.pack(side=TOP)
 
-            self.movie_button["text"] = ' movie OFF '
-            self.movie_button["fg"] = "black"
+        self.save_as_button = Button(right_side_frame)
+        self.save_as_button["text"] = ' SAVE AS '
+        self.save_as_button["fg"] = "blue"
+        self.save_as_button['state'] = "normal"
+        self.save_as_button["command"] = event_lambda(self.save_as_spike_nums)
+        self.save_as_button.pack(side=TOP)
 
-            self.movie_button["command"] = event_lambda(self.switch_movie_mode)
-            self.movie_button.pack(side=RIGHT)
-
-            empty_label = Label(bottom_frame)
-            empty_label["text"] = " " * 1
-            empty_label.pack(side=RIGHT)
-
-            self.zoom_movie_var = IntVar()
-            self.zoom_movie_check_box = Checkbutton(bottom_frame, text="zoom", variable=self.zoom_movie_var,
-                                                    onvalue=1,
-                                                    offvalue=0)
-            # zoom on by default
-            if self.movie_zoom_mode:
-                self.zoom_movie_check_box.select()
-            self.zoom_movie_check_box["command"] = event_lambda(self.activate_movie_zoom)
-            self.zoom_movie_check_box.pack(side=RIGHT)
-
-            empty_label = Label(bottom_frame)
-            empty_label["text"] = " " * 1
-            empty_label.pack(side=RIGHT)
-
-            # to display the source profile of a transient
-            self.source_var = IntVar()
-            self.source_check_box = Checkbutton(bottom_frame, text="source", variable=self.source_var,
-                                                onvalue=1,
-                                                offvalue=0)
-            # zoom on by default
-            if self.source_mode:
-                self.source_check_box.select()
-            self.source_check_box["command"] = event_lambda(self.switch_source_profile_mode)
-            self.source_check_box.pack(side=RIGHT)
+        # to vertically center the buttons
+        empty_label = Label(right_side_frame)
+        empty_label["text"] = ""
+        empty_label.pack(side=TOP, expand=YES, fill=BOTH)
 
         # used for association of keys
         self.keys_pressed = dict()
@@ -3589,7 +3544,7 @@ class ManualOnsetFrame(tk.Frame):
         self.axe_plot_magnifier.spines['top'].set_visible(False)
         # if first_time:
         #     self.magnifier_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
-        # self.magnifier_fig.tight_layout()
+        self.magnifier_fig.tight_layout()
 
     def draw_magnifier_marker(self, mouse_x_position=None, mouse_y_position=None):
         if (mouse_x_position is None) or (mouse_y_position is None):
@@ -3729,9 +3684,10 @@ class ManualOnsetFrame(tk.Frame):
             self.magnifier_fig = plt.figure(figsize=(3, 3))
         else:
             self.magnifier_fig = plt.figure(figsize=(4, 4))
+        self.magnifier_fig.patch.set_facecolor('black')
         self.magnifier_canvas = FigureCanvasTkAgg(self.magnifier_fig, self.magnifier_frame)
         # fig = plt.figure(figsize=size_fig)
-        # self.magnifier_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.1, 'h_pad': 0.1})
+        self.magnifier_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.1, 'h_pad': 0.1})
 
         # looking at how many overlapping cell current_neuron has
         intersect_cells = self.overlapping_cells[self.current_neuron]
@@ -3762,6 +3718,7 @@ class ManualOnsetFrame(tk.Frame):
             col_gs = cell_index % n_columns
             ax_source_profile_by_cell[cell_to_display] = self.magnifier_fig.add_subplot(grid_spec[line_gs, col_gs])
             ax_source_profile_by_cell[cell_to_display].get_yaxis().set_visible(False)
+            ax_source_profile_by_cell[cell_to_display].set_facecolor("black")
             # ax_top_source_profile_by_cell[cell_to_display] = ax_source_profile_by_cell[cell_to_display].twiny()
             for spine in ax_source_profile_by_cell[cell_to_display].spines.values():
                 spine.set_edgecolor(cells_color[cell_to_display])
@@ -3770,6 +3727,7 @@ class ManualOnsetFrame(tk.Frame):
                 self.magnifier_fig.add_subplot(grid_spec[line_gs + 1, col_gs])
             ax_source_transient_by_cell[cell_to_display].get_xaxis().set_visible(False)
             ax_source_transient_by_cell[cell_to_display].get_yaxis().set_visible(False)
+            ax_source_transient_by_cell[cell_to_display].set_facecolor("black")
             for spine in ax_source_transient_by_cell[cell_to_display].spines.values():
                 spine.set_edgecolor(cells_color[cell_to_display])
                 spine.set_linewidth(2)
@@ -3854,7 +3812,7 @@ class ManualOnsetFrame(tk.Frame):
             # else:
             #     label_color = "black"
             ax_source_profile_by_cell[cell_to_display].xaxis.set_tick_params(labelsize=8, pad=0.1,
-                                                                             labelcolor="black")
+                                                                             labelcolor="white")
             ax_source_profile_by_cell[cell_to_display].xaxis.set_ticks_position('none')
             # displaying cell number
             # min_x_axis, max_x_axis = ax_top_source_profile_by_cell[cell_to_display].get_xlim()
@@ -4287,7 +4245,7 @@ class ManualOnsetFrame(tk.Frame):
             frame.axes.get_yaxis().set_visible(False)
 
             # self.map_img_fig.tight_layout()
-            # self.map_img_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
+            self.map_img_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
 
     def draw_cell_contour(self):
         if self.cell_contour is not None:
