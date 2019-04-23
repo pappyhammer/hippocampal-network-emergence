@@ -2647,6 +2647,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     # list of string representing the session that should be used only for training and validation
     # but not for testing
     ms_to_remove_from_test = []
+    # data not used for validation
+    ms_to_remove_from_validation = []
 
     if load_them_all:
         ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p9_18_09_27_a003_ms", "p11_17_11_24_a000_ms",
@@ -2808,9 +2810,12 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         spike_nums_dur = ms.spike_struct.spike_nums_dur
         n_frames = spike_nums_dur.shape[1]
         skip_test_part = ms_str in ms_to_remove_from_test
+        skip_validation_part = ms_str in ms_to_remove_from_validation
         ms_split_values = np.copy(split_values)
         if skip_test_part:
             ms_split_values[0] += ms_split_values[2]
+        if skip_validation_part:
+            ms_split_values[0] += ms_split_values[1]
 
         for cell in cell_to_load_by_ms[ms_str]:
             index_so_far = 0
@@ -2820,6 +2825,9 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                     # then we create validation and test dataset with no data transformation
                     frames_step = sliding_window_len
                     if split_index == 1:
+                        if skip_validation_part:
+                            # we don't put frames from this session in the validation section
+                            continue
                         data_list_to_fill = valid_data
                     else:
                         if skip_test_part:
@@ -2836,8 +2844,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                 # means we don't use data for this part, it should be for test data, otherwise the program will
                 # crash
                 if ms_split_values[split_index] == 0:
-                    if split_index != 2:
-                        raise Exception(f"Only the test data can be empty")
+                    if split_index == 0:
+                        raise Exception(f"Only the validation or test data can be empty")
                     continue
 
                 start_index = index_so_far
