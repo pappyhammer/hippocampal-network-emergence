@@ -837,6 +837,9 @@ class ManualOnsetFrame(tk.Frame):
 
         # will be initialize in the function normalize_traces
         self.ratio_traces = None
+        # we plot a trace that show the ratio between traces and raw_traces
+        # it could be useful if the traces is partially demixed
+        self.use_ratio_traces = False
         self.nb_times_traces = len(self.traces[0, :])
         # dimension reduction in order to fit to traces times, for onset times
         self.onset_times = np.zeros((self.nb_neurons, self.nb_times), dtype="int8")
@@ -876,9 +879,6 @@ class ManualOnsetFrame(tk.Frame):
         #     self.raw_traces_binned[cell] -= 4
         #     # print(f"np.min(self.raw_traces_binned[cell, :]) {np.min(self.raw_traces_binned[cell, :])}")
 
-        # array of 1 D, representing the number of spikes at each time
-        self.activity_count = np.sum(self.spike_nums, axis=0)
-
         # initializing inter_neurons and cells_to_remove
         self.inter_neurons = np.zeros(self.nb_neurons, dtype="uint8")
         if self.data_and_param.inter_neurons is not None:
@@ -911,7 +911,6 @@ class ManualOnsetFrame(tk.Frame):
             self.mvt_frames_nums = np.zeros((self.nb_neurons, self.nb_times_traces), dtype="int8")
 
         self.display_raw_traces = self.raw_traces is not None
-        self.raw_traces_seperate_plot = False
         # neuron's trace displayed
         self.current_neuron = 0
         # indicate if an action might remove or add an onset
@@ -1242,19 +1241,13 @@ class ManualOnsetFrame(tk.Frame):
 
         self.raw_traces_median = None
         self.display_raw_traces_median = False
-        if self.raw_traces_seperate_plot:
-            if self.raw_traces is None:
-                self.gs = gridspec.GridSpec(2, 1, width_ratios=[1], height_ratios=[5, 1])
-            else:
-                self.gs = gridspec.GridSpec(3, 1, width_ratios=[1], height_ratios=[5, 5, 1])
-        else:
-            self.gs = gridspec.GridSpec(2, 1, width_ratios=[1], height_ratios=[5, 1])
+        # self.gs = gridspec.GridSpec(2, 1, width_ratios=[1], height_ratios=[5, 1])
+        # using gridspec even for one plot, but could be useful if we want to add plot.
+        self.gs = gridspec.GridSpec(1, 1, width_ratios=[1], height_ratios=[1])
         # self.gs.update(hspace=0.05)
         # ax1 = plt.subplot(gs[0])
         # ax2 = plt.subplot(gs[1])
         self.axe_plot = None
-        self.axe2_plot = None
-        self.axe_plot_raw = None
         self.ax1_bottom_scatter = None
         self.ax1_top_scatter = None
         self.line1 = None
@@ -4525,24 +4518,26 @@ class ManualOnsetFrame(tk.Frame):
                                self.raw_traces_median[self.current_neuron, :],
                                color="red", alpha=0.8, zorder=9)
 
-        if not self.raw_traces_seperate_plot:
-            if (self.raw_traces is not None) and self.display_raw_traces:
+
+        if (self.raw_traces is not None) and self.display_raw_traces:
+            self.axe_plot.plot(np.arange(self.nb_times_traces),
+                               self.raw_traces[self.current_neuron, :],
+                               color=self.color_raw_trace, alpha=0.8, zorder=9)
+
+            if self.use_ratio_traces and (self.ratio_traces is not None):
+                # we plot a trace that show the ratio between traces and raw_traces
+                # it could be useful if the traces is partially demixed
                 self.axe_plot.plot(np.arange(self.nb_times_traces),
-                                   self.raw_traces[self.current_neuron, :],
-                                   color=self.color_raw_trace, alpha=0.8, zorder=9)
-                if self.ratio_traces is not None:
-                    # we plot a trace that show the ratio between traces and raw_traces
-                    self.axe_plot.plot(np.arange(self.nb_times_traces),
-                                       self.ratio_traces[self.current_neuron, :],
-                                       linewidth=0.5,
-                                       color="red", alpha=0.8, zorder=15)
-                    self.axe_plot.hlines(-2, 0, self.nb_times_traces - 1, color="black",
-                                         linewidth=0.5,
-                                         linestyles="dashed")
-                    y2 = np.repeat(-2, self.nb_times_traces)
-                    self.axe_plot.fill_between(x=np.arange(self.nb_times_traces),
-                                               y1=self.ratio_traces[self.current_neuron, :], y2=y2,
-                                               color="red", alpha=0.6)
+                                   self.ratio_traces[self.current_neuron, :],
+                                   linewidth=0.5,
+                                   color="red", alpha=0.8, zorder=15)
+                self.axe_plot.hlines(-2, 0, self.nb_times_traces - 1, color="black",
+                                     linewidth=0.5,
+                                     linestyles="dashed")
+                y2 = np.repeat(-2, self.nb_times_traces)
+                self.axe_plot.fill_between(x=np.arange(self.nb_times_traces),
+                                           y1=self.ratio_traces[self.current_neuron, :], y2=y2,
+                                           color="red", alpha=0.6)
 
             if self.raw_traces_binned is not None:
                 self.axe_plot.plot(np.arange(0, self.nb_times_traces, 10),
@@ -4755,7 +4750,7 @@ class ManualOnsetFrame(tk.Frame):
         # by default the y axis zoom is set to fit the wider amplitude of the current neuron
         fit_plot_to_all_max = False
         if fit_plot_to_all_max:
-            if self.display_raw_traces and (not self.raw_traces_seperate_plot) and (self.raw_traces is not None):
+            if self.display_raw_traces and (self.raw_traces is not None):
                 min_value = min(0, np.min(self.raw_traces[self.current_neuron, :]))
                 self.axe_plot.set_ylim(min_value, math.ceil(np.max(self.traces)))
             else:
@@ -4775,67 +4770,17 @@ class ManualOnsetFrame(tk.Frame):
             self.axe_plot.set_ylim(min_value,
                                    math.ceil(max_value))
 
-        # ------------ RAW TRACE own plot----------------------
-        if self.raw_traces_seperate_plot and (self.raw_traces is not None):
-            if first_time:
-                self.axe_plot_raw = self.fig.add_subplot(self.gs[gs_index], sharex=self.axe_plot)
-                gs_index += 1
-
-            self.axe_plot_raw.plot(np.arange(self.nb_times_traces),
-                                   self.raw_traces[self.current_neuron, :],
-                                   color=self.color_raw_trace)
-            max_value = np.max(self.raw_traces[self.current_neuron, :])
-            min_value = np.min(self.raw_traces[self.current_neuron, :])
-            self.axe_plot_raw.vlines(onsets, min_value, max_value, color=self.color_onset, linewidth=1,
-                                     linestyles="dashed")
-
-            self.axe_plot.set_ylim(np.min(self.raw_traces[self.current_neuron, :]),
-                                   math.ceil(np.max(self.raw_traces[self.current_neuron, :])))
-
-        if first_time:
-            self.axe2_plot = self.fig.add_subplot(self.gs[gs_index], sharex=self.axe_plot)
-        self.line2, = self.axe2_plot.plot(np.arange(self.nb_times_traces), self.activity_count,
-                                          color=self.color_trace_activity)
-        max_value = np.max(self.activity_count)
-        self.axe2_plot.vlines(onsets, 0, max_value, color=self.color_onset, linewidth=1,
-                              linestyles="dashed")
-
-        if (self.current_neuron in self.mvt_frames_periods) and \
-                (len(self.mvt_frames_periods[self.current_neuron]) > 0):
-            for mvt_frames_period in self.mvt_frames_periods[self.current_neuron]:
-                self.axe2_plot.axvspan(mvt_frames_period[0], mvt_frames_period[1], ymax=1,
-                                       alpha=0.5, facecolor="red", zorder=15)
-                self.axe_plot.plot(np.arange(mvt_frames_period[0], mvt_frames_period[1] + 1),
-                                   self.traces[self.current_neuron, mvt_frames_period[0]:mvt_frames_period[1] + 1],
-                                   color="red", zorder=11)
-
         # removing first x_axis
         axes_to_clean = [self.axe_plot]
-        if self.raw_traces_seperate_plot and (self.raw_traces is not None):
-            axes_to_clean.append(self.axe_plot_raw)
         for ax in axes_to_clean:
             ax.axes.get_xaxis().set_visible(False)
             ax.spines['bottom'].set_visible(False)
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
-        self.axe2_plot.spines['right'].set_visible(False)
-        self.axe2_plot.spines['top'].set_visible(False)
-        self.axe2_plot.margins(0)
         self.axe_plot.margins(0)
         self.fig.tight_layout()
+        # tight_layout is posing issue on Ubuntu
         # self.fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.1, 'h_pad': 0.1})
-
-    # not used
-    # def update_plot_wrong(self):
-    #     self.line1.set_data(np.arange(self.nb_times_traces), self.traces[self.current_neuron, :])
-    #     self.line2.set_data(np.arange(self.nb_times_traces), self.activity_count)
-    #     onsets = np.where(self.onset_times[self.current_neuron, :] > 0)[0]
-    #     max_value = np.max(self.traces[self.current_neuron, :])
-    #     data = np.hstack((onsets, [0.1] * len(onsets)))
-    #     self.ax1_bottom_scatter.set_offsets(data)
-    #     data2 = np.hstack((onsets, [max_value] * len(onsets)))
-    #     self.ax1_top_scatter.set_offsets(data2)
-    #     self.fig.canvas.flush_events()
 
     def current_max_amplitude(self):
         """
@@ -4880,15 +4825,8 @@ class ManualOnsetFrame(tk.Frame):
         # used to keep the same zoom after updating the plot
         # if we change neuron, then back to no zoom mode
         left_x_limit_1, right_x_limit_1 = self.axe_plot.get_xlim()
-        left_x_limit_2, right_x_limit_2 = self.axe2_plot.get_xlim()
         bottom_limit_1, top_limit_1 = self.axe_plot.get_ylim()
-        bottom_limit_2, top_limit_2 = self.axe2_plot.get_ylim()
-        if self.raw_traces_seperate_plot and (self.raw_traces is not None):
-            bottom_limit_raw, top_limit_raw = self.axe_plot_raw.get_ylim()
         self.axe_plot.clear()
-        self.axe2_plot.clear()
-        if self.raw_traces_seperate_plot and (self.raw_traces is not None):
-            self.axe_plot_raw.clear()
         # self.line1.set_ydata(self.traces[self.current_neuron, :])
         if amplitude_zoom_fit:
             y_max_lim = self.current_max_amplitude()
@@ -4897,48 +4835,14 @@ class ManualOnsetFrame(tk.Frame):
         else:
             y_max_lim = top_limit_1
 
-        # if new_neuron or changing_face_color:
-        #     self.fig.clear()
-        #     plt.close(self.fig)
-        #     self.plot_canvas.get_tk_widget().destroy()
-        #
-        #     if self.robin_mac:
-        #         self.fig = plt.figure(figsize=(8, 4))
-        #     else:
-        #         self.fig = plt.figure(figsize=(10, 6))
-        #
-        #     self.plot_canvas = FigureCanvasTkAgg(self.fig, self.main_plot_frame)
-        #     self.fig.canvas.mpl_connect('button_press_event', self.onclick)
-        #     self.fig.canvas.mpl_connect('button_release_event', self.onrelease)
-        #     self.fig.canvas.mpl_connect('motion_notify_event', self.motion)
-        #
-        #     self.plot_graph(y_max_lim=y_max_lim, first_time=True)
-        #
-        # else:
         self.plot_graph(y_max_lim)
 
         # to keep the same zoom
         if not new_neuron:
             self.axe_plot.set_xlim(left=left_x_limit_1, right=right_x_limit_1, auto=None)
-            self.axe2_plot.set_xlim(left=left_x_limit_2, right=right_x_limit_2, auto=None)
             self.axe_plot.set_ylim(bottom=bottom_limit_1, top=top_limit_1, auto=None)
-            self.axe2_plot.set_ylim(bottom=bottom_limit_2, top=top_limit_2, auto=None)
-            # if amplitude_zoom_fit:
-            #     if self.display_raw_traces and (self.raw_traces is not None):
-            #         self.axe_plot.set_ylim(min(0, np.min(self.raw_traces[self.current_neuron, :])),
-            #                                self.current_max_amplitude())
-            #     else:
-            #         self.axe_plot.set_ylim(0, self.current_max_amplitude())
-            # else:
-            #     if not raw_trace_display_action:
-            #         self.axe_plot.set_ylim(bottom=bottom_limit_1, top=top_limit_1, auto=None)
-            #     self.axe2_plot.set_ylim(bottom=bottom_limit_2, top=top_limit_2, auto=None)
-            #     if self.raw_traces_seperate_plot and (self.raw_traces is not None):
-            #         self.axe_plot_raw.set_ylim(bottom=bottom_limit_raw, top=top_limit_raw,
-            #                                    auto=None)
         if new_x_limit is not None:
             self.axe_plot.set_xlim(left=new_x_limit[0], right=new_x_limit[1], auto=None)
-            self.axe2_plot.set_xlim(left=new_x_limit[0], right=new_x_limit[1], auto=None)
         if (new_y_limit is not None) and (not amplitude_zoom_fit):
             self.axe_plot.set_ylim(new_y_limit[0], new_y_limit[1])
         # self.line1.set_ydata(self.traces[self.current_neuron, :])
@@ -4971,11 +4875,6 @@ class ManualOnsetFrame(tk.Frame):
             self.current_neuron = new_neuron
         self.onset_numbers_label["text"] = f"{self.numbers_of_onset()}"
         self.peak_numbers_label["text"] = f"{self.numbers_of_peak()}"
-        # array of 1 D, representing the number of spikes at each time
-        tmp_activity_count = np.sum(self.spike_nums, axis=0)
-        # dimension reduction in order to fit to traces times for activity count (spikes count)
-        split_result = np.split(tmp_activity_count, self.nb_times_traces)
-        self.activity_count = np.sum(split_result, axis=1)
         if new_neuron > -1:
             self.update_neuron(new_neuron=new_neuron,
                                new_x_limit=new_x_limit, new_y_limit=new_y_limit)

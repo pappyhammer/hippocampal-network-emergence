@@ -622,14 +622,15 @@ class MouseSession:
     def load_tiff_movie_in_memory(self):
         if self.tif_movie_file_name is not None:
             if self.tiff_movie is None:
-                using_scan_image_tiff = False
-                if using_scan_image_tiff:
+                # using_scan_image_tiff = False
+                # if using_scan_image_tiff:
+                try:
                     start_time = time.time()
                     tiff_movie = ScanImageTiffReader(self.tif_movie_file_name).data()
                     stop_time = time.time()
                     print(f"Time for loading movie with scan_image_tiff: "
                           f"{np.round(stop_time - start_time, 3)} s")
-                else:
+                except Exception as e:
                     start_time = time.time()
                     im = PIL.Image.open(self.tif_movie_file_name)
                     n_frames = len(list(ImageSequence.Iterator(im)))
