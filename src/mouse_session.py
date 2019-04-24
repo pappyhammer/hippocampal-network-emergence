@@ -3363,16 +3363,18 @@ class MouseSession:
         Take an array of int, and return another one with new index in case some cells would have been removed
         using clean_data_using_cells_to_remove()
         :param cell_indices_array:
-        :return:
+        :return: new_cell_indices_array: indices or existing cell, with new indexing
+        original_cell_indices_mapping = for each new cell index, contains the corresponding original index
         """
         if self.removed_cells_mapping is None:
-            return np.copy(cell_indices_array)
+            return np.copy(cell_indices_array), np.copy(cell_indices_array)
 
         new_cell_indices_array = self.removed_cells_mapping[cell_indices_array]
         # removing cell indices of cell that has been removed
         new_cell_indices_array = new_cell_indices_array[new_cell_indices_array >= 0]
+        original_cell_indices_mapping = cell_indices_array[new_cell_indices_array >= 0]
 
-        return new_cell_indices_array
+        return new_cell_indices_array, original_cell_indices_mapping
 
     def clean_raster_at_concatenation(self):
         self.spike_struct.clean_raster_at_concatenation()

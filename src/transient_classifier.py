@@ -2757,7 +2757,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
             cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
 
         # if cells have been removed we need to updated indices that were given
-        cells_to_load = ms.get_new_cell_indices_if_cells_removed(np.array(cells_to_load))
+        cells_to_load, oringal_cell_indices_mapping = ms.get_new_cell_indices_if_cells_removed(np.array(cells_to_load))
 
         total_n_cells += len(cells_to_load)
         cell_to_load_by_ms[ms_str] = cells_to_load
@@ -3304,8 +3304,8 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
     :param file_name_bonus_str:
     :return:
     """
-    if len(ms_to_use) > 1:
-        ms_to_use = list(ms_to_use[0])
+    # if len(ms_to_use) > 1:
+    #     ms_to_use = list(ms_to_use[0])
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
                                             param=param,
@@ -3315,7 +3315,9 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
         ms = ms_str_to_ms_dict[ms_str]
 
         n_cells = len(ms.coord)
+        print(f"ms {ms_str}")
         print(f"n_cells {n_cells}")
+        # if cells have been removed we need to updated indices that were given
         # raise Exception("TITI")
         if cells_to_predict is None:
             cells_to_load = np.arange(n_cells)
@@ -3331,7 +3333,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
                 cells_predicted_as_false = np.where(ms.cell_cnn_predictions < 0.5)[0]
                 cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
 
-        cells_to_load = ms.get_new_cell_indices_if_cells_removed(cells_to_load)
+        cells_to_load, original_cell_indices_mapping = ms.get_new_cell_indices_if_cells_removed(cells_to_load)
 
         total_n_cells = len(cells_to_load)
         print(f'total_n_cells {total_n_cells}')
@@ -3346,6 +3348,8 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
         n_frames = ms.tiff_movie_normalized.shape[0]
         print(f"transients_prediction_from_movie n_frames {n_frames}")
 
+        # we keep the original number of cells, so if predictions were made with another method (such as Caiman)
+        # we can still compare using the indices we know
         spike_nums_dur = np.zeros((n_cells, n_frames), dtype="int8")
         predictions_by_cell = np.zeros((n_cells, n_frames))
 
@@ -3382,20 +3386,21 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
 
         start_time = time.time()
         predictions_threshold = 0.5
-        for cell in cells_to_load:
+        for cell_index, cell in enumerate(cells_to_load):
+            original_cell = original_cell_indices_mapping[cell_index]
             predictions = predict_transient_from_model(ms=ms, cell=cell, model=model, overlap_value=overlap_value,
                                                        use_data_augmentation=use_data_augmentation)
             if len(predictions.shape) == 1:
-                predictions_by_cell[cell] = predictions
+                predictions_by_cell[original_cell] = predictions
             elif (len(predictions.shape) == 2) and (predictions.shape[1] == 1):
-                predictions_by_cell[cell] = predictions[:, 0]
+                predictions_by_cell[original_cell] = predictions[:, 0]
             elif (len(predictions.shape) == 2) and (predictions.shape[1] == 3):
                 # real transient, fake ones, other (neuropil, decay etc...)
                 # keeping predictions about real transient when superior
                 # to other prediction on the same frame
                 max_pred_by_frame = np.max(predictions, axis=1)
                 real_transient_frames = (predictions[:, 0] == max_pred_by_frame)
-                predictions_by_cell[cell, real_transient_frames] = 1
+                predictions_by_cell[original_cell, real_transient_frames] = 1
             elif predictions.shape[1] == 2:
                 # real transient, fake ones
                 # keeping predictions about real transient superior to the threshold
@@ -3403,9 +3408,9 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
                 max_pred_by_frame = np.max(predictions, axis=1)
                 real_transient_frames = np.logical_and((predictions[:, 0] >= predictions_threshold),
                                                        (predictions[:, 0] == max_pred_by_frame))
-                predictions_by_cell[cell, real_transient_frames] = 1
+                predictions_by_cell[original_cell, real_transient_frames] = 1
 
-            spike_nums_dur[cell, predictions_by_cell[cell] >= predictions_threshold] = 1
+            spike_nums_dur[original_cell, predictions_by_cell[original_cell] >= predictions_threshold] = 1
 
         stop_time = time.time()
         print(f"Time to predict {total_n_cells} cells: "
@@ -3677,10 +3682,10 @@ def train_model():
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
-                     "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
-                     "p13_18_10_29_a001_ms"]
+                                 "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
+                                 "p13_18_10_29_a001_ms", "p8_18_10_24_a005_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
-        cells_to_predict = { "p7_171012_a000_ms": np.array([2, 25]),
+        cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
                              "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
                               "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
                               "p11_17_11_24_a000_ms": np.array([3, 45]),
