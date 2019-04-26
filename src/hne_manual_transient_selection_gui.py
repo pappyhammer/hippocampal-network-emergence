@@ -1558,7 +1558,7 @@ class ManualOnsetFrame(tk.Frame):
 
         sep = ttk.Separator(right_side_frame)
         sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
-        
+
         threshold_frame = Frame(right_side_frame)
         threshold_frame.pack(side=TOP, expand=NO, fill=BOTH)
 
@@ -4244,8 +4244,8 @@ class ManualOnsetFrame(tk.Frame):
             frame.axes.get_xaxis().set_visible(False)
             frame.axes.get_yaxis().set_visible(False)
 
-            # self.map_img_fig.tight_layout()
-            self.map_img_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
+            self.map_img_fig.tight_layout()
+            # self.map_img_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 0.2, 'h_pad': 0.2})
 
     def draw_cell_contour(self):
         if self.cell_contour is not None:
