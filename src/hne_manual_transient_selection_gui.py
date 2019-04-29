@@ -772,16 +772,15 @@ class ManualOnsetFrame(tk.Frame):
         # self.pack()
 
         # ------------ colors  -----------------
-        self.color_onset = "dimgrey"
-        self.color_trace = "darkblue"
+        self.color_onset = "darkblue" #"darkgoldenrod" #"dimgrey"
+        self.color_trace = "white"
         self.color_early_born = "darkgreen"
-        self.color_peak = "yellow"
-        self.color_edge_peak = "black"
+        self.color_peak = "blue"
+        self.color_edge_peak = "white"
         self.color_peak_under_threshold = "red"
         self.color_threshold_line = "red"  # "cornflowerblue"
-        self.color_mark_to_remove = "black"
+        self.color_mark_to_remove = "white"
         self.color_run_period = "lightcoral"
-        self.color_trace_activity = "black"
         # self.color_raw_trace = "darkgoldenrod"
         self.color_raw_trace = "cornflowerblue"
         # ------------- colors (end) --------
@@ -1204,6 +1203,7 @@ class ManualOnsetFrame(tk.Frame):
             self.fig = plt.figure(figsize=(8, 3))
         else:
             self.fig = plt.figure(figsize=(10, 4))
+        self.fig.patch.set_facecolor('black')
         # self.plot_canvas = MyCanvas(self.fig, canvas_frame, self)
         self.plot_canvas = FigureCanvasTkAgg(self.fig, main_plot_frame)
         self.fig.canvas.mpl_connect('button_press_event', self.onclick)
@@ -1369,6 +1369,7 @@ class ManualOnsetFrame(tk.Frame):
             self.magnifier_fig = plt.figure(figsize=(3, 3))
         else:
             self.magnifier_fig = plt.figure(figsize=(4, 4))
+        self.magnifier_fig.patch.set_facecolor('black')
         self.axe_plot_magnifier = None
         # represent the x_value on which the magnifier is centered
         self.x_center_magnified = None
@@ -3489,10 +3490,19 @@ class ManualOnsetFrame(tk.Frame):
         return threshold
 
     def plot_magnifier(self, first_time=False, mouse_x_position=None, mouse_y_position=None):
+        """
+        Plot the magnifier
+        :param first_time: if True, means the function is called for the first time,
+        allow sto initialize some variables.
+        :param mouse_x_position: indicate the x position of the mouse cursor
+        :param mouse_y_position: indicate the y position of the mouse cursor
+        :return: None
+        """
         if first_time:
             self.axe_plot_magnifier = self.magnifier_fig.add_subplot(111)
             self.axe_plot_magnifier.get_xaxis().set_visible(False)
             self.axe_plot_magnifier.get_yaxis().set_visible(False)
+            self.axe_plot_magnifier.set_facecolor("black")
 
         if self.x_center_magnified is not None:
             pos_beg_x = int(np.max((0, self.x_center_magnified - self.magnifier_range)))
@@ -4331,9 +4341,9 @@ class ManualOnsetFrame(tk.Frame):
             y_max_lim = math.ceil(np.max(self.traces))
 
         if self.cells_to_remove[self.current_neuron] == 1:
-            self.axe_plot.set_facecolor("lightgray")
+            self.axe_plot.set_facecolor("gray")
         else:
-            self.axe_plot.set_facecolor("white")
+            self.axe_plot.set_facecolor("black")
 
         # #################### SMOOTHED TRACE ####################
 
@@ -4735,6 +4745,8 @@ class ManualOnsetFrame(tk.Frame):
             ax.spines['bottom'].set_visible(False)
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
+        self.axe_plot.yaxis.label.set_color("white")
+        self.axe_plot.tick_params(axis='y', colors="white")
         self.axe_plot.margins(0)
         self.fig.tight_layout()
         # tight_layout is posing issue on Ubuntu

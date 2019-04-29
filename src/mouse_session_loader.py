@@ -1151,11 +1151,17 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 # rnn trained on 26/02/2019 17-20-11 on 391 cells
 
                 # prediction based on rnn trained on 50 cells, BO
-                # variables_mapping = {"predictions": "predictions"}
+                variables_mapping = {"predictions": "predictions"}
                 # p12_171110_a000_ms.load_raster_dur_from_predictions(
                 #     file_name="p12/p12_17_11_10_a000/predictions/" +
                 #               "P12_17_11_10_a000_predictions_2019_03_14.20-19-48.mat",
                 #     prediction_threshold=0.5, variables_mapping=variables_mapping)
+
+                # prediction GT epoch 11
+                p12_171110_a000_ms.load_raster_dur_from_predictions(
+                    file_name="p12/p12_17_11_10_a000/predictions/" +
+                              "P12_17_11_10_a000_predictions__2019_04_24.20-23-34_GT_epoch_11.mat",
+                    prediction_threshold=0.5, variables_mapping=variables_mapping)
 
                 # if p12_171110_a000_ms.cell_cnn_predictions is not None:
                 #     print(f"Using cnn predictions from {p12_171110_a000_ms.description}")

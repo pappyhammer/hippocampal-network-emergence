@@ -126,8 +126,12 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces):
 
     if (tp_frames + fp_frames) > 0:
         frames_stat["PPV"] = tp_frames / (tp_frames + fp_frames)
+    else:
+        frames_stat["PPV"] = 1
     if (tn_frames + fn_frames) > 0:
         frames_stat["NPV"] = tn_frames / (tn_frames + fn_frames)
+    else:
+        frames_stat["NPV"] = 1
 
     frames_stat["FNR"] = 1 - frames_stat["TPR"]
 
@@ -141,9 +145,13 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces):
 
     if frames_stat["FPR"] > 0:
         frames_stat["LR+"] = frames_stat["TPR"] / frames_stat["FPR"]
+    else:
+        frames_stat["LR+"] = 1
 
     if frames_stat["TNR"] > 0:
         frames_stat["LR-"] = frames_stat["FNR"] / frames_stat["TNR"]
+    else:
+        frames_stat["LR-"] = 1
 
     # transients dict
     transients_stat["TP"] = tp_transients
@@ -153,6 +161,7 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces):
         transients_stat["FP"] = fp_transients
 
     transients_stat["sensitivity"] = tp_transients / (tp_transients + fn_transients)
+    # print(f'transients_stat["sensitivity"] {transients_stat["sensitivity"]}')
     transients_stat["TPR"] = transients_stat["sensitivity"]
 
     if traces is not None:
@@ -164,8 +173,12 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces):
 
         if (tp_frames + fp_frames) > 0:
             transients_stat["PPV"] = tp_transients / (tp_transients + fp_transients)
+        else:
+            transients_stat["PPV"] = 1
         if (tn_frames + fn_frames) > 0:
             transients_stat["NPV"] = tn_transients / (tn_transients + fn_transients)
+        else:
+            transients_stat["NPV"] = 1
 
     transients_stat["FNR"] = 1 - transients_stat["TPR"]
 
