@@ -177,7 +177,18 @@ class BenchmarkRasterDur:
                         print(f"{k}: {str(np.round(value, 4))}")
                     print("")
 
-    def plot_boxplots_full_stat(self, path_results, description, time_str, for_frames=True, save_formats="pdf"):
+    def plot_boxplots_full_stat(self, path_results, description, time_str, for_frames=True, with_cells=False,
+                                save_formats="pdf"):
+        """
+
+        :param path_results:
+        :param description:
+        :param time_str:
+        :param for_frames:
+        :param with_cells: if True, display a scatter for each cell
+        :param save_formats:
+        :return:
+        """
         result_dict_to_use = self.results_frames_dict_by_cell
         if not for_frames:
             result_dict_to_use = self.results_transients_dict_by_cell
@@ -225,6 +236,13 @@ class BenchmarkRasterDur:
                 for label_index, label in enumerate(labels):
                     values_by_prediction[label_index]. \
                         append(result_dict_to_use[cell_to_display][label][stat_name])
+                if with_cells:
+                    x_pos = 0
+                    y_pos = 0
+                    fontsize = 12
+                    ax.text(x=x_pos, y=y_pos,
+                            s=f"{cell_to_display}", color="black", zorder=22,
+                            ha='center', va="center", fontsize=fontsize, fontweight='bold', zorder=10)
 
             colorfull = True
             outliers = dict(markerfacecolor='white', marker='D')
@@ -232,6 +250,8 @@ class BenchmarkRasterDur:
             bplot = ax.boxplot(values_by_prediction, patch_artist=colorfull,
                                flierprops=outliers,
                                labels=labels, sym='', zorder=1)  # whis=[5, 95], sym='+'
+
+
 
             for element in ['boxes', 'whiskers', 'fliers', 'caps']:
                 plt.setp(bplot[element], color="white")
@@ -1245,20 +1265,20 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # gt as ground_truth
         data_dict["gt"] = dict()
         data_dict["gt"]["path"] = "p7/p7_17_10_12_a000"
-        data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_fusion_validation.mat"
-        # data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_GUI_transients_RD.mat"
+        # data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_fusion_validation.mat"
+        data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_GUI_transients_RD.mat"
         # data_dict["gt"]["gt_file"] = "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt"
         # data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P7_17_10_12_a000.txt"
         # data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.array([2, 25])  # np.arange(118)
+        data_dict["gt"]["cells"] = np.arange(117)  # np.array([2, 25])  # np.arange(118)
         # data_dict["gt"]["cells_to_remove"] = np.array([52, 75])
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p7/p7_17_10_12_a000"
         data_dict["rnn"]["trace_file_name"] = "p7_17_10_12_a000_Traces.mat"
         data_dict["rnn"]["trace_var_name"] = "C_df"
-        data_dict["rnn"]["boost_rnn"] = False
-        # not of these two better than caiman
+        data_dict["rnn"]["boost_rnn"] = True
+        # not of these two better than True
         # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_01.15-56-10.mat"
         # BO ?
         data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
@@ -1292,13 +1312,18 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
             # rnn trained on 13/04/2019 23-21-27, predictions on cells 2, 25, with epoch 11 (better precision and speci)
             data_dict["rnn"][
                 "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat"
+            # rnn trained on 13/04/2019 23-21-27, predictions 117 first cells, not counting removed cells
+            # with epoch 11 (better precision and speci)
+            data_dict["rnn"][
+                "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_26.22-41-0988_GT_epoch_11_117_cells.mat"
+
         elif version == "v_26_02":
             # rnn trained on 26/02/19, predictions on cells 2, 25, epoch 21
             data_dict["rnn"]["file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_24.22-04-49_v_26_02.mat"
 
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.6
+        data_dict["rnn"]["prediction_threshold"] = 0.5
 
         # data_dict["e_17"] = dict()
         # data_dict["e_17"]["path"] = "p7/p7_17_10_12_a000"
@@ -1536,7 +1561,7 @@ def main_benchmark():
     # "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"
     # ms_to_benchmarks = ["p12_17_11_10_a000"]
     # ms_to_benchmarks = ["p11_17_11_24_a000_ms"]
-    # ms_to_benchmarks = ["p7_17_10_12_a000"]
+    ms_to_benchmarks = ["p7_17_10_12_a000"]
     # ms_to_benchmarks = ["p13_18_10_29_a001_ms"]
     # ms_to_benchmarks = ["p8_18_10_24_a005_ms"]
     # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
@@ -1551,7 +1576,7 @@ def main_benchmark():
     for ms_to_benchmark in ms_to_benchmarks:
         data_dict = dict()
         # GT_v1_epoch_11, GT_v1_epoch_17, v_26_02
-        load_data_dict(ms_to_benchmark, data_dict, version="v_26_02")
+        load_data_dict(ms_to_benchmark, data_dict, version="GT_v1_epoch_11")
         # ground truth
         data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gui_file"]))
         peak_nums = data_file['LocPeakMatrix_Python'].astype(int)
@@ -1589,7 +1614,6 @@ def main_benchmark():
             cell_cnn_predictions = np.array(cell_cnn_predictions)
             cells_predicted_as_false = np.where(cell_cnn_predictions < data_dict["gt"]["cnn_threshold"])[0]
             # print(f"cells_predicted_as_false {cells_predicted_as_false}")
-
             # not taking into consideration cells that are not predicted as true from the cell classifier
             cells_for_benchmark = np.setdiff1d(cells_for_benchmark, cells_predicted_as_false)
 
@@ -1604,6 +1628,11 @@ def main_benchmark():
 
         data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["rnn"]["path"], data_dict["rnn"]["file_name"]))
         rnn_predictions = data_file[data_dict["rnn"]['predictions']]
+
+        # we remove cell for which predictions was not done, aka those with sum predictions == 0
+        cell_predictions_count = np.sum(rnn_predictions, axis=1)
+        cells_to_remove = np.where(cell_predictions_count == 0)[0]
+        cells_for_benchmark = np.setdiff1d(cells_for_benchmark, cells_to_remove)
         if do_plot_roc_predictions:
             plot_roc_predictions(ground_truth_raster_dur=ground_truth_raster_dur, rnn_predictions=rnn_predictions,
                                  cells=cells_for_benchmark,
@@ -1732,10 +1761,10 @@ def main_benchmark():
                 tmp_description += "_"
             benchmarks.compute_stats()
             benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
-                                                      path_results=path_results,
+                                                      path_results=path_results, with_cells=True,
                                                       for_frames=True, save_formats="pdf")
             benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
-                                                      path_results=path_results,
+                                                      path_results=path_results, with_cells=True,
                                                       for_frames=False, save_formats="pdf")
         # TODO: function to fusion two benchmarks objects
         if global_benchmarks is None:

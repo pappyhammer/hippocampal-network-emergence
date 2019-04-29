@@ -4741,12 +4741,14 @@ class ManualOnsetFrame(tk.Frame):
         # removing first x_axis
         axes_to_clean = [self.axe_plot]
         for ax in axes_to_clean:
-            ax.axes.get_xaxis().set_visible(False)
-            ax.spines['bottom'].set_visible(False)
+            # ax.axes.get_xaxis().set_visible(False)
+            # ax.spines['bottom'].set_visible(False)
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
         self.axe_plot.yaxis.label.set_color("white")
         self.axe_plot.tick_params(axis='y', colors="white")
+        self.axe_plot.xaxis.label.set_color("white")
+        self.axe_plot.tick_params(axis='x', colors="white")
         self.axe_plot.margins(0)
         self.fig.tight_layout()
         # tight_layout is posing issue on Ubuntu

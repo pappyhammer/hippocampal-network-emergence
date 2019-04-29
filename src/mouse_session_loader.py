@@ -259,18 +259,19 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                    "p7/p7_17_10_12_a000/p7_17_10_12_a000_fusion_validation.mat",
                                                    variables_mapping=variables_mapping,
                                                    from_gui=True)
+            # p7_17_10_12_a000_fusion_validation.mat
 
             p7_171012_a000_ms.build_spike_nums_dur()
             if for_cell_classifier:
                 p7_171012_a000_ms.\
                     load_cells_to_remove_from_txt(file_name="p7/p7_17_10_12_a000/"
                                                               "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt")
-        else:
-            variables_mapping = {"predictions": "predictions"}
-            p7_171012_a000_ms.load_raster_dur_from_predictions(
-                file_name="p7/p7_17_10_12_a000/predictions/" +
-                          "P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat",
-                prediction_threshold=0.6, variables_mapping=variables_mapping)
+        # else:
+        #     variables_mapping = {"predictions": "predictions"}
+        #     p7_171012_a000_ms.load_raster_dur_from_predictions(
+        #         file_name="p7/p7_17_10_12_a000/predictions/" +
+        #                   "P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat",
+        #         prediction_threshold=0.6, variables_mapping=variables_mapping)
             # P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat
             # P7_17_10_12_a000_predictions_2019_03_19.08-35-56.mat
             #P7_17_10_12_a000_predictions__2019_04_24.13-18-06_GT_13_04_29_cells_2_25.mat
@@ -290,7 +291,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             if not for_cell_classifier:
                 p7_171012_a000_ms.clean_data_using_cells_to_remove()
 
-        p7_171012_a000_ms.load_caiman_results(path_data="p7/p7_17_10_12_a000/")
+        # p7_171012_a000_ms.load_caiman_results(path_data="p7/p7_17_10_12_a000/")
         ms_str_to_ms_dict["p7_171012_a000_ms"] = p7_171012_a000_ms
 
     if "p7_17_10_18_a002_ms" in ms_str_to_load:

@@ -1,5 +1,7 @@
+# import matplotlib
+# # important to avoid a bug when using virtualenv
+# matplotlib.use('TkAgg')
 import numpy as np
-import hdf5storage
 import keras
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Bidirectional, BatchNormalization
 from keras.layers import Input, LSTM, Dense, TimeDistributed, Activation, Lambda, Permute, RepeatVector
@@ -8,9 +10,8 @@ from keras.models import model_from_json
 from keras.optimizers import RMSprop, adam, SGD
 from keras import layers
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, EarlyStopping
-from keras.utils import to_categorical
 from keras.utils import get_custom_objects
-from matplotlib import pyplot as plt
+# from matplotlib import pyplot as plt
 import pattern_discovery.tools.param as p_disc_tools_param
 from datetime import datetime
 import time
@@ -29,6 +30,8 @@ import sys
 import platform
 import tifffile
 from pattern_discovery.tools.signal import smooth_convolve
+from tensorflow.python.client import device_lib
+device_lib.list_local_devices()
 
 print(f"sys.maxsize {sys.maxsize}, platform.architecture {platform.architecture()}")
 
@@ -2316,17 +2319,19 @@ def generate_movies_from_metadata(movie_data_list, window_len, max_width, max_he
 def load_movie(ms):
     if ms.tif_movie_file_name is not None:
         if ms.tiff_movie is None:
-            start_time = time.time()
-            im = PIL.Image.open(ms.tif_movie_file_name)
-            n_frames = len(list(ImageSequence.Iterator(im)))
-            dim_x, dim_y = np.array(im).shape
-            print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
-            ms.tiff_movie = np.zeros((n_frames, dim_x, dim_y))
-            for frame, page in enumerate(ImageSequence.Iterator(im)):
-                ms.tiff_movie[frame] = np.array(page)
-            stop_time = time.time()
-            print(f"Time for loading movie: "
-                  f"{np.round(stop_time - start_time, 3)} s")
+            # start_time = time.time()
+            # im = PIL.Image.open(ms.tif_movie_file_name)
+            # n_frames = len(list(ImageSequence.Iterator(im)))
+            # dim_x, dim_y = np.array(im).shape
+            # print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
+            # ms.tiff_movie = np.zeros((n_frames, dim_x, dim_y))
+            # for frame, page in enumerate(ImageSequence.Iterator(im)):
+            #     ms.tiff_movie[frame] = np.array(page)
+            # stop_time = time.time()
+            # print(f"Time for loading movie: "
+            #       f"{np.round(stop_time - start_time, 3)} s")
+            ms.load_tiff_movie_in_memory()
+
             ms.normalize_movie()
         return True
     return False
@@ -2481,6 +2486,7 @@ def find_all_onsets_and_peaks_on_traces(ms, cell, threshold_factor=0.5):
         if len(onsets_before) > 0:
             onset_to_remove = onsets_index[onsets_before[-1]]
             onsets_detected.append(onset_to_remove)
+    # print(f"onsets_detected {onsets_detected}")
     spike_nums[np.array(onsets_detected)] = 0
 
     # now we construct the spike_nums_dur
@@ -2686,6 +2692,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # cell_to_load_by_ms = {"p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51])}
     elif use_triple_blinded_data:
         ms_to_remove_from_test.append("artificial_ms_1")
+        ms_to_remove_from_validation.append("artificial_ms_1")
         ms_to_use = ["artificial_ms_1", "p7_171012_a000_ms", "p8_18_10_24_a006_ms",
                      "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
                      "p13_18_10_29_a001_ms"]
@@ -2806,6 +2813,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     print(f"split_order {split_order}")
 
     for ms_str in ms_to_use:
+        print(f"ms_str {ms_str}")
         ms = ms_str_to_ms_dict[ms_str]
         spike_nums_dur = ms.spike_struct.spike_nums_dur
         n_frames = spike_nums_dur.shape[1]
@@ -3660,6 +3668,8 @@ def train_model():
             root_path = line_list[1]
     if root_path is None:
         raise Exception("Root path is None")
+    if root_path[-1] == '\n':
+        root_path = root_path[:-1]
     path_data = root_path + "data/"
     path_for_tiffs = path_data + "tiffs_for_transient_classifier/"
     result_path = root_path + "results_classifier/"
@@ -3681,9 +3691,12 @@ def train_model():
     go_predict_from_movie = True
 
     if go_predict_from_movie:
+        return
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
                                  "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
                                  "p13_18_10_29_a001_ms", "p8_18_10_24_a005_ms"]
+        ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
+        # p7_171012_a000_ms
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
                              "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
@@ -3691,8 +3704,9 @@ def train_model():
                               "p11_17_11_24_a000_ms": np.array([3, 45]),
                               "p12_171110_a000_ms": np.array([9, 10]),
                               "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
+        cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25])} # np.arange(117)
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0.9,
-                                         use_data_augmentation=True, using_cnn_predictions=False,
+                                         use_data_augmentation=False, using_cnn_predictions=False,
                                          cells_to_predict=cells_to_predict, file_name_bonus_str="")
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
@@ -3731,7 +3745,7 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 30
+    n_epochs = 22
     batch_size = 8
     window_len = 100
     max_width = 25
@@ -3865,7 +3879,7 @@ def train_model():
                         bin_lstm_size=bin_lstm_size)
 
     print(model.summary())
-    raise Exception("TOTOOO")
+    # raise Exception("TOTOOO")
 
     # Save the model architecture
     with open(

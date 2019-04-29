@@ -1,45 +1,12 @@
-import pandas as pd
-# from scipy.io import loadmat
-from sklearn.cluster import KMeans
-import matplotlib
-import matplotlib.cm as cm
-import matplotlib.gridspec as gridspec
-import seaborn as sns
-from bisect import bisect
-from scipy.signal import find_peaks
-from scipy import signal
 # important to avoid a bug when using virtualenv
 # matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
-import hdf5storage
-# import copy
-from datetime import datetime
-# import keras
-import os
-import pyabf
 # to add homemade package, go to preferences, then project interpreter, then click on the wheel symbol
 # then show all, then select the interpreter and lick on the more right icon to display a list of folder and
 # add the one containing the folder pattern_discovery
-from pattern_discovery.seq_solver.markov_way import MarkovParameters
-from pattern_discovery.seq_solver.markov_way import find_significant_patterns
-from pattern_discovery.seq_solver.markov_way import find_sequences_in_ordered_spike_nums
-from pattern_discovery.seq_solver.markov_way import save_on_file_seq_detection_results
 import pattern_discovery.tools.misc as tools_misc
-from pattern_discovery.tools.misc import get_time_correlation_data
 from pattern_discovery.tools.misc import get_continous_time_periods
-from pattern_discovery.tools.misc import find_continuous_frames_period
-from pattern_discovery.display.raster import plot_spikes_raster
-from pattern_discovery.display.misc import time_correlation_graph
-from pattern_discovery.display.cells_map_module import CoordClass
-from pattern_discovery.tools.sce_detection import get_sce_detection_threshold, detect_sce_with_sliding_window, \
-    get_low_activity_events_detection_threshold
-from sortedcontainers import SortedList, SortedDict
-from pattern_discovery.clustering.kmean_version.k_mean_clustering import compute_and_plot_clusters_raster_kmean_version
-from pattern_discovery.clustering.kmean_version.k_mean_clustering import give_stat_one_sce
-from pattern_discovery.clustering.fca.fca import compute_and_plot_clusters_raster_fca_version
-from matplotlib.patches import Patch
-from matplotlib.lines import Line2D
 from scipy import stats
 import networkx as nx
 

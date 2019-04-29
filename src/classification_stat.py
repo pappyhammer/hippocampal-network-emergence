@@ -165,7 +165,10 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces):
     transients_stat["TPR"] = transients_stat["sensitivity"]
 
     if traces is not None:
-        transients_stat["specificity"] = tn_transients / (tn_transients + fp_transients)
+        if (tn_transients + fp_transients) > 0:
+            transients_stat["specificity"] = tn_transients / (tn_transients + fp_transients)
+        else:
+            transients_stat["specificity"] = 1
         transients_stat["TNR"] = transients_stat["specificity"]
 
         transients_stat["ACC"] = (tp_transients + tn_transients) / \
