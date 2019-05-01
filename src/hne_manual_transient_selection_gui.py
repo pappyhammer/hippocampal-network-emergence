@@ -773,23 +773,29 @@ class ManualOnsetFrame(tk.Frame):
         # self.pack()
 
         # ------------ colors  -----------------
-        self.color_onset = "darkblue" #"darkgoldenrod" #"dimgrey"
-        self.color_trace = "white"
+        # TODO: put option for different color set (skins), use http://colorbrewer2.org
+        self.color_onset = "#225ea8" # "darkblue" #"darkgoldenrod" #"dimgrey"
+        self.color_trace = "#ffffcc" # "white"
         self.color_early_born = "darkgreen"
-        self.color_peak = "blue"
-        self.color_edge_peak = "white"
+        self.color_peak = "#41b6c4" # "blue"
+        self.color_edge_peak = "#a1dab4" # "white"
         self.color_peak_under_threshold = "red"
         self.color_threshold_line = "red"  # "cornflowerblue"
         self.color_mark_to_remove = "white"
         self.color_run_period = "lightcoral"
         # self.color_raw_trace = "darkgoldenrod"
-        self.color_raw_trace = "cornflowerblue"
+        self.color_raw_trace = "#a1dab4"  # "cornflowerblue"
+        self.classifier_filling_color = "#2c7fb8"
+        self.color_transient_predicted_to_look_at = "#ffffcc"
+        self.color_bg_predicted_transient_list_box = "#41b6c4"
+        self.color_text_gui_default = "#225ea8"
         # ------------- colors (end) --------
 
         # filename on which to save spikenums, is defined when save as is clicked
         self.save_file_name = None
         # path where to save the file_name
         self.save_path = default_path
+        self.save_checked_predictions_dir = default_path
         self.display_threshold = False
         # to display a color code for the peaks depending on the correlation between the source and transient profile
         # changed when clicking on the checkbox
@@ -968,6 +974,9 @@ class ManualOnsetFrame(tk.Frame):
         # first key is an int (cell), value is a dict
         # the second key is a float representing a threshold, and the value is a list of tuple
         self.transient_prediction_periods = dict()
+        # the cell and frame (tuple) in which a vertical line
+        # will be draw to indicate at which transient we're looking at
+        self.last_predicted_transient_selected = None
         # checking if a prediction results are already loaded in mouse_sessions
         if self.data_and_param.ms.rnn_transients_predictions is not None:
             for cell in np.arange(self.nb_neurons):
@@ -976,6 +985,7 @@ class ManualOnsetFrame(tk.Frame):
                 cell_predictions = cell_predictions.reshape((len(cell_predictions), 1))
                 self.transient_prediction[cell] = cell_predictions
         # each key is a cell, the value is a binary array with 1 between onsets and peaks
+        # used for predictions
         self.raster_dur_for_a_cell = dict()
         # the prediction values border for which we would like the check the transients
         self.uncertain_prediction_values = (0.25, 0.65)
@@ -1013,7 +1023,7 @@ class ManualOnsetFrame(tk.Frame):
         # self.neuron_string_var = StringVar()
         entry_neuron_frame = Frame(left_side_frame)
         entry_neuron_frame.pack(side=TOP, expand=NO, fill="x")
-        self.neuron_entry_widget = Entry(entry_neuron_frame, fg="blue", justify=CENTER,
+        self.neuron_entry_widget = Entry(entry_neuron_frame, fg=self.color_text_gui_default, justify=CENTER,
                                          width=3)
         self.neuron_entry_widget.insert(0, "0")
         self.neuron_entry_widget.bind("<KeyRelease>", self.go_to_neuron_button_action)
@@ -1024,7 +1034,7 @@ class ManualOnsetFrame(tk.Frame):
 
         self.go_button = Button(entry_neuron_frame)
         self.go_button["text"] = ' GO '
-        self.go_button["fg"] = "blue"
+        self.go_button["fg"] = self.color_text_gui_default
         self.go_button["command"] = event_lambda(self.go_to_neuron_button_action)
         self.go_button.pack(side=LEFT, expand=YES, fill="x")
 
@@ -1033,7 +1043,7 @@ class ManualOnsetFrame(tk.Frame):
 
         self.prev_button = Button(change_neuron_frame)
         self.prev_button["text"] = ' <- '
-        self.prev_button["fg"] = "blue"
+        self.prev_button["fg"] = self.color_text_gui_default
         self.prev_button['state'] = DISABLED  # ''normal
         self.prev_button["command"] = event_lambda(self.select_previous_neuron)
         self.prev_button.pack(side=LEFT, expand=YES, fill="x")
@@ -1053,7 +1063,7 @@ class ManualOnsetFrame(tk.Frame):
 
         self.next_button = Button(change_neuron_frame)
         self.next_button["text"] = ' -> '
-        self.next_button["fg"] = 'blue'
+        self.next_button["fg"] = self.color_text_gui_default
         self.next_button["command"] = event_lambda(self.select_next_neuron)
         self.next_button.pack(side=LEFT, expand=YES, fill="x")
 
@@ -1190,6 +1200,34 @@ class ManualOnsetFrame(tk.Frame):
             sep = ttk.Separator(left_side_frame)
             sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
+            pred_values_frame = Frame(left_side_frame)
+            pred_values_frame.pack(side=TOP, expand=NO, fill="x")
+            empty_label = Label(pred_values_frame)
+            empty_label["text"] = ""
+            empty_label.pack(side=LEFT, expand=YES, fill=BOTH)
+
+            self.pred_value_1_entry_widget = Entry(pred_values_frame, fg=self.color_text_gui_default, justify=CENTER,
+                                             width=3)
+            self.pred_value_1_entry_widget.insert(0, f"{self.uncertain_prediction_values[0]}")
+            self.pred_value_1_entry_widget.pack(side=LEFT)
+            empty_label = Label(pred_values_frame)
+            empty_label["text"] = " - "
+            empty_label.pack(side=LEFT)
+            self.pred_value_2_entry_widget = Entry(pred_values_frame, fg=self.color_text_gui_default, justify=CENTER,
+                                                   width=3)
+            self.pred_value_2_entry_widget.insert(0, f"{self.uncertain_prediction_values[1]}")
+            self.pred_value_2_entry_widget.pack(side=LEFT)
+
+            self.ok_pred_button = Button(pred_values_frame)
+            self.ok_pred_button["text"] = ' OK '
+            self.ok_pred_button["fg"] = self.color_text_gui_default
+            self.ok_pred_button["command"] = self.update_uncertain_prediction_values
+            self.ok_pred_button.pack(side=LEFT)
+
+            empty_label = Label(pred_values_frame)
+            empty_label["text"] = ""
+            empty_label.pack(side=LEFT, expand=YES, fill=BOTH)
+
             # if predictions are available, then we display a listbox that will allow to visualize predictions
             # that are in a certain range in order to confirm their accuracy
             predictions_list_frame = Frame(left_side_frame)
@@ -1197,13 +1235,13 @@ class ManualOnsetFrame(tk.Frame):
             scrollbar = Scrollbar(predictions_list_frame)
             scrollbar.pack(side=RIGHT, fill=Y)
 
-            self.predictions_list_box = Listbox(predictions_list_frame, bd=0, selectmode=SINGLE,
+            self.predictions_list_box = Listbox(predictions_list_frame, bd=0, selectmode=BROWSE,
                                                 height=15, highlightbackground="red",
                                                 font=("Arial", 10), yscrollcommand=scrollbar.set)
-            # default height is 10
+            # default height is 10, selectmode=SINGLE
             self.predictions_list_box.bind("<Double-Button-1>", self.predictions_list_box_double_click)
 
-            # self.predictions_list_box.bind('<<ListboxSelect>>', onselect)
+            self.predictions_list_box.bind('<<ListboxSelect>>', self.predictions_list_box_click)
             # width=20
             self.predictions_list_box.pack()
 
@@ -1221,13 +1259,13 @@ class ManualOnsetFrame(tk.Frame):
         ################################################################################
         ################################ Middle frame with plot ################################
         ################################################################################
-        canvas_frame = Frame(self, padx=0, pady=0)
+        canvas_frame = Frame(self, padx=0, pady=0, bg="black")
         canvas_frame.pack(side=LEFT, expand=YES, fill=BOTH)
 
-        top_bar_canvas_frame = Frame(canvas_frame, padx=0, pady=0)
+        top_bar_canvas_frame = Frame(canvas_frame, padx=0, pady=0, bg="black")
         top_bar_canvas_frame.pack(side=TOP, expand=YES, fill=BOTH)
 
-        main_plot_frame = Frame(canvas_frame, padx=0, pady=0)
+        main_plot_frame = Frame(canvas_frame, padx=0, pady=0, bg="black")
         main_plot_frame.pack(side=TOP, expand=YES, fill=BOTH)
         self.main_plot_frame = main_plot_frame
 
@@ -1241,6 +1279,7 @@ class ManualOnsetFrame(tk.Frame):
         self.fig.patch.set_facecolor('black')
         # self.plot_canvas = MyCanvas(self.fig, canvas_frame, self)
         self.plot_canvas = FigureCanvasTkAgg(self.fig, main_plot_frame)
+        # self.plot_canvas.get_tk_widget().configure(bg="black")
         self.fig.canvas.mpl_connect('button_press_event', self.onclick)
         self.fig.canvas.mpl_connect('button_release_event', self.onrelease)
         self.fig.canvas.mpl_connect('motion_notify_event', self.motion)
@@ -1528,7 +1567,7 @@ class ManualOnsetFrame(tk.Frame):
             # from_=1, to=3
             # self.var_spin_box_threshold = StringVar(right_side_frame)
             self.spin_box_transient_classifier = Spinbox(transient_classifier_frame, values=list(np.arange(0.05, 1, 0.05)),
-                                                         fg="blue", justify=CENTER,
+                                                         fg=self.color_text_gui_default, justify=CENTER,
                                                          width=3,
                                                          state="readonly")  # , textvariable=self.var_spin_box_threshold)
             # self.var_spin_box_threshold.set(0.9)
@@ -1592,7 +1631,8 @@ class ManualOnsetFrame(tk.Frame):
 
             self.correlation_check_box.pack(side=LEFT)
 
-            self.spin_box_correlation = Spinbox(correlation_frame, values=list(np.arange(0.5, 1, 0.05)), fg="blue",
+            self.spin_box_correlation = Spinbox(correlation_frame, values=list(np.arange(0.5, 1, 0.05)),
+                                                fg=self.color_text_gui_default,
                                                 justify=CENTER,
                                                 width=3,
                                                 state="readonly")  # , textvariable=self.var_spin_box_threshold)
@@ -1624,7 +1664,8 @@ class ManualOnsetFrame(tk.Frame):
 
         # from_=1, to=3
         # self.var_spin_box_threshold = StringVar(right_side_frame)
-        self.spin_box_threshold = Spinbox(threshold_frame, values=list(np.arange(0.1, 5, 0.1)), fg="blue",
+        self.spin_box_threshold = Spinbox(threshold_frame, values=list(np.arange(0.1, 5, 0.1)),
+                                          fg=self.color_text_gui_default,
                                           justify=CENTER,
                                           width=3, state="readonly")  # , textvariable=self.var_spin_box_threshold)
         # self.var_spin_box_threshold.set(0.9)
@@ -1658,14 +1699,14 @@ class ManualOnsetFrame(tk.Frame):
 
         self.undo_button = Button(undo_frame)
         self.undo_button["text"] = ' UNDO '
-        self.undo_button["fg"] = "blue"
+        self.undo_button["fg"] = self.color_text_gui_default
         self.undo_button['state'] = DISABLED  # ''normal
         self.undo_button["command"] = event_lambda(self.undo_action)
         self.undo_button.pack(side=LEFT)
 
         self.redo_button = Button(undo_frame)
         self.redo_button["text"] = ' REDO '
-        self.redo_button["fg"] = "blue"
+        self.redo_button["fg"] = self.color_text_gui_default
         self.redo_button['state'] = DISABLED  # ''normal
         self.redo_button["command"] = event_lambda(self.redo_action)
         self.redo_button.pack(side=LEFT)
@@ -1679,14 +1720,14 @@ class ManualOnsetFrame(tk.Frame):
 
         self.save_button = Button(right_side_frame)
         self.save_button["text"] = ' SAVE '
-        self.save_button["fg"] = "blue"
+        self.save_button["fg"] = self.color_text_gui_default
         self.save_button['state'] = DISABLED  # ''normal
         self.save_button["command"] = event_lambda(self.save_spike_nums)
         self.save_button.pack(side=TOP)
 
         self.save_as_button = Button(right_side_frame)
         self.save_as_button["text"] = ' SAVE AS '
-        self.save_as_button["fg"] = "blue"
+        self.save_as_button["fg"] = self.color_text_gui_default
         self.save_as_button['state'] = "normal"
         self.save_as_button["command"] = event_lambda(self.save_as_spike_nums)
         self.save_as_button.pack(side=TOP)
@@ -1703,13 +1744,13 @@ class ManualOnsetFrame(tk.Frame):
             scrollbar = Scrollbar(predictions_list_frame)
             scrollbar.pack(side=RIGHT, fill=Y)
 
-            self.checked_predictions_list_box = Listbox(predictions_list_frame, bd=0, selectmode=SINGLE,
+            self.checked_predictions_list_box = Listbox(predictions_list_frame, bd=0, selectmode=BROWSE,
                                                 height=10, highlightbackground="red",
                                                 font=("Arial", 10), yscrollcommand=scrollbar.set)
             # default height is 10
             self.checked_predictions_list_box.bind("<Double-Button-1>", self.checked_predictions_list_box_double_click)
+            self.checked_predictions_list_box.bind('<<ListboxSelect>>', self.checked_predictions_list_box_click)
 
-            # self.checked_predictions_list_box.bind('<<ListboxSelect>>', onselect)
             # width=20
             self.checked_predictions_list_box.pack()
 
@@ -1720,10 +1761,17 @@ class ManualOnsetFrame(tk.Frame):
 
             self.save_pred_button = Button(right_side_frame)
             self.save_pred_button["text"] = ' SAVE PRED '
-            self.save_pred_button["fg"] = "blue"
+            self.save_pred_button["fg"] = self.color_text_gui_default
             self.save_pred_button['state'] = DISABLED  # ''normal
             self.save_pred_button["command"] = event_lambda(self.save_checked_predictions)
             self.save_pred_button.pack(side=TOP)
+
+            self.load_pred_button = Button(right_side_frame)
+            self.load_pred_button["text"] = ' LOAD PRED '
+            self.load_pred_button["fg"] = self.color_text_gui_default
+            self.load_pred_button['state'] = 'normal'  # ''normal
+            self.load_pred_button["command"] = event_lambda(self.load_checked_predictions)
+            self.load_pred_button.pack(side=TOP)
 
         # to vertically center the buttons
         empty_label = Label(right_side_frame)
@@ -1822,6 +1870,40 @@ class ManualOnsetFrame(tk.Frame):
     def clear_and_update_entry_neuron_widget(self):
         self.neuron_entry_widget.delete(first=0, last=END)
         self.neuron_entry_widget.insert(0, f"{self.current_neuron}")
+
+    def update_uncertain_prediction_values(self, event=None):
+        """
+        Update the widget that contain the limit of the prediction we want to look at
+        :param event:
+        :return:
+        """
+        pred_value_1 = self.pred_value_1_entry_widget.get()
+        pred_value_2 = self.pred_value_2_entry_widget.get()
+        error = False
+        try:
+            pred_value_1 = float(pred_value_1)
+            pred_value_2 = float(pred_value_2)
+        except (ValueError, TypeError) as e:
+            # error if a value that is not an int is selected
+            error = True
+        print(f"pred_value_1 {pred_value_1}, pred_value_2 {pred_value_2}")
+        if not error:
+            if pred_value_1 < 0:
+                error = True
+            if pred_value_2 > 1:
+                error = True
+            if pred_value_2 <= pred_value_1:
+                error = True
+        if error:
+            self.pred_value_1_entry_widget.delete(first=0, last=END)
+            self.pred_value_1_entry_widget.insert(0, f"{self.uncertain_prediction_values[0]}")
+
+            self.pred_value_2_entry_widget.delete(first=0, last=END)
+            self.pred_value_2_entry_widget.insert(0, f"{self.uncertain_prediction_values[1]}")
+            return
+
+        self.uncertain_prediction_values = (np.round(pred_value_1, 2), np.round(pred_value_2, 2))
+        self.update_transient_prediction_periods_to_check()
 
     def go_to_neuron_button_action(self, event=None):
         # print("go_to_neuron_button_action")
@@ -2160,7 +2242,7 @@ class ManualOnsetFrame(tk.Frame):
                     #last frame included
                     last_frame = min(self.nb_times, middle + n_frames_around) 
                     self.transient_prediction_periods_to_check.append((cell, first_frame, last_frame,
-                                                                       np.round(max_pred, 2)))
+                                                                       np.round(max_pred, 2), middle))
                     # print(f"{cell}: {period}: len(np.arange(first_frame, last_frame)) "
                     #       f"{len(np.arange(first_frame, last_frame+1))}")
         # then we update the list_box
@@ -2171,7 +2253,7 @@ class ManualOnsetFrame(tk.Frame):
         for period_index, period in enumerate(self.transient_prediction_periods_to_check):
             self.predictions_list_box.insert(END, f"{period[0]} / {period[3]} / {period[1]}-{period[2]}")
             if period in self.transient_prediction_periods_checked:
-                self.predictions_list_box.itemconfig(period_index, bg="gray")
+                self.predictions_list_box.itemconfig(period_index, bg=self.color_bg_predicted_transient_list_box)
             else:
                 self.predictions_list_box.itemconfig(period_index, bg="white")
             # self.predictions_list_box.itemconfig(period_index, fg="red")
@@ -2187,20 +2269,64 @@ class ManualOnsetFrame(tk.Frame):
 
     def checked_predictions_list_box_double_click(self, evt):
         cur_selection = evt.widget.curselection()
-        print(f"cur_selection {cur_selection}")
+        # print(f"cur_selection {cur_selection}")
         if len(cur_selection) == 0:
             return
         index_cliked = int(cur_selection[0])
         period = self.transient_prediction_periods_checked[index_cliked]
-        index_predictions_list_box = self.transient_prediction_periods_to_check.index(period)
-        self.predictions_list_box.itemconfig(index_predictions_list_box, bg="white")
+        try:
+            index_predictions_list_box = self.transient_prediction_periods_to_check.index(period)
+            self.predictions_list_box.itemconfig(index_predictions_list_box, bg="white")
+        except ValueError:
+            # it might happen if the list of transients has been updated
+            pass
         # now we removed this period from the checked periods and update the listbox
         del self.transient_prediction_periods_checked[index_cliked]
         self.update_checked_predictions_list_box()
 
+    def change_prediction_transient_to_look_at(self, period):
+        """
+        CHange the plot such as the period indicated is displaued
+        :param period: a tuple of len 4: cell, x_left, x_right, pred
+        :return:
+        """
+        new_neuron = period[0]
+        new_left_x_limit, new_right_x_limit = (period[1], period[2])
+        # set the cell and frame in which a vertical line will be draw to indicate at which transient we're looking at
+        self.last_predicted_transient_selected = (period[0], period[4])
+        frames_around = 0
+        new_left_x_limit = max(0, new_left_x_limit - frames_around)
+        new_right_x_limit = min(new_right_x_limit + frames_around, self.nb_times_traces - 1)
+
+        new_top_y_limit = np.max(self.traces[new_neuron, new_left_x_limit:new_right_x_limit + 1]) + 0.5
+        new_bottom_y_limit = np.min(self.raw_traces[new_neuron, new_left_x_limit:new_right_x_limit + 1]) - 0.5
+
+        new_x_limit = (new_left_x_limit, new_right_x_limit)
+        new_y_limit = (new_bottom_y_limit, new_top_y_limit)
+        if new_neuron == self.current_neuron:
+            self.update_plot(new_x_limit=new_x_limit, new_y_limit=new_y_limit, amplitude_zoom_fit=False)
+        else:
+            self.update_neuron(new_neuron=new_neuron,
+                               new_x_limit=new_x_limit, new_y_limit=new_y_limit, amplitude_zoom_fit=False)
+
+    def predictions_list_box_click(self, evt):
+        cur_selection = evt.widget.curselection()
+        if len(cur_selection) == 0:
+            return
+        index_cliked = int(cur_selection[0])
+        period = self.transient_prediction_periods_to_check[index_cliked]
+        self.change_prediction_transient_to_look_at(period=period)
+
+    def checked_predictions_list_box_click(self, evt):
+        cur_selection = evt.widget.curselection()
+        if len(cur_selection) == 0:
+            return
+        index_cliked = int(cur_selection[0])
+        period = self.transient_prediction_periods_checked[index_cliked]
+        self.change_prediction_transient_to_look_at(period=period)
+
     def predictions_list_box_double_click(self, evt):
         cur_selection = evt.widget.curselection()
-        print(f"pred cur_selection {cur_selection}")
         if len(cur_selection) == 0:
             return
         index_cliked = int(cur_selection[0])
@@ -2209,7 +2335,7 @@ class ManualOnsetFrame(tk.Frame):
             # it means it has already been added to checked transients
             return
         self.transient_prediction_periods_checked.append(period)
-        self.predictions_list_box.itemconfig(index_cliked, bg="gray")
+        self.predictions_list_box.itemconfig(index_cliked, bg=self.color_bg_predicted_transient_list_box)
         self.update_checked_predictions_list_box()
 
     def update_contour_for_cell(self, cell):
@@ -3621,9 +3747,101 @@ class ManualOnsetFrame(tk.Frame):
                                         format=f"{save_format}",
                                         facecolor=sources_profile_fig.get_facecolor(), edgecolor='none')
 
+    def load_checked_predictions(self):
+        options = {}
+        options['initialdir'] = "/"
+        if self.save_checked_predictions_dir is not None:
+            options['initialdir'] = self.save_checked_predictions_dir
+        options['title'] = "Choose a directory to open files"
+        options['mustexist'] = False
+        path_for_files = filedialog.askdirectory(**options)
+        if path_for_files == "":
+            return None
+        file_names_to_load = []
+        for (dirpath, dirnames, local_filenames) in os.walk(path_for_files):
+            for file_name in local_filenames:
+                if file_name.endswith(".npy") and file_name.startswith(self.data_and_param.ms.description):
+                    file_names_to_load.append(file_name)
+            break
+
+        self.save_checked_predictions_dir = path_for_files
+
+        for file_name in file_names_to_load:
+            underscores_pos = [pos for pos, char in enumerate(file_name) if char == "_"]
+            if len(underscores_pos) < 4:
+                continue
+            # the last 4 indicates how to get cell number and frames
+            middle_frame = int(file_name[underscores_pos[-1]+1:-4])
+            last_frame = int(file_name[underscores_pos[-2]+1:underscores_pos[-1]])
+            first_frame = int(file_name[underscores_pos[-3]+1:underscores_pos[-2]])
+            cell = int(file_name[underscores_pos[-4]+1:underscores_pos[-3]])
+            self.update_transient_prediction_periods_to_check()
+            predictions = self.transient_prediction[cell]
+            max_pred = np.max(predictions[max(0, middle_frame-2):min(middle_frame+2, len(predictions)+1), 0])
+            max_pred = np.round(max_pred, 2)
+            new_pred_period = (cell, first_frame, last_frame, max_pred, middle_frame)
+            raster_dur = np.load(os.path.join(path_for_files, file_name))
+            # print(f"raster_dur.shape {raster_dur.shape}")
+            periods = get_continous_time_periods(raster_dur)
+
+            # tabula rasa
+            self.onset_times[cell, first_frame:last_frame] = 0
+            self.spike_nums[cell, first_frame:last_frame] = 0
+            self.peak_nums[cell, first_frame:last_frame] = 0
+
+            for period in periods:
+                self.onset_times[cell, first_frame+period[0]] = 1
+                self.spike_nums[cell, first_frame+period[0]] = 1
+                self.peak_nums[cell, first_frame+period[1]] = 1
+
+            self.transient_prediction_periods_checked.append(new_pred_period)
+            # then we change the foreground of the predictions_list_boxs
+            if new_pred_period in self.transient_prediction_periods_checked:
+                index_predictions_list_box = self.transient_prediction_periods_to_check.index(new_pred_period)
+                self.predictions_list_box.itemconfig(index_predictions_list_box,
+                                                     bg=self.color_bg_predicted_transient_list_box)
+
+
+        self.update_checked_predictions_list_box()
+        self.update_after_onset_change()
+
     def save_checked_predictions(self):
         self.save_pred_button['state'] = DISABLED
-        return
+        options = {}
+        options['initialdir'] = "/"
+        if self.save_checked_predictions_dir is not None:
+            options['initialdir'] = self.save_checked_predictions_dir
+        options['title'] = "Choose a directory to save files"
+        options['mustexist'] = False
+        dir_name = filedialog.askdirectory(**options)
+        if dir_name == "":
+            return None
+        self.save_checked_predictions_dir = dir_name
+        # print(f"dir_name {dir_name}")
+        # then we create a npy file for each period, that will contain a binary vector, a raster_dur of 1 dimension
+        # with 1 if the cell is active at this cell
+        for period in self.transient_prediction_periods_checked:
+            cell = period[0]
+            first_frame = period[1]
+            # last frame not included
+            last_frame = period[2]
+            middle_frame = period[4]
+            file_name = self.data_and_param.ms.description + f"_{cell}_{first_frame}_{last_frame}_{middle_frame}"
+            # building the raster_dur for all the frames, to make sure we don't miss a long transient that will
+            # start or finish after the period
+            # TODO: could be optimize to look for a onsets and peaks just a few hundred frames around the period
+            raster_dur = np.zeros(self.nb_times, dtype="int8")
+            peaks_index = np.where(self.peak_nums[cell, :] > 0)[0]
+            onsets_index = np.where(self.onset_times[cell, :] > 0)[0]
+            for onset_index in onsets_index:
+                peaks_after = np.where(peaks_index > onset_index)[0]
+                if len(peaks_after) == 0:
+                    continue
+                peaks_after = peaks_index[peaks_after]
+                peak_after = peaks_after[0]
+                raster_dur[onset_index:peak_after+1] = 1
+            raster_dur = raster_dur[period[1]:period[2]]
+            np.save(file=os.path.join(dir_name, file_name), arr=raster_dur)
     
     def save_as_spike_nums(self):
         initialdir = "/"
@@ -4558,7 +4776,6 @@ class ManualOnsetFrame(tk.Frame):
         # #################### TRANSIENT CLASSIFIER VALUES ####################
 
         if self.show_transient_classifier:
-            classifier_filling_color = "forestgreen"
             if self.current_neuron in self.transient_prediction:
                 predictions = self.transient_prediction[self.current_neuron]
                 if predictions.shape[1] == 1:
@@ -4626,10 +4843,10 @@ class ManualOnsetFrame(tk.Frame):
 
                 for i_ap, active_period in enumerate(active_periods):
                     period = np.arange(active_period[0], active_period[1] + 1)
-                    min_traces = np.min(self.traces[self.current_neuron]) - 0.1
+                    min_traces = np.min(self.traces[self.current_neuron, period]) # - 0.1
                     y2 = np.repeat(min_traces, len(period))
                     self.axe_plot.fill_between(x=period, y1=self.traces[self.current_neuron, period], y2=y2,
-                                               color=classifier_filling_color)
+                                               color=self.classifier_filling_color)
 
                 # display the stat only when the threshold is changed
                 if self.print_transients_predictions_stat:
@@ -4690,7 +4907,6 @@ class ManualOnsetFrame(tk.Frame):
                                self.raw_traces_median[self.current_neuron, :],
                                color="red", alpha=0.8, zorder=9)
 
-
         if (self.raw_traces is not None) and self.display_raw_traces:
             self.axe_plot.plot(np.arange(self.nb_times_traces),
                                self.raw_traces[self.current_neuron, :],
@@ -4731,6 +4947,13 @@ class ManualOnsetFrame(tk.Frame):
 
         if self.raw_traces_binned is not None:
             min_value = min(min_value, np.min(self.raw_traces_binned[self.current_neuron, :]))
+
+        # #################### transient predicted to look at ###########
+        # used when we want to look at some specific predicted transients
+        if (self.last_predicted_transient_selected is not None) and \
+                (self.last_predicted_transient_selected[0] == self.current_neuron):
+            self.axe_plot.vlines(self.last_predicted_transient_selected[1], min_value, max_value,
+                                 color=self.color_transient_predicted_to_look_at, linewidth=1)
 
         # #################### ONSETS ####################
 
@@ -5081,7 +5304,7 @@ class ManualOnsetFrame(tk.Frame):
         # self.spin_box_button.invoke("buttonup")
 
     def update_neuron(self, new_neuron,
-                      new_x_limit=None, new_y_limit=None):
+                      new_x_limit=None, new_y_limit=None, amplitude_zoom_fit=True):
         """
         Call when the neuron number has changed
         :return:
@@ -5134,7 +5357,8 @@ class ManualOnsetFrame(tk.Frame):
         self.first_click_to_remove = None
         self.click_corr_coord = None
         self.update_plot(new_neuron=True,
-                         new_x_limit=new_x_limit, new_y_limit=new_y_limit)
+                         new_x_limit=new_x_limit, new_y_limit=new_y_limit,
+                         amplitude_zoom_fit=amplitude_zoom_fit)
         self.update_plot_map_img()
 
 
