@@ -223,8 +223,9 @@ class ChooseSessionFrame(tk.Frame):
         n_times = len(self.data_and_param.traces[0, :])
 
         if (self.data_and_param.peak_nums is None) or (self.data_and_param.spike_nums is None):
+            using_existing_spike_nums_dur = False
             # look if spike_nums_dur exists
-            if self.data_and_param.ms.spike_struct.spike_nums_dur is not None:
+            if using_existing_spike_nums_dur and (self.data_and_param.ms.spike_struct.spike_nums_dur is not None):
                 self.data_and_param.ms.spike_struct.build_spike_nums_and_peak_nums()
                 self.data_and_param.peak_nums = self.data_and_param.ms.spike_struct.peak_nums
                 self.data_and_param.spike_nums = self.data_and_param.ms.spike_struct.spike_nums
@@ -976,6 +977,13 @@ class ManualOnsetFrame(tk.Frame):
                 self.transient_prediction[cell] = cell_predictions
         # each key is a cell, the value is a binary array with 1 between onsets and peaks
         self.raster_dur_for_a_cell = dict()
+        # the prediction values border for which we would like the check the transients
+        self.uncertain_prediction_values = (0.25, 0.65)
+        # list of tuple (cell, first frame, last frame (included), max prediction)
+        self.transient_prediction_periods_to_check = []
+        # set of tuple (cell, first frame, last frame (included), max prediction)
+        self.transient_prediction_periods_checked = []
+
         # to print transient predictions stat only once
         self.print_transients_predictions_stat = False
         self.caiman_active_periods = None
@@ -1059,8 +1067,8 @@ class ManualOnsetFrame(tk.Frame):
         self.add_doubtful_frames_mode_button["text"] = ' + DOUBT OFF '
         self.add_doubtful_frames_mode_button["fg"] = 'red'
         self.add_doubtful_frames_mode_button["command"] = self.add_doubtful_frames_switch_mode
-        self.add_doubtful_frames_mode_button.pack(side=TOP, expand=NO, fill="x")
-
+        self.add_doubtful_frames_mode_button.pack(side=TOP)
+        # expand=NO, fill="x"
         # empty_label = Label(left_side_frame)
         # empty_label["text"] = " " * 1
         # empty_label.pack(side=LEFT)
@@ -1069,7 +1077,7 @@ class ManualOnsetFrame(tk.Frame):
         self.remove_doubtful_frames_button["text"] = ' - DOUBT OFF '
         self.remove_doubtful_frames_button["fg"] = 'red'
         self.remove_doubtful_frames_button["command"] = self.remove_doubtful_frames_switch_mode
-        self.remove_doubtful_frames_button.pack(side=TOP, expand=NO, fill="x")
+        self.remove_doubtful_frames_button.pack(side=TOP)
 
         sep = ttk.Separator(left_side_frame)
         sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
@@ -1078,13 +1086,13 @@ class ManualOnsetFrame(tk.Frame):
         self.add_mvt_frames_mode_button["text"] = ' + MVT OFF '
         self.add_mvt_frames_mode_button["fg"] = 'red'
         self.add_mvt_frames_mode_button["command"] = self.add_mvt_frames_switch_mode
-        self.add_mvt_frames_mode_button.pack(side=TOP, expand=NO, fill="x")
+        self.add_mvt_frames_mode_button.pack(side=TOP)
 
         self.remove_mvt_frames_button = Button(left_side_frame)
         self.remove_mvt_frames_button["text"] = ' - MVT OFF '
         self.remove_mvt_frames_button["fg"] = 'red'
         self.remove_mvt_frames_button["command"] = self.remove_mvt_frames_switch_mode
-        self.remove_mvt_frames_button.pack(side=TOP, expand=NO, fill="x")
+        self.remove_mvt_frames_button.pack(side=TOP)
 
         sep = ttk.Separator(left_side_frame)
         sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
@@ -1094,7 +1102,7 @@ class ManualOnsetFrame(tk.Frame):
         self.add_onset_button["text"] = ' + ONSET OFF '
         self.add_onset_button["fg"] = 'red'
         self.add_onset_button["command"] = self.add_onset_switch_mode
-        self.add_onset_button.pack(side=TOP, expand=NO, fill="x")
+        self.add_onset_button.pack(side=TOP)
 
         # empty_label = Label(left_side_frame)
         # empty_label["text"] = "" * 1
@@ -1108,7 +1116,7 @@ class ManualOnsetFrame(tk.Frame):
         self.remove_onset_button["text"] = ' - ONSET OFF '
         self.remove_onset_button["fg"] = 'red'
         self.remove_onset_button["command"] = self.remove_onset_switch_mode
-        self.remove_onset_button.pack(side=TOP, expand=NO, fill="x")
+        self.remove_onset_button.pack(side=TOP)
 
         sep = ttk.Separator(left_side_frame)
         sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
@@ -1117,7 +1125,7 @@ class ManualOnsetFrame(tk.Frame):
         self.add_peak_button["text"] = ' + PEAK OFF '
         self.add_peak_button["fg"] = 'red'
         self.add_peak_button["command"] = self.add_peak_switch_mode
-        self.add_peak_button.pack(side=TOP, expand=NO, fill="x")
+        self.add_peak_button.pack(side=TOP)
 
         self.peak_numbers_label = Label(left_side_frame)
         self.peak_numbers_label["text"] = f"{self.numbers_of_peak()}"
@@ -1127,7 +1135,7 @@ class ManualOnsetFrame(tk.Frame):
         self.remove_peak_button["text"] = ' - PEAK OFF '
         self.remove_peak_button["fg"] = 'red'
         self.remove_peak_button["command"] = self.remove_peak_switch_mode
-        self.remove_peak_button.pack(side=TOP, expand=NO, fill="x")
+        self.remove_peak_button.pack(side=TOP)
 
         sep = ttk.Separator(left_side_frame)
         sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
@@ -1140,15 +1148,14 @@ class ManualOnsetFrame(tk.Frame):
         self.remove_all_button["text"] = ' - ALL OFF '
         self.remove_all_button["fg"] = 'red'
         self.remove_all_button["command"] = self.remove_all_switch_mode
-        self.remove_all_button.pack(side=TOP, expand=NO, fill="x")
+        self.remove_all_button.pack(side=TOP)
 
         self.agree_button = None
         self.dont_agree_button = None
         if (self.to_agree_spike_nums is not None) and (self.to_agree_peak_nums is not None):
             if (np.sum(self.to_agree_spike_nums) > 0) or (np.sum(self.to_agree_peak_nums) > 0):
-                empty_label = Label(left_side_frame)
-                empty_label["text"] = " " * 1
-                empty_label.pack(side=TOP)
+                sep = ttk.Separator(left_side_frame)
+                sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
                 # deal with fusion over onsets & peaks over 2 different gui selections
                 self.agree_button = Button(left_side_frame)
@@ -1177,6 +1184,34 @@ class ManualOnsetFrame(tk.Frame):
                 self.dont_agree_button.pack(side=TOP)
         else:
             self.to_agree_label = None
+
+        if ((self.transient_classifier_weights_file is not None) and (self.transient_classifier_json_file is not None))\
+                or (self.data_and_param.ms.rnn_transients_predictions is not None):
+            sep = ttk.Separator(left_side_frame)
+            sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
+
+            # if predictions are available, then we display a listbox that will allow to visualize predictions
+            # that are in a certain range in order to confirm their accuracy
+            predictions_list_frame = Frame(left_side_frame)
+            predictions_list_frame.pack(side=TOP, expand=NO, fill="x")
+            scrollbar = Scrollbar(predictions_list_frame)
+            scrollbar.pack(side=RIGHT, fill=Y)
+
+            self.predictions_list_box = Listbox(predictions_list_frame, bd=0, selectmode=SINGLE,
+                                                height=15, highlightbackground="red",
+                                                font=("Arial", 10), yscrollcommand=scrollbar.set)
+            # default height is 10
+            self.predictions_list_box.bind("<Double-Button-1>", self.predictions_list_box_double_click)
+
+            # self.predictions_list_box.bind('<<ListboxSelect>>', onselect)
+            # width=20
+            self.predictions_list_box.pack()
+
+            self.update_transient_prediction_periods_to_check()
+            
+            # attach listbox to scrollbar
+            scrollbar.config(command=self.predictions_list_box.yview)
+
 
         empty_label = Label(left_side_frame)
         empty_label["text"] = ""
@@ -1476,6 +1511,10 @@ class ManualOnsetFrame(tk.Frame):
             transient_classifier_frame = Frame(right_side_frame)
             transient_classifier_frame.pack(side=TOP, expand=NO, fill=BOTH)
 
+            empty_label = Label(transient_classifier_frame)
+            empty_label["text"] = ""
+            empty_label.pack(side=LEFT, expand=YES, fill=BOTH)
+
             self.transient_classifier_var = IntVar()
             self.transient_classifier_check_box = Checkbutton(transient_classifier_frame, text="tc",
                                                               variable=self.transient_classifier_var, onvalue=1,
@@ -1496,6 +1535,10 @@ class ManualOnsetFrame(tk.Frame):
             self.spin_box_transient_classifier["command"] = event_lambda(self.spin_box_transient_classifier_update)
             # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
             self.spin_box_transient_classifier.pack(side=LEFT)
+
+            empty_label = Label(transient_classifier_frame)
+            empty_label["text"] = ""
+            empty_label.pack(side=LEFT, expand=YES, fill=BOTH)
 
         sep = ttk.Separator(right_side_frame)
         sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
@@ -1532,6 +1575,11 @@ class ManualOnsetFrame(tk.Frame):
         if self.tiff_movie is not None and self.correlation_for_each_peak_option:
             correlation_frame = Frame(right_side_frame)
             correlation_frame.pack(side=TOP, expand=NO, fill=BOTH)
+
+            empty_label = Label(correlation_frame)
+            empty_label["text"] = ""
+            empty_label.pack(side=LEFT, expand=YES, fill=BOTH)
+
             self.peaks_correlation = np.ones(self.traces.shape)
             self.peaks_correlation *= -2
 
@@ -1553,15 +1601,19 @@ class ManualOnsetFrame(tk.Frame):
             # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
             self.spin_box_correlation.pack(side=LEFT)
 
-            # empty_label = Label(right_side_frame)
-            # empty_label["text"] = " " * 1
-            # empty_label.pack(side=TOP)
+            empty_label = Label(correlation_frame)
+            empty_label["text"] = ""
+            empty_label.pack(side=LEFT, expand=YES, fill=BOTH)
 
         sep = ttk.Separator(right_side_frame)
         sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
         threshold_frame = Frame(right_side_frame)
         threshold_frame.pack(side=TOP, expand=NO, fill=BOTH)
+
+        empty_label = Label(threshold_frame)
+        empty_label["text"] = ""
+        empty_label.pack(side=LEFT, expand=YES, fill=BOTH)
 
         self.treshold_var = IntVar()
         self.threshold_check_box = Checkbutton(threshold_frame, text="std", variable=self.treshold_var, onvalue=1,
@@ -1580,6 +1632,10 @@ class ManualOnsetFrame(tk.Frame):
         # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
         self.spin_box_threshold.pack(side=LEFT)
 
+        empty_label = Label(threshold_frame)
+        empty_label["text"] = ""
+        empty_label.pack(side=LEFT, expand=YES, fill=BOTH)
+
         sep = ttk.Separator(right_side_frame)
         sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
@@ -1593,19 +1649,30 @@ class ManualOnsetFrame(tk.Frame):
         sep = ttk.Separator(right_side_frame)
         sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-        self.undo_button = Button(right_side_frame)
+        undo_frame = Frame(right_side_frame)
+        undo_frame.pack(side=TOP, expand=NO, fill=BOTH)
+
+        empty_label = Label(undo_frame)
+        empty_label["text"] = ""
+        empty_label.pack(side=LEFT, expand=YES, fill=BOTH)
+
+        self.undo_button = Button(undo_frame)
         self.undo_button["text"] = ' UNDO '
         self.undo_button["fg"] = "blue"
         self.undo_button['state'] = DISABLED  # ''normal
         self.undo_button["command"] = event_lambda(self.undo_action)
-        self.undo_button.pack(side=TOP)
+        self.undo_button.pack(side=LEFT)
 
-        self.redo_button = Button(right_side_frame)
+        self.redo_button = Button(undo_frame)
         self.redo_button["text"] = ' REDO '
         self.redo_button["fg"] = "blue"
         self.redo_button['state'] = DISABLED  # ''normal
         self.redo_button["command"] = event_lambda(self.redo_action)
-        self.redo_button.pack(side=TOP)
+        self.redo_button.pack(side=LEFT)
+
+        empty_label = Label(undo_frame)
+        empty_label["text"] = ""
+        empty_label.pack(side=LEFT, expand=YES, fill=BOTH)
 
         sep = ttk.Separator(right_side_frame)
         sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
@@ -1623,6 +1690,40 @@ class ManualOnsetFrame(tk.Frame):
         self.save_as_button['state'] = "normal"
         self.save_as_button["command"] = event_lambda(self.save_as_spike_nums)
         self.save_as_button.pack(side=TOP)
+
+        if ((self.transient_classifier_weights_file is not None) and (self.transient_classifier_json_file is not None)) \
+                or (self.data_and_param.ms.rnn_transients_predictions is not None):
+            sep = ttk.Separator(right_side_frame)
+            sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
+
+            # if predictions are available, then we display a listbox that will allow to visualize predictions
+            # that are in a certain range in order to confirm their accuracy
+            predictions_list_frame = Frame(right_side_frame)
+            predictions_list_frame.pack(side=TOP, expand=NO, fill="x")
+            scrollbar = Scrollbar(predictions_list_frame)
+            scrollbar.pack(side=RIGHT, fill=Y)
+
+            self.checked_predictions_list_box = Listbox(predictions_list_frame, bd=0, selectmode=SINGLE,
+                                                height=10, highlightbackground="red",
+                                                font=("Arial", 10), yscrollcommand=scrollbar.set)
+            # default height is 10
+            self.checked_predictions_list_box.bind("<Double-Button-1>", self.checked_predictions_list_box_double_click)
+
+            # self.checked_predictions_list_box.bind('<<ListboxSelect>>', onselect)
+            # width=20
+            self.checked_predictions_list_box.pack()
+
+            # self.update_checked_predictions_list_box()
+
+            # attach listbox to scrollbar
+            scrollbar.config(command=self.predictions_list_box.yview)
+
+            self.save_pred_button = Button(right_side_frame)
+            self.save_pred_button["text"] = ' SAVE PRED '
+            self.save_pred_button["fg"] = "blue"
+            self.save_pred_button['state'] = DISABLED  # ''normal
+            self.save_pred_button["command"] = event_lambda(self.save_checked_predictions)
+            self.save_pred_button.pack(side=TOP)
 
         # to vertically center the buttons
         empty_label = Label(right_side_frame)
@@ -2013,9 +2114,106 @@ class ManualOnsetFrame(tk.Frame):
             self.remove_mvt_frames_button["fg"] = 'red'
             self.remove_mvt_frames_button["text"] = ' - MVT OFF '
 
+    def update_transient_prediction_periods_to_check(self):
+        # checking if a prediction results are already loaded in mouse_sessions
+        # self.transient_prediction contains prediction for each cell
+        if len(self.transient_prediction) == 0:
+            return
+        # first key is an int (cell), and the value is a list of tuple representing the border of the period
+        # with prediction being uncertain
+        # list of tupe, first int is the cell index, second is the first frame of the beginning of the window, and
+        # last frame is the last frame of the window
+        self.transient_prediction_periods_to_check = []
+        for cell in np.arange(self.nb_neurons):
+            if cell not in self.transient_prediction:
+                continue
+            predictions = self.transient_prediction[cell]
+            predicted_raster_dur = np.zeros(predictions.shape[0], dtype="int8")
+            if predictions.shape[1] == 1:
+                real_transient_frames = predictions[:, 0] >= self.uncertain_prediction_values[0]
+            elif predictions.shape[1] == 3:
+                # real transient, fake ones, other (neuropil, decay etc...)
+                # keeping predictions about real transient when superior
+                # to other prediction on the same frame
+                max_pred_by_frame = np.max(predictions, axis=1)
+                real_transient_frames = np.logical_and((predictions[:, 0] >= self.uncertain_prediction_values[0]),
+                                                       (predictions[:, 0] == max_pred_by_frame))
+            elif predictions.shape[1] == 2:
+                # real transient, fake ones
+                # keeping predictions about real transient superior to the threshold
+                # and superior to other prediction on the same frame
+                max_pred_by_frame = np.max(predictions, axis=1)
+                real_transient_frames = np.logical_and((predictions[:, 0] >= self.uncertain_prediction_values[0]),
+                                                       (predictions[:, 0] == max_pred_by_frame))
+            predicted_raster_dur[real_transient_frames] = 1
+            active_periods = get_continous_time_periods(predicted_raster_dur)
+            # now we want to remove all period for whch prediction is > at self.uncertain_prediction_values[1]
+            # aka the upper threshold
+            active_periods_to_keep = []
+            # number of frames before and after the middle of the transient
+            n_frames_around = 100
+            for period in active_periods:
+                max_pred = np.max(predictions[period[0]:period[1]+1, 0])
+                if max_pred <= self.uncertain_prediction_values[1]:
+                    middle = int((period[0] + period[1]) / 2)
+                    first_frame = max(0, middle - n_frames_around)
+                    #last frame included
+                    last_frame = min(self.nb_times, middle + n_frames_around) 
+                    self.transient_prediction_periods_to_check.append((cell, first_frame, last_frame,
+                                                                       np.round(max_pred, 2)))
+                    # print(f"{cell}: {period}: len(np.arange(first_frame, last_frame)) "
+                    #       f"{len(np.arange(first_frame, last_frame+1))}")
+        # then we update the list_box
+        self.update_predictions_list_box()
+
+    def update_predictions_list_box(self):
+        self.predictions_list_box.delete('0', 'end')
+        for period_index, period in enumerate(self.transient_prediction_periods_to_check):
+            self.predictions_list_box.insert(END, f"{period[0]} / {period[3]} / {period[1]}-{period[2]}")
+            if period in self.transient_prediction_periods_checked:
+                self.predictions_list_box.itemconfig(period_index, bg="gray")
+            else:
+                self.predictions_list_box.itemconfig(period_index, bg="white")
+            # self.predictions_list_box.itemconfig(period_index, fg="red")
+
+    def update_checked_predictions_list_box(self):
+        self.checked_predictions_list_box.delete('0', 'end')
+        for period_index, period in enumerate(self.transient_prediction_periods_checked):
+            self.checked_predictions_list_box.insert(END, f"{period[0]} / {period[3]} / {period[1]}-{period[2]}")
+        if len(self.transient_prediction_periods_checked) > 0:
+            self.save_pred_button['state'] = 'normal'
+        else:
+            self.save_pred_button['state'] = DISABLED
+
+    def checked_predictions_list_box_double_click(self, evt):
+        cur_selection = evt.widget.curselection()
+        print(f"cur_selection {cur_selection}")
+        if len(cur_selection) == 0:
+            return
+        index_cliked = int(cur_selection[0])
+        period = self.transient_prediction_periods_checked[index_cliked]
+        index_predictions_list_box = self.transient_prediction_periods_to_check.index(period)
+        self.predictions_list_box.itemconfig(index_predictions_list_box, bg="white")
+        # now we removed this period from the checked periods and update the listbox
+        del self.transient_prediction_periods_checked[index_cliked]
+        self.update_checked_predictions_list_box()
+
+    def predictions_list_box_double_click(self, evt):
+        cur_selection = evt.widget.curselection()
+        print(f"pred cur_selection {cur_selection}")
+        if len(cur_selection) == 0:
+            return
+        index_cliked = int(cur_selection[0])
+        period = self.transient_prediction_periods_to_check[index_cliked]
+        if period in self.transient_prediction_periods_checked:
+            # it means it has already been added to checked transients
+            return
+        self.transient_prediction_periods_checked.append(period)
+        self.predictions_list_box.itemconfig(index_cliked, bg="gray")
+        self.update_checked_predictions_list_box()
+
     def update_contour_for_cell(self, cell):
         # used in order to have access to contour after animation
-
         # cell contour
         coord = self.data_and_param.ms.coord_obj.coord[cell]
         xy = coord.transpose()
@@ -2646,10 +2844,13 @@ class ManualOnsetFrame(tk.Frame):
     def set_transient_classifier_prediction_for_cell(self, cell):
         if cell in self.transient_prediction:
             return
+        use_data_augmentation = False
+        overlap_value = 0
         predictions = predict_transient_from_saved_model(ms=self.data_and_param.ms, cell=cell,
                                                          weights_file=self.transient_classifier_weights_file,
                                                          json_file=self.transient_classifier_json_file,
-                                                         overlap_value=0.8, use_data_augmentation=True,
+                                                         overlap_value=overlap_value,
+                                                         se_data_augmentation=use_data_augmentation,
                                                          buffer=0)
         # predictions as two dimension, first one represents the frame, the second one the prediction
         # for each class
@@ -3419,8 +3620,11 @@ class ManualOnsetFrame(tk.Frame):
                                         f'_{self.data_and_param.time_str}.{save_format}',
                                         format=f"{save_format}",
                                         facecolor=sources_profile_fig.get_facecolor(), edgecolor='none')
-            #
 
+    def save_checked_predictions(self):
+        self.save_pred_button['state'] = DISABLED
+        return
+    
     def save_as_spike_nums(self):
         initialdir = "/"
         if self.save_path is not None:

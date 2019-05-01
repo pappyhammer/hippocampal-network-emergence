@@ -3539,8 +3539,8 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
                 predictions[frame_index, class_index] = np.mean(prediction_values)
     else:
         # to flatten all but last dimensions
-        predictions = predictions.reshape((-1, predictions.shape[-1]))
-        # predictions = np.ndarray.flatten(predictions)
+        # predictions = predictions.reshape((-1, predictions.shape[-1]))
+        predictions = np.ndarray.flatten(predictions)
 
         # now we remove the extra prediction in case the number of frames was not divisible by the window length
         if (n_frames % window_len) != 0:
@@ -3691,7 +3691,6 @@ def train_model():
     go_predict_from_movie = True
 
     if go_predict_from_movie:
-        return
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
                                  "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
                                  "p13_18_10_29_a001_ms", "p8_18_10_24_a005_ms"]

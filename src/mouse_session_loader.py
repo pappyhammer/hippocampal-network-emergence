@@ -266,15 +266,17 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 p7_171012_a000_ms.\
                     load_cells_to_remove_from_txt(file_name="p7/p7_17_10_12_a000/"
                                                               "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt")
-        # else:
-        #     variables_mapping = {"predictions": "predictions"}
-        #     p7_171012_a000_ms.load_raster_dur_from_predictions(
-        #         file_name="p7/p7_17_10_12_a000/predictions/" +
-        #                   "P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat",
-        #         prediction_threshold=0.6, variables_mapping=variables_mapping)
+        else:
+            variables_mapping = {"predictions": "predictions"}
+            p7_171012_a000_ms.load_raster_dur_from_predictions(
+                file_name="p7/p7_17_10_12_a000/predictions/" +
+                          "P7_17_10_12_a000_predictions__2019_04_30.23-32-43_epoch_11_no_overlap_no_trans.mat",
+                prediction_threshold=0.5, variables_mapping=variables_mapping)
             # P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat
             # P7_17_10_12_a000_predictions_2019_03_19.08-35-56.mat
             #P7_17_10_12_a000_predictions__2019_04_24.13-18-06_GT_13_04_29_cells_2_25.mat
+            # GT, epoch 11, no trans, no overlap
+            # P7_17_10_12_a000_predictions__2019_04_30.23-32-43_epoch_11_no_overlap_no_trans.mat
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Traces.mat",

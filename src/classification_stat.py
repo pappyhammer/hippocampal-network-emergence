@@ -116,13 +116,22 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces):
     frames_stat["TN"] = tn_frames
 
     # frames_stat["TPR"] = tp_frames / (tp_frames + fn_frames)
-    frames_stat["sensitivity"] = tp_frames / (tp_frames + fn_frames)
+    if (tp_frames + fn_frames) > 0:
+        frames_stat["sensitivity"] = tp_frames / (tp_frames + fn_frames)
+    else:
+        frames_stat["sensitivity"] = 1
     frames_stat["TPR"] = frames_stat["sensitivity"]
 
-    frames_stat["specificity"] = tn_frames / (tn_frames + fp_frames)
+    if (tn_frames + fp_frames) > 0:
+        frames_stat["specificity"] = tn_frames / (tn_frames + fp_frames)
+    else:
+        frames_stat["specificity"] = 1
     frames_stat["TNR"] = frames_stat["specificity"]
 
-    frames_stat["ACC"] = (tp_frames + tn_frames) / (tp_frames + tn_frames + fp_frames + fn_frames)
+    if (tp_frames + tn_frames + fp_frames + fn_frames) > 0:
+        frames_stat["ACC"] = (tp_frames + tn_frames) / (tp_frames + tn_frames + fp_frames + fn_frames)
+    else:
+        frames_stat["ACC"] = 1
 
     if (tp_frames + fp_frames) > 0:
         frames_stat["PPV"] = tp_frames / (tp_frames + fp_frames)
@@ -160,7 +169,11 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces):
         transients_stat["TN"] = tn_transients
         transients_stat["FP"] = fp_transients
 
-    transients_stat["sensitivity"] = tp_transients / (tp_transients + fn_transients)
+    if (tp_transients + fn_transients) > 0:
+        transients_stat["sensitivity"] = tp_transients / (tp_transients + fn_transients)
+    else:
+        transients_stat["sensitivity"] = 1
+
     # print(f'transients_stat["sensitivity"] {transients_stat["sensitivity"]}')
     transients_stat["TPR"] = transients_stat["sensitivity"]
 
@@ -171,8 +184,11 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces):
             transients_stat["specificity"] = 1
         transients_stat["TNR"] = transients_stat["specificity"]
 
-        transients_stat["ACC"] = (tp_transients + tn_transients) / \
+        if (tp_transients + tn_transients + fp_transients + fn_transients) > 0:
+            transients_stat["ACC"] = (tp_transients + tn_transients) / \
                                  (tp_transients + tn_transients + fp_transients + fn_transients)
+        else:
+            transients_stat["ACC"] = 1
 
         if (tp_frames + fp_frames) > 0:
             transients_stat["PPV"] = tp_transients / (tp_transients + fp_transients)

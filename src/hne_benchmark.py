@@ -236,13 +236,19 @@ class BenchmarkRasterDur:
                 for label_index, label in enumerate(labels):
                     values_by_prediction[label_index]. \
                         append(result_dict_to_use[cell_to_display][label][stat_name])
-                if with_cells:
-                    x_pos = 0
-                    y_pos = 0
-                    fontsize = 12
-                    ax.text(x=x_pos, y=y_pos,
-                            s=f"{cell_to_display}", color="black", zorder=22,
-                            ha='center', va="center", fontsize=fontsize, fontweight='bold', zorder=10)
+                    if with_cells:
+                        # Adding jitter
+                        x_pos = 1 + label_index + np.random.random_sample() - 0.5
+                        y_pos = result_dict_to_use[cell_to_display][label][stat_name]
+                        font_size = 3
+                        ax.scatter(x_pos, y_pos,
+                                    color=colors[label_index],
+                                    marker="o",
+                                    edgecolors="white",
+                                    s=60, zorder=21)
+                        ax.text(x=x_pos, y=y_pos,
+                                s=f"{cell_to_display}", color="black", zorder=22,
+                                ha='center', va="center", fontsize=font_size, fontweight='bold')
 
             colorfull = True
             outliers = dict(markerfacecolor='white', marker='D')
@@ -250,8 +256,6 @@ class BenchmarkRasterDur:
             bplot = ax.boxplot(values_by_prediction, patch_artist=colorfull,
                                flierprops=outliers,
                                labels=labels, sym='', zorder=1)  # whis=[5, 95], sym='+'
-
-
 
             for element in ['boxes', 'whiskers', 'fliers', 'caps']:
                 plt.setp(bplot[element], color="white")
@@ -995,12 +999,22 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
             # rnn trained on 13/04/2019 23-21-27, predictions on cells 9, 10, epoch 11
             data_dict["rnn"]["file_name"] = \
                 "predictions/P12_17_11_10_a000_predictions__2019_04_24.20-23-34_GT_epoch_11.mat"
+        elif version == "GT_v1_epoch_11_no_trans":
+            # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+            # rnn trained on 13/04/2019 23-21-27, predictions on cells 9, 10, epoch 11, no transformation
+            data_dict["rnn"]["file_name"] = \
+                "predictions/P12_17_11_10_a000_predictions__2019_04_30.16-18-50_epoch_11_no_trans.mat"
+        elif version == "GT_v1_epoch_11_no_trans_over_0_5":
+            # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+            # rnn trained on 13/04/2019 23-21-27, predictions on cells 9, 10, epoch 11, no transformation, overlap 0.5
+            data_dict["rnn"]["file_name"] = \
+                "predictions/P12_17_11_10_a000_predictions__2019_04_30.17-47-58_epoch_11_no_trans_over_0_5.mat"
         elif version == "v_26_02":
             # rnn trained on 26/02/19, predictions on cells 9, 10, epoch 21
             data_dict["rnn"]["file_name"] = "predictions/P12_17_11_10_a000_predictions__2019_04_24.22-04-49_v_26_02.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.6
+        data_dict["rnn"]["prediction_threshold"] = 0.5
 
         # data_dict["last_rnn"] = dict()
         # data_dict["last_rnn"]["path"] = "p12/p12_17_11_10_a000"
@@ -1043,6 +1057,26 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["old_rnn"]["var_name"] = "spike_nums_dur_predicted"
         # data_dict["old_rnn"]["predictions"] = "predictions"
         # data_dict["old_rnn"]["prediction_threshold"] = 0.4
+
+        data_dict["max_rnn"] = dict()
+        data_dict["max_rnn"]["path"] = "p12/p12_17_11_10_a000"
+        # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+        # rnn trained on 13/04/2019 23-21-27, predictions on cells 9, 10, epoch 11
+        data_dict["max_rnn"]["file_name"] = \
+            "predictions/P12_17_11_10_a000_predictions__2019_04_24.20-23-34_GT_epoch_11.mat"
+        data_dict["max_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["max_rnn"]["predictions"] = "predictions"
+        data_dict["max_rnn"]["prediction_threshold"] = 0.5
+
+        data_dict["no_tr_rnn"] = dict()
+        data_dict["no_tr_rnn"]["path"] = "p12/p12_17_11_10_a000"
+        # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+        # rnn trained on 13/04/2019 23-21-27, predictions on cells 9, 10, epoch 11, no transformation
+        data_dict["no_tr_rnn"]["file_name"] = \
+            "predictions/P12_17_11_10_a000_predictions__2019_04_30.16-18-50_epoch_11_no_trans.mat"
+        data_dict["no_tr_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["no_tr_rnn"]["predictions"] = "predictions"
+        data_dict["no_tr_rnn"]["prediction_threshold"] = 0.5
 
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p12/p12_17_11_10_a000"
@@ -1200,9 +1234,15 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
             # rnn trained on 13/04/2019 23-21-27, predictions on cells 3, 45, epoch 11
             data_dict["rnn"]["file_name"] = \
                 "predictions/P11_17_11_24_a000_predictions__2019_04_24.20-23-34_GT_epoch_11.mat"
+        elif version == "GT_v1_epoch_11_no_trans":
+            # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+            # rnn trained on 13/04/2019 23-21-27, predictions on cells 3, 45, epoch 11 no transformations
+            data_dict["rnn"]["file_name"] = \
+                "predictions/P11_17_11_24_a000_predictions__2019_04_30.16-18-50_epoch_11_no_trans.mat"
         elif version == "v_26_02":
             # rnn trained on 26/02/19, predictions on cells 3, 45, epoch 21
             data_dict["rnn"]["file_name"] = "predictions/P11_17_11_24_a000_predictions__2019_04_24.22-04-49_v_26_02.mat"
+
 
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
@@ -1268,16 +1308,16 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_fusion_validation.mat"
         data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_GUI_transients_RD.mat"
         # data_dict["gt"]["gt_file"] = "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt"
-        # data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P7_17_10_12_a000.txt"
-        # data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.arange(117)  # np.array([2, 25])  # np.arange(118)
+        data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P7_17_10_12_a000.txt"
+        data_dict["gt"]["cnn_threshold"] = 0.5
+        data_dict["gt"]["cells"] = np.arange(117)  # np.array([2, 25])  # np.arange(117)
         # data_dict["gt"]["cells_to_remove"] = np.array([52, 75])
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p7/p7_17_10_12_a000"
         data_dict["rnn"]["trace_file_name"] = "p7_17_10_12_a000_Traces.mat"
         data_dict["rnn"]["trace_var_name"] = "C_df"
-        data_dict["rnn"]["boost_rnn"] = True
+        data_dict["rnn"]["boost_rnn"] = False
         # not of these two better than True
         # data_dict["rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_02_01.15-56-10.mat"
         # BO ?
@@ -1316,7 +1356,25 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
             # with epoch 11 (better precision and speci)
             data_dict["rnn"][
                 "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_26.22-41-0988_GT_epoch_11_117_cells.mat"
-
+        elif version == "GT_v1_epoch_11_no_trans":
+            # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+            # rnn trained on 13/04/2019 23-21-27, predictions on cells 2, 25, with epoch 11 (no trans)
+            data_dict["rnn"][
+                "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_30.16-18-50_epoch_11_no_trans.mat"
+        elif version == "GT_v1_epoch_11_no_trans_over_0_5":
+            # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+            # rnn trained on 13/04/2019 23-21-27, predictions on cells 2, 25, with epoch 11 (no trans, overlap 0.5)
+            data_dict["rnn"][
+                "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_30.17-47-58_epoch_11_no_trans_over_0_5.mat"
+            # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+            # rnn trained on 13/04/2019 23-21-27, predictions on first 117 cells with epoch 11 (no trans, overlap 0.5)
+            data_dict["rnn"][
+                "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_30.21-06-16_epoch_11_no_trans_over_0_5.mat"
+        elif version == "GT_v1_epoch_11_no_trans_no_over":
+            # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+            # rnn trained on 13/04/2019 23-21-27, predictions on first 117 cells with epoch 11 (no trans, no overlap)
+            data_dict["rnn"][
+                "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_30.23-32-43_epoch_11_no_overlap_no_trans.mat"
         elif version == "v_26_02":
             # rnn trained on 26/02/19, predictions on cells 2, 25, epoch 21
             data_dict["rnn"]["file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_24.22-04-49_v_26_02.mat"
@@ -1371,13 +1429,42 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["e_2"]["predictions"] = "predictions"
         # data_dict["e_2"]["prediction_threshold"] = 0.6
         #
-        # data_dict["last_rnn"] = dict()
-        # data_dict["last_rnn"]["path"] = "p7/p7_17_10_12_a000"
-        # # BO before
-        # data_dict["last_rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
-        # data_dict["last_rnn"]["var_name"] = "spike_nums_dur_predicted"
-        # data_dict["last_rnn"]["predictions"] = "predictions"
-        # data_dict["last_rnn"]["prediction_threshold"] = 0.4
+        data_dict["max_rnn"] = dict()
+        data_dict["max_rnn"]["path"] = "p7/p7_17_10_12_a000"
+        # BO before
+        # data_dict["old_rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
+
+        # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+        # rnn trained on 13/04/2019 23-21-27, predictions on cells 2, 25, with epoch 11 (better precision and speci)
+        data_dict["max_rnn"][
+                "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat"
+        # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+        # rnn trained on 13/04/2019 23-21-27, predictions on first 117 cells with epoch 11 (better precision and speci)
+        data_dict["max_rnn"][
+                "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_26.22-41-0988_GT_epoch_11_117_cells.mat"
+        data_dict["max_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["max_rnn"]["predictions"] = "predictions"
+        data_dict["max_rnn"]["prediction_threshold"] = 0.5
+
+        data_dict["no_tr_rnn"] = dict()
+        data_dict["no_tr_rnn"]["path"] = "p7/p7_17_10_12_a000"
+        # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+        # rnn trained on 13/04/2019 23-21-27, predictions on first 117 cells with epoch 11 (no trans, overlap 0.5)
+        data_dict["no_tr_rnn"][
+            "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_30.21-06-16_epoch_11_no_trans_over_0_5.mat"
+        data_dict["no_tr_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["no_tr_rnn"]["predictions"] = "predictions"
+        data_dict["no_tr_rnn"]["prediction_threshold"] = 0.5
+
+        # data_dict["no_tr_rnn"] = dict()
+        # data_dict["no_tr_rnn"]["path"] = "p7/p7_17_10_12_a000"
+        # # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+        # # rnn trained on 13/04/2019 23-21-27, predictions on cells 2, 25, with epoch 11 (no trans)
+        # data_dict["no_tr_rnn"][
+        #     "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_30.16-18-50_epoch_11_no_trans.mat"
+        # data_dict["no_tr_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        # data_dict["no_tr_rnn"]["predictions"] = "predictions"
+        # data_dict["no_tr_rnn"]["prediction_threshold"] = 0.5
 
         # data_dict["caiman_jd"] = dict()
         # data_dict["caiman_jd"]["path"] = "p7/p7_17_10_12_a000"
@@ -1449,25 +1536,54 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
             # epoch 11
             data_dict["rnn"][
                 "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_04_24.20-23-34_GT_epoch_11.mat"
+        elif version == "GT_v1_epoch_11_no_trans":
+            # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+            # rnn trained on 13/04/2019 23-21-27, predictions on cells 0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321
+            # epoch 11, no trans
+            data_dict["rnn"][
+                "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_04_30.16-18-50_epoch_11_no_trans.mat"
+        elif version == "GT_v1_epoch_11_no_trans_over_0_5":
+            # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+            # rnn trained on 13/04/2019 23-21-27, predictions on cells 0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321
+            # epoch 11, no trans, overlap 0.5
+            data_dict["rnn"][
+                "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_04_30.17-47-58_epoch_11_no_trans_over_0_5.mat"
         elif version == "v_26_02":
             # rnn trained on 26/02/19, predictions on cells 2, 25, epoch 21
             data_dict["rnn"]["file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_04_24.22-04-49_v_26_02.mat"
 
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.6
+        data_dict["rnn"]["prediction_threshold"] = 0.5
 
-        # data_dict["old_rnn"] = dict()
-        # data_dict["old_rnn"]["path"] = "p8/p8_18_10_24_a005"
-        # # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
-        # # trained on 16/02/2019 11:21:11
+        data_dict["max_rnn"] = dict()
+        data_dict["max_rnn"]["path"] = "p8/p8_18_10_24_a005"
+        # ## trained on p12 0,3 cell, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 16/02/2019 11:21:11
         # data_dict["old_rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_16.15-43-26.mat"
-        # # ## trained on 4 sessions, 13 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
-        # # trained on 21/02/2019 00-47-30 with bin et al. version + atttention before
+        # ## trained on 4 sessions, 13 cells, with 3 inputs (cell masked + cells masked + neuropil mask),
+        # trained on 21/02/2019 00-47-30 with bin et al. version + atttention before
         # data_dict["old_rnn"]["file_name"] = "P8_18_10_24_a005_predictions_2019_02_21.19-07-23.mat"
-        # data_dict["old_rnn"]["var_name"] = "spike_nums_dur_predicted"
-        # data_dict["old_rnn"]["predictions"] = "predictions"
-        # data_dict["old_rnn"]["prediction_threshold"] = 0.5
+        # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+        # rnn trained on 13/04/2019 23-21-27, predictions on cells 0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321
+        # epoch 11
+        data_dict["max_rnn"][
+            "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_04_24.20-23-34_GT_epoch_11.mat"
+        data_dict["max_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["max_rnn"]["predictions"] = "predictions"
+        data_dict["max_rnn"]["prediction_threshold"] = 0.5
+
+        data_dict["no_tr_rnn"] = dict()
+        data_dict["no_tr_rnn"]["path"] = "p8/p8_18_10_24_a005"
+        # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+        # rnn trained on 13/04/2019 23-21-27, predictions on cells 0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321
+        # epoch 11, no trans
+        data_dict["no_tr_rnn"][
+            "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_04_30.16-18-50_epoch_11_no_trans.mat"
+        data_dict["no_tr_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["no_tr_rnn"]["predictions"] = "predictions"
+        data_dict["no_tr_rnn"]["prediction_threshold"] = 0.5
+
 
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p8/p8_18_10_24_a005"
@@ -1575,8 +1691,9 @@ def main_benchmark():
     description = ""
     for ms_to_benchmark in ms_to_benchmarks:
         data_dict = dict()
-        # GT_v1_epoch_11, GT_v1_epoch_17, v_26_02
-        load_data_dict(ms_to_benchmark, data_dict, version="GT_v1_epoch_11")
+        # GT_v1_epoch_11, GT_v1_epoch_17, v_26_02, GT_v1_epoch_11_no_trans, GT_v1_epoch_11_no_trans_over_0_5,
+        # GT_v1_epoch_11_no_trans_no_over
+        load_data_dict(ms_to_benchmark, data_dict, version="GT_v1_epoch_11_no_trans_no_over")
         # ground truth
         data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gui_file"]))
         peak_nums = data_file['LocPeakMatrix_Python'].astype(int)
@@ -1591,6 +1708,8 @@ def main_benchmark():
         n_cells = ground_truth_raster_dur.shape[0]
         n_frames = ground_truth_raster_dur.shape[1]
 
+        cells_for_benchmark = data_dict["gt"]["cells"]
+
         using_gt_cell_classifier = False
         cells_false_gt = []
         if using_gt_cell_classifier and (path_data, "gt_file" in data_dict["gt"]):
@@ -1601,8 +1720,7 @@ def main_benchmark():
                     cells_list = [float(i) for i in line_list]
                     cells_false_gt.extend(cells_list)
             cells_false_gt = np.array(cells_false_gt).astype(int)
-
-        cells_for_benchmark = data_dict["gt"]["cells"]
+            cells_for_benchmark = np.setdiff1d(cells_for_benchmark, cells_false_gt)
 
         if "cnn" in data_dict["gt"]:
             cell_cnn_predictions = []
@@ -1778,12 +1896,12 @@ def main_benchmark():
             description += f"_thr_{threshold_value}_"
         else:
             description += "_"
-
-    global_benchmarks.compute_stats()
-    global_benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
-                                       for_frames=True, save_formats="pdf")
-    global_benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
-                                       for_frames=False, save_formats="pdf")
+    if len(ms_to_benchmarks) > 1:
+        global_benchmarks.compute_stats()
+        global_benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
+                                           for_frames=True, save_formats="pdf")
+        global_benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
+                                           for_frames=False, save_formats="pdf")
     # benchmarks.plot_boxplots_for_transients_stat(description=description, time_str=time_str,
     #                                              path_results=path_results,
     #                                              save_formats="pdf")
