@@ -698,6 +698,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                        from_gui=True)
                 # p8_18_10_24_a005_GUI_Transiant MP.mat
                 p8_18_10_24_a005_ms.build_spike_nums_dur()
+            else:
+                variables_mapping = {"predictions": "predictions"}
+                p8_18_10_24_a005_ms.load_raster_dur_from_predictions(
+                    file_name="p8/p8_18_10_24_a005/predictions/" +
+                              "P8_18_10_24_a005_predictions__2019_05_02.12-55-41_GT_epoch_11_no_trans_no_over_all_cells.mat",
+                    prediction_threshold=0.5, variables_mapping=variables_mapping)
 
             if load_traces:
                 variables_mapping = {"traces": "C_df"}
@@ -710,6 +716,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             variables_mapping = {"coord": "ContoursAll"}
             p8_18_10_24_a005_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_CellDetect.mat",
                                                     variables_mapping=variables_mapping)
+
         if load_abf:
             p8_18_10_24_a005_ms.load_abf_file(abf_file_name="p8/p8_18_10_24_a005/p8_18_10_24_a005.abf",
                                               threshold_piezo=0.5)  # used to be 0.4
@@ -1037,6 +1044,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                     variables_mapping=variables_mapping,
                                                     from_gui=True)
             p11_17_11_24_a000_ms.build_spike_nums_dur()
+        else:
+            variables_mapping = {"predictions": "predictions"}
+            p11_17_11_24_a000_ms.load_raster_dur_from_predictions(
+                file_name="p11/p11_17_11_24_a000/predictions/" +
+                          "P11_17_11_24_a000_predictions__2019_05_03.17-19-11_GT_epoch_11_no_trans_no_over.mat",
+                prediction_threshold=0.5, variables_mapping=variables_mapping)
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p11_17_11_24_a000_ms.load_data_from_file(
@@ -1163,9 +1176,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 # prediction GT epoch 11
                 p12_171110_a000_ms.load_raster_dur_from_predictions(
                     file_name="p12/p12_17_11_10_a000/predictions/" +
-                              "P12_17_11_10_a000_predictions__2019_04_24.20-23-34_GT_epoch_11.mat",
+                              "P12_17_11_10_a000_predictions__2019_05_02.14-57-14_GT_epoch11_no_trans_no_over_all_cells.mat",
                     prediction_threshold=0.5, variables_mapping=variables_mapping)
-
+                # ""P12_17_11_10_a000_predictions__2019_04_24.20-23-34_GT_epoch_11.mat""
                 # if p12_171110_a000_ms.cell_cnn_predictions is not None:
                 #     print(f"Using cnn predictions from {p12_171110_a000_ms.description}")
                 #     # not taking into consideration cells that are not predicted as true from the cell classifier

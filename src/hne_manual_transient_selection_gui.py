@@ -1192,6 +1192,8 @@ class ManualOnsetFrame(tk.Frame):
                 self.dont_agree_button["fg"] = 'red'
                 self.dont_agree_button["command"] = self.dont_agree_switch_mode
                 self.dont_agree_button.pack(side=TOP)
+            else:
+                self.to_agree_label = None
         else:
             self.to_agree_label = None
 
@@ -2976,7 +2978,7 @@ class ManualOnsetFrame(tk.Frame):
                                                          weights_file=self.transient_classifier_weights_file,
                                                          json_file=self.transient_classifier_json_file,
                                                          overlap_value=overlap_value,
-                                                         se_data_augmentation=use_data_augmentation,
+                                                         use_data_augmentation=use_data_augmentation,
                                                          buffer=0)
         # predictions as two dimension, first one represents the frame, the second one the prediction
         # for each class
@@ -4778,6 +4780,7 @@ class ManualOnsetFrame(tk.Frame):
         if self.show_transient_classifier:
             if self.current_neuron in self.transient_prediction:
                 predictions = self.transient_prediction[self.current_neuron]
+                # TODO: if prediction from the GUI, make sure prediction as a shape of at least 2 dimensions
                 if predictions.shape[1] == 1:
                     predictions_color = "red"
                 else:
@@ -4790,6 +4793,8 @@ class ManualOnsetFrame(tk.Frame):
                 self.axe_plot.hlines(threshold_tc / 2, 0, self.nb_times_traces - 1, color="red",
                                      linewidth=0.5,
                                      linestyles="dashed")
+                self.axe_plot.hlines(1 / 2, 0, self.nb_times_traces - 1, color="red",
+                                     linewidth=0.5)
                 if threshold_tc not in self.transient_prediction_periods[self.current_neuron]:
                     predicted_raster_dur = np.zeros(predictions.shape[0], dtype="int8")
                     if predictions.shape[1] == 1:
