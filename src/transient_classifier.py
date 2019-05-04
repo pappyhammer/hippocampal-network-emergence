@@ -31,6 +31,7 @@ import platform
 import tifffile
 from pattern_discovery.tools.signal import smooth_convolve
 from tensorflow.python.client import device_lib
+
 device_lib.list_local_devices()
 
 print(f"sys.maxsize {sys.maxsize}, platform.architecture {platform.architecture()}")
@@ -599,10 +600,13 @@ class StratificationCamembert:
                                 sorted_index = 0
                                 while n_fake_removed < n_fake_to_delete:
                                     index_data_list = self.full_transient_sorted_amplitude["fake"][sorted_index]
-                                    indices_to_remove.append(index_data_list)
                                     movie_data = self.data_list[index_data_list]
+                                    if movie_data.to_keep_absolutely:
+                                        print("while n_fake_removed < n_fake_to_delete: movie_data.to_keep_absolutely")
+                                        sorted_index += 1
+                                        continue
+                                    indices_to_remove.append(index_data_list)
                                     n_fake_removed += (1 + movie_data.n_augmentations_to_perform)
-                                    sorted_index += 1
 
                                 for index_data_list, movie_data in enumerate(self.data_list):
                                     if index_data_list in indices_to_remove:
@@ -611,6 +615,10 @@ class StratificationCamembert:
                             else:
                                 n_fake_removed = 0
                                 for movie_data in self.data_list:
+                                    if movie_data.to_keep_absolutely:
+                                        print("removing fake: movie_data.to_keep_absolutely")
+                                        new_data_list.append(movie_data)
+                                        continue
                                     movie_info = movie_data.movie_info
                                     if "n_transient" in movie_info:
                                         new_data_list.append(movie_data)
@@ -702,7 +710,7 @@ class StratificationCamembert:
             new_data_list = []
             for movie_data in self.data_list:
                 movie_info = movie_data.movie_info
-                if "only_neuropil" in movie_info:
+                if ("only_neuropil" in movie_info) and (not movie_data.to_keep_absolutely):
                     continue
                 new_data_list.append(movie_data)
             self.data_list = new_data_list
@@ -723,7 +731,8 @@ class StratificationCamembert:
                         new_data_list = []
                         for movie_data in self.data_list:
                             movie_info = movie_data.movie_info
-                            if ("only_neuropil" in movie_info) and (n_neuropils_removed < n_neuropils_to_remove):
+                            if ("only_neuropil" in movie_info) and (n_neuropils_removed < n_neuropils_to_remove) and \
+                                    (not movie_data.to_keep_absolutely):
                                 n_neuropils_removed += 1 + movie_data.n_augmentations_to_perform
                             else:
                                 new_data_list.append(movie_data)
@@ -785,6 +794,10 @@ class StratificationCamembert:
             new_data_list = []
             for movie_data in self.data_list:
                 movie_info = movie_data.movie_info
+                if movie_data.to_keep_absolutely:
+                    print("non_crop_ratio_balance[0] == 0: movie_data.to_keep_absolutely")
+                    new_data_list.append(movie_data)
+                    continue
                 if (which_ones == "fake") and ("n_fake_transient" in movie_info) \
                         and ("n_transient" not in movie_info) and ("n_cropped_transient" not in movie_info):
                     if movie_info["n_fake_transient"] == 1:
@@ -802,6 +815,10 @@ class StratificationCamembert:
             new_data_list = []
             for movie_data in self.data_list:
                 movie_info = movie_data.movie_info
+                if movie_data.to_keep_absolutely:
+                    print("non_crop_ratio_balance[1] == 0: movie_data.to_keep_absolutely")
+                    new_data_list.append(movie_data)
+                    continue
                 if (which_ones == "fake") and ("n_fake_transient" in movie_info) \
                         and ("n_transient" not in movie_info) and ("n_cropped_transient" not in movie_info):
                     if movie_info["n_fake_transient"] > 1:
@@ -851,6 +868,10 @@ class StratificationCamembert:
                         new_data_list = []
                         for movie_data in self.data_list:
                             movie_info = movie_data.movie_info
+                            if movie_data.to_keep_absolutely:
+                                print(" too much full 2p transient: movie_data.to_keep_absolutely")
+                                new_data_list.append(movie_data)
+                                continue
                             if "n_transient" in movie_info:
                                 new_data_list.append(movie_data)
                                 continue
@@ -923,6 +944,10 @@ class StratificationCamembert:
             new_data_list = []
             for movie_data in self.data_list:
                 movie_info = movie_data.movie_info
+                if movie_data.to_keep_absolutely:
+                    print("crop_non_crop_ratio_balance[0] == 0: movie_data.to_keep_absolutely")
+                    new_data_list.append(movie_data)
+                    continue
                 if (which_ones == "fake") and ("n_fake_transient" in movie_info) \
                         and ("n_transient" not in movie_info) and ("n_cropped_transient" not in movie_info):
                     continue
@@ -939,6 +964,10 @@ class StratificationCamembert:
             new_data_list = []
             for movie_data in self.data_list:
                 movie_info = movie_data.movie_info
+                if movie_data.to_keep_absolutely:
+                    print("crop_non_crop_ratio_balance[1] == 0 == 0: movie_data.to_keep_absolutely")
+                    new_data_list.append(movie_data)
+                    continue
                 if (which_ones == "fake") and ("n_cropped_fake_transient" in movie_info) \
                         and ("n_transient" not in movie_info) and ("n_cropped_transient" not in movie_info):
                     continue
@@ -994,6 +1023,10 @@ class StratificationCamembert:
                         n_cropped_removed = 0
                         new_data_list = []
                         for movie_data in self.data_list:
+                            if movie_data.to_keep_absolutely:
+                                print("to many cropped one: movie_data.to_keep_absolutely")
+                                new_data_list.append(movie_data)
+                                continue
                             movie_info = movie_data.movie_info
                             if "n_transient" in movie_info:
                                 new_data_list.append(movie_data)
@@ -1136,7 +1169,7 @@ class MoviePatchData:
 
     def __init__(self, ms, cell, index_movie, max_n_transformations,
                  encoded_frames, decoding_frame_dict,
-                 window_len, with_info=False):
+                 window_len, with_info=False, to_keep_absolutely=False):
         # max_n_transformationsmax number of transofrmations to a movie patch
         # if the number of available function to transform is lower, the lower one would be kept
         self.manual_max_transformation = max_n_transformations
@@ -1148,9 +1181,15 @@ class MoviePatchData:
         self.window_len = window_len
         # weight to apply, use by the model to produce the loss function result
         self.weight = 1
+        # means it's an import movie patch and that it should not be deleted during stratification
+        # also it would have a minimum number of transformation
+        self.to_keep_absolutely = to_keep_absolutely
         # number of transformation to perform on this movie, information to use if with_info == True
         # otherwise it means the object will be transform with the self.data_augmentation_fct
-        self.n_augmentations_to_perform = 0
+        if self.to_keep_absolutely:
+            self.n_augmentations_to_perform = 3
+        else:
+            self.n_augmentations_to_perform = 0
 
         # used if a movie_data has been copied
         self.data_augmentation_fct = None
@@ -2452,8 +2491,10 @@ def get_source_profile_frames(ms, frames, coords):
 
 
 def find_all_onsets_and_peaks_on_traces(ms, cell, threshold_factor=0.5):
+    print(f"find_all_onsets_and_peaks_on_traces ms.description {ms.description}, cell {cell}")
     # trace = ms.traces[cell]
     trace = ms.smooth_traces[cell]
+    # print(f"trace {trace.shape}, np.mean(trace) {np.mean(trace)}")
     n_frames = trace.shape[0]
     peak_nums = np.zeros(n_frames, dtype="int8")
     peaks, properties = signal.find_peaks(x=trace, distance=2)
@@ -2487,7 +2528,8 @@ def find_all_onsets_and_peaks_on_traces(ms, cell, threshold_factor=0.5):
             onset_to_remove = onsets_index[onsets_before[-1]]
             onsets_detected.append(onset_to_remove)
     # print(f"onsets_detected {onsets_detected}")
-    spike_nums[np.array(onsets_detected)] = 0
+    if len(onsets_detected) > 0:
+        spike_nums[np.array(onsets_detected)] = 0
 
     # now we construct the spike_nums_dur
     spike_nums_dur = np.zeros(n_frames, dtype="int8")
@@ -2615,6 +2657,60 @@ def load_data_for_prediction(ms, cell, sliding_window_len, overlap_value, augmen
     return movie_patch_data, data_frame_indices
 
 
+def add_segment_of_cells_for_training(param,
+                                      ms_to_use,
+                                      cell_to_load_by_ms, n_frames=12500):
+    cells_segments_by_session = dict()
+    raster_dur_by_cells_and_session = dict()
+
+    dir_to_load = []
+    dir_to_load.append(os.path.join(param.path_data + "p7" + "p7_17_10_12_a000" + "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data + "p8" + "p8_18_10_24_a005" + "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data + "p11" + "p11_17_11_24_a000" + "transients_to_add_for_rnn"))
+
+    file_names_to_load = []
+    dir_of_files = []
+    for directory in dir_to_load:
+        for (dirpath, dirnames, local_filenames) in os.walk(directory):
+            for file_name in local_filenames:
+                if file_name.endswith(".npy"):
+                    file_names_to_load.append(file_name)
+                    dir_of_files.append(directory)
+            break
+
+    for file_index, file_name in enumerate(file_names_to_load):
+        underscores_pos = [pos for pos, char in enumerate(file_name) if char == "_"]
+        if len(underscores_pos) < 4:
+            continue
+        # the last 4 indicates how to get cell number and frames
+        # middle_frame = int(file_name[underscores_pos[-1] + 1:-4])
+        last_frame = int(file_name[underscores_pos[-2] + 1:underscores_pos[-1]])
+        first_frame = int(file_name[underscores_pos[-3] + 1:underscores_pos[-2]])
+        cell = int(file_name[underscores_pos[-4] + 1:underscores_pos[-3]])
+        ms_str = file_name[:underscores_pos[-4]]
+
+        if ms_str not in ms_to_use:
+            ms_to_use.append(ms_str)
+            cell_to_load_by_ms[ms_str] = np.array([cell])
+        else:
+            cell_to_load_by_ms[ms_str] = np.concatenate((cell_to_load_by_ms[ms_str], np.array([cell])))
+
+        if ms_str not in cells_segments_by_session:
+            cells_segments_by_session[ms_str] = dict()
+        if cell not in cells_segments_by_session[ms_str]:
+            cells_segments_by_session[ms_str][cell] = []
+        cells_segments_by_session[ms_str][cell].append((first_frame, last_frame))
+
+        segment_raster_dur = np.load(os.path.join(dir_of_files[file_index], file_name))
+        if ms_str not in raster_dur_by_cells_and_session:
+            raster_dur_by_cells_and_session[ms_str] = dict()
+        if cell not in raster_dur_by_cells_and_session[ms_str]:
+            raster_dur_by_cells_and_session[ms_str][cell] = np.zeros(n_frames, dtype="int8")
+        raster_dur_by_cells_and_session[ms_str][cell][first_frame:last_frame] = segment_raster_dur
+
+    return cells_segments_by_session, raster_dur_by_cells_and_session
+
+
 def load_data_for_generator(param, split_values, sliding_window_len, overlap_value,
                             tiffs_for_transient_classifier_path,
                             max_n_transformations, loading_movie=False,
@@ -2655,6 +2751,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     ms_to_remove_from_test = []
     # data not used for validation
     ms_to_remove_from_validation = []
+    cells_segments_by_session = None
+    raster_dur_by_cells_and_session = None
 
     if load_them_all:
         ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p9_18_09_27_a003_ms", "p11_17_11_24_a000_ms",
@@ -2693,16 +2791,30 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     elif use_triple_blinded_data:
         ms_to_remove_from_test.append("artificial_ms_1")
         ms_to_remove_from_validation.append("artificial_ms_1")
-        ms_to_use = ["artificial_ms_1", "p7_171012_a000_ms", "p8_18_10_24_a006_ms",
+        ms_to_remove_from_test.append("artificial_ms_2")
+        ms_to_remove_from_validation.append("artificial_ms_2")
+        ms_to_remove_from_test.append("artificial_ms_3")
+        # ms_to_remove_from_validation.append("artificial_ms_3")
+        ms_to_use = ["artificial_ms_1", "artificial_ms_2", "artificial_ms_3", "p7_171012_a000_ms",
+                     "p8_18_10_24_a006_ms",
                      "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
                      "p13_18_10_29_a001_ms"]
         cell_to_load_by_ms = {"artificial_ms_1":
-                               np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
+                                  np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
+                              "artificial_ms_2":
+                                  np.array([0, 9, 18, 26, 34, 41, 46, 56, 62, 77, 88, 101, 116, 127, 140, 150]),
+                              "artificial_ms_3":
+                                  np.array([0, 11, 27, 37, 48, 55, 65, 78, 87, 95, 103, 112, 117, 128, 136, 144]),
                               "p7_171012_a000_ms": np.array([3, 8, 11, 12, 14, 17, 18, 24]),
                               "p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
                               "p11_17_11_24_a000_ms": np.array([17, 22, 24, 25, 29, 30, 33]),
                               "p12_171110_a000_ms": np.array([0, 3, 6, 7, 12, 14, 15, 19]),
                               "p13_18_10_29_a001_ms": np.array([0, 2, 5, 12, 13, 31, 42, 44, 48, 51])}
+
+        cells_segments_by_session, raster_dur_by_cells_and_session = \
+            add_segment_of_cells_for_training(param,
+                                              ms_to_use,
+                                              cell_to_load_by_ms)
 
         """
         cells for validation (from triple blind data)
@@ -2734,6 +2846,18 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                                             load_traces=True, load_abf=False,
                                             for_transient_classifier=True)
 
+    if raster_dur_by_cells_and_session is not None:
+        for ms_str, raster_dict in raster_dur_by_cells_and_session.items():
+            ms = ms_str_to_ms_dict[ms_str]
+            # modifying the raster for the cell segments
+            # important a cell is either composed of segments or all the frames are included
+            for cell, raster in raster_dict.items():
+                print(f"New raster for cell {cell} of {ms_str}")
+                ms.spike_struct.spike_nums_dur[cell] = raster
+            # reconstructing onsets and peaks then
+            ms.spike_struct.build_spike_nums_and_peak_nums()
+
+
     total_n_cells = 0
     # n_movies = 0
 
@@ -2744,6 +2868,10 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     test_movie_descr = []
 
     n_transients_available = 0
+    if cells_segments_by_session is None:
+        updated_cells_segments_by_session = None
+    else:
+        updated_cells_segments_by_session = dict()
 
     # filtering the cells, to keep only the one not removed or with a good source profile according to cell classifier
     for ms_str in ms_to_use:
@@ -2764,7 +2892,18 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
             cells_to_load = np.setdiff1d(cells_to_load, cells_predicted_as_false)
 
         # if cells have been removed we need to updated indices that were given
-        cells_to_load, oringal_cell_indices_mapping = ms.get_new_cell_indices_if_cells_removed(np.array(cells_to_load))
+        cells_to_load, original_cell_indices_mapping = ms.get_new_cell_indices_if_cells_removed(np.array(cells_to_load))
+        # updating cells_segments_by_session with new cell indices
+        if cells_segments_by_session is not None:
+            if ms_str in cells_segments_by_session:
+                for cell, segments in cells_segments_by_session[ms_str]:
+                    if cell in original_cell_indices_mapping:
+                        index_cell = np.where(original_cell_indices_mapping == cell)[0]
+                        new_cell = cells_to_load[index_cell]
+                        print(f"cells_segments_by_session: cell {cell} -> {new_cell}")
+                        if ms_str not in updated_cells_segments_by_session:
+                            updated_cells_segments_by_session[ms_str] = dict()
+                        updated_cells_segments_by_session[ms_str][new_cell] = segments
 
         total_n_cells += len(cells_to_load)
         cell_to_load_by_ms[ms_str] = cells_to_load
@@ -2790,6 +2929,9 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                 movie_loaded = load_movie(ms)
                 if not movie_loaded:
                     raise Exception(f"could not load movie of ms {ms.description}")
+
+    # version with new indices if they have changed due to removed cells
+    cells_segments_by_session = updated_cells_segments_by_session
 
     if load_them_all:
         print(f"n_sessions {len(ms_to_use)}")
@@ -2824,22 +2966,33 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
             ms_split_values[0] += ms_split_values[2]
         if skip_validation_part:
             ms_split_values[0] += ms_split_values[1]
+        # in case it would be more than one due to float approximation
+        ms_split_values[0] = min(1, ms_split_values[0])
 
         for cell in cell_to_load_by_ms[ms_str]:
             index_so_far = 0
             encoded_frames, decoding_frame_dict = cell_encoding(ms=ms, cell=cell)
+            segments = None
+            if cells_segments_by_session is not None:
+                if ms_str in cells_segments_by_session:
+                    if cell in cells_segments_by_session[ms_str]:
+                        # segments is then a list of tuple representing the first and last frame (not included) of each
+                        # segement
+                        segments = cells_segments_by_session[ms_str][segments]
             for split_index in split_order:
                 if split_index > 0:
                     # then we create validation and test dataset with no data transformation
                     frames_step = sliding_window_len
                     if split_index == 1:
-                        if skip_validation_part:
+                        if skip_validation_part or (segments is not None):
                             # we don't put frames from this session in the validation section
+                            # neither the one from segments
                             continue
                         data_list_to_fill = valid_data
                     else:
-                        if skip_test_part:
+                        if skip_test_part or (segments is not None):
                             # we don't put frames from this session in the test section
+                            # neither the one from segments
                             continue
                         data_list_to_fill = test_data
                 else:
@@ -2856,25 +3009,40 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                         raise Exception(f"Only the validation or test data can be empty")
                     continue
 
-                start_index = index_so_far
-                end_index = start_index + int(n_frames * ms_split_values[split_index])
-                index_so_far = end_index
+                if segments is None:
+                    final_segments = [(0, n_frames)]
+                else:
+                    final_segments = segments
 
-                indices_movies = np.arange(start_index, end_index, frames_step)
-                for i, index_movie in enumerate(indices_movies):
-                    break_it = False
-                    first_frame = index_movie
-                    if (index_movie + sliding_window_len) == n_frames:
-                        break_it = True
-                    elif (index_movie + sliding_window_len) > n_frames:
-                        # in case the number of frames is not divisible by sliding_window_len
-                        first_frame = n_frames - sliding_window_len
-                        break_it = True
-                    # if some frames have been marked as doubtful, we remove then of the training dataset
-                    if (ms.doubtful_frames_nums is not None) and \
-                            (np.sum(ms.doubtful_frames_nums[cell,
-                                                            np.arange(first_frame,
-                                                                      first_frame + sliding_window_len)]) == 0):
+                for segment in final_segments:
+                    if segments is None:
+                        start_index = index_so_far
+                        end_index = start_index + int(n_frames * ms_split_values[split_index])
+                        index_so_far = end_index
+                        n_frames_for_loop = n_frames
+
+                    else:
+                        start_index = segment[0]
+                        end_index = segment[1]
+                        n_frames_for_loop = end_index
+
+                    indices_movies = np.arange(start_index, end_index, frames_step)
+
+                    for i, index_movie in enumerate(indices_movies):
+                        break_it = False
+                        first_frame = index_movie
+                        if (index_movie + sliding_window_len) == n_frames_for_loop:
+                            break_it = True
+                        elif (index_movie + sliding_window_len) > n_frames_for_loop:
+                            # in case the number of frames is not divisible by sliding_window_len
+                            first_frame = end_index - sliding_window_len
+                            break_it = True
+                        # if some frames have been marked as doubtful, we remove them of the training dataset
+                        if (ms.doubtful_frames_nums is not None) and (segments is not None):
+                            if (np.sum(ms.doubtful_frames_nums[cell,
+                                                                np.arange(first_frame,
+                                                                          first_frame + sliding_window_len)]) > 0):
+                                continue
                         movie_data = MoviePatchData(ms=ms, cell=cell, index_movie=first_frame,
                                                     window_len=sliding_window_len,
                                                     max_n_transformations=max_n_transformations,
@@ -2884,13 +3052,13 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                         if split_index == 2:
                             test_movie_descr.append(f"{ms.description}_cell_{cell}_first_frame_{first_frame}")
                         movie_count += 1
-                    # else:
-                    #     if ms.doubtful_frames_nums is not None:
-                    #         print(f"doubtful frames in {ms.description}, cell {cell}, first_frame {first_frame}, "
-                    #               f"sliding_window_len {sliding_window_len}")
+                        # else:
+                        #     if ms.doubtful_frames_nums is not None:
+                        #         print(f"doubtful frames in {ms.description}, cell {cell}, first_frame {first_frame}, "
+                        #               f"sliding_window_len {sliding_window_len}")
 
-                    if break_it:
-                        break
+                        if break_it:
+                            break
 
     print(f"movie_count {movie_count}")
 
@@ -3327,7 +3495,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
         print(f"n_cells {n_cells}")
         # if cells have been removed we need to updated indices that were given
         # raise Exception("TITI")
-        if cells_to_predict is None:
+        if cells_to_predict[ms_str] is None:
             cells_to_load = np.arange(n_cells)
         else:
             cells_to_load = np.array(cells_to_predict[ms_str])
@@ -3544,6 +3712,7 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
 
         # now we remove the extra prediction in case the number of frames was not divisible by the window length
         if (n_frames % window_len) != 0:
+            print("(n_frames % window_len) != 0")
             real_predictions = np.zeros((n_frames, using_multi_class))
             modulo = n_frames % window_len
             real_predictions[:len(predictions) - window_len] = predictions[
@@ -3683,28 +3852,31 @@ def train_model():
     go_create_tiffs_for_data_generator = False
     if go_create_tiffs_for_data_generator:
         # use to create a single tiff for each frame, then use by data_generator during training of the RNN
-        create_tiffs_for_data_generator(ms_to_use=["p7_171012_a000_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms",
-                                                   "p12_171110_a000_ms",
-                                                   "p13_18_10_29_a001_ms", "artificial_ms_1"],
+        # ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms",
+        #  "p12_171110_a000_ms",
+        #  "p13_18_10_29_a001_ms", "artificial_ms_1"]
+        create_tiffs_for_data_generator(ms_to_use=["artificial_ms_2", "artificial_ms_3"],
                                         param=param, path_for_tiffs=path_for_tiffs)
-        # raise Exception("GOGOGO")
-    go_predict_from_movie = True
+        raise Exception("NOT TODAY")
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
                                  "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
                                  "p13_18_10_29_a001_ms", "p8_18_10_24_a005_ms"]
-        ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
+        ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms"]
+        ms_for_rnn_benchmarks = ["p41_19_04_30_a000_ms"]
         # p7_171012_a000_ms
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
-                             "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
-                              "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
-                              "p11_17_11_24_a000_ms": np.array([3, 45]),
-                              "p12_171110_a000_ms": np.array([9, 10]),
-                              "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
-        cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25])} # np.arange(117)
-        transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0.9,
+                            "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
+                            "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
+                            "p11_17_11_24_a000_ms": np.array([3, 45]),
+                            "p12_171110_a000_ms": np.array([9, 10]),
+                            "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
+        cells_to_predict = {"p11_17_11_24_a000_ms": np.arange(24)}  # np.array([2, 25])} # np.arange(117)
+        cells_to_predict = {"p41_19_04_30_a000_ms": None}
+        transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0,
                                          use_data_augmentation=False, using_cnn_predictions=False,
                                          cells_to_predict=cells_to_predict, file_name_bonus_str="")
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
@@ -3759,7 +3931,7 @@ def train_model():
     with_augmentation_for_training_data = True
     buffer = 1
     # between training, validation and test data
-    split_values = [0.8, 0.2, 0]
+    split_values = [0.75, 0.25, 0]
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
     if using_multi_class > 1:
@@ -3777,7 +3949,7 @@ def train_model():
     apply_attention_before_lstm = True
     use_single_attention_vector = False
     with_early_stopping = True
-    early_stop_patience = 20  # 10
+    early_stop_patience = 10  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
@@ -3878,7 +4050,7 @@ def train_model():
                         bin_lstm_size=bin_lstm_size)
 
     print(model.summary())
-    # raise Exception("TOTOOO")
+    raise Exception("YOU KNOW NOTHING JON SNOW")
 
     # Save the model architecture
     with open(

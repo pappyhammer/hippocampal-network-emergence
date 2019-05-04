@@ -48,10 +48,12 @@ class DataForMs(p_disc_tools_param.Parameters):
 
 
 def produce_cell_coord_from_cnn_validated_cells(param):
-    path_cnn_classifier = "cell_classifier_results_txt/"
+    path_cnn_classifier = "cell_classifier_results_txt/v_suite_2p"
 
-    ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p9_18_09_27_a003_ms", "p11_17_11_24_a000_ms",
-                 "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
+    # ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p9_18_09_27_a003_ms", "p11_17_11_24_a000_ms",
+    #              "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
+    ms_to_use = ["p5_19_03_25_a001_ms", "p7_171012_a000_ms", "p8_18_10_24_a005_ms",
+                 "p12_171110_a000_ms", ]
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
                                             param=param,
@@ -1511,7 +1513,7 @@ def main():
     go_produce_vessels = False
     if go_produce_vessels:
         produce_vessels(param)
-        raise Exception("TITI")
+        raise Exception("NOT TODAY")
 
     vessels = load_vessels(param)
     # raise Exception("KING OF THE NORTH")
@@ -1521,13 +1523,15 @@ def main():
         produce_cell_coord_from_cnn_validated_cells(param)
         raise Exception("produce_cell_coord_from_cnn_validated_cells")
 
-    data = hdf5storage.loadmat(os.path.join(path_data, "artificial_movie_generator", "coords_artificial_movie.mat"))
+    data = hdf5storage.loadmat(os.path.join(path_data,
+                                            "artificial_movie_generator",
+                                            "coords_artificial_movie_suite2p_p7_17_10_12_a000-p8_18_10_24_a0005_p12_17_11_10_a000.mat"))
 
     coords = data["coord"][0]
     true_cells = data["true_cells"][0]
     fake_cells = data["fake_cells"][0]
 
-    do_test_generate_movie_with_cells = True
+    do_test_generate_movie_with_cells = False
     if do_test_generate_movie_with_cells:
         test_generate_movie_with_cells(coords=coords, param=param)
 
@@ -1565,14 +1569,14 @@ def main():
     coords_left, map_coords, cells_with_overlap, overlapping_cells = \
         generate_artificial_map(coords_to_use=coords,
                                 true_cells=true_cells, fake_cells=fake_cells,
-                                n_overlap_by_cell_range=(1, 4), overlap_ratio_range=(0.1, 0.5),
+                                n_overlap_by_cell_range=(2, 5), overlap_ratio_range=(0.1, 0.5),
                                 padding=padding, param=param)
 
     n_frames = 2500
 
     # we need to generate a raster_dur, with some synchronicity between overlapping cells
     raster_dur = build_raster_dur(map_coords=map_coords, cells_with_overlap=cells_with_overlap,
-                                  overlapping_cells=overlapping_cells, n_frames=2500, param=param)
+                                  overlapping_cells=overlapping_cells, n_frames=n_frames, param=param)
 
     save_raster_dur_for_gui(raster_dur, param)
 

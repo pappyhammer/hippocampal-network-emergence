@@ -26,8 +26,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         variables_mapping = {"coord": "coord_python"}
         artificial_ms.load_data_from_file(file_name_to_load="artificial_movies/1/map_coords.mat",
                                               variables_mapping=variables_mapping)
-        if load_movie:
-            artificial_ms.load_tif_movie(path="artificial_movies/1/")
+        artificial_ms.load_tif_movie(path="artificial_movies/1/")
 
         if for_cell_classifier or for_transient_classifier:
             variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
@@ -52,16 +51,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         artificial_ms = MouseSession(age=2, session_id="artificial_2",
                                      nb_ms_by_frame=100, param=param)
         variables_mapping = {"coord": "coord_python"}
-        artificial_ms.load_data_from_file(file_name_to_load="artificial_movies/2/map_coords.mat",
+        artificial_ms.load_data_from_file(file_name_to_load="artificial_movies/2_suite2p_contours/map_coords.mat",
                                           variables_mapping=variables_mapping)
-        if load_movie:
-            artificial_ms.load_tif_movie(path="artificial_movies/2/")
+        artificial_ms.load_tif_movie(path="artificial_movies/2_suite2p_contours/")
 
         if for_cell_classifier or for_transient_classifier:
             variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
                                  "peak_nums": "LocPeakMatrix_Python"}
             artificial_ms.load_data_from_file(file_name_to_load=
-                                              "artificial_movies/2/gui_data.mat",
+                                              "artificial_movies/2_suite2p_contours/gui_data.mat",
                                               variables_mapping=variables_mapping,
                                               from_gui=True)
 
@@ -75,6 +73,32 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             artificial_ms.smooth_traces = traces
 
         ms_str_to_ms_dict["artificial_ms_2"] = artificial_ms
+    if "artificial_ms_3" in ms_str_to_load:
+        artificial_ms = MouseSession(age=3, session_id="artificial_3",
+                                     nb_ms_by_frame=100, param=param)
+        variables_mapping = {"coord": "coord_python"}
+        artificial_ms.load_data_from_file(file_name_to_load="artificial_movies/3_suite2p_contours/map_coords.mat",
+                                          variables_mapping=variables_mapping)
+        artificial_ms.load_tif_movie(path="artificial_movies/3_suite2p_contours/")
+
+        if for_cell_classifier or for_transient_classifier:
+            variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                 "peak_nums": "LocPeakMatrix_Python"}
+            artificial_ms.load_data_from_file(file_name_to_load=
+                                              "artificial_movies/3_suite2p_contours/gui_data.mat",
+                                              variables_mapping=variables_mapping,
+                                              from_gui=True)
+
+            artificial_ms.build_spike_nums_dur()
+            artificial_ms.load_tiff_movie_in_memory()
+            artificial_ms.normalize_movie()
+            artificial_ms.raw_traces = artificial_ms.build_raw_traces_from_movie()
+            traces = np.copy(artificial_ms.raw_traces)
+            smooth_traces(traces)
+            artificial_ms.traces = traces
+            artificial_ms.smooth_traces = traces
+
+        ms_str_to_ms_dict["artificial_ms_3"] = artificial_ms
 
     if "p5_19_03_25_a001_ms" in ms_str_to_load:
         p5_19_03_25_a001_ms = MouseSession(age=5, session_id="19_03_25_a001", nb_ms_by_frame=100, param=param)
@@ -246,45 +270,46 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         #     file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Corrected_RasterDur.mat",
         #     variables_mapping=variables_mapping)
         p7_171012_a000_ms.set_avg_cell_map_tif(file_name="p7/p7_17_10_12_a000/AVG_p7_17_10_12_a000.tif")
-        variables_mapping = {"coord": "ContoursAll"}
-        p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_CellDetect.mat",
-                                                variables_mapping=variables_mapping)
-        if for_cell_classifier or for_transient_classifier:
-            variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
-                                 "peak_nums": "LocPeakMatrix_Python",
-                                 "cells_to_remove": "cells_to_remove",
-                                 "inter_neurons_from_gui": "inter_neurons",
-                                  "doubtful_frames_nums": "doubtful_frames_nums"}
-            p7_171012_a000_ms.load_data_from_file(file_name_to_load=
-                                                   "p7/p7_17_10_12_a000/p7_17_10_12_a000_fusion_validation.mat",
-                                                   variables_mapping=variables_mapping,
-                                                   from_gui=True)
-            # p7_17_10_12_a000_fusion_validation.mat
+        if not try_suite_2p:
+            variables_mapping = {"coord": "ContoursAll"}
+            p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_CellDetect.mat",
+                                                    variables_mapping=variables_mapping)
+            if for_cell_classifier or for_transient_classifier:
+                variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                     "peak_nums": "LocPeakMatrix_Python",
+                                     "cells_to_remove": "cells_to_remove",
+                                     "inter_neurons_from_gui": "inter_neurons",
+                                      "doubtful_frames_nums": "doubtful_frames_nums"}
+                p7_171012_a000_ms.load_data_from_file(file_name_to_load=
+                                                       "p7/p7_17_10_12_a000/p7_17_10_12_a000_fusion_validation.mat",
+                                                       variables_mapping=variables_mapping,
+                                                       from_gui=True)
+                # p7_17_10_12_a000_fusion_validation.mat
 
-            p7_171012_a000_ms.build_spike_nums_dur()
-            if for_cell_classifier:
-                p7_171012_a000_ms.\
-                    load_cells_to_remove_from_txt(file_name="p7/p7_17_10_12_a000/"
-                                                              "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt")
-        else:
-            variables_mapping = {"predictions": "predictions"}
-            p7_171012_a000_ms.load_raster_dur_from_predictions(
-                file_name="p7/p7_17_10_12_a000/predictions/" +
-                          "P7_17_10_12_a000_predictions__2019_04_30.23-32-43_epoch_11_no_overlap_no_trans.mat",
-                prediction_threshold=0.5, variables_mapping=variables_mapping)
-            # P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat
-            # P7_17_10_12_a000_predictions_2019_03_19.08-35-56.mat
-            #P7_17_10_12_a000_predictions__2019_04_24.13-18-06_GT_13_04_29_cells_2_25.mat
-            # GT, epoch 11, no trans, no overlap
-            # P7_17_10_12_a000_predictions__2019_04_30.23-32-43_epoch_11_no_overlap_no_trans.mat
-        if load_traces:
-            variables_mapping = {"traces": "C_df"}
-            p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Traces.mat",
-                                                  variables_mapping=variables_mapping)
-            variables_mapping = {"raw_traces": "raw_traces"}
-            p7_171012_a000_ms.load_data_from_file(
-                file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_raw_Traces.mat",
-                variables_mapping=variables_mapping)
+                p7_171012_a000_ms.build_spike_nums_dur()
+                if for_cell_classifier:
+                    p7_171012_a000_ms.\
+                        load_cells_to_remove_from_txt(file_name="p7/p7_17_10_12_a000/"
+                                                                  "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt")
+            else:
+                variables_mapping = {"predictions": "predictions"}
+                p7_171012_a000_ms.load_raster_dur_from_predictions(
+                    file_name="p7/p7_17_10_12_a000/predictions/" +
+                              "P7_17_10_12_a000_predictions__2019_04_30.23-32-43_epoch_11_no_overlap_no_trans.mat",
+                    prediction_threshold=0.5, variables_mapping=variables_mapping)
+                # P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat
+                # P7_17_10_12_a000_predictions_2019_03_19.08-35-56.mat
+                #P7_17_10_12_a000_predictions__2019_04_24.13-18-06_GT_13_04_29_cells_2_25.mat
+                # GT, epoch 11, no trans, no overlap
+                # P7_17_10_12_a000_predictions__2019_04_30.23-32-43_epoch_11_no_overlap_no_trans.mat
+            if load_traces:
+                variables_mapping = {"traces": "C_df"}
+                p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_Traces.mat",
+                                                      variables_mapping=variables_mapping)
+                variables_mapping = {"raw_traces": "raw_traces"}
+                p7_171012_a000_ms.load_data_from_file(
+                    file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_raw_Traces.mat",
+                    variables_mapping=variables_mapping)
         # variables_mapping = {"coord": "ContoursAll"} ContoursSoma ContoursIntNeur
         # p7_171012_a000_ms.load_data_from_file(file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_CellDetect.mat",
         #                                          variables_mapping=variables_mapping)
@@ -292,6 +317,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if not try_suite_2p:
             if not for_cell_classifier:
                 p7_171012_a000_ms.clean_data_using_cells_to_remove()
+
+        p7_171012_a000_ms.load_suite2p_data(data_path="p7/p7_17_10_12_a000/suite2p/", with_coord=try_suite_2p)
 
         # p7_171012_a000_ms.load_caiman_results(path_data="p7/p7_17_10_12_a000/")
         ms_str_to_ms_dict["p7_171012_a000_ms"] = p7_171012_a000_ms
@@ -746,10 +773,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                  "inter_neurons_from_gui": "inter_neurons",
                                   "doubtful_frames_nums": "doubtful_frames_nums"}
             p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load=
-                                                   "p8/p8_18_10_24_a006/p8_18_10_24_a006_fusion_validation.mat",
+                                                   "p8/p8_18_10_24_a006/p8_18_10_24_a006_GUI_transients_RD.mat",
                                                    variables_mapping=variables_mapping,
                                                    from_gui=True)
-            # used for training before: p8_18_10_24_a006_GUI_transients_RD.mat
+            # used for training before: p8_18_10_24_a006_GUI_transients_RD.mat p8_18_10_24_a006_fusion_validation.mat
             p8_18_10_24_a006_ms.build_spike_nums_dur()
 
         if load_traces:
@@ -1328,9 +1355,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                  "inter_neurons_from_gui": "inter_neurons",
                                   "doubtful_frames_nums": "doubtful_frames_nums"}
             p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
-                                                  "p13/p13_18_10_29_a001/p13_18_10_29_a001_fusion_validation.mat",
+                                                  "p13/p13_18_10_29_a001/p13_18_10_29_a001_GUI_transients_RD.mat",
                                                   variables_mapping=variables_mapping,
                                                   from_gui=True)
+            # p13_18_10_29_a001_GUI_transients_RD.mat p13_18_10_29_a001_fusion_validation.mat
 
             p13_18_10_29_a001_ms.build_spike_nums_dur()
         # else:
@@ -1470,6 +1498,47 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     # arnaud_ms.set_inter_neurons([])
     # variables_mapping = {"spike_nums": "spikenums"}
     # arnaud_ms.load_data_from_file(file_name_to_load="spikenumsarnaud.mat", variables_mapping=variables_mapping)
+
+    if "p41_19_04_30_a000_ms" in ms_str_to_load:
+        p41_19_04_30_a000_ms = MouseSession(age=41, session_id="19_04_30_a000", nb_ms_by_frame=100, param=param)
+        # for threshold prediction at 0.5
+        p41_19_04_30_a000_ms.activity_threshold = 8
+        # for threshold prediction at 0.3
+        # p41_19_04_30_a000_ms.activity_threshold = 11
+
+        # variables_mapping = {"global_roi": "global_roi"}
+        # p41_19_04_30_a000_ms.load_data_from_file(file_name_to_load=
+        #                                         "p41/p41_19_04_30_a000/p41_19_04_30_a000_global_roi.mat",
+        #                                         variables_mapping=variables_mapping)
+        # variables_mapping = {"xshifts": "xoff",
+        #                      "yshifts": "yoff"}
+        # p41_19_04_30_a000_ms.load_data_from_file(file_name_to_load=
+        #                                          "p41/p41_19_04_30_a000/p41_19_04_30_a000_ops_params.npy",
+        #                                          variables_mapping=variables_mapping)
+
+        # prediction based on rnn on GT epoch 11, no trans, no overlap
+        variables_mapping = {"predictions": "predictions"}
+        p41_19_04_30_a000_ms.load_raster_dur_from_predictions(
+            file_name="p41/p41_19_04_30_a000/" +
+                      "predictions/P41_19_04_30_a000_predictions__2019_05_03.20-11-45_GT_epoch_11_no_trans_no_over.mat",
+            prediction_threshold=0.5, variables_mapping=variables_mapping)
+
+        # variables_mapping = {"shift_periods_bool": "shift"}
+        # p41_19_04_30_a000_ms.load_data_from_file(file_name_to_load=
+        #                                         "p41/p41_19_04_30_a000/p41_19_04_30_a000_shift_period_selection.npz",
+        #                                         variables_mapping=variables_mapping)
+
+        # if load_movie:
+        p41_19_04_30_a000_ms.load_tif_movie(path="p41/p41_19_04_30_a000")
+        p41_19_04_30_a000_ms.build_raw_traces_from_movie()
+
+        p41_19_04_30_a000_ms.load_suite2p_data(data_path="p41/p41_19_04_30_a000/suite2p/", with_coord=True)
+
+        p41_19_04_30_a000_ms.clean_raster_at_concatenation()
+
+        p41_19_04_30_a000_ms.spike_struct.build_spike_nums_and_peak_nums()
+
+        ms_str_to_ms_dict["p41_19_04_30_a000_ms"] = p41_19_04_30_a000_ms
 
     if "p60_arnaud_ms" in ms_str_to_load:
         p60_arnaud_ms = MouseSession(age=60, session_id="arnaud_a_529", nb_ms_by_frame=100, param=param)

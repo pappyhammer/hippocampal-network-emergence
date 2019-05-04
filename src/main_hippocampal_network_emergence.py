@@ -2181,7 +2181,7 @@ def robin_loading_process(param, load_traces, load_abf=True):
                         "p13_18_10_29_a000_ms",  # new
                         "p13_18_10_29_a001_ms",
                         "p14_18_10_23_a000_ms",
-                        "p14_18_10_30_a001_ms",
+                        "p14_18_10_30_a001_ms", "p41_19_04_30_a000_ms",
                         "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
     abf_corrupted = ["p8_18_10_17_a001_ms", "p9_18_09_27_a003_ms"]
 
@@ -2291,6 +2291,7 @@ def robin_loading_process(param, load_traces, load_abf=True):
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
     # ms_str_to_load = ["p9_19_03_22_a001_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
+    ms_str_to_load = ["p41_19_04_30_a000_ms"]
 
     # 256
 
@@ -2381,7 +2382,7 @@ def main():
     just_do_pca_on_raster = False
     just_display_seq_with_cell_assembly = False
     just_produce_animation = False
-    just_plot_ratio_spikes_for_shift = True
+    just_plot_ratio_spikes_for_shift = False
 
     # for events (sce) detection
     perc_threshold = 99
@@ -2402,7 +2403,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = False
+    do_clustering = True
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
@@ -2417,7 +2418,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 20)
+    range_n_clusters_k_mean = np.arange(10, 15)
     # range_n_clusters_k_mean = np.array([4])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
