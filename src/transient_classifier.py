@@ -640,7 +640,7 @@ class StratificationCamembert:
                             # we add real transients
                             n_real_to_add = (self.n_transient_total["fake"] * ratio_real_fake) - \
                                             self.n_transient_total["real"]
-                            print(f"n_real_to_add {n_real_to_add}")
+                            # print(f"n_real_to_add {n_real_to_add}")
                             # we want to add the same numbers such that we keep the ratio among the real_transients
                             # n_unique_real_transients represents the number of original movie patches, without taking in
                             # consideration the transformations that will be made
@@ -651,8 +651,8 @@ class StratificationCamembert:
                                                                      self.min_augmentation_for_transient["real"]) + 3)]
                             n_augmentations_options = np.array(n_augmentations_options)
                             idx = (np.abs(n_augmentations_options - n_real_to_add)).argmin()
-                            print(f"idx {idx}, len(n_augmentations_options): {len(n_augmentations_options)}")
-                            print(f"n_augmentations_options[idx] {n_augmentations_options[idx]}")
+                            # print(f"idx {idx}, len(n_augmentations_options): {len(n_augmentations_options)}")
+                            # print(f"n_augmentations_options[idx] {n_augmentations_options[idx]}")
                             if idx > 0:
                                 n_transients_at_max_before = 0
                                 n_transients_at_max_after = 0
@@ -1126,23 +1126,25 @@ class StratificationDataProcessor:
 
         # ####  then balance session between themselves
         # taking the sessions with the most movies and using it as exemples
-        max_movie_patch = 0
-        for camembert in self.camembert_by_session.values():
-            max_movie_patch = max(max_movie_patch, camembert.n_movie_patch)
+        balancing_sessions = True
+        if balancing_sessions:
+            max_movie_patch = 0
+            for camembert in self.camembert_by_session.values():
+                max_movie_patch = max(max_movie_patch, camembert.n_movie_patch)
 
-        for camembert in self.camembert_by_session.values():
-            if camembert.n_movie_patch == max_movie_patch:
-                continue
-            # we need to find the multiplicator between 1 and (self.n_transformations_for_session +1)
-            # that would give the closest count from the max
-            n_movie_patch = camembert.n_movie_patch
-            # list of potential movie patches in this session depending on the augmentation factor
-            # from 1 (no transformation added) to (self.n_transformations_for_session + 1)
-            n_movie_patch_options = [n_movie_patch * x for x in np.arange(1, (self.n_transformations_for_session + 2))]
-            n_movie_patch_options = np.array(n_movie_patch_options)
-            idx = (np.abs(n_movie_patch_options - max_movie_patch)).argmin()
-            if idx > 0:
-                camembert.add_augmentation_to_all_patches(n_augmentation=idx)
+            for camembert in self.camembert_by_session.values():
+                if camembert.n_movie_patch == max_movie_patch:
+                    continue
+                # we need to find the multiplicator between 1 and (self.n_transformations_for_session +1)
+                # that would give the closest count from the max
+                n_movie_patch = camembert.n_movie_patch
+                # list of potential movie patches in this session depending on the augmentation factor
+                # from 1 (no transformation added) to (self.n_transformations_for_session + 1)
+                n_movie_patch_options = [n_movie_patch * x for x in np.arange(1, (self.n_transformations_for_session + 2))]
+                n_movie_patch_options = np.array(n_movie_patch_options)
+                idx = (np.abs(n_movie_patch_options - max_movie_patch)).argmin()
+                if idx > 0:
+                    camembert.add_augmentation_to_all_patches(n_augmentation=idx)
 
         # updating the data list, in case some movie patches would have been deleted
         new_data_list = []
@@ -2491,7 +2493,7 @@ def get_source_profile_frames(ms, frames, coords):
 
 
 def find_all_onsets_and_peaks_on_traces(ms, cell, threshold_factor=0.5):
-    print(f"find_all_onsets_and_peaks_on_traces ms.description {ms.description}, cell {cell}")
+    # print(f"find_all_onsets_and_peaks_on_traces ms.description {ms.description}, cell {cell}")
     # trace = ms.traces[cell]
     trace = ms.smooth_traces[cell]
     # print(f"trace {trace.shape}, np.mean(trace) {np.mean(trace)}")
@@ -2664,9 +2666,10 @@ def add_segment_of_cells_for_training(param,
     raster_dur_by_cells_and_session = dict()
 
     dir_to_load = []
-    dir_to_load.append(os.path.join(param.path_data + "p7" + "p7_17_10_12_a000" + "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data + "p8" + "p8_18_10_24_a005" + "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data + "p11" + "p11_17_11_24_a000" + "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_17_10_12_a000", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data,  "p8", "p8_18_10_24_a005", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p11", "p11_17_11_24_a000", "transients_to_add_for_rnn"))
+
 
     file_names_to_load = []
     dir_of_files = []
@@ -2687,13 +2690,17 @@ def add_segment_of_cells_for_training(param,
         last_frame = int(file_name[underscores_pos[-2] + 1:underscores_pos[-1]])
         first_frame = int(file_name[underscores_pos[-3] + 1:underscores_pos[-2]])
         cell = int(file_name[underscores_pos[-4] + 1:underscores_pos[-3]])
-        ms_str = file_name[:underscores_pos[-4]]
+        ms_str = file_name[:underscores_pos[-4]].lower()
+        if ms_str == "p7_17_10_12_a000":
+            ms_str = "p7_171012_a000"
+        ms_str += "_ms"
 
         if ms_str not in ms_to_use:
             ms_to_use.append(ms_str)
             cell_to_load_by_ms[ms_str] = np.array([cell])
         else:
-            cell_to_load_by_ms[ms_str] = np.concatenate((cell_to_load_by_ms[ms_str], np.array([cell])))
+            if cell not in cell_to_load_by_ms[ms_str]:
+                cell_to_load_by_ms[ms_str] = np.concatenate((cell_to_load_by_ms[ms_str], np.array([cell])))
 
         if ms_str not in cells_segments_by_session:
             cells_segments_by_session[ms_str] = dict()
@@ -2707,6 +2714,7 @@ def add_segment_of_cells_for_training(param,
         if cell not in raster_dur_by_cells_and_session[ms_str]:
             raster_dur_by_cells_and_session[ms_str][cell] = np.zeros(n_frames, dtype="int8")
         raster_dur_by_cells_and_session[ms_str][cell][first_frame:last_frame] = segment_raster_dur
+
 
     return cells_segments_by_session, raster_dur_by_cells_and_session
 
@@ -2852,7 +2860,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
             # modifying the raster for the cell segments
             # important a cell is either composed of segments or all the frames are included
             for cell, raster in raster_dict.items():
-                print(f"New raster for cell {cell} of {ms_str}")
+                # print(f"New raster for cell {cell} of {ms_str}")
                 ms.spike_struct.spike_nums_dur[cell] = raster
             # reconstructing onsets and peaks then
             ms.spike_struct.build_spike_nums_and_peak_nums()
@@ -2896,11 +2904,12 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         # updating cells_segments_by_session with new cell indices
         if cells_segments_by_session is not None:
             if ms_str in cells_segments_by_session:
-                for cell, segments in cells_segments_by_session[ms_str]:
+                for cell, segments in cells_segments_by_session[ms_str].items():
                     if cell in original_cell_indices_mapping:
-                        index_cell = np.where(original_cell_indices_mapping == cell)[0]
+                        index_cell = np.where(original_cell_indices_mapping == cell)[0][0]
+                        # print(f"index_cell {index_cell}, cells_to_load {cells_to_load}")
                         new_cell = cells_to_load[index_cell]
-                        print(f"cells_segments_by_session: cell {cell} -> {new_cell}")
+                        # print(f"cells_segments_by_session cell {cell} -> {new_cell}")
                         if ms_str not in updated_cells_segments_by_session:
                             updated_cells_segments_by_session[ms_str] = dict()
                         updated_cells_segments_by_session[ms_str][new_cell] = segments
@@ -2978,7 +2987,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                     if cell in cells_segments_by_session[ms_str]:
                         # segments is then a list of tuple representing the first and last frame (not included) of each
                         # segement
-                        segments = cells_segments_by_session[ms_str][segments]
+                        segments = cells_segments_by_session[ms_str][cell]
             for split_index in split_order:
                 if split_index > 0:
                     # then we create validation and test dataset with no data transformation
@@ -3038,16 +3047,19 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                             first_frame = end_index - sliding_window_len
                             break_it = True
                         # if some frames have been marked as doubtful, we remove them of the training dataset
-                        if (ms.doubtful_frames_nums is not None) and (segments is not None):
+                        if (ms.doubtful_frames_nums is not None) and (segments is None):
                             if (np.sum(ms.doubtful_frames_nums[cell,
                                                                 np.arange(first_frame,
                                                                           first_frame + sliding_window_len)]) > 0):
                                 continue
+                        # if segments is not None:
+                        #     print("segments is not None")
                         movie_data = MoviePatchData(ms=ms, cell=cell, index_movie=first_frame,
                                                     window_len=sliding_window_len,
                                                     max_n_transformations=max_n_transformations,
                                                     with_info=True, encoded_frames=encoded_frames,
-                                                    decoding_frame_dict=decoding_frame_dict)
+                                                    decoding_frame_dict=decoding_frame_dict,
+                                                    to_keep_absolutely=(segments is not None))
                         data_list_to_fill.append(movie_data)
                         if split_index == 2:
                             test_movie_descr.append(f"{ms.description}_cell_{cell}_first_frame_{first_frame}")
@@ -3916,7 +3928,7 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 22
+    n_epochs = 30
     batch_size = 8
     window_len = 100
     max_width = 25
@@ -3949,7 +3961,7 @@ def train_model():
     apply_attention_before_lstm = True
     use_single_attention_vector = False
     with_early_stopping = True
-    early_stop_patience = 10  # 10
+    early_stop_patience = 12  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
@@ -4050,7 +4062,7 @@ def train_model():
                         bin_lstm_size=bin_lstm_size)
 
     print(model.summary())
-    raise Exception("YOU KNOW NOTHING JON SNOW")
+    # raise Exception("YOU KNOW NOTHING JON SNOW")
 
     # Save the model architecture
     with open(
@@ -4123,7 +4135,8 @@ def train_model():
                                   epochs=n_epochs,
                                   use_multiprocessing=True,
                                   workers=10,
-                                  callbacks=callbacks_list)
+                                  callbacks=callbacks_list,
+                                  verbose=2)
 
     print(f"history.history.keys() {history.history.keys()}")
     stop_time = time.time()
