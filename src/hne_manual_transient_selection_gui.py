@@ -669,7 +669,7 @@ def do_traces_smoothing(traces):
     # smoothing the trace
     windows = ['hanning', 'hamming', 'bartlett', 'blackman']
     i_w = 1
-    window_length = 11
+    window_length = 7 # 11
     for i in np.arange(traces.shape[0]):
         smooth_signal = smooth_convolve(x=traces[i], window_len=window_length,
                                         window=windows[i_w])
@@ -1549,7 +1549,8 @@ class ManualOnsetFrame(tk.Frame):
         sep = ttk.Separator(right_side_frame)
         sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-        if (self.transient_classifier_weights_file is not None) and (self.transient_classifier_json_file is not None):
+        if ((self.transient_classifier_weights_file is not None) and (self.transient_classifier_json_file is not None)) \
+                or (self.data_and_param.ms.rnn_transients_predictions is not None):
             transient_classifier_frame = Frame(right_side_frame)
             transient_classifier_frame.pack(side=TOP, expand=NO, fill=BOTH)
 
