@@ -120,6 +120,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                 "p5/p5_19_03_25_a001/MichelMotC_p5_19_03_25_a001_params.mat",
                                                 variables_mapping=variables_mapping)
 
+        if load_abf:
+            p5_19_03_25_a001_ms.load_abf_file(abf_file_name="p5/p5_19_03_25_a001/p5_19_03_25_a001.abf",
+                                              piezo_channel=2,
+                                              threshold_piezo=25, just_load_npz_file=False)
+
         # prediction based on rnn trained on 50 cells, BO,
         variables_mapping = {"predictions": "predictions"}
         p5_19_03_25_a001_ms.load_raster_dur_from_predictions(
@@ -139,7 +144,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p5_19_03_25_a001_ms.load_tif_movie(path="p5/p5_19_03_25_a001")
         p5_19_03_25_a001_ms.load_tiff_movie_in_memory()
         p5_19_03_25_a001_ms.raw_traces = p5_19_03_25_a001_ms.build_raw_traces_from_movie()
-
 
         p5_19_03_25_a001_ms.clean_raster_at_concatenation()
 
@@ -258,6 +262,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
 
         p7_171012_a000_ms.load_tif_movie(path="p7/p7_17_10_12_a000/")
+        p7_171012_a000_ms.load_tiff_movie_mean_and_std_(path="p7/p7_17_10_12_a000/")
         try_suite_2p = False
         # calculated with 99th percentile on raster dur
         # p7_171012_a000_ms.activity_threshold = 19
@@ -700,7 +705,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                            weight=6.4)
         # if True will  use the coord from suite2p, if False, will just load the info concerning suite2p in
         # if the dict suit2p_data in mouse_session
-        try_suite_2p = False
+        try_suite_2p = True
         # calculated with 99th percentile on raster dur
         # p8_18_10_24_a005_ms.activity_threshold = 9
         # p8_18_10_24_a005_ms.set_low_activity_threshold(threshold=0, percentile_value=1)

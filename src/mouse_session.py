@@ -2,6 +2,7 @@
 import matplotlib.cm as cm
 from scipy import signal
 # important to avoid a bug when using virtualenv
+# import matplotlib
 # matplotlib.use('TkAgg')
 # import matplotlib.pyplot as plt
 import numpy as np
@@ -95,7 +96,12 @@ class MouseSession:
         self.movie_len_y = None
         # will be use by the cell and transient classifier, normalize between 0 and 1
         self.tiff_movie_norm_0_1 = None
+        # z_score normalization
         self.tiff_movie_normalized = None
+        # mean of the tiff_movie
+        self.tiff_movie_mean = None
+        # std of the tiff_movie, done to avoid doing it on the clusters
+        self.tiff_movie_std = None
         # Pillow image
         self.tiff_movie_image = None
         # list of list of int representing cell indices
@@ -329,9 +335,14 @@ class MouseSession:
             # z-score standardization
             if (self.tiff_movie is not None) and (self.tiff_movie_normalized is None):
                 print("normalizing the movie")
-                self.tiff_movie_normalized = self.tiff_movie - np.mean(self.tiff_movie)
-                print("movie normalization almost done")
-                self.tiff_movie_normalized = self.tiff_movie_normalized / np.std(self.tiff_movie)
+                if (self.tiff_movie_mean is not None) and (self.tiff_movie_std is not None):
+                    # using loaded mean and std
+                    self.tiff_movie_normalized = (self.tiff_movie - self.tiff_movie_mean) / self.tiff_movie_std
+                else:
+                    self.tiff_movie_normalized = self.tiff_movie - np.mean(self.tiff_movie)
+                    print("movie normalization almost done")
+                    self.tiff_movie_normalized = self.tiff_movie_normalized / np.std(self.tiff_movie)
+
                 # self.tiff_movie_normalized = np.copy(self.tiff_movie)
                 print("movie normalization done")
 
@@ -625,6 +636,26 @@ class MouseSession:
                           f"{np.round(stop_time - start_time, 3)} s")
 
                 self.tiff_movie = tiff_movie
+    def load_tiff_movie_mean_and_std_(self, path):
+        file_names = []
+
+        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(path):
+            file_names.extend(local_filenames)
+            break
+        if len(file_names) == 0:
+            return
+
+        for file_name in file_names:
+            file_name_original = file_name
+            file_name = file_name.lower()
+
+            if file_name.endswith(".npy") and ("mean" in file_name.lower()):
+                # valid only for shifts data so far
+                self.tiff_movie_mean = np.load(os.path.join(path, file_name))
+            elif file_name.endswith(".npy") and ("std" in file_name.lower()):
+                # valid only for shifts data so far
+                self.tiff_movie_std = np.load(os.path.join(path, file_name))
 
     def load_movie_dimensions(self):
         """
@@ -635,6 +666,8 @@ class MouseSession:
             return
 
         if self.tiff_movie is None:
+            if self.tif_movie_file_name is None:
+                return
             im = PIL.Image.open(self.tif_movie_file_name)
             im_array = np.array(im)
             self.movie_len_x = im_array.shape[1]
@@ -2537,7 +2570,7 @@ class MouseSession:
         file_names = []
 
         npz_loaded = False
-        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+        # look for filenames in the first directory, if we don't break, it will go through all directories
         for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_abf_data):
             file_names.extend(local_filenames)
             break
@@ -2629,11 +2662,11 @@ class MouseSession:
         times_in_sec = times_in_sec[:-first_frame_index]
         frames_data = frames_data[first_frame_index:]
         mvt_data = mvt_data[first_frame_index:]
-
+        threshold_value = 0.02
         if (self.abf_sampling_rate < 50000):
             mask_frames_data = np.ones(len(frames_data), dtype="bool")
             # we need to detect the frames manually, but first removing data between movies
-            selection = np.where(frames_data >= 0.05)[0]
+            selection = np.where(frames_data >= threshold_value)[0]
             # frames_period = find_continuous_frames_period(selection)
             # # for period in frames_period:
             # #     mask_frames_data[period[0]:period[1]+1] = False
@@ -2680,11 +2713,14 @@ class MouseSession:
             #     plt.close()
         else:
             binary_frames_data = np.zeros(len(frames_data), dtype="int8")
-            binary_frames_data[frames_data >= 0.05] = 1
-            binary_frames_data[frames_data < 0.05] = 0
+            binary_frames_data[frames_data >= threshold_value] = 1
+            binary_frames_data[frames_data < threshold_value] = 0
             # +1 due to the shift of diff
+            # contains the index at which each frame from the movie is matching the abf signal
+            # length should be 12500
             active_frames = np.where(np.diff(binary_frames_data) == 1)[0] + 1
 
+        # correspond of the variation of the piezo
         mvt_data_without_abs = mvt_data
         mvt_data = np.abs(mvt_data)
         if not with_run:
@@ -2697,9 +2733,35 @@ class MouseSession:
         nb_frames = len(active_frames)
         self.abf_frames = active_frames
         print(f"nb_frames {nb_frames}")
+        print(f"len(mvt_data_without_abs) {len(mvt_data_without_abs)}")
+        # print(f"self.abf_frames {self.abf_frames[-50:]}")
+        print(f'Saving abf_frames for {self.description}')
+        np.save(self.param.path_data + path_abf_data + self.description + "_abf_frames.npy", self.abf_frames)
+        sampling_step = int(self.abf_sampling_rate/50)
+        # np.save(self.param.path_data + path_abf_data + self.description + "_abf_12500.npy",
+        #         mvt_data_without_abs[np.arange(self.abf_frames[0], self.abf_frames[-1] + sampling_step, sampling_step)])
+        np.save(self.param.path_data + path_abf_data + self.description + "_abf_12500.npy",
+                mvt_data_without_abs[self.abf_frames])
+        # first we want to keep piezzo data only for the active movie, removing the time between imaging session
+        # to do so we concatenate the time between frames
+        # max_time_between_frames = np.max(np.diff(self.abf_frames[:100]))
+        # print(f"max_time_between_frames {max_time_between_frames}")
+        piezzo_shift = np.zeros(0)
+        for i in np.arange(0, 12500, 2500):
+            # print(f"i {i}, i+2499 {i+2499}")
+            # print(f"self.abf_frames[i] {self.abf_frames[i]}, self.abf_frames[i+2499] {self.abf_frames[i+2499]}, "
+            #       f"sampling_step {sampling_step}")
+            new_data = mvt_data_without_abs[np.arange(self.abf_frames[i],
+                                                      self.abf_frames[i+2499], sampling_step)]
+            piezzo_shift = np.concatenate((piezzo_shift, new_data,
+                                           np.array([mvt_data_without_abs[self.abf_frames[i+2499]]])))
+        np.save(self.param.path_data + path_abf_data + self.description + "_abf_HR.npy",
+                piezzo_shift)
+        # mvt_data_without_abs[np.arange(self.abf_frames[0], self.abf_frames[-1] + sampling_step, sampling_step)]
+        # self.abf_frames
 
         # manual selection deactivated
-        do_manual_selection = not npz_loaded
+        do_manual_selection = False # not npz_loaded
         if not do_manual_selection:
             return
 

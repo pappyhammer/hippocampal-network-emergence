@@ -2235,7 +2235,6 @@ def robin_loading_process(param, load_traces, load_abf=True):
     ms_str_to_load = ["p6_18_02_07_a001_ms"]
     ms_str_to_load = ["p9_18_09_27_a003_ms"]
     ms_str_to_load = ["p60_a529_2015_02_25_ms"]
-    ms_str_to_load = ["p6_18_02_07_a001_ms"]
     no_spike_nums = ["p6_18_02_07_a002_ms", "p12_171110_a000_ms"]
     ms_str_to_load = ["p13_18_10_29_a000_ms",  # new
                       "p13_18_10_29_a001_ms",
@@ -2291,7 +2290,8 @@ def robin_loading_process(param, load_traces, load_abf=True):
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
     # ms_str_to_load = ["p9_19_03_22_a001_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
-    ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a001_ms"]
 
     # 256
 
@@ -2367,7 +2367,7 @@ def main():
     ms_to_analyse = available_ms
 
     just_do_stat_on_event_detection_parameters = False
-    just_plot_raster = False
+    just_plot_raster = True
     just_plot_time_correlation_graph_over_twitches = False
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_raster_with_cells_assemblies_and_shifts = False
@@ -2379,7 +2379,7 @@ def main():
     do_plot_psth_twitches = False
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
-    just_do_pca_on_raster = True
+    just_do_pca_on_raster = False
     just_display_seq_with_cell_assembly = False
     just_produce_animation = False
     just_plot_ratio_spikes_for_shift = False

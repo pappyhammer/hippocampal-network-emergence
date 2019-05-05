@@ -137,6 +137,7 @@ class SelectionFrame(tk.Frame):
         self.y_min_value = np.min(self.trace)
         # in case there is a 2nd trace to display
         self.trace_2 = data_and_param.trace_2
+        self.ratio_traces = None
         if self.trace_2 is not None:
             self.trace_2 = (self.trace_2 - np.mean(self.trace_2)) / np.std(self.trace_2)
             min_trace = np.min(self.trace)
@@ -144,6 +145,7 @@ class SelectionFrame(tk.Frame):
             self.trace_2 = self.trace_2 - np.abs(max_trace_2 - min_trace)
             self.y_max_value = max(self.y_max_value, np.max(self.trace_2))
             self.y_min_value = min(self.y_min_value, np.min(self.trace_2))
+            self.ratio_traces = len(self.trace_2) / len(self.trace)
         self.n_times = self.trace.shape[0]
         # contains boolean array
         self.periods = data_and_param.periods
@@ -239,6 +241,8 @@ class SelectionFrame(tk.Frame):
         # ax1 = plt.subplot(gs[0])
         # ax2 = plt.subplot(gs[1])
         self.axe_plot = None
+        # for the second trace
+        self.axe_plot_2 = None
         self.line1 = None
         self.line2 = None
         self.plot_graph(first_time=True)
@@ -449,19 +453,23 @@ class SelectionFrame(tk.Frame):
         # update to remove the cross of the first click at least
         self.update_plot()
 
-    def plot_graph(self, y_max_lim=None, first_time=False):
+    def plot_graph(self, first_time=False):
         """
 
-        :param y_max_lim: used for axvspan in order to fit it to max amplitude according to y_max_lim
         :param first_time:
         :return:
         """
         if first_time:
             gs_index = 0
-            self.axe_plot = self.fig.add_subplot(self.gs[gs_index])
+            # self.axe_plot = self.fig.add_subplot(self.gs[gs_index])
+            if self.trace_2 is not None:
+                self.axe_plot_2 = self.fig.add_subplot(111, label="trace_2", frame_on=True)
+            self.axe_plot = self.fig.add_subplot(111, label="trace", frame_on=(self.trace_2 is None))
             gs_index += 1
 
         self.axe_plot.set_facecolor(self.color_background)
+        if self.axe_plot_2 is not None:
+            self.axe_plot_2.set_facecolor(self.color_background)
 
         # #################### SMOOTHED TRACE ####################
 
@@ -469,9 +477,19 @@ class SelectionFrame(tk.Frame):
         color_trace_2 = self.default_color_trace_2
         self.line1, = self.axe_plot.plot(np.arange(self.n_times), self.trace,
                                          color=color_trace, zorder=10)
+        # #################### PERIODS FRAMES ####################
+
+        for period_name, periods_tuples in self.periods_as_tuples.items():
+            for period_tuple in periods_tuples:
+                # if self.axe_plot_2 is not None:
+                #     ax_to_use = self.axe_plot_2
+                # else:
+                ax_to_use = self.axe_plot
+                ax_to_use.axvspan(period_tuple[0], period_tuple[1], ymin=0.8, ymax=1,
+                                      alpha=0.8, facecolor=self.periods_color[period_name], zorder=1)
 
         if self.trace_2 is not None:
-            self.line2, = self.axe_plot.plot(np.arange(self.n_times), self.trace_2,
+            self.line2, = self.axe_plot_2.plot(np.arange(len(self.trace_2)), self.trace_2,
                                          color=color_trace_2, zorder=10)
 
             interval = 200
@@ -479,21 +497,15 @@ class SelectionFrame(tk.Frame):
                                  math.ceil(self.y_max_value),
                                  color="white", linewidth=0.3,
                                  linestyles="dashed", zorder=9)
-        # #################### DOUBTFUL FRAMES ####################
-
-        for period_name, periods_tuples in self.periods_as_tuples.items():
-            for period_tuple in periods_tuples:
-                self.axe_plot.axvspan(period_tuple[0], period_tuple[1], ymax=1,
-                                      alpha=1, facecolor=self.periods_color[period_name], zorder=1)
 
         # #################### CLICK SCATTER ####################
 
         if self.first_click_to_remove is not None:
             self.axe_plot.scatter(self.first_click_to_remove["x"], self.first_click_to_remove["y"], marker='x',
-                                  c=self.color_mark_to_remove, s=30, zorder=5)
+                                  c=self.color_mark_to_remove, s=30, zorder=12)
         if self.click_corr_coord:
             self.axe_plot.scatter(self.click_corr_coord["x"], self.click_corr_coord["y"], marker='x',
-                                  c="red", s=30, zorder=5)
+                                  c="red", s=30, zorder=12)
 
         legend_elements = []
         # [Line2D([0], [0], color='b', lw=4, label='Line')
@@ -506,37 +518,50 @@ class SelectionFrame(tk.Frame):
         # by default the y axis zoom is set to fit the wider amplitude of the current neuron
         self.axe_plot.set_ylim(self.y_min_value,
                                math.ceil(self.y_max_value))
+        if self.trace_2 is not None:
+            self.axe_plot_2.set_ylim(self.y_min_value,
+                                   math.ceil(self.y_max_value))
+            self.axe_plot_2.set_xticks([])
+            self.axe_plot_2.set_yticks([])
 
         # removing first x_axis
-        axes_to_clean = [self.axe_plot]
+        axes_to_clean = [self.axe_plot, self.axe_plot_2]
         for ax in axes_to_clean:
+            if ax is None:
+                continue
             # ax.axes.get_xaxis().set_visible(False)
             # ax.spines['bottom'].set_visible(False)
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
         self.axe_plot.margins(0)
+        if self.axe_plot_2 is not None:
+            self.axe_plot_2.margins(0)
         self.fig.tight_layout()
 
     def update_plot(self, amplitude_zoom_fit=True,
-                    new_x_limit=None, new_y_limit=None):
+                    new_x_limit=None, new_y_limit=None, new_x_limit_2=None):
         # used to keep the same zoom after updating the plot
         # if we change neuron, then back to no zoom mode
         left_x_limit_1, right_x_limit_1 = self.axe_plot.get_xlim()
         bottom_limit_1, top_limit_1 = self.axe_plot.get_ylim()
         self.axe_plot.clear()
-        # self.line1.set_ydata(self.traces[self.current_neuron, :])
-        if amplitude_zoom_fit:
-            y_max_lim = math.ceil(np.max(self.trace))
-        else:
-            y_max_lim = top_limit_1
+        if self.axe_plot_2 is not None:
+            left_x_limit_2, right_x_limit_2 = self.axe_plot_2.get_xlim()
+            bottom_limit_2, top_limit_2 = self.axe_plot_2.get_ylim()
+            self.axe_plot_2.clear()
 
-        self.plot_graph(y_max_lim)
+        self.plot_graph()
 
         # to keep the same zoom
         self.axe_plot.set_xlim(left=left_x_limit_1, right=right_x_limit_1, auto=None)
         self.axe_plot.set_ylim(bottom=bottom_limit_1, top=top_limit_1, auto=None)
+        if self.axe_plot_2 is not None:
+            self.axe_plot_2.set_xlim(left=left_x_limit_2, right=right_x_limit_2, auto=None)
+            self.axe_plot_2.set_ylim(bottom=bottom_limit_2, top=top_limit_2, auto=None)
         if new_x_limit is not None:
             self.axe_plot.set_xlim(left=new_x_limit[0], right=new_x_limit[1], auto=None)
+        if (new_x_limit_2 is not None) and (self.axe_plot_2 is not None):
+            self.axe_plot_2.set_xlim(left=new_x_limit_2[0], right=new_x_limit_2[1], auto=None)
         if (new_y_limit is not None) and (not amplitude_zoom_fit):
             self.axe_plot.set_ylim(new_y_limit[0], new_y_limit[1])
         self.fig.canvas.draw()
@@ -637,6 +662,8 @@ class SelectionFrame(tk.Frame):
         :param event:
         :return:
         """
+        # if event.inaxes is not None:
+        #     ax = event.inaxes
         if event.xdata is not None:
             self.last_click_position = (event.xdata, event.ydata)
 
@@ -742,6 +769,8 @@ class SelectionFrame(tk.Frame):
     def move_zoom(self, to_the_left):
         # the plot is zoom out to the max, so no moving
         left_x_limit_1, right_x_limit_1 = self.axe_plot.get_xlim()
+        if self.axe_plot_2 is not None:
+            left_x_limit_2, right_x_limit_2 = self.axe_plot_2.get_xlim()
         # print(f"left_x_limit_1 {left_x_limit_1}, right_x_limit_1 {right_x_limit_1}, "
         #       f"self.nb_times_traces {self.nb_times_traces}")
         if (left_x_limit_1 <= 0) and (right_x_limit_1 >= (self.n_times - 1)):
@@ -749,25 +778,45 @@ class SelectionFrame(tk.Frame):
 
         # moving the windown to the right direction keeping 10% of the window in the new one
         length_window = right_x_limit_1 - left_x_limit_1
+        if self.axe_plot_2 is not None:
+            length_window_2 = right_x_limit_2 - left_x_limit_2
         if to_the_left:
             if left_x_limit_1 <= 0:
                 return
             new_right_x_limit = int(left_x_limit_1 + (0.1 * length_window))
+            if self.axe_plot_2 is not None:
+                # new_right_x_limit_2 = int(left_x_limit_2 + (0.1 * length_window_2))
+                new_right_x_limit_2 = int(new_right_x_limit * self.ratio_traces)
             new_left_x_limit = new_right_x_limit - length_window
             new_left_x_limit = max(new_left_x_limit, 0)
+            if self.axe_plot_2 is not None:
+                new_left_x_limit_2 = int(new_left_x_limit * self.ratio_traces)
+                # new_left_x_limit_2 = new_right_x_limit_2 - length_window_2
+                # new_left_x_limit_2 = max(new_left_x_limit_2, 0)
             if new_right_x_limit <= new_left_x_limit:
                 return
         else:
             if right_x_limit_1 >= (self.n_times - 1):
                 return
             new_left_x_limit = int(right_x_limit_1 - (0.1 * length_window))
+            if self.axe_plot_2 is not None:
+                new_left_x_limit_2 = int(new_left_x_limit * self.ratio_traces)
+                # new_left_x_limit_2 = int(right_x_limit_2 - (0.1 * length_window_2))
             new_right_x_limit = new_left_x_limit + length_window
             new_right_x_limit = min(new_right_x_limit, self.n_times - 1)
+            if self.axe_plot_2 is not None:
+                new_right_x_limit_2 = int(new_right_x_limit * self.ratio_traces)
+                # new_right_x_limit_2 = new_left_x_limit_2 + length_window_2
+                # new_right_x_limit_2 = min(new_right_x_limit_2, self.n_times - 1)
             if new_left_x_limit >= new_right_x_limit:
                 return
 
         new_x_limit = (new_left_x_limit, new_right_x_limit)
-        self.update_plot(new_x_limit=new_x_limit)
+        if self.axe_plot_2 is None:
+            new_x_limit_2 = None
+        else:
+            new_x_limit_2 = (new_left_x_limit_2, new_right_x_limit_2)
+        self.update_plot(new_x_limit=new_x_limit, new_x_limit_2=new_x_limit_2)
 
 
 class DataAndParam(p_disc_tools_param.Parameters):
@@ -912,8 +961,8 @@ class OptionsFrame(tk.Frame):
         else:
             self.data_and_param.periods_names = list(self.data_and_param.periods.keys())
 
-        print(f"trace {self.data_and_param.trace.shape}")
-        print(f"periods_names {self.data_and_param.periods_names}")
+        # print(f"trace {self.data_and_param.trace.shape}")
+        # print(f"periods_names {self.data_and_param.periods_names}")
 
         f = SelectionFrame(data_and_param=self.data_and_param,
                            default_path=self.last_path_open)
@@ -965,7 +1014,7 @@ class OptionsFrame(tk.Frame):
                 elif file_name[-3:] == "npz":
                     self.loaded_periods = np.load(file_name)
             elif data_to_load_str == "trace 1":
-                print(f"file_name[-3:] {file_name[-3:]}")
+                # print(f"file_name[-3:] {file_name[-3:]}")
                 if file_name[-3:] == "mat":
                     data_file = hdf5storage.loadmat(file_name)
                     for key, value in data_file.items():
@@ -975,7 +1024,7 @@ class OptionsFrame(tk.Frame):
                     self.trace = np.load(file_name)
                 self.go_button['state'] = "normal"
             elif data_to_load_str == "trace 2":
-                print(f"file_name[-3:] {file_name[-3:]}")
+                # print(f"file_name[-3:] {file_name[-3:]}")
                 if file_name[-3:] == "mat":
                     data_file = hdf5storage.loadmat(file_name)
                     for key, value in data_file.items():
