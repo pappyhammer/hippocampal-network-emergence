@@ -2379,7 +2379,7 @@ def main():
     do_plot_psth_twitches = False
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
-    just_do_pca_on_raster = False
+    just_do_pca_on_raster = True
     just_display_seq_with_cell_assembly = False
     just_produce_animation = False
     just_plot_ratio_spikes_for_shift = False
@@ -2403,7 +2403,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = True
+    do_clustering = False
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
@@ -2535,24 +2535,25 @@ def main():
 
         if just_do_pca_on_raster:
             spike_nums_to_use = ms.spike_struct.spike_nums_dur
-            sce_detection_result = detect_sce_potatoes_style(spike_nums=spike_nums_to_use, perc_threshold=95,
-                                                             debug_mode=True)
-
-            print(f"sce_with_sliding_window detected")
-            # tuple of times
-            SCE_times = sce_detection_result[1]
-
-            # print(f"SCE_times {SCE_times}")
-            sce_times_numbers = sce_detection_result[3]
-            sce_times_bool = sce_detection_result[0]
-            # useful for plotting twitches
-            ms.sce_bool = sce_times_bool
-            ms.sce_times_numbers = sce_times_numbers
-            ms.SCE_times = SCE_times
-
-            span_area_coords = [SCE_times]
-            span_area_colors = ['lightgrey']
-            ms.pca_on_raster(span_area_coords=span_area_coords, span_area_colors=span_area_colors)
+            # sce_detection_result = detect_sce_potatoes_style(spike_nums=spike_nums_to_use, perc_threshold=95,
+            #                                                  debug_mode=True)
+            #
+            # print(f"sce_with_sliding_window detected")
+            # # tuple of times
+            # SCE_times = sce_detection_result[1]
+            #
+            # # print(f"SCE_times {SCE_times}")
+            # sce_times_numbers = sce_detection_result[3]
+            # sce_times_bool = sce_detection_result[0]
+            # # useful for plotting twitches
+            # ms.sce_bool = sce_times_bool
+            # ms.sce_times_numbers = sce_times_numbers
+            # ms.SCE_times = SCE_times
+            #
+            # span_area_coords = [SCE_times]
+            # span_area_colors = ['lightgrey']
+            # span_area_coords=span_area_coords, span_area_colors=span_area_colors
+            ms.pca_on_raster()
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("pca_done")
             continue

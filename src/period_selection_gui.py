@@ -126,10 +126,24 @@ class SelectionFrame(tk.Frame):
         # ------------ colors  -----------------
         self.color_background = "black"
         self.default_color_trace = "white"
+        self.default_color_trace_2 = "red"
         self.color_mark_to_remove = "white"
         # ------------- colors (end) --------
 
         self.trace = data_and_param.trace
+        # normalizing it
+        self.trace = (self.trace - np.mean(self.trace)) / np.std(self.trace)
+        self.y_max_value = np.max(self.trace)
+        self.y_min_value = np.min(self.trace)
+        # in case there is a 2nd trace to display
+        self.trace_2 = data_and_param.trace_2
+        if self.trace_2 is not None:
+            self.trace_2 = (self.trace_2 - np.mean(self.trace_2)) / np.std(self.trace_2)
+            min_trace = np.min(self.trace)
+            max_trace_2 = np.max(self.trace_2)
+            self.trace_2 = self.trace_2 - np.abs(max_trace_2 - min_trace)
+            self.y_max_value = max(self.y_max_value, np.max(self.trace_2))
+            self.y_min_value = min(self.y_min_value, np.min(self.trace_2))
         self.n_times = self.trace.shape[0]
         # contains boolean array
         self.periods = data_and_param.periods
@@ -452,14 +466,19 @@ class SelectionFrame(tk.Frame):
         # #################### SMOOTHED TRACE ####################
 
         color_trace = self.default_color_trace
+        color_trace_2 = self.default_color_trace_2
         self.line1, = self.axe_plot.plot(np.arange(self.n_times), self.trace,
                                          color=color_trace, zorder=10)
 
-        # #################### MIN & MAX VALUE ####################
+        if self.trace_2 is not None:
+            self.line2, = self.axe_plot.plot(np.arange(self.n_times), self.trace_2,
+                                         color=color_trace_2, zorder=10)
 
-        max_value = np.max(self.trace)
-        min_value = np.min(self.trace)
-
+            interval = 200
+            self.axe_plot.vlines(np.arange(interval, self.n_times, interval), self.y_min_value,
+                                 math.ceil(self.y_max_value),
+                                 color="white", linewidth=0.3,
+                                 linestyles="dashed", zorder=9)
         # #################### DOUBTFUL FRAMES ####################
 
         for period_name, periods_tuples in self.periods_as_tuples.items():
@@ -485,8 +504,8 @@ class SelectionFrame(tk.Frame):
 
         self.axe_plot.legend(handles=legend_elements)
         # by default the y axis zoom is set to fit the wider amplitude of the current neuron
-        self.axe_plot.set_ylim(min_value,
-                               math.ceil(max_value))
+        self.axe_plot.set_ylim(self.y_min_value,
+                               math.ceil(self.y_max_value))
 
         # removing first x_axis
         axes_to_clean = [self.axe_plot]
@@ -758,6 +777,7 @@ class DataAndParam(p_disc_tools_param.Parameters):
         self.result_path = result_path
         self.path_data = path_data
         self.trace = None
+        self.trace_2 = None
         self.periods = None
         self.periods_names = None
 
@@ -863,6 +883,7 @@ class OptionsFrame(tk.Frame):
         # if self.periods_names is None, then the option_menu selection is used and will name periods as period_{n}
         self.periods_names = None
         self.trace = None
+        self.trace_2 = None
 
         # maximum number of type of periods
         self.n_max_periods_type = 5
@@ -878,6 +899,7 @@ class OptionsFrame(tk.Frame):
         self.go_button['state'] = DISABLED
 
         self.data_and_param.trace = self.trace
+        self.data_and_param.trace_2 = self.trace_2
 
         self.data_and_param.periods = self.loaded_periods
 
@@ -908,7 +930,9 @@ class OptionsFrame(tk.Frame):
                 file_types = []  # ("Text files", "*.txt")
             elif data_to_load_str == "periods":
                 file_types = (("Matlab files", "*.mat"), ("Numpy files", "*.npy"), ("Numpy files", "*.npz"))
-            elif data_to_load_str == "trace":
+            elif data_to_load_str == "trace 1":
+                file_types = (("Matlab files", "*.mat"), ("Numpy files", "*.npy"))
+            elif data_to_load_str == "trace 2":
                 file_types = (("Matlab files", "*.mat"), ("Numpy files", "*.npy"))
             else:
                 print(f"Unknown data_to_load_str {data_to_load_str}")
@@ -940,7 +964,7 @@ class OptionsFrame(tk.Frame):
                     self.loaded_periods["period_1"] = period_array
                 elif file_name[-3:] == "npz":
                     self.loaded_periods = np.load(file_name)
-            elif data_to_load_str == "trace":
+            elif data_to_load_str == "trace 1":
                 print(f"file_name[-3:] {file_name[-3:]}")
                 if file_name[-3:] == "mat":
                     data_file = hdf5storage.loadmat(file_name)
@@ -950,6 +974,16 @@ class OptionsFrame(tk.Frame):
                 elif file_name[-3:] == "npy":
                     self.trace = np.load(file_name)
                 self.go_button['state'] = "normal"
+            elif data_to_load_str == "trace 2":
+                print(f"file_name[-3:] {file_name[-3:]}")
+                if file_name[-3:] == "mat":
+                    data_file = hdf5storage.loadmat(file_name)
+                    for key, value in data_file.items():
+                        # TODO: need to figure out if other array are saved than the one we want to load
+                        print(f"key {key}, value.shape {value.shape}")
+                elif file_name[-3:] == "npy":
+                    self.trace_2 = np.load(file_name)
+                self.go_button['state'] = "normal"
 
             self.file_selection_buttons[data_to_load_str]["fg"] = "grey"
 
@@ -957,7 +991,7 @@ class OptionsFrame(tk.Frame):
         colors = ["blue", "orange", "green", "pink", "brown", "yellow"]
         # for c in colors:
         #     ttk.Style().configure(f'black/{c}.TButton', foreground='black', background=f'{c}')
-        data_to_load = ["params", "trace", "periods"]
+        data_to_load = ["params", "trace 1", "trace 2", "periods"]
 
         # create new frames
         menu_frame = Frame(self)

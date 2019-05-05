@@ -190,6 +190,7 @@ class ChooseSessionFrame(tk.Frame):
                                  "p13_18_10_29_a001_ms",
                                  "p14_18_10_23_a000_ms",
                                  "p14_18_10_30_a001_ms",
+                                 "p41_19_04_30_a000_ms",
                                  "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
 
         self.option_menu_variable = None

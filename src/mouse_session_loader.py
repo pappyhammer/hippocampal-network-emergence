@@ -132,11 +132,14 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                 "p5/p5_19_03_25_a001/p5_19_03_25_a001_shift_period_selection.npz",
                                                 variables_mapping=variables_mapping)
 
-        # if load_movie:
-        p5_19_03_25_a001_ms.load_tif_movie(path="p5/p5_19_03_25_a001")
-        p5_19_03_25_a001_ms.build_raw_traces_from_movie()
 
         p5_19_03_25_a001_ms.load_suite2p_data(data_path="p5/p5_19_03_25_a001/suite2p/", with_coord=True)
+
+        # if load_movie:
+        p5_19_03_25_a001_ms.load_tif_movie(path="p5/p5_19_03_25_a001")
+        p5_19_03_25_a001_ms.load_tiff_movie_in_memory()
+        p5_19_03_25_a001_ms.raw_traces = p5_19_03_25_a001_ms.build_raw_traces_from_movie()
+
 
         p5_19_03_25_a001_ms.clean_raster_at_concatenation()
 
@@ -318,7 +321,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             if not for_cell_classifier:
                 p7_171012_a000_ms.clean_data_using_cells_to_remove()
 
-        p7_171012_a000_ms.load_suite2p_data(data_path="p7/p7_17_10_12_a000/suite2p/", with_coord=try_suite_2p)
+        # p7_171012_a000_ms.load_suite2p_data(data_path="p7/p7_17_10_12_a000/suite2p/", with_coord=try_suite_2p)
 
         # p7_171012_a000_ms.load_caiman_results(path_data="p7/p7_17_10_12_a000/")
         ms_str_to_ms_dict["p7_171012_a000_ms"] = p7_171012_a000_ms
@@ -1528,11 +1531,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         #                                         "p41/p41_19_04_30_a000/p41_19_04_30_a000_shift_period_selection.npz",
         #                                         variables_mapping=variables_mapping)
 
+        p41_19_04_30_a000_ms.load_suite2p_data(data_path="p41/p41_19_04_30_a000/suite2p/", with_coord=True)
+
         # if load_movie:
         p41_19_04_30_a000_ms.load_tif_movie(path="p41/p41_19_04_30_a000")
-        p41_19_04_30_a000_ms.build_raw_traces_from_movie()
+        p41_19_04_30_a000_ms.load_tiff_movie_in_memory()
+        p41_19_04_30_a000_ms.raw_traces = p41_19_04_30_a000_ms.build_raw_traces_from_movie()
 
-        p41_19_04_30_a000_ms.load_suite2p_data(data_path="p41/p41_19_04_30_a000/suite2p/", with_coord=True)
 
         p41_19_04_30_a000_ms.clean_raster_at_concatenation()
 
