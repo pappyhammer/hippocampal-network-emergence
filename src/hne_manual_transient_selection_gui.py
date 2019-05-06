@@ -3753,7 +3753,7 @@ class ManualOnsetFrame(tk.Frame):
 
     def load_checked_predictions(self):
         options = {}
-        options['initialdir'] = "/"
+        options['initialdir'] = self.data_and_param.path_data
         if self.save_checked_predictions_dir is not None:
             options['initialdir'] = self.save_checked_predictions_dir
         options['title'] = "Choose a directory to open files"
@@ -3794,16 +3794,19 @@ class ManualOnsetFrame(tk.Frame):
             self.peak_nums[cell, first_frame:last_frame] = 0
 
             for period in periods:
-                self.onset_times[cell, first_frame+period[0]] = 1
-                self.spike_nums[cell, first_frame+period[0]] = 1
-                self.peak_nums[cell, first_frame+period[1]] = 1
+                if period[0] > 0:
+                    self.onset_times[cell, first_frame+period[0]] = 1
+                    self.spike_nums[cell, first_frame+period[0]] = 1
+                if first_frame+period[1] != (last_frame-1):
+                    self.peak_nums[cell, first_frame+period[1]] = 1
 
             self.transient_prediction_periods_checked.append(new_pred_period)
             # then we change the foreground of the predictions_list_boxs
             if new_pred_period in self.transient_prediction_periods_checked:
-                index_predictions_list_box = self.transient_prediction_periods_to_check.index(new_pred_period)
-                self.predictions_list_box.itemconfig(index_predictions_list_box,
-                                                     bg=self.color_bg_predicted_transient_list_box)
+                if new_pred_period in self.transient_prediction_periods_to_check:
+                    index_predictions_list_box = self.transient_prediction_periods_to_check.index(new_pred_period)
+                    self.predictions_list_box.itemconfig(index_predictions_list_box,
+                                                         bg=self.color_bg_predicted_transient_list_box)
 
 
         self.update_checked_predictions_list_box()

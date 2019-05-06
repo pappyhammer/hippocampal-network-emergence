@@ -347,6 +347,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                 variables_mapping=variables_mapping)
 
         if load_abf:
+            # channel 3: LFP
+            # channel 2: piezzo
             p7_19_03_05_a000_ms.load_abf_file(abf_file_name="p7/p7_19_03_05_a000/p7_19_03_05_a000.abf",
                                               piezo_channel=3,
                                               threshold_piezo=25, just_load_npz_file=False)

@@ -2735,7 +2735,10 @@ class MouseSession:
         # print(f"self.abf_frames {self.abf_frames[-50:]}")
         print(f'Saving abf_frames for {self.description}')
         np.save(self.param.path_data + path_abf_data + self.description + "_abf_frames.npy", self.abf_frames)
-        sampling_step = int(self.abf_sampling_rate/50)
+        # down sampling rate: 50 for piezzo, 1000 for LFP
+        # down_sampling_hz = 50
+        down_sampling_hz = 1000
+        sampling_step = int(self.abf_sampling_rate/down_sampling_hz)
         # np.save(self.param.path_data + path_abf_data + self.description + "_abf_12500.npy",
         #         mvt_data_without_abs[np.arange(self.abf_frames[0], self.abf_frames[-1] + sampling_step, sampling_step)])
         np.save(self.param.path_data + path_abf_data + self.description + "_abf_12500.npy",

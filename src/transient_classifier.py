@@ -602,10 +602,12 @@ class StratificationCamembert:
                                 n_fake_removed = 0
                                 sorted_index = 0
                                 while n_fake_removed < n_fake_to_delete:
+                                    if sorted_index >= len(self.full_transient_sorted_amplitude["fake"]):
+                                        break
                                     index_data_list = self.full_transient_sorted_amplitude["fake"][sorted_index]
                                     movie_data = self.data_list[index_data_list]
                                     if movie_data.to_keep_absolutely:
-                                        print("while n_fake_removed < n_fake_to_delete: movie_data.to_keep_absolutely")
+                                        # print("while n_fake_removed < n_fake_to_delete: movie_data.to_keep_absolutely")
                                         sorted_index += 1
                                         continue
                                     indices_to_remove.append(index_data_list)
@@ -1129,7 +1131,7 @@ class StratificationDataProcessor:
 
         # ####  then balance session between themselves
         # taking the sessions with the most movies and using it as exemples
-        balancing_sessions = True
+        balancing_sessions = False
         if balancing_sessions:
             max_movie_patch = 0
             for camembert in self.camembert_by_session.values():
@@ -2691,6 +2693,7 @@ def add_segment_of_cells_for_training(param,
                     dir_of_files.append(directory)
             break
 
+    # debug_dict = {}
     for file_index, file_name in enumerate(file_names_to_load):
         underscores_pos = [pos for pos, char in enumerate(file_name) if char == "_"]
         if len(underscores_pos) < 4:
@@ -2724,6 +2727,10 @@ def add_segment_of_cells_for_training(param,
         if cell not in raster_dur_by_cells_and_session[ms_str]:
             raster_dur_by_cells_and_session[ms_str][cell] = np.zeros(n_frames, dtype="int8")
         raster_dur_by_cells_and_session[ms_str][cell][first_frame:last_frame] = segment_raster_dur
+        # print(f"{ms_str}: {cell}: {first_frame}-{last_frame} sum {np.sum(segment_raster_dur)}")
+        # debug_dict[ms_str + "_" + str(cell)]  = debug_dict.get(ms_str + "_" + str(cell), 0) + np.sum(segment_raster_dur)
+
+    # print(f"debug_dict {debug_dict}")
 
 
     return cells_segments_by_session, raster_dur_by_cells_and_session
@@ -2760,7 +2767,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     add_doubt_at_movie_concatenation_frames = True
     use_cnn_to_select_cells = False
     use_small_sample = False
-    use_triple_blinded_data = True
+    use_triple_blinded_data = False
+    use_test_sample = True
     # used for counting how many cells and transients available
     load_them_all = False
 
@@ -2811,7 +2819,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         ms_to_remove_from_validation.append("artificial_ms_1")
         ms_to_remove_from_test.append("artificial_ms_2")
         ms_to_remove_from_validation.append("artificial_ms_2")
-        ms_to_remove_from_test.append("artificial_ms_3")
+        # ms_to_remove_from_test.append("artificial_ms_3")
         # ms_to_remove_from_validation.append("artificial_ms_3")
         ms_to_use = ["artificial_ms_1", "artificial_ms_2", "artificial_ms_3", "p7_171012_a000_ms",
                      "p8_18_10_24_a006_ms",
@@ -2843,7 +2851,14 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         p12_171110_a000_ms: 9, 10
         p13_18_10_29_a001_ms: 77, 117 (need to be done by JD before triple blind) 
         """
+    elif use_test_sample:
+        ms_to_use = ["p12_171110_a000_ms"]
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(0, 6)}
 
+        cells_segments_by_session, raster_dur_by_cells_and_session = \
+            add_segment_of_cells_for_training(param,
+                                              ms_to_use,
+                                              cell_to_load_by_ms)
     else:
         ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms",  # p8_18_10_24_a005_ms  "p7_171012_a000_ms",
                      "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
@@ -2864,16 +2879,6 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                                             load_traces=True, load_abf=False,
                                             for_transient_classifier=True)
 
-    if raster_dur_by_cells_and_session is not None:
-        for ms_str, raster_dict in raster_dur_by_cells_and_session.items():
-            ms = ms_str_to_ms_dict[ms_str]
-            # modifying the raster for the cell segments
-            # important a cell is either composed of segments or all the frames are included
-            for cell, raster in raster_dict.items():
-                # print(f"New raster for cell {cell} of {ms_str}")
-                ms.spike_struct.spike_nums_dur[cell] = raster
-            # reconstructing onsets and peaks then
-            ms.spike_struct.build_spike_nums_and_peak_nums()
 
 
     total_n_cells = 0
@@ -2911,6 +2916,32 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
 
         # if cells have been removed we need to updated indices that were given
         cells_to_load, original_cell_indices_mapping = ms.get_new_cell_indices_if_cells_removed(np.array(cells_to_load))
+
+        if raster_dur_by_cells_and_session is not None:
+            if ms_str in raster_dur_by_cells_and_session:
+                raster_dict = raster_dur_by_cells_and_session[ms_str]
+                # modifying the raster for the cell segments
+                # important a cell is either composed of segments or all the frames are included
+                for cell, raster in raster_dict.items():
+                    if cell in original_cell_indices_mapping:
+                        # re-mapping the cell
+                        index_cell = np.where(original_cell_indices_mapping == cell)[0][0]
+                        # print(f"index_cell {index_cell}, cells_to_load {cells_to_load}")
+                        new_cell = cells_to_load[index_cell]
+                        # print(f"New raster for cell {cell} of {ms_str}, sum {np.sum(raster)}")
+                        ms.spike_struct.spike_nums_dur[new_cell] = raster
+                # reconstructing onsets and peaks then
+                ms.spike_struct.build_spike_nums_and_peak_nums()
+
+        # print(f"ms_str {ms_str}")
+        cells_to_load_str = ""
+        for cell in cells_to_load:
+            cells_to_load_str += f"{cell} "
+        # print(f"cells_to_load new : {cells_to_load_str}")
+        original_cell_indices_mapping_str = ""
+        for cell in original_cell_indices_mapping:
+            original_cell_indices_mapping_str += f"{cell} "
+        # print(f"original_cell_indices_mapping new : {original_cell_indices_mapping_str}")
         # updating cells_segments_by_session with new cell indices
         if cells_segments_by_session is not None:
             if ms_str in cells_segments_by_session:
@@ -2923,7 +2954,10 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                         if ms_str not in updated_cells_segments_by_session:
                             updated_cells_segments_by_session[ms_str] = dict()
                         updated_cells_segments_by_session[ms_str][new_cell] = segments
-
+                # debugging
+                # for cell_index, segments in updated_cells_segments_by_session[ms_str].items():
+                #     print(f"New cell {cell_index}: {segments}")
+                #     print(f"New cell {cell_index}, sum: {np.sum(ms.spike_struct.spike_nums_dur[cell_index])}")
         total_n_cells += len(cells_to_load)
         cell_to_load_by_ms[ms_str] = cells_to_load
 
@@ -3940,9 +3974,9 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 1
+    n_epochs = 3
     batch_size = 8
-    window_len = 100
+    window_len = 100 # TODO: 100
     max_width = 25
     max_height = 25
     overlap_value = 0.9
@@ -4004,7 +4038,7 @@ def train_model():
         MoviePatchGeneratorGlobalWithContour(window_len=window_len, max_width=max_width, max_height=max_height,
                                              pixels_around=pixels_around, buffer=buffer,
                                              using_multi_class=using_multi_class)
-
+    # TODO: MaskedVersions
     movie_patch_generator_for_training = movie_patch_generator_choices["MaskedVersions"]
     movie_patch_generator_for_validation = movie_patch_generator_choices["MaskedVersions"]
     movie_patch_generator_for_test = movie_patch_generator_choices["MaskedVersions"]
@@ -4074,7 +4108,7 @@ def train_model():
                         bin_lstm_size=bin_lstm_size)
 
     print(model.summary())
-    # raise Exception("YOU KNOW NOTHING JON SNOW")
+    raise Exception("YOU KNOW NOTHING JON SNOW")
 
     # Save the model architecture
     with open(
