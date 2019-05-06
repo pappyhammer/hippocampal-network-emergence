@@ -1,6 +1,9 @@
 # import matplotlib
 # # important to avoid a bug when using virtualenv
 # matplotlib.use('TkAgg')
+from tensorflow.python.client import device_lib
+print(f"device_lib.list_local_devices(): {device_lib.list_local_devices()}")
+
 import numpy as np
 import keras
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Bidirectional, BatchNormalization
@@ -24,7 +27,7 @@ from random import shuffle
 from keras import backend as K
 import os
 from pattern_discovery.tools.misc import get_continous_time_periods
-import scipy.signal as signal
+import scipy as sci_py
 import scipy.io as sio
 import sys
 import platform
@@ -2373,7 +2376,9 @@ def load_movie(ms):
             #       f"{np.round(stop_time - start_time, 3)} s")
             ms.load_tiff_movie_in_memory()
 
-            ms.normalize_movie()
+            # no need to normalize the movie, we normalize it only on the frame we need using
+            # mean and std saved in npy.file
+            # ms.normalize_movie()
         return True
     return False
 
@@ -2401,9 +2406,6 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
     The mask consist on a binary array of with 0 for all pixels in the cell, 1 otherwise
     :return:
     """
-    # TODO: find a way to get len x and y without having to load the whole movie
-    # len_frame_x = ms.tiff_movie_normalized[0].shape[1]
-    # len_frame_y = ms.tiff_movie_normalized[0].shape[0]
     len_frame_x = ms.movie_len_x
     len_frame_y = ms.movie_len_x
 
@@ -2475,9 +2477,17 @@ def get_source_profile_frames(ms, frames, coords):
     if ms.tiff_movie_normalized is not None:
         source_profile = ms.tiff_movie_normalized[frames, miny:maxy + 1, minx:maxx + 1]
     else:
-        # print(f"get_source_profile_frames {ms.description} {frames[0]}-{frames[-1]}")
-        mean_value = np.load(os.path.join(ms.tiffs_for_transient_classifier_path, ms.description.lower(), "mean.npy"))
-        std_value = np.load(os.path.join(ms.tiffs_for_transient_classifier_path, ms.description.lower(), "std.npy"))
+        if ms.tiff_movie_mean is None:
+            mean_value = np.load(os.path.join(ms.tiffs_for_transient_classifier_path, ms.description.lower(), "mean.npy"))
+            ms.tiff_movie_mean = mean_value
+        else:
+            mean_value = ms.tiff_movie_mean
+        if ms.tiff_movie_std is None:
+            std_value = np.load(os.path.join(ms.tiffs_for_transient_classifier_path, ms.description.lower(), "std.npy"))
+            ms.tiff_movie_std = std_value
+        else:
+            std_value = ms.tiff_movie_std
+
         source_profile = np.zeros((len(frames), maxy - miny + 1, maxx - minx + 1))
         for frame_index, frame in enumerate(frames):
             im = PIL.Image.open(os.path.join(ms.tiffs_for_transient_classifier_path,
@@ -2499,7 +2509,7 @@ def find_all_onsets_and_peaks_on_traces(ms, cell, threshold_factor=0.5):
     # print(f"trace {trace.shape}, np.mean(trace) {np.mean(trace)}")
     n_frames = trace.shape[0]
     peak_nums = np.zeros(n_frames, dtype="int8")
-    peaks, properties = signal.find_peaks(x=trace, distance=2)
+    peaks, properties = sci_py.signal.find_peaks(x=trace, distance=2)
     peak_nums[peaks] = 1
     spike_nums = np.zeros(n_frames, dtype="int8")
     onsets = []
@@ -2618,7 +2628,7 @@ def load_data_for_prediction(ms, cell, sliding_window_len, overlap_value, augmen
     movie_patch_data = []
     data_frame_indices = []
 
-    n_frames = ms.tiff_movie_normalized.shape[0]
+    n_frames = ms.tiff_movie.shape[0]
     frames_step = int(np.ceil(sliding_window_len * (1 - overlap_value)))
     # number of indices to remove so index + sliding_window_len won't be superior to number of frames
     n_step_to_remove = 0 if (overlap_value == 0) else int(1 / (1 - overlap_value))
@@ -3339,7 +3349,7 @@ def build_model(input_shape, lstm_layers_size, n_inputs, using_multi_class, bin_
 
 def get_source_profile_for_prediction(ms, cell, augmentation_functions=None, buffer=None,
                                       overlap_value=0, max_width=30, max_height=30, sliding_window_len=100):
-    n_frames = ms.tiff_movie_normalized.shape[0]
+    n_frames = ms.tiff_movie.shape[0]
     n_augmentation_fct = 0
     if augmentation_functions is not None:
         n_augmentation_fct = len(augmentation_functions)
@@ -3478,7 +3488,7 @@ def create_tiffs_for_data_generator(ms_to_use, param, path_for_tiffs):
               f"{np.round(stop_time - start_time, 3)} s")
 
 
-def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
+def transients_prediction_from_movie(ms_to_use, param, tiffs_for_transient_classifier_path, overlap_value=0.8,
                                      use_data_augmentation=True, cells_to_predict=None,
                                      using_cnn_predictions=False, file_name_bonus_str=""):
     """
@@ -3501,6 +3511,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
                                             for_transient_classifier=True)
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
+        ms.tiffs_for_transient_classifier_path = tiffs_for_transient_classifier_path
 
         n_cells = len(ms.coord)
         print(f"ms {ms_str}")
@@ -3533,7 +3544,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
         if not movie_loaded:
             raise Exception(f"could not load movie of ms {ms.description}")
 
-        n_frames = ms.tiff_movie_normalized.shape[0]
+        n_frames = ms.tiff_movie.shape[0]
         print(f"transients_prediction_from_movie n_frames {n_frames}")
 
         # we keep the original number of cells, so if predictions were made with another method (such as Caiman)
@@ -3612,7 +3623,7 @@ def transients_prediction_from_movie(ms_to_use, param, overlap_value=0.8,
 def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
                                  use_data_augmentation=True, buffer=None):
     start_time = time.time()
-    n_frames = len(ms.tiff_movie_normalized)
+    n_frames = len(ms.tiff_movie)
     # multi_inputs = (model.layers[0].output_shape == model.layers[1].output_shape)
     window_len = model.layers[0].output_shape[1]
     max_height = model.layers[0].output_shape[2]
@@ -3840,7 +3851,6 @@ def single_class_accuracy_recall(interesting_class_id):
 
     return recall
 
-
 def train_model():
     root_path = None
     with open("param_hne.txt", "r", encoding='UTF-8') as file:
@@ -3878,7 +3888,7 @@ def train_model():
                                  "p13_18_10_29_a001_ms", "p8_18_10_24_a005_ms"]
         ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms"]
         ms_for_rnn_benchmarks = ["p41_19_04_30_a000_ms"]
-        # p7_171012_a000_ms
+        ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
                             "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
@@ -3888,9 +3898,11 @@ def train_model():
                             "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
         cells_to_predict = {"p11_17_11_24_a000_ms": np.arange(24)}  # np.array([2, 25])} # np.arange(117)
         cells_to_predict = {"p41_19_04_30_a000_ms": None}
+        cells_to_predict = {"p7_171012_a000_ms": np.arange(1)}
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0,
                                          use_data_augmentation=False, using_cnn_predictions=False,
-                                         cells_to_predict=cells_to_predict, file_name_bonus_str="")
+                                         cells_to_predict=cells_to_predict, file_name_bonus_str="",
+                                         tiffs_for_transient_classifier_path = path_for_tiffs)
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
@@ -3928,7 +3940,7 @@ def train_model():
     lstm_layers_size = [128, 256]
     """
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 30
+    n_epochs = 1
     batch_size = 8
     window_len = 100
     max_width = 25
@@ -4143,14 +4155,6 @@ def train_model():
     print(f"Time for fitting the model to the data with {n_epochs} epochs: "
           f"{np.round(stop_time - start_time, 3)} s")
 
-    show_plots = True
-
-    if show_plots:
-        key_names = ["loss", "acc", "sensitivity", "specificity", "precision"]
-        for key_name in key_names:
-            plot_training_and_validation_values(history=history, key_name=key_name,
-                                                result_path=result_path, param=param)
-
     history_dict = history.history
     start_time = time.time()
 
@@ -4214,6 +4218,14 @@ def train_model():
                 file.write(f"{cell} ")
             file.write("\n")
         file.write("" + '\n')
+
+    show_plots = False
+
+    if show_plots:
+        key_names = ["loss", "acc", "sensitivity", "specificity", "precision"]
+        for key_name in key_names:
+            plot_training_and_validation_values(history=history, key_name=key_name,
+                                                result_path=result_path, param=param)
 
     # val_acc = history_dict['val_acc'][-1]
     # model.save_weights(

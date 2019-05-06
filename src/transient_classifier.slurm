@@ -3,8 +3,8 @@
 #SBATCH -p gpu
 #SBATCH --gres=gpu:1
 #SBATCH --gres-flags=enforce-binding # active l’affinité CPU:GPU
-#SBATCH --ntasks-per-node=10
-#SBATCH -t 05:00
+#SBATCH --ntasks-per-node=5
+#SBATCH -t 16:00:00
 #SBATCH -o %j.%a.out
 #SBATCH -e %j.%a.err
 #SBATCH --mail-type=BEGIN,END

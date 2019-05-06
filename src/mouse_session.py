@@ -335,14 +335,15 @@ class MouseSession:
             # z-score standardization
             if (self.tiff_movie is not None) and (self.tiff_movie_normalized is None):
                 print("normalizing the movie")
-                if (self.tiff_movie_mean is not None) and (self.tiff_movie_std is not None):
-                    # using loaded mean and std
-                    self.tiff_movie_normalized = (self.tiff_movie - self.tiff_movie_mean) / self.tiff_movie_std
-                else:
-                    self.tiff_movie_normalized = self.tiff_movie - np.mean(self.tiff_movie)
-                    print("movie normalization almost done")
-                    self.tiff_movie_normalized = self.tiff_movie_normalized / np.std(self.tiff_movie)
-
+                # if (self.tiff_movie_mean is not None) and (self.tiff_movie_std is not None):
+                #     # using loaded mean and std
+                #     print("mean and std of tiff mmovie are loaded, no need to normalized the movie now")
+                #     return
+                #     # self.tiff_movie_normalized = (self.tiff_movie - self.tiff_movie_mean) / self.tiff_movie_std
+                # else:
+                self.tiff_movie_normalized = self.tiff_movie - np.mean(self.tiff_movie)
+                print("movie normalization almost done")
+                self.tiff_movie_normalized = self.tiff_movie_normalized / np.std(self.tiff_movie)
                 # self.tiff_movie_normalized = np.copy(self.tiff_movie)
                 print("movie normalization done")
 
@@ -640,7 +641,7 @@ class MouseSession:
         file_names = []
 
         # look for filenames in the fisrst directory, if we don't break, it will go through all directories
-        for (dirpath, dirnames, local_filenames) in os.walk(path):
+        for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data, path)):
             file_names.extend(local_filenames)
             break
         if len(file_names) == 0:
@@ -652,10 +653,10 @@ class MouseSession:
 
             if file_name.endswith(".npy") and ("mean" in file_name.lower()):
                 # valid only for shifts data so far
-                self.tiff_movie_mean = np.load(os.path.join(path, file_name))
+                self.tiff_movie_mean = np.load(os.path.join(self.param.path_data, path, file_name))
             elif file_name.endswith(".npy") and ("std" in file_name.lower()):
                 # valid only for shifts data so far
-                self.tiff_movie_std = np.load(os.path.join(path, file_name))
+                self.tiff_movie_std = np.load(os.path.join(self.param.path_data, path, file_name))
 
     def load_movie_dimensions(self):
         """
@@ -2273,26 +2274,23 @@ class MouseSession:
                 coord_shapely = MultiPoint(list_points_coord).convex_hull.exterior.coords
                 coord.append(np.array(coord_shapely).transpose())
         self.suite2p_data["coord"] = coord
-        if with_coord:
-            self.coord = coord
-            print(f"self.coord len: {len(self.coord)}")
-            self.coord_obj = CoordClass(coord=self.coord, nb_col=self.movie_len_x,
-                                        nb_lines=self.movie_len_y, from_suite_2p=True)
-        else:
+        compare_suite_2p_and_caiman = False
+        if compare_suite_2p_and_caiman:
             # test trying to findout to which caiman cell those cells correspond
             suite2p_coord_obj = CoordClass(coord=coord, nb_col=self.movie_len_x,
-                                   nb_lines=self.movie_len_y, from_suite_2p=True)
+                                           nb_lines=self.movie_len_y, from_suite_2p=True)
             # for each suite2p cell, will give the estimate of the caiman cell index, will put -1 if no cell is found
             caiman_suite2p_mapping = self.coord_obj.match_cells_indices(suite2p_coord_obj, param=self.param,
                                                                         plot_title_opt=f"{self.description}_suite2p_vs_caiman")
             np.save(os.path.join(self.param.path_results, f"{self.description}_suite2p_vs_caiman.npy"),
-            caiman_suite2p_mapping)
-            # {self.param.path_results}/
-            # self.raw_traces = f
-        # print(f"stat['ypix'] {len(stat['ypix'])}: {stat['ypix']}")
-        # print(f"stat['xpix'] {len(stat['xpix'])}: {stat['xpix']}")
-        # print(f"stat['npix'] {stat['npix']}")
-        # raise Exception("suite2p loaded")
+                    caiman_suite2p_mapping)
+
+        if with_coord:
+            self.coord = coord
+            # print(f"self.coord len: {len(self.coord)}")
+            self.coord_obj = CoordClass(coord=self.coord, nb_col=self.movie_len_x,
+                                        nb_lines=self.movie_len_y, from_suite_2p=True)
+
 
     def plot_connectivity_maps_of_a_cell(self, cell_to_map, cell_descr, not_in=False,
                                          cell_color="red", links_cell_color="cornflowerblue"):
