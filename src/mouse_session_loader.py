@@ -347,6 +347,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                 variables_mapping=variables_mapping)
 
         if load_abf:
+            # channel 3: LFP
+            # channel 2: piezzo
             p7_19_03_05_a000_ms.load_abf_file(abf_file_name="p7/p7_19_03_05_a000/p7_19_03_05_a000.abf",
                                               piezo_channel=3,
                                               threshold_piezo=25, just_load_npz_file=False)
@@ -1604,7 +1606,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "p41_19_04_30_a000_ms" in ms_str_to_load:
         p41_19_04_30_a000_ms = MouseSession(age=41, session_id="19_04_30_a000", nb_ms_by_frame=100, param=param)
         # for threshold prediction at 0.5
-        p41_19_04_30_a000_ms.activity_threshold = 8
+        # p41_19_04_30_a000_ms.activity_threshold = 8
         # for threshold prediction at 0.3
         # p41_19_04_30_a000_ms.activity_threshold = 11
 
@@ -1637,7 +1639,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p41_19_04_30_a000_ms.load_tiff_movie_in_memory()
         p41_19_04_30_a000_ms.raw_traces = p41_19_04_30_a000_ms.build_raw_traces_from_movie()
 
-
+        if load_abf:
+            p41_19_04_30_a000_ms.load_abf_file(abf_file_name="p41/p41_19_04_30_a000/p41_19_04_30_a000.abf",
+                                              run_channel=2, with_run=True,
+                                              threshold_piezo=25, just_load_npz_file=False)
+        # p41_19_04_30_a000.abf
         p41_19_04_30_a000_ms.clean_raster_at_concatenation()
 
         p41_19_04_30_a000_ms.spike_struct.build_spike_nums_and_peak_nums()
