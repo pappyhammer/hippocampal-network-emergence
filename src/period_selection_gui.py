@@ -132,19 +132,19 @@ class SelectionFrame(tk.Frame):
 
         self.trace = data_and_param.trace
         # normalizing it
-        self.trace = (self.trace - np.mean(self.trace)) / np.std(self.trace)
-        self.y_max_value = np.max(self.trace)
-        self.y_min_value = np.min(self.trace)
+        self.trace = (self.trace - np.nanmean(self.trace)) / np.nanstd(self.trace)
+        self.y_max_value = np.nanmax(self.trace)
+        self.y_min_value = np.nanmin(self.trace)
         # in case there is a 2nd trace to display
         self.trace_2 = data_and_param.trace_2
         self.ratio_traces = None
         if self.trace_2 is not None:
             self.trace_2 = (self.trace_2 - np.mean(self.trace_2)) / np.std(self.trace_2)
-            min_trace = np.min(self.trace)
-            max_trace_2 = np.max(self.trace_2)
+            min_trace = np.nanmin(self.trace)
+            max_trace_2 = np.nanmax(self.trace_2)
             self.trace_2 = self.trace_2 - np.abs(max_trace_2 - min_trace)
-            self.y_max_value = max(self.y_max_value, np.max(self.trace_2))
-            self.y_min_value = min(self.y_min_value, np.min(self.trace_2))
+            self.y_max_value = np.nanmax((self.y_max_value, max_trace_2))
+            self.y_min_value = np.nanmin((self.y_min_value, np.min(self.trace_2)))
             self.ratio_traces = len(self.trace_2) / len(self.trace)
         self.n_times = self.trace.shape[0]
         # contains boolean array
@@ -978,11 +978,11 @@ class OptionsFrame(tk.Frame):
             if data_to_load_str == "params":
                 file_types = []  # ("Text files", "*.txt")
             elif data_to_load_str == "periods":
-                file_types = (("Matlab files", "*.mat"), ("Numpy files", "*.npy"), ("Numpy files", "*.npz"))
+                file_types = (("Numpy files", "*.npy"), ("Numpy files", "*.npz"), ("Matlab files", "*.mat"))
             elif data_to_load_str == "trace 1":
-                file_types = (("Matlab files", "*.mat"), ("Numpy files", "*.npy"))
+                file_types = (("Numpy files", "*.npy"), ("Matlab files", "*.mat"))
             elif data_to_load_str == "trace 2":
-                file_types = (("Matlab files", "*.mat"), ("Numpy files", "*.npy"))
+                file_types = (("Numpy files", "*.npy"), ("Matlab files", "*.mat"))
             else:
                 print(f"Unknown data_to_load_str {data_to_load_str}")
                 return

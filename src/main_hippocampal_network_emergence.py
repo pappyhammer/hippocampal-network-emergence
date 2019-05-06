@@ -2263,13 +2263,13 @@ def robin_loading_process(param, load_traces, load_abf=True):
     ms_str_to_load = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
     ms_str_to_load = ["p6_18_02_07_a002_ms"]
     ms_str_to_load = ["p6_18_02_07_a001_ms"]
-    ms_str_to_load = ["p7_18_02_08_a000_ms"]
-    ms_str_to_load = ["p12_171110_a000_ms"]
-    ms_str_to_load = ["p9_18_09_27_a003_ms"]
-    ms_str_to_load = ["p12_171110_a000_ms"]
-    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
-    ms_str_to_load = ["p7_171012_a000_ms"]
-    ms_str_to_load = ["p7_171012_a000_ms"]
+    # ms_str_to_load = ["p7_18_02_08_a000_ms"]
+    # ms_str_to_load = ["p12_171110_a000_ms"]
+    # ms_str_to_load = ["p9_18_09_27_a003_ms"]
+    # ms_str_to_load = ["p12_171110_a000_ms"]
+    # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
+    # ms_str_to_load = ["p7_171012_a000_ms"]
+    # ms_str_to_load = ["p7_171012_a000_ms"]
     # ms_str_to_load = ["richard_015_D74_P2_ms"]
     # ms_str_to_load = ["richard_015_D89_P2_ms"]
     # ms_str_to_load = ["richard_015_D66_P2_ms"]
@@ -2292,6 +2292,10 @@ def robin_loading_process(param, load_traces, load_abf=True):
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms"]
+    ms_str_to_load = ["p7_19_03_05_a000_ms", "p9_19_02_20_a003"]
+    ms_str_to_load = ["p9_19_02_20_a003_ms"]
+    ms_str_to_load = ["p7_19_03_05_a000_ms"]
+
 
     # 256
 
