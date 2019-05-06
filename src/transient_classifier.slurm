@@ -1,10 +1,10 @@
 #!/bin/sh
 #SBATCH -J job_tc
 #SBATCH -p gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:3
 #SBATCH --gres-flags=enforce-binding # active l’affinité CPU:GPU
-#SBATCH --ntasks-per-node=5
-#SBATCH -t 16:00:00
+#SBATCH --ntasks-per-node=1
+#SBATCH -t 07-00
 #SBATCH -o %j.%a.out
 #SBATCH -e %j.%a.err
 #SBATCH --mail-type=BEGIN,END

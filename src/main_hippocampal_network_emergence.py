@@ -2290,11 +2290,11 @@ def robin_loading_process(param, load_traces, load_abf=True):
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
     # ms_str_to_load = ["p9_19_03_22_a001_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
-    # ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms"]
-    ms_str_to_load = ["p7_19_03_05_a000_ms", "p9_19_02_20_a003"]
-    ms_str_to_load = ["p9_19_02_20_a003_ms"]
-    ms_str_to_load = ["p7_19_03_05_a000_ms"]
+    # ms_str_to_load = ["p7_19_03_05_a000_ms", "p9_19_02_20_a003"]
+    # ms_str_to_load = ["p9_19_02_20_a003_ms"]
+    # ms_str_to_load = ["p7_19_03_05_a000_ms"]
 
 
     # 256
@@ -2407,7 +2407,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = False
+    do_clustering = True
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
@@ -2416,13 +2416,19 @@ def main():
     # wake, sleep, quiet_wake, sleep_quiet_wake, active_wake
     richard_option = "active_wake"
 
+    # filtering spike_nums_dur using speed info if available
+    for ms in ms_to_analyse:
+        if ms.speed_by_frame is not None:
+            ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, ms.speed_by_frame < 0.5]
+            print(f"Using speed_by_frame {len(ms.spike_struct.spike_nums_dur)}")
+            ms.spike_struct.build_spike_nums_and_peak_nums()
     # ##### for fca #####
     n_surrogate_fca = 20
 
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(10, 15)
+    range_n_clusters_k_mean = np.arange(2, 10)
     # range_n_clusters_k_mean = np.array([4])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False

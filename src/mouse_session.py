@@ -34,6 +34,7 @@ from sklearn.decomposition import PCA
 from shapely.geometry import MultiPoint
 from ScanImageTiffReader import ScanImageTiffReader
 import hne_animation as hne_anim
+import math
 
 class MouseSession:
     def __init__(self, age, session_id, param, nb_ms_by_frame, weight=None, spike_nums=None, spike_nums_dur=None,
@@ -67,6 +68,8 @@ class MouseSession:
         # array of boolean indicating at which frame there is some shifting
         self.shift_periods_bool = None
         self.coord = None
+        # 1-D array with for each frame the speed as a float value
+        self.speed_by_frame = None
         # comes from the gui
         # used by the transient classifier to indicated which frames are doubtful and should not be used for training
         self.doubtful_frames_nums = None
@@ -2760,6 +2763,17 @@ class MouseSession:
                 piezzo_shift)
         # mvt_data_without_abs[np.arange(self.abf_frames[0], self.abf_frames[-1] + sampling_step, sampling_step)]
         # self.abf_frames
+        if with_run:
+            mvt_periods, speed_during_mvt_periods, speed_by_time = \
+                self.detect_run_periods(mvt_data=mvt_data, min_speed=0.5)
+            speed_by_time = speed_by_time[active_frames]
+            self.speed_by_frame = speed_by_time
+            # matfiledata = {}  # make a dictionary to store the MAT data in
+            # matfiledata['Speed'] = speed_by_time
+            # hdf5storage.write(matfiledata, os.path.join(self.param.path_data, path_abf_data),
+            #                   f'speed_{self.description}.mat', matlab_compatible=True)
+            hdf5storage.savemat(os.path.join(self.param.path_data, path_abf_data, f'speed_{self.description}.mat'
+                                             ), {'Speed': speed_by_time}, format='7.3')
 
         # manual selection deactivated
         do_manual_selection = False # not npz_loaded
@@ -2777,7 +2791,8 @@ class MouseSession:
         #     return
 
         if with_run:
-            mvt_periods, speed_during_mvt_periods = self.detect_run_periods(mvt_data=mvt_data, min_speed=0.5)
+            mvt_periods, speed_during_mvt_periods, speed_by_time = \
+                self.detect_run_periods(mvt_data=mvt_data, min_speed=0.5)
             # else:
             #     mvt_periods = self.detect_mvt_periods_with_piezo_and_diff(piezo_data=mvt_data,
             #                                                               piezo_threshold=threshold_piezo,
@@ -3084,7 +3099,7 @@ class MouseSession:
         speed_during_mvt_periods = []
         for period in mvt_periods:
             speed_during_mvt_periods.append(speed_by_time[period[0]:period[1] + 1])
-        return mvt_periods, speed_during_mvt_periods
+        return mvt_periods, speed_during_mvt_periods, speed_by_time
 
     # 50000 * 2
 
