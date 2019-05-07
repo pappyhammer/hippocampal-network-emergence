@@ -1,9 +1,16 @@
 # import matplotlib
 # # important to avoid a bug when using virtualenv
 # matplotlib.use('TkAgg')
+
+# set the matplotlib backend so figures can be saved in the background
+# (uncomment the lines below if you are using a headless server)
+# import matplotlib
+# matplotlib.use("Agg")
+
 from tensorflow.python.client import device_lib
 print(f"device_lib.list_local_devices(): {device_lib.list_local_devices()}")
 
+import tensorflow as tf
 import numpy as np
 import keras
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Bidirectional, BatchNormalization
@@ -13,7 +20,7 @@ from keras.models import model_from_json
 from keras.optimizers import RMSprop, adam, SGD
 from keras import layers
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, EarlyStopping
-from keras.utils import get_custom_objects
+from keras.utils import get_custom_objects, multi_gpu_model
 # from matplotlib import pyplot as plt
 import pattern_discovery.tools.param as p_disc_tools_param
 from datetime import datetime
@@ -602,10 +609,12 @@ class StratificationCamembert:
                                 n_fake_removed = 0
                                 sorted_index = 0
                                 while n_fake_removed < n_fake_to_delete:
+                                    if sorted_index >= len(self.full_transient_sorted_amplitude["fake"]):
+                                        break
                                     index_data_list = self.full_transient_sorted_amplitude["fake"][sorted_index]
                                     movie_data = self.data_list[index_data_list]
                                     if movie_data.to_keep_absolutely:
-                                        print("while n_fake_removed < n_fake_to_delete: movie_data.to_keep_absolutely")
+                                        # print("while n_fake_removed < n_fake_to_delete: movie_data.to_keep_absolutely")
                                         sorted_index += 1
                                         continue
                                     indices_to_remove.append(index_data_list)
@@ -1129,7 +1138,7 @@ class StratificationDataProcessor:
 
         # ####  then balance session between themselves
         # taking the sessions with the most movies and using it as exemples
-        balancing_sessions = True
+        balancing_sessions = False
         if balancing_sessions:
             max_movie_patch = 0
             for camembert in self.camembert_by_session.values():
@@ -2691,6 +2700,7 @@ def add_segment_of_cells_for_training(param,
                     dir_of_files.append(directory)
             break
 
+    # debug_dict = {}
     for file_index, file_name in enumerate(file_names_to_load):
         underscores_pos = [pos for pos, char in enumerate(file_name) if char == "_"]
         if len(underscores_pos) < 4:
@@ -2724,6 +2734,10 @@ def add_segment_of_cells_for_training(param,
         if cell not in raster_dur_by_cells_and_session[ms_str]:
             raster_dur_by_cells_and_session[ms_str][cell] = np.zeros(n_frames, dtype="int8")
         raster_dur_by_cells_and_session[ms_str][cell][first_frame:last_frame] = segment_raster_dur
+        # print(f"{ms_str}: {cell}: {first_frame}-{last_frame} sum {np.sum(segment_raster_dur)}")
+        # debug_dict[ms_str + "_" + str(cell)]  = debug_dict.get(ms_str + "_" + str(cell), 0) + np.sum(segment_raster_dur)
+
+    # print(f"debug_dict {debug_dict}")
 
 
     return cells_segments_by_session, raster_dur_by_cells_and_session
@@ -2761,6 +2775,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     use_cnn_to_select_cells = False
     use_small_sample = False
     use_triple_blinded_data = True
+    use_test_sample = False
     # used for counting how many cells and transients available
     load_them_all = False
 
@@ -2811,9 +2826,11 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         ms_to_remove_from_validation.append("artificial_ms_1")
         ms_to_remove_from_test.append("artificial_ms_2")
         ms_to_remove_from_validation.append("artificial_ms_2")
-        ms_to_remove_from_test.append("artificial_ms_3")
+        # ms_to_remove_from_test.append("artificial_ms_3")
         # ms_to_remove_from_validation.append("artificial_ms_3")
-        ms_to_use = ["artificial_ms_1", "artificial_ms_2", "artificial_ms_3", "p7_171012_a000_ms",
+        # "artificial_ms_3",
+        # "artificial_ms_3": np.array([0, 11, 27, 37, 48, 55, 65, 78, 87, 95, 103, 112, 117, 128, 136, 144],
+        ms_to_use = ["artificial_ms_1", "artificial_ms_2", "p7_171012_a000_ms",
                      "p8_18_10_24_a006_ms",
                      "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
                      "p13_18_10_29_a001_ms"]
@@ -2821,8 +2838,6 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                                   np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
                               "artificial_ms_2":
                                   np.array([0, 9, 18, 26, 34, 41, 46, 56, 62, 77, 88, 101, 116, 127, 140, 150]),
-                              "artificial_ms_3":
-                                  np.array([0, 11, 27, 37, 48, 55, 65, 78, 87, 95, 103, 112, 117, 128, 136, 144]),
                               "p7_171012_a000_ms": np.array([3, 8, 11, 12, 14, 17, 18, 24]),
                               "p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
                               "p11_17_11_24_a000_ms": np.array([17, 22, 24, 25, 29, 30, 33]),
@@ -2843,7 +2858,14 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         p12_171110_a000_ms: 9, 10
         p13_18_10_29_a001_ms: 77, 117 (need to be done by JD before triple blind) 
         """
+    elif use_test_sample:
+        ms_to_use = ["p12_171110_a000_ms"]
+        cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(0, 6)}
 
+        cells_segments_by_session, raster_dur_by_cells_and_session = \
+            add_segment_of_cells_for_training(param,
+                                              ms_to_use,
+                                              cell_to_load_by_ms)
     else:
         ms_to_use = ["artificial_ms_1", "p11_17_11_24_a000_ms",  # p8_18_10_24_a005_ms  "p7_171012_a000_ms",
                      "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
@@ -2864,16 +2886,6 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                                             load_traces=True, load_abf=False,
                                             for_transient_classifier=True)
 
-    if raster_dur_by_cells_and_session is not None:
-        for ms_str, raster_dict in raster_dur_by_cells_and_session.items():
-            ms = ms_str_to_ms_dict[ms_str]
-            # modifying the raster for the cell segments
-            # important a cell is either composed of segments or all the frames are included
-            for cell, raster in raster_dict.items():
-                # print(f"New raster for cell {cell} of {ms_str}")
-                ms.spike_struct.spike_nums_dur[cell] = raster
-            # reconstructing onsets and peaks then
-            ms.spike_struct.build_spike_nums_and_peak_nums()
 
 
     total_n_cells = 0
@@ -2911,6 +2923,32 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
 
         # if cells have been removed we need to updated indices that were given
         cells_to_load, original_cell_indices_mapping = ms.get_new_cell_indices_if_cells_removed(np.array(cells_to_load))
+
+        if raster_dur_by_cells_and_session is not None:
+            if ms_str in raster_dur_by_cells_and_session:
+                raster_dict = raster_dur_by_cells_and_session[ms_str]
+                # modifying the raster for the cell segments
+                # important a cell is either composed of segments or all the frames are included
+                for cell, raster in raster_dict.items():
+                    if cell in original_cell_indices_mapping:
+                        # re-mapping the cell
+                        index_cell = np.where(original_cell_indices_mapping == cell)[0][0]
+                        # print(f"index_cell {index_cell}, cells_to_load {cells_to_load}")
+                        new_cell = cells_to_load[index_cell]
+                        # print(f"New raster for cell {cell} of {ms_str}, sum {np.sum(raster)}")
+                        ms.spike_struct.spike_nums_dur[new_cell] = raster
+                # reconstructing onsets and peaks then
+                ms.spike_struct.build_spike_nums_and_peak_nums()
+
+        # print(f"ms_str {ms_str}")
+        cells_to_load_str = ""
+        for cell in cells_to_load:
+            cells_to_load_str += f"{cell} "
+        # print(f"cells_to_load new : {cells_to_load_str}")
+        original_cell_indices_mapping_str = ""
+        for cell in original_cell_indices_mapping:
+            original_cell_indices_mapping_str += f"{cell} "
+        # print(f"original_cell_indices_mapping new : {original_cell_indices_mapping_str}")
         # updating cells_segments_by_session with new cell indices
         if cells_segments_by_session is not None:
             if ms_str in cells_segments_by_session:
@@ -2923,7 +2961,10 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                         if ms_str not in updated_cells_segments_by_session:
                             updated_cells_segments_by_session[ms_str] = dict()
                         updated_cells_segments_by_session[ms_str][new_cell] = segments
-
+                # debugging
+                # for cell_index, segments in updated_cells_segments_by_session[ms_str].items():
+                #     print(f"New cell {cell_index}: {segments}")
+                #     print(f"New cell {cell_index}, sum: {np.sum(ms.spike_struct.spike_nums_dur[cell_index])}")
         total_n_cells += len(cells_to_load)
         cell_to_load_by_ms[ms_str] = cells_to_load
 
@@ -3851,6 +3892,7 @@ def single_class_accuracy_recall(interesting_class_id):
 
     return recall
 
+
 def train_model():
     root_path = None
     with open("param_hne.txt", "r", encoding='UTF-8') as file:
@@ -3939,18 +3981,20 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
+    n_gpus = 1
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 1
-    batch_size = 8
-    window_len = 100
+    n_epochs = 30
+    # multiplying by the number of gpus used as batches will be distributed to each GPU
+    batch_size = 8*n_gpus
+    window_len = 100 # TODO: 100
     max_width = 25
     max_height = 25
-    overlap_value = 0.9
+    overlap_value = 0.9 # TODO: 0.9
     dropout_value = 0.5
     dropout_value_rnn = 0.5
     dropout_at_the_end = 0
     with_batch_normalization = False
-    max_n_transformations = 6
+    max_n_transformations = 6 # TODO: 6
     pixels_around = 0
     with_augmentation_for_training_data = True
     buffer = 1
@@ -3966,14 +4010,14 @@ def train_model():
     learning_rate_reduction_patience = 2
     without_bidirectional = False
     # TODO: try 256, 256, 256
-    lstm_layers_size = [128, 256]  # 128, 256, 512
+    lstm_layers_size = [128, 256]  # TODO: 128, 256 # 128, 256, 512
     bin_lstm_size = 256
-    use_bin_at_al_version = True
-    apply_attention = True
+    use_bin_at_al_version = True # TODO: True
+    apply_attention = True # TODO: True
     apply_attention_before_lstm = True
     use_single_attention_vector = False
     with_early_stopping = True
-    early_stop_patience = 12  # 10
+    early_stop_patience = 15  # 10
     model_descr = ""
     with_shuffling = True
     seed_value = 42  # use None to not use seed
@@ -3981,6 +4025,8 @@ def train_model():
     main_ratio_balance = (0.7, 0.2, 0.1)
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
+    # Maximum number of processes to spin up when using process-based threading
+    workers = 10
 
     movie_patch_generator_choices = dict()
     movie_patch_generator_choices["MaskedAndGlobal"] = \
@@ -4004,7 +4050,7 @@ def train_model():
         MoviePatchGeneratorGlobalWithContour(window_len=window_len, max_width=max_width, max_height=max_height,
                                              pixels_around=pixels_around, buffer=buffer,
                                              using_multi_class=using_multi_class)
-
+    # TODO: MaskedVersions
     movie_patch_generator_for_training = movie_patch_generator_choices["MaskedVersions"]
     movie_patch_generator_for_validation = movie_patch_generator_choices["MaskedVersions"]
     movie_patch_generator_for_test = movie_patch_generator_choices["MaskedVersions"]
@@ -4061,19 +4107,44 @@ def train_model():
     # return
     # building the model
     start_time = time.time()
-    model = build_model(input_shape=input_shape, n_inputs=movie_patch_generator_for_training.n_inputs,
-                        activation_fct=activation_fct,
-                        dropout_rate=dropout_value, dropout_at_the_end=dropout_at_the_end,
-                        dropout_rnn_rate=dropout_value_rnn, without_bidirectional=without_bidirectional,
-                        lstm_layers_size=lstm_layers_size,
-                        with_batch_normalization=with_batch_normalization,
-                        using_multi_class=using_multi_class,
-                        use_bin_at_al_version=use_bin_at_al_version, apply_attention=apply_attention,
-                        apply_attention_before_lstm=apply_attention_before_lstm,
-                        use_single_attention_vector=use_single_attention_vector,
-                        bin_lstm_size=bin_lstm_size)
-
+    if n_gpus == 1:
+        print("Building the model on 1 GPU")
+        model = build_model(input_shape=input_shape, n_inputs=movie_patch_generator_for_training.n_inputs,
+                            activation_fct=activation_fct,
+                            dropout_rate=dropout_value, dropout_at_the_end=dropout_at_the_end,
+                            dropout_rnn_rate=dropout_value_rnn, without_bidirectional=without_bidirectional,
+                            lstm_layers_size=lstm_layers_size,
+                            with_batch_normalization=with_batch_normalization,
+                            using_multi_class=using_multi_class,
+                            use_bin_at_al_version=use_bin_at_al_version, apply_attention=apply_attention,
+                            apply_attention_before_lstm=apply_attention_before_lstm,
+                            use_single_attention_vector=use_single_attention_vector,
+                            bin_lstm_size=bin_lstm_size)
+    else:
+        print(f"Building the model on {n_gpus} GPU")
+        # We recommend doing this with under a CPU device scope,
+        # so that the model's weights are hosted on CPU memory.
+        # Otherwise they may end up hosted on a GPU, which would
+        # complicate weight sharing.
+        # https://www.tensorflow.org/api_docs/python/tf/keras/utils/multi_gpu_model
+        with tf.device('/cpu:0'):
+            model = build_model(input_shape=input_shape, n_inputs=movie_patch_generator_for_training.n_inputs,
+                                activation_fct=activation_fct,
+                                dropout_rate=dropout_value, dropout_at_the_end=dropout_at_the_end,
+                                dropout_rnn_rate=dropout_value_rnn, without_bidirectional=without_bidirectional,
+                                lstm_layers_size=lstm_layers_size,
+                                with_batch_normalization=with_batch_normalization,
+                                using_multi_class=using_multi_class,
+                                use_bin_at_al_version=use_bin_at_al_version, apply_attention=apply_attention,
+                                apply_attention_before_lstm=apply_attention_before_lstm,
+                                use_single_attention_vector=use_single_attention_vector,
+                                bin_lstm_size=bin_lstm_size)
     print(model.summary())
+
+    if n_gpus > 1:
+        parallel_model = multi_gpu_model(model, gpus=n_gpus)
+    else:
+        parallel_model = model
     # raise Exception("YOU KNOW NOTHING JON SNOW")
 
     # Save the model architecture
@@ -4099,7 +4170,7 @@ def train_model():
 
     # precision = PPV and recall = sensitiviy but in our case just concerning the active frames
     # the sensitivity and specificity otherwise refers to non-active and active frames classifier
-    model.compile(optimizer=optimizer,
+    parallel_model.compile(optimizer=optimizer,
                   loss=loss_fct,
                   metrics=['accuracy', sensitivity, specificity, precision])
     # sample_weight_mode="temporal",
@@ -4142,13 +4213,12 @@ def train_model():
     # Train model on dataset
     start_time = time.time()
 
-    history = model.fit_generator(generator=training_generator,
+    history = parallel_model.fit_generator(generator=training_generator,
                                   validation_data=validation_generator,
                                   epochs=n_epochs,
                                   use_multiprocessing=True,
-                                  workers=10,
-                                  callbacks=callbacks_list,
-                                  verbose=2)
+                                  workers=workers,
+                                  callbacks=callbacks_list, verbose=2) #
 
     print(f"history.history.keys() {history.history.keys()}")
     stop_time = time.time()
