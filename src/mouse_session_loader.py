@@ -171,29 +171,34 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "p6_18_02_07_a001_ms" in ms_str_to_load:
         p6_18_02_07_a001_ms = MouseSession(age=6, session_id="18_02_07_a001", nb_ms_by_frame=100, param=param,
                                            weight=4.35)
+        try_suite_2p = False
+
+        p6_18_02_07_a001_ms.load_tif_movie(path="p6/p6_18_02_07_a001/")
+        
         # calculated with 99th percentile on raster dur
-        p6_18_02_07_a001_ms.activity_threshold = 15
+        # p6_18_02_07_a001_ms.activity_threshold = 15
         # p6_18_02_07_a001_ms.set_low_activity_threshold(threshold=3, percentile_value=1)
         # p6_18_02_07_a001_ms.set_low_activity_threshold(threshold=5, percentile_value=5)
-        p6_18_02_07_a001_ms.set_inter_neurons([28, 36, 54, 75])
+        # p6_18_02_07_a001_ms.set_inter_neurons([28, 36, 54, 75])
         # duration of those interneurons: [ 18.58 17.78   19.  17.67]
-        variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
-                             "spike_nums": "filt_Bin100ms_spikedigital",
-                             "spike_durations": "LOC3"}
-        p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load=
-                                                "p6/p6_18_02_07_a001/p6_18_02_07_001_Corrected_RasterDur.mat",
-                                                variables_mapping=variables_mapping)
-        if load_traces:
-            variables_mapping = {"traces": "C_df"}
-            p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_Traces.mat",
+        if not try_suite_2p:
+            variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
+                                 "spike_nums": "filt_Bin100ms_spikedigital",
+                                 "spike_durations": "LOC3"}
+            p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load=
+                                                    "p6/p6_18_02_07_a001/p6_18_02_07_001_Corrected_RasterDur.mat",
                                                     variables_mapping=variables_mapping)
-            variables_mapping = {"raw_traces": "raw_traces"}
-            p6_18_02_07_a001_ms.load_data_from_file(
-                file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_raw_Traces.mat",
-                variables_mapping=variables_mapping)
-        variables_mapping = {"coord": "ContoursAll"}
-        p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_CellDetect.mat",
-                                                variables_mapping=variables_mapping)
+            if load_traces:
+                variables_mapping = {"traces": "C_df"}
+                p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_Traces.mat",
+                                                        variables_mapping=variables_mapping)
+                variables_mapping = {"raw_traces": "raw_traces"}
+                p6_18_02_07_a001_ms.load_data_from_file(
+                    file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_raw_Traces.mat",
+                    variables_mapping=variables_mapping)
+            variables_mapping = {"coord": "ContoursAll"}
+            p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_CellDetect.mat",
+                                                    variables_mapping=variables_mapping)
 
         variables_mapping = {"xshifts": "xoff",
                              "yshifts": "yoff"}
@@ -201,13 +206,18 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                  "p6/p6_18_02_07_a001/p6_18_02_07_a001_ops_params.npy",
                                                  variables_mapping=variables_mapping)
 
-
-        p6_18_02_07_a001_ms.set_avg_cell_map_tif(file_name="p6/p6_18_02_07_a001/AVG_p6_18_02_07_a001.tif")
+        # p6_18_02_07_a001_ms.set_avg_cell_map_tif(file_name="p6/p6_18_02_07_a001/AVG_p6_18_02_07_a001.tif")
         if load_abf:
             p6_18_02_07_a001_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a001/p6_18_02_07_001.abf",
                                               threshold_piezo=25, just_load_npz_file=False)  # 7
-        if load_movie:
-            p6_18_02_07_a001_ms.load_tif_movie(path="p6/p6_18_02_07_a001/")
+
+
+        if not try_suite_2p:
+            if not for_cell_classifier:
+                p6_18_02_07_a001_ms.clean_data_using_cells_to_remove()
+
+                p6_18_02_07_a001_ms.load_suite2p_data(data_path="p6/p6_18_02_07_a001/suite2p/", with_coord=try_suite_2p)
+
         ms_str_to_ms_dict["p6_18_02_07_a001_ms"] = p6_18_02_07_a001_ms
         # p6_18_02_07_a001_ms.plot_cell_assemblies_on_map()
 
@@ -260,8 +270,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p7_171012_a000_ms = MouseSession(age=7, session_id="17_10_12_a000", nb_ms_by_frame=100, param=param,
                                          weight=None)
 
-
         p7_171012_a000_ms.load_tif_movie(path="p7/p7_17_10_12_a000/")
+
         # p7_171012_a000_ms.load_tiff_movie_mean_and_std_(path="p7/p7_17_10_12_a000/")
         try_suite_2p = False
         # calculated with 99th percentile on raster dur
