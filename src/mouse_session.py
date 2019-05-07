@@ -2627,7 +2627,11 @@ class MouseSession:
         if just_load_npz_file:
             return
         # 50000 Hz
-        abf = pyabf.ABF(self.param.path_data + abf_file_name)
+        try:
+            abf = pyabf.ABF(self.param.path_data + abf_file_name)
+        except (FileNotFoundError, OSError) as e:
+            print(f"Abf file not fount: {abf_file_name}")
+            return
 
         print(f"{abf}")
         #  1024 cycle = 1 tour de roue (= 2 Pi 1.5) -> Vitesse (cm / temps pour 1024 cycles).
