@@ -38,7 +38,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
             artificial_ms.build_spike_nums_dur()
             artificial_ms.load_tiff_movie_in_memory()
-            artificial_ms.normalize_movie()
+            # artificial_ms.normalize_movie()
             artificial_ms.raw_traces = artificial_ms.build_raw_traces_from_movie()
             traces = np.copy(artificial_ms.raw_traces)
             smooth_traces(traces)
@@ -65,7 +65,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
             artificial_ms.build_spike_nums_dur()
             artificial_ms.load_tiff_movie_in_memory()
-            artificial_ms.normalize_movie()
+            # artificial_ms.normalize_movie()
             artificial_ms.raw_traces = artificial_ms.build_raw_traces_from_movie()
             traces = np.copy(artificial_ms.raw_traces)
             smooth_traces(traces)
@@ -91,7 +91,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
             artificial_ms.build_spike_nums_dur()
             artificial_ms.load_tiff_movie_in_memory()
-            artificial_ms.normalize_movie()
+            # artificial_ms.normalize_movie()
             artificial_ms.raw_traces = artificial_ms.build_raw_traces_from_movie()
             traces = np.copy(artificial_ms.raw_traces)
             smooth_traces(traces)
@@ -118,6 +118,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                              "yshifts": "yshifts"}
         p5_19_03_25_a001_ms.load_data_from_file(file_name_to_load=
                                                 "p5/p5_19_03_25_a001/MichelMotC_p5_19_03_25_a001_params.mat",
+                                                variables_mapping=variables_mapping)
+
+        variables_mapping = {"shift_twitch": "shift_twitch",
+                             "shift_long": "shift_long",
+                             "shift_unclassified": "shift_unclassified"}
+        p5_19_03_25_a001_ms.load_data_from_period_selection_gui(file_name_to_load=
+                                                "p5/p5_19_03_25_a001/p5_19_03_25_a001_twitch_MP.npz",
                                                 variables_mapping=variables_mapping)
 
         if load_abf:
@@ -169,11 +176,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["p5_19_03_20_a000_ms"] = p5_19_03_20_a000_ms
 
     if "p6_18_02_07_a001_ms" in ms_str_to_load:
-        p6_18_02_07_a001_ms = MouseSession(age=6, session_id="18_02_07_a001", nb_ms_by_frame=100, param=param,
+        p6_18_02_07_a001_ms = MousseSession(age=6, session_id="18_02_07_a001", nb_ms_by_frame=100, param=param,
                                            weight=4.35)
         try_suite_2p = False
 
         p6_18_02_07_a001_ms.load_tif_movie(path="p6/p6_18_02_07_a001/")
+        p6_18_02_07_a001_ms.load_tiff_movie_in_memory()
+        p6_18_02_07_a001_ms.normalize_movie()
         
         # calculated with 99th percentile on raster dur
         # p6_18_02_07_a001_ms.activity_threshold = 15
@@ -210,8 +219,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if load_abf:
             p6_18_02_07_a001_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a001/p6_18_02_07_001.abf",
                                               threshold_piezo=25, just_load_npz_file=False)  # 7
-
-
         if not try_suite_2p:
             if not for_cell_classifier:
                 p6_18_02_07_a001_ms.clean_data_using_cells_to_remove()
@@ -271,6 +278,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                          weight=None)
 
         p7_171012_a000_ms.load_tif_movie(path="p7/p7_17_10_12_a000/")
+        # p7_171012_a000_ms.load_tiff_movie_in_memory()
+        # p7_171012_a000_ms.normalize_movie()
 
         # p7_171012_a000_ms.load_tiff_movie_mean_and_std_(path="p7/p7_17_10_12_a000/")
         try_suite_2p = False

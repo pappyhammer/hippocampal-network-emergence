@@ -2286,11 +2286,11 @@ def robin_loading_process(param, load_traces, load_abf=True):
     # ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p10_17_11_16_a003_ms"]
-    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
     # ms_str_to_load = ["p9_19_03_22_a001_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
-    ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms"]
     # ms_str_to_load = ["p7_19_03_05_a000_ms", "p9_19_02_20_a003"]
     # ms_str_to_load = ["p9_19_02_20_a003_ms"]
@@ -2301,9 +2301,8 @@ def robin_loading_process(param, load_traces, load_abf=True):
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
-                                            load_traces=load_traces, load_abf=True)
+                                            load_traces=load_traces, load_abf=load_abf)
     return ms_str_to_ms_dict
-
 
 
 def main():
@@ -2362,7 +2361,7 @@ def main():
     if for_lexi:
         ms_str_to_ms_dict = lexi_loading_process(param=param, load_traces=load_traces)
     else:
-        ms_str_to_ms_dict = robin_loading_process(param=param, load_traces=load_traces, load_abf=True)
+        ms_str_to_ms_dict = robin_loading_process(param=param, load_traces=load_traces, load_abf=False)
 
     available_ms = list(ms_str_to_ms_dict.values())
     # for ms in available_ms:
@@ -2371,7 +2370,8 @@ def main():
     ms_to_analyse = available_ms
 
     just_do_stat_on_event_detection_parameters = False
-    just_plot_raster = True
+    just_plot_raster = False
+    just_plot_raster_with_periods = True
     just_plot_time_correlation_graph_over_twitches = False
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_raster_with_cells_assemblies_and_shifts = False
@@ -2407,7 +2407,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = True
+    do_clustering = False
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     do_clustering_with_twitches_events = False
@@ -2660,6 +2660,12 @@ def main():
                                save_formats=["pdf", "png"])
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("fifi")
+            continue
+
+        if just_plot_raster_with_periods:
+            if ms_index == len(ms_to_analyse) - 1:
+                ms.plot_raster_with_periods(ms.shift_data_dict)
+                raise Exception("The Lannisters always pay their debts")
             continue
 
         if just_plot_raster_with_cells_assemblies_and_shifts:

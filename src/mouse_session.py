@@ -161,6 +161,9 @@ class MouseSession:
         self.threshold_piezo = None
         self.twitches_frames = None
         self.twitches_frames_periods = None
+        # dictionnay containing the periods of shift from period_gui_selection from piezzo + imaging shift
+        # keys: shift_twitch, shift_long, shift_unclassified
+        self.shift_data_dict = None
         # periods (tuples of int)
         self.short_lasting_mvt = None
         self.short_lasting_mvt_frames = None
@@ -2184,6 +2187,83 @@ class MouseSession:
                            spikes_sum_to_use=shifts,
                            size_fig=(15, 5))
 
+    def plot_raster_with_periods(self, periods_dict, with_cell_assemblies=True, only_cell_assemblies=False):
+        if self.sce_times_in_cell_assemblies is None:
+            with_cell_assemblies = False
+
+        cells_to_highlight = []
+        cells_to_highlight_colors = []
+        if with_cell_assemblies:
+            n_cells = len(self.spike_struct.spike_nums_dur)
+            n_cell_assemblies = len(self.cell_assemblies)
+            n_cells_in_assemblies = 0
+            for cell_assembly in self.cell_assemblies:
+                n_cells_in_assemblies += len(cell_assembly)
+
+            # if only_cell_assemblies:
+            #     new_cell_order = np.zeros(n_cells_in_assemblies, dtype="uint16")
+            # else:
+            #     new_cell_order = np.zeros(n_cells, dtype="uint16")
+            new_cell_order = np.zeros(n_cells, dtype="uint16")
+
+            cells_in_assemblies = []
+            last_group_index = 0
+            for cell_assembly_index, cell_assembly in enumerate(self.cell_assemblies):
+                color = cm.nipy_spectral(float(cell_assembly_index + 1) / (n_cell_assemblies + 1))
+                new_cell_order[last_group_index:last_group_index + len(cell_assembly)] = \
+                    np.array(cell_assembly).astype("uint16")
+                cell_indices_to_color = list(range(last_group_index, last_group_index + len(cell_assembly)))
+                cells_to_highlight.extend(cell_indices_to_color)
+                cells_to_highlight_colors.extend([color] * len(cell_indices_to_color))
+                last_group_index += len(cell_assembly)
+                cells_in_assemblies.extend(list(cell_assembly))
+
+            other_cells = np.setdiff1d(np.arange(n_cells), cells_in_assemblies)
+            new_cell_order[last_group_index:] = other_cells
+            spike_nums_dur = self.spike_struct.spike_nums_dur[new_cell_order, :]
+            if only_cell_assemblies:
+                spike_nums_dur = spike_nums_dur[:n_cells_in_assemblies]
+                labels = new_cell_order[:n_cells_in_assemblies]
+            else:
+                labels = new_cell_order
+        else:
+            labels = np.arange(len(self.spike_struct.spike_nums_dur))
+            spike_nums_dur = self.spike_struct.spike_nums_dur
+
+        span_area_coords = None
+        span_area_colors = None
+        colors = ["red", "green", "blue", "pink", "orange"]
+        i = 0
+        span_area_coords = []
+        span_area_colors = []
+        for name_period, period in periods_dict.items():
+            span_area_coords.append(get_continous_time_periods(period.astype("int8")))
+            span_area_colors.append(colors[i%len(colors)])
+            print(f"Period {name_period} -> {colors[i]}")
+            i += 1
+
+        plot_spikes_raster(spike_nums=spike_nums_dur, param=self.param,
+                           title=f"{self.description}_spike_nums_periods",
+                           spike_train_format=False,
+                           file_name=f"{self.description}_spike_nums_periods",
+                           y_ticks_labels=labels,
+                           save_raster=True,
+                           show_raster=False,
+                           sliding_window_duration=1,
+                           show_sum_spikes_as_percentage=False,
+                           plot_with_amplitude=False,
+                           save_formats=["pdf", "png"],
+                           cells_to_highlight=cells_to_highlight,
+                           cells_to_highlight_colors=cells_to_highlight_colors,
+                           span_area_coords=span_area_coords,
+                           span_area_colors=span_area_colors,
+                           spike_shape="o",
+                           spike_shape_size=1,
+                           span_area_only_on_raster=False,
+                           without_activity_sum=False,
+                           activity_threshold=self.activity_threshold,
+                           size_fig=(15, 5))
+
     def plot_each_inter_neuron_connect_map(self):
         # plot n_in and n_out map of the interneurons
         inter_neurons = self.spike_struct.inter_neurons
@@ -3329,6 +3409,15 @@ class MouseSession:
                 data = hdf5storage.loadmat(file_name)
                 # -1 as we need python index starting at zero
                 self.richard_dict[key] = data[key] - 1
+
+    def load_data_from_period_selection_gui(self, variables_mapping, file_name_to_load):
+        if not file_name_to_load.endswith(".npz"):
+            print(f"load_data_from_period_selection_gui not a npz file {file_name_to_load}")
+            return
+        data = np.load(os.path.join(self.param.path_data, file_name_to_load))
+        self.shift_data_dict = dict()
+        for key, value in variables_mapping.items():
+            self.shift_data_dict[key] = data[value]
 
     def load_data_from_file(self, file_name_to_load, variables_mapping, frames_filter=None,
                             from_gui=False):

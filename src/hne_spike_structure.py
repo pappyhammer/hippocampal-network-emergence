@@ -167,7 +167,7 @@ class HNESpikeStructure:
             return
         mask_frames = np.zeros(self.spike_nums_dur.shape[1], dtype="bool")
         for i in [2500, 7500, 10000]:
-            mask_frames[i-1:i+2] = True
+            mask_frames[i:i+5] = True
 
         if self.spike_nums is not None:
             self.spike_nums[:, mask_frames] = 0
