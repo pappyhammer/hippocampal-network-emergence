@@ -58,6 +58,7 @@ from ScanImageTiffReader import ScanImageTiffReader
 from pattern_discovery.tools.signal import smooth_convolve
 import PIL
 from PIL import ImageSequence
+import joypy
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -104,16 +105,16 @@ def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, 
             scatter_shapes.extend([cells_to_highlights_shape[index]] * len(cells))
             colors.extend([cells_to_highlights_colors[index]] * len(cells))
 
-    plot_hist_ratio_spikes_events(ratio_spikes_events=n_outs_total,
-                                  description=f"{data_descr}_distribution_n_out",
-                                  values_to_scatter=np.array(values_to_scatter),
-                                  labels=labels,
-                                  scatter_shapes=scatter_shapes,
-                                  colors=colors, twice_more_bins=True,
-                                  tight_x_range=True,
-                                  xlabel="Active cells (%)",
-                                  ylabel="Probability distribution (%)",
-                                  param=param)
+    plot_hist_distribution(distribution_data=n_outs_total,
+                           description=f"{data_descr}_distribution_n_out",
+                           values_to_scatter=np.array(values_to_scatter),
+                           labels=labels,
+                           scatter_shapes=scatter_shapes,
+                           colors=colors, twice_more_bins=True,
+                           tight_x_range=True,
+                           xlabel="Active cells (%)",
+                           ylabel="Probability distribution (%)",
+                           param=param)
 
     values_to_scatter = []
     scatter_shapes = []
@@ -136,16 +137,16 @@ def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, 
             scatter_shapes.extend([cells_to_highlights_shape[index]] * len(cells))
             colors.extend([cells_to_highlights_colors[index]] * len(cells))
 
-    plot_hist_ratio_spikes_events(ratio_spikes_events=n_ins_total,
-                                  description=f"{data_descr}_distribution_n_in",
-                                  values_to_scatter=np.array(values_to_scatter),
-                                  labels=labels,
-                                  scatter_shapes=scatter_shapes,
-                                  colors=colors, twice_more_bins=True,
-                                  tight_x_range=True,
-                                  xlabel="Active cells (%)",
-                                  ylabel="Probability distribution (%)",
-                                  param=param)
+    plot_hist_distribution(distribution_data=n_ins_total,
+                           description=f"{data_descr}_distribution_n_in",
+                           values_to_scatter=np.array(values_to_scatter),
+                           labels=labels,
+                           scatter_shapes=scatter_shapes,
+                           colors=colors, twice_more_bins=True,
+                           tight_x_range=True,
+                           xlabel="Active cells (%)",
+                           ylabel="Probability distribution (%)",
+                           param=param)
     return n_ins_total, n_outs_total
 
 
@@ -697,6 +698,91 @@ def plot_activity_duration_vs_age(mouse_sessions, ms_ages, duration_values_list,
     plt.close()
 
 
+def plot_all_basic_stats(ms_to_analyse, param, save_formats="pdf"):
+    # from: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8
+    colors = ['#ffffd9', '#edf8b1', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']
+    # orange ones: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8#type=sequential&scheme=YlOrBr&n=9
+    colors = ['#ffffe5','#fff7bc','#fee391','#fec44f','#fe9929','#ec7014','#cc4c02','#993404','#662506']
+    # diverging, 11 colors : http://colorbrewer2.org/?type=diverging&scheme=RdYlBu&n=11
+    colors = ['#a50026', '#d73027', '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+              '#74add1', '#4575b4', '#313695']
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+    plot_transient_durations(ms_to_analyse, param, colors=colors, save_formats=save_formats)
+    plot_transient_frequency(ms_to_analyse, param, colors=colors, save_formats=save_formats)
+
+
+def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pdf"):
+    transient_frequency_by_age = dict()
+
+    for ms in ms_to_analyse:
+        age_str = "p" + str(ms.age)
+        transient_frequency = []
+        n_times = ms.spike_struct.spike_nums_dur.shape[1]
+        for cell_raster in ms.spike_struct.spike_nums_dur:
+            n_transients = len(get_continous_time_periods(cell_raster))
+            transient_frequency.append(n_transients/n_times/ms.sampling_rate)
+        if age_str not in transient_frequency_by_age:
+            transient_frequency_by_age[age_str] = []
+        transient_frequency_by_age[age_str].extend(transient_frequency)
+
+        plot_hist_distribution(distribution_data=transient_frequency,
+                               description=f"{ms.description}_hist_rising_time_frequency",
+                               param=param,
+                               tight_x_range=True,
+                               twice_more_bins=True,
+                               xlabel="Frequency of rising time (Hz)", save_formats=save_formats)
+    box_plot_data_by_age(data_dict=transient_frequency_by_age, title="", filename="rising_time_frequency_by_age",
+                        y_label="Frequency of rising time (Hz)", colors=colors, param=param, save_formats=save_formats)
+
+def plot_transient_durations(ms_to_analyse, param, colors=None, save_formats="pdf"):
+    spike_durations_by_age = dict()
+    spike_durations_by_age_avg_by_cell = dict()
+
+    for ms in ms_to_analyse:
+        print(f"plot_transient_durations: {ms.description}")
+        age_str = "p" + str(ms.age)
+        # list of length n_cells, each element being a list of int representing the duration of the transient
+        # in frames
+        spike_durations = tools_misc.get_spikes_duration_from_raster_dur(spike_nums_dur=ms.spike_struct.spike_nums_dur)
+        distribution_avg_by_cell = []
+        distribution_all = []
+        if age_str not in spike_durations_by_age:
+            spike_durations_by_age[age_str] = []
+        if age_str not in spike_durations_by_age_avg_by_cell:
+            spike_durations_by_age_avg_by_cell[age_str] = []
+        for spike_durations_by_cell in spike_durations:
+            if len(spike_durations_by_cell) == 0:
+                continue
+            spike_durations_by_cell = [d/ms.sampling_rate for d in spike_durations_by_cell]
+            distribution_all.extend(spike_durations_by_cell)
+            spike_durations_by_age[age_str].extend(spike_durations_by_cell)
+
+            distribution_avg_by_cell.append(np.mean(spike_durations_by_cell))
+            spike_durations_by_age_avg_by_cell[age_str].append(np.mean(spike_durations_by_cell))
+
+        plot_hist_distribution(distribution_data=distribution_all,
+                               description=f"{ms.description}_hist_rising_time_durations",
+                               param=param,
+                               tight_x_range=True,
+                               twice_more_bins=False,
+                               xlabel="Duration of rising time (s)", save_formats=save_formats)
+        plot_hist_distribution(distribution_data=distribution_avg_by_cell,
+                               description=f"{ms.description}_hist_rising_time_duration_avg_by_cell",
+                               param=param,
+                               tight_x_range=True,
+                               twice_more_bins=True,
+                               xlabel="Average duration of rising time for each cell (s)", save_formats=save_formats)
+
+    box_plot_data_by_age(data_dict=spike_durations_by_age, title="", filename="rising_time_duration_by_age",
+                         y_label="Duration of rising time (s)", colors=colors,
+                         param=param, save_formats=save_formats)
+    box_plot_data_by_age(data_dict=spike_durations_by_age_avg_by_cell, title="",
+                         filename="rising_time_durations_by_age_avg_by_cell",
+                         y_label="Average duration of rising time for each cell (s)", colors=colors,
+                         param=param, save_formats=save_formats)
+
 def plot_duration_spikes_by_age(mouse_sessions, ms_ages,
                                 duration_spikes_by_age, param, save_formats="pdf"):
     fig, ax1 = plt.subplots(nrows=1, ncols=1,
@@ -746,11 +832,27 @@ def plot_duration_spikes_by_age(mouse_sessions, ms_ages,
     plt.close()
 
 
-def plot_hist_ratio_spikes_events(ratio_spikes_events, description, param, values_to_scatter=None,
-                                  labels=None, scatter_shapes=None, colors=None, tight_x_range=False,
-                                  twice_more_bins=False,
-                                  xlabel="", ylabel=None, save_formats="pdf"):
-    distribution = np.array(ratio_spikes_events)
+def plot_hist_distribution(distribution_data, description, param, values_to_scatter=None,
+                           labels=None, scatter_shapes=None, colors=None, tight_x_range=False,
+                           twice_more_bins=False, background_color="black", labels_color="white",
+                           xlabel="", ylabel=None, save_formats="pdf"):
+    """
+    Plot a distribution in the form of an histogram, with option for adding some scatter values
+    :param distribution_data:
+    :param description:
+    :param param:
+    :param values_to_scatter:
+    :param labels:
+    :param scatter_shapes:
+    :param colors:
+    :param tight_x_range:
+    :param twice_more_bins:
+    :param xlabel:
+    :param ylabel:
+    :param save_formats:
+    :return:
+    """
+    distribution = np.array(distribution_data)
     hist_color = "blue"
     edge_color = "white"
     if tight_x_range:
@@ -764,7 +866,8 @@ def plot_hist_ratio_spikes_events(ratio_spikes_events, description, param, value
     fig, ax1 = plt.subplots(nrows=1, ncols=1,
                             gridspec_kw={'height_ratios': [1]},
                             figsize=(12, 12))
-    ax1.set_facecolor("black")
+    ax1.set_facecolor(background_color)
+    fig.patch.set_facecolor(background_color)
     bins = int(np.sqrt(len(distribution)))
     if twice_more_bins:
         bins *= 2
@@ -817,21 +920,33 @@ def plot_hist_ratio_spikes_events(ratio_spikes_events, description, param, value
         ax1.set_xticks(xticks)
         # sce clusters labels
         ax1.set_xticklabels(xticks)
-
+    ax1.yaxis.set_tick_params(labelsize=20)
+    ax1.xaxis.set_tick_params(labelsize=20)
+    ax1.tick_params(axis='y', colors=labels_color)
+    ax1.tick_params(axis='x', colors=labels_color)
+    # TO remove the ticks but not the labels
+    # ax1.xaxis.set_ticks_position('none')
 
     if ylabel is None:
-        ax1.set_ylabel("Distribution (%)")
+        ax1.set_ylabel("Distribution (%)", fontsize=30, labelpad=20)
     else:
-        ax1.set_ylabel(ylabel)
-    ax1.set_xlabel(xlabel)
+        ax1.set_ylabel(ylabel, fontsize=30, labelpad=20)
+    ax1.set_xlabel(xlabel, fontsize=30, labelpad=20)
 
+    ax1.xaxis.label.set_color(labels_color)
+    ax1.yaxis.label.set_color(labels_color)
+
+    # padding between ticks label and  label axis
+    # ax1.tick_params(axis='both', which='major', pad=15)
+    fig.tight_layout()
 
     if isinstance(save_formats, str):
         save_formats = [save_formats]
     for save_format in save_formats:
         fig.savefig(f'{param.path_results}/{description}'
                     f'_{param.time_str}.{save_format}',
-                    format=f"{save_format}")
+                    format=f"{save_format}",
+                            facecolor=fig.get_facecolor())
 
     plt.close()
 
@@ -1467,11 +1582,26 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
     plt.close()
 
 
-def box_plot_data_by_age(data_dict, title, filename, y_label, param, save_formats="pdf"):
+def box_plot_data_by_age(data_dict, title, filename,
+                         y_label, param, colors,
+                         x_label=None,
+                         background_color="black",
+                         labels_color="white", save_formats="pdf"):
+    """
+
+    :param data_dict:
+    :param title:
+    :param filename:
+    :param y_label:
+    :param param: Contains a field name colors used to color the boxplot
+    :param save_formats:
+    :return:
+    """
     fig, ax1 = plt.subplots(nrows=1, ncols=1,
                             gridspec_kw={'height_ratios': [1]},
                             figsize=(12, 12))
-    ax1.set_facecolor("black")
+    ax1.set_facecolor(background_color)
+    fig.patch.set_facecolor(background_color)
 
     colorfull = True
     labels = []
@@ -1490,31 +1620,125 @@ def box_plot_data_by_age(data_dict, title, filename, y_label, param, save_format
         plt.setp(bplot[element], color="white")
 
     for element in ['means', 'medians']:
-        plt.setp(bplot[element], color="silver")
+        plt.setp(bplot[element], color=background_color)
 
     if colorfull:
-        colors = param.colors[:len(data_dict)]
+        if colors is None:
+            colors = param.colors[:len(data_dict)]
+        else:
+            while len(colors) < len(data_dict):
+                colors.extend(colors)
+            colors = colors[:len(data_dict)]
         for patch, color in zip(bplot['boxes'], colors):
             patch.set_facecolor(color)
 
     # plt.xlim(0, 100)
     plt.title(title)
-    ax1.set_ylabel(f"{y_label}")
-    ax1.set_xlabel("age")
+
+    ax1.set_ylabel(f"{y_label}", fontsize=30, labelpad=20)
+    if x_label is not None:
+        ax1.set_xlabel(x_label, fontsize=30, labelpad=20)
+    ax1.xaxis.label.set_color(labels_color)
+    ax1.yaxis.label.set_color(labels_color)
+
+    ax1.yaxis.set_tick_params(labelsize=20)
+    ax1.xaxis.set_tick_params(labelsize=20)
+    ax1.tick_params(axis='y', colors=labels_color)
+    ax1.tick_params(axis='x', colors=labels_color)
     xticks = np.arange(1, len(data_dict) + 1)
     ax1.set_xticks(xticks)
+    # removing the ticks but not the labels
+    ax1.xaxis.set_ticks_position('none')
     # sce clusters labels
     ax1.set_xticklabels(labels)
+
+    # padding between ticks label and  label axis
+    # ax1.tick_params(axis='both', which='major', pad=15)
+    fig.tight_layout()
+    # adjust the space between axis and the edge of the figure
+    # https://matplotlib.org/faq/howto_faq.html#move-the-edge-of-an-axes-to-make-room-for-tick-labels
+    # fig.subplots_adjust(left=0.2)
 
     if isinstance(save_formats, str):
         save_formats = [save_formats]
     for save_format in save_formats:
         fig.savefig(f'{param.path_results}/{filename}'
                     f'_{param.time_str}.{save_format}',
-                    format=f"{save_format}")
+                    format=f"{save_format}",
+                            facecolor=fig.get_facecolor())
 
     plt.close()
 
+def box_joy_plot_data_by_age(data_dict, title, filename, y_label, param, save_formats="pdf"):
+    """
+
+    :param data_dict:
+    :param title:
+    :param filename:
+    :param y_label:
+    :param param: Contains a field name colors used to color the boxplot
+    :param save_formats:
+    :return:
+    """
+    # based on : https://github.com/sbebo/joypy/blob/master/Joyplot.ipynb
+    # TODO: data need to be in Pandas format
+    pass
+    # fig, axes = joypy.joyplot(temp, by="Year", column="Anomaly", ylabels=False, xlabels=False,
+    #                           grid=False, fill=False, background='k', linecolor="w", linewidth=1,
+    #                           legend=False, overlap=0.5, figsize=(6, 5), kind="counts", bins=80)
+    #
+    # labels = [y if y % 10 == 0 else None for y in list(temp.Year.unique())]
+    # fig, axes = joypy.joyplot(temp, by="Year", column="Anomaly", labels=labels, range_style='own',
+    #                           grid="y", linewidth=1, legend=False, fade=True, figsize=(6, 5),
+    #                           title="Global daily temperature 1880-2014 \n(°C above 1950-80 average)",
+    #                           kind="counts", bins=30)
+    #
+    # fig, ax1 = plt.subplots(nrows=1, ncols=1,
+    #                         gridspec_kw={'height_ratios': [1]},
+    #                         figsize=(12, 12))
+    # ax1.set_facecolor("black")
+    #
+    # colorfull = True
+    # labels = []
+    # data_list = []
+    # for age, data in data_dict.items():
+    #     data_list.append(data)
+    #     labels.append(age)
+    # bplot = plt.boxplot(data_list, patch_artist=colorfull,
+    #                     labels=labels, sym='', zorder=1)  # whis=[5, 95], sym='+'
+    # # color=["b", "cornflowerblue"],
+    # # fill with colors
+    #
+    # # edge_color="silver"
+    #
+    # for element in ['boxes', 'whiskers', 'fliers', 'caps']:
+    #     plt.setp(bplot[element], color="white")
+    #
+    # for element in ['means', 'medians']:
+    #     plt.setp(bplot[element], color="silver")
+    #
+    # if colorfull:
+    #     colors = param.colors[:len(data_dict)]
+    #     for patch, color in zip(bplot['boxes'], colors):
+    #         patch.set_facecolor(color)
+    #
+    # # plt.xlim(0, 100)
+    # plt.title(title)
+    # ax1.set_ylabel(f"{y_label}")
+    # ax1.set_xlabel("age")
+    # xticks = np.arange(1, len(data_dict) + 1)
+    # ax1.set_xticks(xticks)
+    # # sce clusters labels
+    # ax1.set_xticklabels(labels)
+    #
+    # if isinstance(save_formats, str):
+    #     save_formats = [save_formats]
+    # for save_format in save_formats:
+    #     fig.savefig(f'{param.path_results}/{filename}'
+    #                 f'_{param.time_str}.{save_format}',
+    #                 format=f"{save_format}")
+    #
+    # plt.close()
 
 def plot_psth_interneurons_events(ms, spike_nums_dur, spike_nums, SCE_times, sliding_window_duration,
                                   param, save_formats="pdf"):
@@ -2047,15 +2271,15 @@ def plot_ratio_spikes_on_events_by_cell(spike_nums,
         spike_nums_dur=spike_nums_dur,
         sce_times_numbers=times_numbers, use_only_onsets=use_only_onsets)
 
-    plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes_events,
-                                  description=f"{session_description}_hist_spike_{event_description}_ratio",
-                                  xlabel=f"spikes in {event_description} vs total spikes (%)",
-                                  param=param)
+    plot_hist_distribution(distribution_data=ratio_spikes_events,
+                           description=f"{session_description}_hist_spike_{event_description}_ratio",
+                           xlabel=f"spikes in {event_description} vs total spikes (%)",
+                           param=param)
 
-    plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes_total_events,
-                                  description=f"{session_description}_hist_spike_total_{event_description}_ratio",
-                                  xlabel=f"spikes in {event_description} vs total {event_description} (%)",
-                                  param=param)
+    plot_hist_distribution(distribution_data=ratio_spikes_total_events,
+                           description=f"{session_description}_hist_spike_total_{event_description}_ratio",
+                           xlabel=f"spikes in {event_description} vs total {event_description} (%)",
+                           param=param)
 
 def get_ratio_spikes_on_events_vs_total_spikes_by_cell(spike_nums,
                                                        spike_nums_dur,
@@ -2295,7 +2519,8 @@ def robin_loading_process(param, load_traces, load_abf=True):
     # ms_str_to_load = ["p7_19_03_05_a000_ms", "p9_19_02_20_a003"]
     # ms_str_to_load = ["p9_19_02_20_a003_ms"]
     # ms_str_to_load = ["p7_19_03_05_a000_ms"]
-
+    # 4 mice with nice abf + LFP
+    ms_str_to_load = ["p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p7_19_03_05_a000_ms", "p9_19_02_20_a003_ms"]
 
     # 256
 
@@ -2369,9 +2594,10 @@ def main():
     #     return
     ms_to_analyse = available_ms
 
+    just_plot_all_basic_stats =True
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
-    just_plot_raster_with_periods = True
+    just_plot_raster_with_periods = False
     just_plot_time_correlation_graph_over_twitches = False
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_raster_with_cells_assemblies_and_shifts = False
@@ -2456,6 +2682,9 @@ def main():
     debug_mode = False
 
     # ------------------------------ end param section ------------------------------
+    if just_plot_all_basic_stats:
+        plot_all_basic_stats(ms_to_analyse, param)
+        raise Exception("just_plot_all_basic_stats")
 
     ms_by_age = dict()
     for ms_index, ms in enumerate(ms_to_analyse):
@@ -2466,6 +2695,7 @@ def main():
         #          spike_nums=ms.spike_struct.spike_nums[:50, :5000],
         #          spike_nums_dur=ms.spike_struct.spike_nums_dur[:50, :5000])
         # raise Exception("ambre")
+
         if just_plot_time_correlation_graph_over_twitches:
             ms.plot_time_correlation_graph_over_twitches()
             if ms_index == len(ms_to_analyse) - 1:
@@ -3233,14 +3463,14 @@ def main():
                         colors.extend(["red", "red"])
                         colors.extend(["red"] * len(inter_neurons))
 
-                    plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes_events,
-                                                  description=f"{ms.description}_hist_spike_events_ratio",
-                                                  values_to_scatter=np.array(values_to_scatter),
-                                                  labels=labels,
-                                                  scatter_shapes=scatter_shapes,
-                                                  colors=colors,
-                                                  xlabel="spikes in event vs total spikes (%)",
-                                                  param=param)
+                    plot_hist_distribution(distribution_data=ratio_spikes_events,
+                                           description=f"{ms.description}_hist_spike_events_ratio",
+                                           values_to_scatter=np.array(values_to_scatter),
+                                           labels=labels,
+                                           scatter_shapes=scatter_shapes,
+                                           colors=colors,
+                                           xlabel="spikes in event vs total spikes (%)",
+                                           param=param)
 
                     values_to_scatter = []
                     ratio_interneurons = list(ratio_spikes_total_events[inter_neurons])
@@ -3252,14 +3482,14 @@ def main():
                         values_to_scatter.append(np.mean(ratio_interneurons))
                         values_to_scatter.append(np.median(ratio_interneurons))
                         values_to_scatter.extend(ratio_interneurons)
-                    plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes_total_events,
-                                                  description=f"{ms.description}_hist_spike_total_events_ratio",
-                                                  values_to_scatter=np.array(values_to_scatter),
-                                                  labels=labels,
-                                                  scatter_shapes=scatter_shapes,
-                                                  colors=colors,
-                                                  xlabel="spikes in event vs total events (%)",
-                                                  param=param)
+                    plot_hist_distribution(distribution_data=ratio_spikes_total_events,
+                                           description=f"{ms.description}_hist_spike_total_events_ratio",
+                                           values_to_scatter=np.array(values_to_scatter),
+                                           labels=labels,
+                                           scatter_shapes=scatter_shapes,
+                                           colors=colors,
+                                           xlabel="spikes in event vs total events (%)",
+                                           param=param)
         if do_plot_psth_twitches:
             for age, ms_of_this_age in ms_by_age.items():
                 ms_of_this_age[0].plot_psth_twitches(line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
@@ -3301,14 +3531,14 @@ def main():
                 scatter_shapes.extend(["*"] * len(inter_neurons))
                 colors.extend(["red", "red"])
                 colors.extend(["red"] * len(inter_neurons))
-            plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes,
-                                          description=f"p{age}_hist_spike_events_ratio",
-                                          values_to_scatter=np.array(values_to_scatter),
-                                          labels=labels,
-                                          scatter_shapes=scatter_shapes,
-                                          colors=colors,
-                                          xlabel="spikes in event vs total spikes (%)",
-                                          param=param)
+            plot_hist_distribution(distribution_data=ratio_spikes,
+                                   description=f"p{age}_hist_spike_events_ratio",
+                                   values_to_scatter=np.array(values_to_scatter),
+                                   labels=labels,
+                                   scatter_shapes=scatter_shapes,
+                                   colors=colors,
+                                   xlabel="spikes in event vs total spikes (%)",
+                                   param=param)
 
         ratio_spikes_total_events_non_interneurons_by_age = dict()
         ratio_spikes_total_events_interneurons_by_age = dict()
@@ -3339,14 +3569,14 @@ def main():
                 scatter_shapes.extend(["*"] * len(inter_neurons))
                 colors.extend(["red", "red"])
                 colors.extend(["red"] * len(inter_neurons))
-            plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spikes,
-                                          description=f"p{age}_hist_spike_total_events_ratio",
-                                          values_to_scatter=np.array(values_to_scatter),
-                                          labels=labels,
-                                          scatter_shapes=scatter_shapes,
-                                          colors=colors,
-                                          xlabel="spikes in event vs total events (%)",
-                                          param=param)
+            plot_hist_distribution(distribution_data=ratio_spikes,
+                                   description=f"p{age}_hist_spike_total_events_ratio",
+                                   values_to_scatter=np.array(values_to_scatter),
+                                   labels=labels,
+                                   scatter_shapes=scatter_shapes,
+                                   colors=colors,
+                                   xlabel="spikes in event vs total events (%)",
+                                   param=param)
 
         # plotting boxplots
         box_plot_data_by_age(data_dict=ratio_spikes_events_by_age,
@@ -3673,7 +3903,18 @@ def main():
                     # ms.sce_bool = sce_times_bool
                     # ms.sce_times_numbers = sce_times_numbers
                     # ms.SCE_times = SCE_times
-
+                    if ms.shift_data_dict is not None:
+                        # using twitch periods instead of SCE if info is available
+                        sce_times_bool = ms.shift_data_dict["shift_twitch"]
+                        SCE_times = get_continous_time_periods(sce_times_bool.astype("int8"))
+                        sce_times_numbers = np.ones(len(sce_times_bool), dtype="int16")
+                        sce_times_numbers *= -1
+                        cellsinpeak = np.zeros((n_cells, len(SCE_times)), dtype="int16")
+                        for index, period in enumerate(SCE_times):
+                            sce_times_numbers[period[0]:period[1] + 1] = index
+                            cellsinpeak[:, index] = np.sum(
+                                spike_nums_to_use[:, period[0]:period[1] + 1], axis=1)
+                            cellsinpeak[cellsinpeak[:, index] > 0, index] = 1
                     compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels,
                                                                    activity_threshold=ms.spike_struct.activity_threshold,
                                                                    range_n_clusters_k_mean=range_n_clusters_k_mean,

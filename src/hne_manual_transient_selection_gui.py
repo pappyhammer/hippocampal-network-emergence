@@ -4784,16 +4784,23 @@ class ManualOnsetFrame(tk.Frame):
 
         if self.show_transient_classifier:
             if self.current_neuron in self.transient_prediction:
+                # TODO: work on the shape of predictions, should be (n_celles, n_class)
                 predictions = self.transient_prediction[self.current_neuron]
-                # TODO: if prediction from the GUI, make sure prediction as a shape of at least 2 dimensions
-                if predictions.shape[1] == 1:
+                if len(predictions.shape) == 1:
+                    pass
+                if (len(predictions.shape) == 1) or predictions.shape[1] == 1:
                     predictions_color = "red"
                 else:
                     predictions_color = "dimgrey"
-                for index_pred in np.arange(predictions.shape[1]):
+                if len(predictions.shape) == 1:
                     self.axe_plot.plot(np.arange(self.nb_times_traces),
-                                       (predictions[:, index_pred] / 2) - (0.75 * index_pred),
-                                       color=predictions_color, zorder=20)
+                                           predictions / 2,
+                                           color=predictions_color, zorder=20)
+                else:
+                    for index_pred in np.arange(predictions.shape[1]):
+                        self.axe_plot.plot(np.arange(self.nb_times_traces),
+                                           (predictions[:, index_pred] / 2) - (0.75 * index_pred),
+                                           color=predictions_color, zorder=20)
                 threshold_tc = self.transient_classifier_threshold
                 self.axe_plot.hlines(threshold_tc / 2, 0, self.nb_times_traces - 1, color="red",
                                      linewidth=0.5,
@@ -4801,8 +4808,14 @@ class ManualOnsetFrame(tk.Frame):
                 self.axe_plot.hlines(1 / 2, 0, self.nb_times_traces - 1, color="red",
                                      linewidth=0.5)
                 if threshold_tc not in self.transient_prediction_periods[self.current_neuron]:
-                    predicted_raster_dur = np.zeros(predictions.shape[0], dtype="int8")
-                    if predictions.shape[1] == 1:
+                    if len(predictions.shape) == 1:
+                        predicted_raster_dur = np.zeros(len(predictions), dtype="int8")
+                    else:
+                        predicted_raster_dur = np.zeros(predictions.shape[0], dtype="int8")
+
+                    if len(predictions.shape) == 1:
+                        real_transient_frames = predictions >= threshold_tc
+                    elif predictions.shape[1] == 1:
                         real_transient_frames = predictions[:, 0] >= threshold_tc
                     elif predictions.shape[1] == 3:
                         # real transient, fake ones, other (neuropil, decay etc...)
@@ -4833,7 +4846,7 @@ class ManualOnsetFrame(tk.Frame):
                     self.transient_prediction_periods[self.current_neuron][threshold_tc] = active_periods
                 else:
                     active_periods = self.transient_prediction_periods[self.current_neuron][threshold_tc]
-                    if predictions.shape[1] == 3:
+                    if (len(predictions.shape) > 0) and (predictions.shape[1] == 3):
                         # real transient, fake ones, other (neuropil, decay etc...)
                         # keeping predictions about real transient when superior
                         # to other prediction on the same frame

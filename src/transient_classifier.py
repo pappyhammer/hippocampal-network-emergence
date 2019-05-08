@@ -4204,7 +4204,7 @@ def train_model():
         file_path = param.path_results + "/transient_classifier_weights_{epoch:02d}-{val_acc:.4f}" + end_file_path
         # callbacks_list.append(ModelCheckpoint(filepath=file_path, monitor="val_acc", save_best_only="True",
         #                                       save_weights_only="True", mode="max"))
-
+        # https://github.com/TextpertAi/alt-model-checkpoint
         callbacks_list.append(AltModelCheckpoint(file_path, model, save_weights_only="True"))
         # monitor="val_acc",  mode="max"
 

@@ -37,13 +37,26 @@ import hne_animation as hne_anim
 import math
 
 class MouseSession:
-    def __init__(self, age, session_id, param, nb_ms_by_frame, weight=None, spike_nums=None, spike_nums_dur=None,
+    def __init__(self, age, session_id, param, nb_ms_by_frame, sampling_rate=10, weight=None, spike_nums=None, spike_nums_dur=None,
                  percentile_for_low_activity_threshold=1):
+        """
+
+        :param age:
+        :param session_id:
+        :param param:
+        :param nb_ms_by_frame:
+        :param sampling_rate: in Hz
+        :param weight:
+        :param spike_nums:
+        :param spike_nums_dur:
+        :param percentile_for_low_activity_threshold:
+        """
         # should be a list of int
         self.param = param
         self.age = age
         self.session_id = str(session_id)
         self.nb_ms_by_frame = nb_ms_by_frame
+        self.sampling_rate = sampling_rate
         self.description = f"P{self.age}_{self.session_id}"
         self.spike_struct = HNESpikeStructure(mouse_session=self, spike_nums=spike_nums, spike_nums_dur=spike_nums_dur)
         # spike_nums represents the onsets of the neuron spikes
@@ -2186,6 +2199,9 @@ class MouseSession:
                            without_activity_sum=False,
                            spikes_sum_to_use=shifts,
                            size_fig=(15, 5))
+
+    def plot_all_basic_stats(self):
+        pass
 
     def plot_raster_with_periods(self, periods_dict, with_cell_assemblies=True, only_cell_assemblies=False):
         if self.sce_times_in_cell_assemblies is None:
