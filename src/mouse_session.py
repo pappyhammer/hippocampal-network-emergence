@@ -2751,6 +2751,7 @@ class MouseSession:
                 break
             if abf is None:
                 print(f"{self.description} no abf file found in {path_abf_data}")
+                return
 
         print(f"{abf}")
         #  1024 cycle = 1 tour de roue (= 2 Pi 1.5) -> Vitesse (cm / temps pour 1024 cycles).
@@ -2846,12 +2847,12 @@ class MouseSession:
                 # print(f"active_frames {active_frames}")
                 nb_frames = len(active_frames)
                 self.abf_frames = active_frames
-                print(f"nb_frames {nb_frames}")
-                print(f"len(mvt_data_without_abs) {len(mvt_data_without_abs)}")
+                # print(f"nb_frames {nb_frames}")
+                # print(f"len(mvt_data_without_abs) {len(mvt_data_without_abs)}")
                 # print(f"self.abf_frames {self.abf_frames[-50:]}")
-                print(f'Saving abf_frames for {self.description}')
-                np.save(self.param.path_data + path_abf_data + self.description +
-                        f"_abf_frames_channel_{current_channel}.npy", self.abf_frames)
+                # print(f'Saving abf_frames for {self.description}')
+                # np.save(self.param.path_data + path_abf_data + self.description +
+                #         f"_abf_frames_channel_{current_channel}.npy", self.abf_frames)
                 # down sampling rate: 50 for piezzo, 1000 for LFP
                 if (lfp_channel is not None) and lfp_channel == current_channel:
                     down_sampling_hz = 1000
@@ -2862,9 +2863,9 @@ class MouseSession:
                 else:
                     down_sampling_hz = 1000
                 sampling_step = int(self.abf_sampling_rate/down_sampling_hz)
-                np.save(self.param.path_data + path_abf_data + self.description +
-                        f"_abf_12500_channel_{current_channel}.npy",
-                        mvt_data_without_abs[self.abf_frames])
+                # np.save(self.param.path_data + path_abf_data + self.description +
+                #         f"_abf_12500_channel_{current_channel}.npy",
+                #         mvt_data_without_abs[self.abf_frames])
                 # first we want to keep piezzo data only for the active movie, removing the time between imaging session
                 # to do so we concatenate the time between frames
                 piezzo_shift = np.zeros(0)
