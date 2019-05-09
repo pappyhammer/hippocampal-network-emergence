@@ -147,10 +147,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         p5_19_03_25_a001_ms.load_suite2p_data(data_path="p5/p5_19_03_25_a001/suite2p/", with_coord=True)
 
-        # if load_movie:
         p5_19_03_25_a001_ms.load_tif_movie(path="p5/p5_19_03_25_a001")
-        # p5_19_03_25_a001_ms.load_tiff_movie_in_memory()
-        # p5_19_03_25_a001_ms.raw_traces = p5_19_03_25_a001_ms.build_raw_traces_from_movie()
+        raw_traces_loaded = p5_19_03_25_a001_ms.load_raw_traces_from_npy(path="p5/p5_19_03_25_a001")
+        if not raw_traces_loaded:
+            p5_19_03_25_a001_ms.load_tiff_movie_in_memory()
+            p5_19_03_25_a001_ms.raw_traces = p5_19_03_25_a001_ms.build_raw_traces_from_movie()
+            p5_19_03_25_a001_ms.save_raw_traces(path="p5/p5_19_03_25_a001")
 
         p5_19_03_25_a001_ms.clean_raster_at_concatenation()
 
@@ -180,9 +182,16 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                            sampling_rate=10, weight=4.35)
         try_suite_2p = True
 
+        p6_18_02_07_a001_ms.load_suite2p_data(data_path="p6/p6_18_02_07_a001/suite2p/", with_coord=try_suite_2p)
+
         p6_18_02_07_a001_ms.load_tif_movie(path="p6/p6_18_02_07_a001/")
-        p6_18_02_07_a001_ms.load_tiff_movie_in_memory()
-        p6_18_02_07_a001_ms.normalize_movie()
+        raw_traces_loaded = p6_18_02_07_a001_ms.load_raw_traces_from_npy(path="p6/p6_18_02_07_a001/")
+        if not raw_traces_loaded:
+            p6_18_02_07_a001_ms.load_tiff_movie_in_memory()
+            p6_18_02_07_a001_ms.raw_traces = p6_18_02_07_a001_ms.build_raw_traces_from_movie()
+            p6_18_02_07_a001_ms.save_raw_traces(path="p6/p6_18_02_07_a001/")
+
+            # p6_18_02_07_a001_ms.normalize_movie()
 
         # calculated with 99th percentile on raster dur
         # p6_18_02_07_a001_ms.activity_threshold = 15
@@ -195,26 +204,26 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                  "spike_nums": "filt_Bin100ms_spikedigital",
                                  "spike_durations": "LOC3"}
             p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load=
-                                                    "p6/p6_18_02_07_a001/p6_18_02_07_001_Corrected_RasterDur.mat",
+                                                    "p6/p6_18_02_07_a001/caiman/p6_18_02_07_001_Corrected_RasterDur.mat",
                                                     variables_mapping=variables_mapping)
             if load_traces:
                 variables_mapping = {"traces": "C_df"}
                 p6_18_02_07_a001_ms.load_data_from_file(
-                    file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_Traces.mat",
+                    file_name_to_load="p6/p6_18_02_07_a001/caiman/p6_18_02_07_a001_Traces.mat",
                     variables_mapping=variables_mapping)
                 variables_mapping = {"raw_traces": "raw_traces"}
                 p6_18_02_07_a001_ms.load_data_from_file(
-                    file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_raw_Traces.mat",
+                    file_name_to_load="p6/p6_18_02_07_a001/caiman/p6_18_02_07_a001_raw_Traces.mat",
                     variables_mapping=variables_mapping)
             variables_mapping = {"coord": "ContoursAll"}
             p6_18_02_07_a001_ms.load_data_from_file(
-                file_name_to_load="p6/p6_18_02_07_a001/p6_18_02_07_a001_CellDetect.mat",
+                file_name_to_load="p6/p6_18_02_07_a001/caiman/p6_18_02_07_a001_CellDetect.mat",
                 variables_mapping=variables_mapping)
 
         variables_mapping = {"predictions": "predictions"}
         p6_18_02_07_a001_ms.load_raster_dur_from_predictions(
             file_name="p6/p6_18_02_07_a001/predictions/" +
-                      "P6_18_02_07_a001_predictions__2019_05_07.17-26-16.mat",
+                      "P6_18_02_07_a001_predictions__2019_05_07.17-26-16_GT_epoch_11_all_cells.mat",
             prediction_threshold=0.5, variables_mapping=variables_mapping)
 
         variables_mapping = {"shift_twitch": "shift_twitch",
@@ -223,7 +232,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p6_18_02_07_a001_ms.load_data_from_period_selection_gui(file_name_to_load=
                                                                 "p6/p6_18_02_07_a001/P6_18_02_07_a001_mvts_categories.npz",
                                                                 variables_mapping=variables_mapping)
-
         variables_mapping = {"xshifts": "xoff",
                              "yshifts": "yoff"}
         p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load=
@@ -237,8 +245,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if not try_suite_2p:
             if not for_cell_classifier:
                 p6_18_02_07_a001_ms.clean_data_using_cells_to_remove()
-
-                p6_18_02_07_a001_ms.load_suite2p_data(data_path="p6/p6_18_02_07_a001/suite2p/", with_coord=try_suite_2p)
 
         ms_str_to_ms_dict["p6_18_02_07_a001_ms"] = p6_18_02_07_a001_ms
         # p6_18_02_07_a001_ms.plot_cell_assemblies_on_map()
@@ -414,8 +420,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         # if load_movie:
         p7_19_03_05_a000_ms.load_tif_movie(path="p7/p7_19_03_05_a000")
-        # p7_19_03_05_a000_ms.load_tiff_movie_in_memory()
-        # p7_19_03_05_a000_ms.raw_traces = p7_19_03_05_a000_ms.build_raw_traces_from_movie()
+        raw_traces_loaded = p7_19_03_05_a000_ms.load_raw_traces_from_npy(path="p7/p7_19_03_05_a000/")
+        if not raw_traces_loaded:
+            p7_19_03_05_a000_ms.load_tiff_movie_in_memory()
+            p7_19_03_05_a000_ms.raw_traces = p7_19_03_05_a000_ms.build_raw_traces_from_movie()
+            p7_19_03_05_a000_ms.save_raw_traces(path="p7/p7_19_03_05_a000/")
+        #
 
         # p7_19_03_05_a000_ms.clean_raster_at_concatenation()
 
@@ -1089,9 +1099,13 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p9_19_02_20_a003_ms.load_suite2p_data(data_path="p9/p9_19_02_20_a003/suite2p/", with_coord=True)
 
         # if load_movie:
-        p9_19_02_20_a003_ms.load_tif_movie(path="p9/p9_19_02_20_a003")
-        # p9_19_02_20_a003_ms.load_tiff_movie_in_memory()
-        # p9_19_02_20_a003_ms.raw_traces = p9_19_02_20_a003_ms.build_raw_traces_from_movie()
+        p9_19_02_20_a003_ms.load_tif_movie(path="p9/p9_19_02_20_a003/")
+        raw_traces_loaded = p9_19_02_20_a003_ms.load_raw_traces_from_npy(path="p9/p9_19_02_20_a003/")
+        if not raw_traces_loaded:
+            p9_19_02_20_a003_ms.load_tiff_movie_in_memory()
+            p9_19_02_20_a003_ms.raw_traces = p9_19_02_20_a003_ms.build_raw_traces_from_movie()
+            p9_19_02_20_a003_ms.save_raw_traces(path="p9/p9_19_02_20_a003/")
+
 
         # p9_19_02_20_a003_ms.clean_raster_at_concatenation()
 

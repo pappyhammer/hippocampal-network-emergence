@@ -656,6 +656,7 @@ class MouseSession:
                           f"{np.round(stop_time - start_time, 3)} s")
 
                 self.tiff_movie = tiff_movie
+
     def load_tiff_movie_mean_and_std_(self, path):
         file_names = []
 
@@ -803,6 +804,7 @@ class MouseSession:
     def build_raw_traces_from_movie(self):
         if self.tiff_movie is None:
             return
+        print(f"{self.description} build_raw_traces_from_movie")
         raw_traces = np.zeros((self.coord_obj.n_cells, self.tiff_movie.shape[0]))
         for cell in np.arange(self.coord_obj.n_cells):
             mask = self.coord_obj.get_cell_mask(cell=cell,
@@ -2200,9 +2202,6 @@ class MouseSession:
                            spikes_sum_to_use=shifts,
                            size_fig=(15, 5))
 
-    def plot_all_basic_stats(self):
-        pass
-
     def plot_raster_with_periods(self, periods_dict, with_cell_assemblies=True, only_cell_assemblies=False):
         if self.sce_times_in_cell_assemblies is None:
             with_cell_assemblies = False
@@ -2726,7 +2725,7 @@ class MouseSession:
         try:
             abf = pyabf.ABF(self.param.path_data + abf_file_name)
         except (FileNotFoundError, OSError) as e:
-            print(f"Abf file not fount: {abf_file_name}")
+            print(f"Abf file not found: {abf_file_name}")
             return
 
         print(f"{abf}")
@@ -3405,8 +3404,10 @@ class MouseSession:
             raise Exception("load_raster_dur_from_predictions no predicions variable")
 
     def load_richard_data(self, path_data):
-        # Active_Wake_Frames, Quiet_Wake_Frames, REMs_Frames, NREMs_Frames
-        keys = ["Active_Wake_Frames", "Quiet_Wake_Frames", "REMs_Frames", "NREMs_Frames"]
+        print(f"{self.description} loading_data")
+        # Wake_Frames, Active_Wake_Frames, Quiet_Wake_Frames, REMs_Frames, NREMs_Frames
+        keys = ["Wake_Frames", "Active_Wake_Frames", "Quiet_Wake_Frames", "REMs_Frames", "NREMs_Frames"]
+        # Tread_Position_cm.mat
         self.richard_dict = dict()
         for key in keys:
             self.richard_dict[key] = np.zeros(0, dtype="int16")
@@ -3416,16 +3417,69 @@ class MouseSession:
         for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_data):
             file_names.extend(local_filenames)
             break
+
         if len(file_names) == 0:
             return
+        n_frames = 0
+        if "Tread_Position_cm.mat" in file_names:
+            file_name = os.path.join(self.param.path_data, path_data, "Tread_Position_cm.mat")
+            data = hdf5storage.loadmat(file_name)
+            tread_position = data["Tread_Position_cm"][0]
+            n_frames = len(tread_position)
+            active_frames = []
+            tread_position_diff = np.diff(tread_position)
+            active_frames_diff = np.where(tread_position_diff != 0)[0]
+            for frame in active_frames_diff:
+                if frame < 5:
+                    # first frames might be artefact
+                    continue
+                # if 2 frames are spaced of less than 5 frames, then we consider the mice was still running in between
+                n_frames_to_fusion = 20
+                if (len(active_frames) > 0) and (frame - active_frames[-1] < n_frames_to_fusion):
+                    active_frames.extend(list(range(active_frames[-1]+1, frame)))
+                active_frames.extend(list(range(max(0, frame-5), frame+2)))
+            print(f"len(active_frames) {len(active_frames)}")
+            self.richard_dict["Active_Wake_Frames"] = np.unique(active_frames)
+        else:
+            print(f"No file Tread_Position_cm.mat for {self.description}")
+            return
 
-        for key in keys:
-            if key + ".mat" in file_names:
-                file_name = os.path.join(self.param.path_data, path_data, key + ".mat")
-                data = hdf5storage.loadmat(file_name)
-                # -1 as we need python index starting at zero
-                self.richard_dict[key] = data[key] - 1
+        Hypnogram_Frames = None
+        if "Hypnogram_Frames.mat" in file_names:
+            file_name = os.path.join(self.param.path_data, path_data, "Hypnogram_Frames.mat")
+            data = hdf5storage.loadmat(file_name)
+            Hypnogram_Frames = data["Hypnogram_Frames"]
+            # 1=wake, 2=nrems, 3=rems
+            wake_frames = np.where(Hypnogram_Frames == 1)[0]
+            self.richard_dict["Wake_Frames"] = wake_frames
+            self.richard_dict["Quiet_Wake_Frames"] = np.setdiff1d(wake_frames,
+                         self.richard_dict["Active_Wake_Frames"])
+            self.richard_dict["REMs_Frames"] = np.where(Hypnogram_Frames == 2)[0]
+            self.richard_dict["NREMs_Frames"] = np.where(Hypnogram_Frames == 3)[0]
+        else:
+            self.richard_dict["Wake_Frames"] = np.arange(n_frames)
+            self.richard_dict["Quiet_Wake_Frames"] = np.setdiff1d(np.arange(n_frames),
+                                                                self.richard_dict["Active_Wake_Frames"])
 
+    def load_raw_traces_from_npy(self, path):
+        for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path):
+            for file_name in local_filenames:
+                if (self.description.lower() in file_name.lower()) and ("raw_traces" in file_name.lower())\
+                        and file_name.endswith(".npy"):
+                    self.raw_traces = np.load(os.path.join(self.param.path_data, path, file_name))
+                    print(f"{self.description} raw traces loaded from file npy")
+                    return True
+            break
+
+        return False
+
+    def save_raw_traces(self, path):
+        if self.raw_traces is None:
+            print(f"{self.description} raw traces None, not saved")
+            return
+        np.save(os.path.join(self.param.path_data, path, f"{self.description}_raw_traces.npy".lower()),
+                self.raw_traces)
+        
     def load_data_from_period_selection_gui(self, variables_mapping, file_name_to_load):
         if not file_name_to_load.endswith(".npz"):
             print(f"load_data_from_period_selection_gui not a npz file {file_name_to_load}")
@@ -3457,7 +3511,7 @@ class MouseSession:
             else:
                 data = hdf5storage.loadmat(self.param.path_data + file_name_to_load)
         except (FileNotFoundError, OSError) as e:
-            print(f"File not fount: {file_name_to_load}")
+            print(f"File not found: {file_name_to_load}")
             return
         if "shift_periods_bool" in variables_mapping:
             if matlab_format is False:

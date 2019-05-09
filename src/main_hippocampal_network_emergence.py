@@ -711,7 +711,59 @@ def plot_all_basic_stats(ms_to_analyse, param, save_formats="pdf"):
               '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
     plot_transient_durations(ms_to_analyse, param, colors=colors, save_formats=save_formats)
     plot_transient_frequency(ms_to_analyse, param, colors=colors, save_formats=save_formats)
+    plot_transient_amplitude(ms_to_analyse, param, colors=colors, save_formats=save_formats)
 
+def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pdf"):
+    transient_amplitude_by_age = dict()
+    transient_amplitude_by_age_avg_by_cell = dict()
+
+    for ms in ms_to_analyse:
+        age_str = "p" + str(ms.age)
+        if ms.raw_traces is None:
+            ms.load_tiff_movie_in_memory()
+            ms.raw_traces = ms.build_raw_traces_from_movie()
+        raw_traces = ms.raw_traces
+        transient_amplitude = []
+        transient_amplitude_avg_by_cell = []
+        n_times = ms.spike_struct.spike_nums_dur.shape[1]
+        for cell, cell_raster in enumerate(ms.spike_struct.spike_nums_dur):
+            # DF / F
+            raw_trace = raw_traces[cell] / np.mean(raw_traces[cell])
+            periods = get_continous_time_periods(cell_raster)
+            transient_amplitude_for_this_cell = []
+            for period in periods:
+                max_value = np.max(raw_trace[period[0]:period[1]+1])
+                transient_amplitude.append(max_value)
+                transient_amplitude_for_this_cell.append(max_value)
+            if len(transient_amplitude_for_this_cell) > 0:
+                transient_amplitude_avg_by_cell.append(np.mean(transient_amplitude_for_this_cell))
+        if age_str not in transient_amplitude_by_age:
+            transient_amplitude_by_age[age_str] = []
+        transient_amplitude_by_age[age_str].extend(transient_amplitude)
+        if age_str not in transient_amplitude_by_age_avg_by_cell:
+            transient_amplitude_by_age_avg_by_cell[age_str] = []
+        transient_amplitude_by_age_avg_by_cell[age_str].extend(transient_amplitude_avg_by_cell)
+
+        plot_hist_distribution(distribution_data=transient_amplitude,
+                               description=f"{ms.description}_hist_transient_amplitude",
+                               param=param,
+                               tight_x_range=True,
+                               twice_more_bins=True,
+                               xlabel="Amplitude (DF/F) of transients", save_formats=save_formats)
+
+        plot_hist_distribution(distribution_data=transient_amplitude_avg_by_cell,
+                               description=f"{ms.description}_hist_transient_amplitude_by_cell",
+                               param=param,
+                               tight_x_range=True,
+                               twice_more_bins=True,
+                               xlabel="Avg amplitude (DF/F) of transients by cell", save_formats=save_formats)
+    box_plot_data_by_age(data_dict=transient_amplitude_by_age, title="", filename="transient_amplitude_by_age",
+                        y_label="Amplitude (DF/F) of transients", colors=colors, param=param, save_formats=save_formats)
+
+    box_plot_data_by_age(data_dict=transient_amplitude_by_age_avg_by_cell, title="", 
+                         filename="transient_amplitude_by_age_avg_by_cell",
+                        y_label="Avg amplitude (DF/F) of transients by cell", colors=colors,
+                         param=param, save_formats=save_formats)
 
 def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pdf"):
     transient_frequency_by_age = dict()
@@ -728,20 +780,20 @@ def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pd
         transient_frequency_by_age[age_str].extend(transient_frequency)
 
         plot_hist_distribution(distribution_data=transient_frequency,
-                               description=f"{ms.description}_hist_rising_time_frequency",
+                               description=f"{ms.description}_hist_transients_frequency",
                                param=param,
                                tight_x_range=True,
                                twice_more_bins=True,
-                               xlabel="Frequency of rising time (Hz)", save_formats=save_formats)
-    box_plot_data_by_age(data_dict=transient_frequency_by_age, title="", filename="rising_time_frequency_by_age",
-                        y_label="Frequency of rising time (Hz)", colors=colors, param=param, save_formats=save_formats)
+                               xlabel="Frequency of transients (Hz)", save_formats=save_formats)
+    box_plot_data_by_age(data_dict=transient_frequency_by_age, title="", filename="transients_frequency_by_age",
+                        y_label="Frequency of transients (Hz)", colors=colors, param=param, save_formats=save_formats)
 
 def plot_transient_durations(ms_to_analyse, param, colors=None, save_formats="pdf"):
     spike_durations_by_age = dict()
     spike_durations_by_age_avg_by_cell = dict()
 
     for ms in ms_to_analyse:
-        print(f"plot_transient_durations: {ms.description}")
+        # print(f"plot_transient_durations: {ms.description}")
         age_str = "p" + str(ms.age)
         # list of length n_cells, each element being a list of int representing the duration of the transient
         # in frames
@@ -2510,7 +2562,7 @@ def robin_loading_process(param, load_traces, load_abf=True):
     # ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p10_17_11_16_a003_ms"]
-    ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
     # ms_str_to_load = ["p9_19_03_22_a001_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
@@ -2654,7 +2706,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 10)
+    range_n_clusters_k_mean = np.arange(2, 4)
     # range_n_clusters_k_mean = np.array([4])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
@@ -3679,26 +3731,28 @@ def main():
                 frames_selected = np.unique(ms.richard_dict["Quiet_Wake_Frames"])
             elif richard_option == "active_wake":
                 frames_selected = np.unique(ms.richard_dict["Active_Wake_Frames"])
-                # now we want to fusion frames that are close to each other
-                frames_diff = np.diff(frames_selected)
-                fusion_thr = 50
-                for frame_index in np.arange(len(frames_diff)):
-                    if 1 < frames_diff[frame_index] < fusion_thr:
-                        frames_selected = np.concatenate((frames_selected, np.arange(frames_selected[frame_index]+1,
-                        frames_selected[frame_index+1])))
-                binary_array = np.zeros(spike_nums_to_use.shape[1], dtype="int8")
-                frames_selected = np.unique(frames_selected)
-                # frames_selected = frames_selected[frames_selected < spike_nums_to_use.shape[1]]
-                binary_array[frames_selected] = 1
-                run_periods = get_continous_time_periods(binary_array)
-                frame_extension = 10
-                for run_period in run_periods:
-                    if run_period[0] > frame_extension:
-                        frames_selected = np.concatenate((frames_selected, np.arange(run_period[0]-frame_extension,
-                                                                                     run_period[0])))
-                    if run_period[1] < (spike_nums_to_use.shape[1] - frame_extension):
-                        frames_selected = np.concatenate((frames_selected, np.arange(run_period[1]+1,
-                                                                                     run_period[1]+frame_extension+1)))
+                fusion_frames = False
+                if fusion_frames:
+                    # now we want to fusion frames that are close to each other
+                    frames_diff = np.diff(frames_selected)
+                    fusion_thr = 50
+                    for frame_index in np.arange(len(frames_diff)):
+                        if 1 < frames_diff[frame_index] < fusion_thr:
+                            frames_selected = np.concatenate((frames_selected, np.arange(frames_selected[frame_index]+1,
+                            frames_selected[frame_index+1])))
+                    binary_array = np.zeros(spike_nums_to_use.shape[1], dtype="int8")
+                    frames_selected = np.unique(frames_selected)
+                    # frames_selected = frames_selected[frames_selected < spike_nums_to_use.shape[1]]
+                    binary_array[frames_selected] = 1
+                    run_periods = get_continous_time_periods(binary_array)
+                    frame_extension = 0
+                    for run_period in run_periods:
+                        if run_period[0] > frame_extension:
+                            frames_selected = np.concatenate((frames_selected, np.arange(run_period[0]-frame_extension,
+                                                                                         run_period[0])))
+                        if run_period[1] < (spike_nums_to_use.shape[1] - frame_extension):
+                            frames_selected = np.concatenate((frames_selected, np.arange(run_period[1]+1,
+                                                                                         run_period[1]+frame_extension+1)))
                 binary_array = np.zeros(spike_nums_to_use.shape[1], dtype="int8")
                 frames_selected = np.unique(frames_selected)
                 # frames_selected = frames_selected[frames_selected < spike_nums_to_use.shape[1]]
@@ -3710,6 +3764,7 @@ def main():
 
                 plot_spikes_raster(spike_nums=spike_nums_to_use, param=ms.param,
                                    spike_train_format=False,
+                                   span_area_only_on_raster=False,
                                    title=f"raster plot {data_descr}",
                                    file_name=f"spike_nums_test_run_{data_descr}",
                                    y_ticks_labels=spike_struct.labels,
@@ -3725,7 +3780,7 @@ def main():
                                    span_area_colors=span_area_colors,
                                    spike_shape="|",
                                    spike_shape_size=1,
-                                   save_formats="pdf")
+                                   save_formats=["png", "pdf"])
                 raise Exception("Richard_boyce")
 
             elif richard_option == "sleep_quiet_wake":
