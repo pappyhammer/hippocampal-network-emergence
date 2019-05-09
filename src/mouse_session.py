@@ -58,6 +58,8 @@ class MouseSession:
         self.nb_ms_by_frame = nb_ms_by_frame
         self.sampling_rate = sampling_rate
         self.description = f"P{self.age}_{self.session_id}"
+        # tell when an abf file has been loaded
+        self.abf_loaded = False
         self.spike_struct = HNESpikeStructure(mouse_session=self, spike_nums=spike_nums, spike_nums_dur=spike_nums_dur)
         # spike_nums represents the onsets of the neuron spikes
         # bin from 25000 frames caiman "onsets"
@@ -2646,87 +2648,109 @@ class MouseSession:
     def set_inter_neurons(self, inter_neurons):
         self.spike_struct.inter_neurons = np.array(inter_neurons).astype(int)
 
-    def load_abf_file(self, abf_file_name, threshold_piezo=None, with_run=False,
-                      frames_channel=0, piezo_channel=1, run_channel=2, threshold_ratio=2,
-                      sampling_rate=50000, offset=None, just_load_npz_file=True):
+    def load_abf_file(self, path_abf_data=None, abf_file_name=None, threshold_piezo=None,
+                      frames_channel=0, piezo_channel=None, run_channel=None, lfp_channel=None, threshold_ratio=2,
+                      sampling_rate=50000, offset=None, just_load_npz_file=False):
+        # run_channel is usually 2
+        """
+
+        :param path_abf_data:
+        :param abf_file_name:
+        :param threshold_piezo:
+        :param frames_channel:
+        :param current_channel:
+        :param run_channel: if not None, means there is run. Otherwise no run analysis will be performed
+        :param threshold_ratio:
+        :param sampling_rate:
+        :param offset:
+        :param just_load_npz_file:
+        :return:
+        """
+
+        if (path_abf_data is None) and (abf_file_name is None):
+            print(f"{self.description}: path_abf_data and abf_file_name are not defined")
+            return
 
         print(f"abf: ms {self.description}")
-
         self.abf_sampling_rate = sampling_rate
         self.threshold_piezo = threshold_piezo
 
-        if with_run:
-            self.with_run = True
+
+        use_old_version = False
+
+        if use_old_version:
+            # first checking if the data has been saved in a file before
+            index_reverse = abf_file_name[::-1].find("/")
+            path_abf_data = abf_file_name[:len(abf_file_name) - index_reverse]
+            file_names = []
+
+            npz_loaded = False
+            # look for filenames in the first directory, if we don't break, it will go through all directories
+            for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_abf_data):
+                file_names.extend(local_filenames)
+                break
+            if len(file_names) > 0:
+                for file_name in file_names:
+                    if file_name.endswith(".npz") and (not file_name.startswith(".")):
+                        if file_name.find("abf") > -1:
+                            do_detect_twitches = True
+                            # loading data
+                            npz_loaded = True
+                            npzfile = np.load(self.param.path_data + path_abf_data + file_name)
+                            if "mvt_frames" in npzfile:
+                                self.mvt_frames = npzfile['mvt_frames']
+                                self.mvt_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
+                            if "speed_by_mvt_frame" in npzfile:
+                                self.speed_by_mvt_frame = npzfile['speed_by_mvt_frame']
+                            # if "raw_piezo" in npzfile:
+                            #     self.raw_piezo = npzfile['raw_piezo']
+                            # if "abf_frames" in npzfile:
+                            #     self.abf_frames = npzfile['abf_frames']
+                            # if "abf_times_in_sec" in npzfile:
+                            #     self.abf_times_in_sec = npzfile['abf_times_in_sec']
+                            if "twitches_frames" in npzfile:
+                                self.twitches_frames = npzfile['twitches_frames']
+                                self.twitches_frames_periods = tools_misc.find_continuous_frames_period(
+                                    self.twitches_frames)
+                                do_detect_twitches = False
+                            if "short_lasting_mvt_frames" in npzfile:
+                                self.short_lasting_mvt_frames = npzfile['short_lasting_mvt_frames']
+                                self.short_lasting_mvt_frames_periods = \
+                                    tools_misc.find_continuous_frames_period(self.short_lasting_mvt_frames)
+                            if "complex_mvt_frames" in npzfile:
+                                self.complex_mvt_frames = npzfile['complex_mvt_frames']
+                                self.complex_mvt_frames_periods = \
+                                    tools_misc.find_continuous_frames_period(self.complex_mvt_frames)
+                            if "intermediate_behavourial_events_frames" in npzfile:
+                                self.intermediate_behavourial_events_frames = npzfile[
+                                    'intermediate_behavourial_events_frames']
+                                self.intermediate_behavourial_events_frames_periods = \
+                                    tools_misc.find_continuous_frames_period(self.intermediate_behavourial_events_frames)
+                            if "noise_mvt_frames" in npzfile:
+                                self.noise_mvt_frames = npzfile['noise_mvt_frames']
+                                self.noise_mvt_frames_periods = \
+                                    tools_misc.find_continuous_frames_period(self.noise_mvt_frames)
+            if just_load_npz_file:
+                return
+
+        if abf_file_name is not None:
+            # 50000 Hz
+            try:
+                abf = pyabf.ABF(self.param.path_data + abf_file_name)
+            except (FileNotFoundError, OSError) as e:
+                print(f"Abf file not found: {abf_file_name}")
+                return
         else:
-            self.with_piezo = True
-
-        # first checking if the data has been saved in a file before
-        index_reverse = abf_file_name[::-1].find("/")
-        path_abf_data = abf_file_name[:len(abf_file_name) - index_reverse]
-        file_names = []
-
-        npz_loaded = False
-        # look for filenames in the first directory, if we don't break, it will go through all directories
-        for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_abf_data):
-            file_names.extend(local_filenames)
-            break
-        if len(file_names) > 0:
-            for file_name in file_names:
-                if file_name.endswith(".npz") and (not file_name.startswith(".")):
-                    if file_name.find("abf") > -1:
-                        do_detect_twitches = True
-                        # loading data
-                        npz_loaded = True
-                        npzfile = np.load(self.param.path_data + path_abf_data + file_name)
-                        if "mvt_frames" in npzfile:
-                            self.mvt_frames = npzfile['mvt_frames']
-                            self.mvt_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
-                        if "speed_by_mvt_frame" in npzfile:
-                            self.speed_by_mvt_frame = npzfile['speed_by_mvt_frame']
-                        # if "raw_piezo" in npzfile:
-                        #     self.raw_piezo = npzfile['raw_piezo']
-                        # if "abf_frames" in npzfile:
-                        #     self.abf_frames = npzfile['abf_frames']
-                        # if "abf_times_in_sec" in npzfile:
-                        #     self.abf_times_in_sec = npzfile['abf_times_in_sec']
-                        if "twitches_frames" in npzfile:
-                            self.twitches_frames = npzfile['twitches_frames']
-                            self.twitches_frames_periods = tools_misc.find_continuous_frames_period(
-                                self.twitches_frames)
-                            do_detect_twitches = False
-                        if "short_lasting_mvt_frames" in npzfile:
-                            self.short_lasting_mvt_frames = npzfile['short_lasting_mvt_frames']
-                            self.short_lasting_mvt_frames_periods = \
-                                tools_misc.find_continuous_frames_period(self.short_lasting_mvt_frames)
-                        if "complex_mvt_frames" in npzfile:
-                            self.complex_mvt_frames = npzfile['complex_mvt_frames']
-                            self.complex_mvt_frames_periods = \
-                                tools_misc.find_continuous_frames_period(self.complex_mvt_frames)
-                        if "intermediate_behavourial_events_frames" in npzfile:
-                            self.intermediate_behavourial_events_frames = npzfile[
-                                'intermediate_behavourial_events_frames']
-                            self.intermediate_behavourial_events_frames_periods = \
-                                tools_misc.find_continuous_frames_period(self.intermediate_behavourial_events_frames)
-                        if "noise_mvt_frames" in npzfile:
-                            self.noise_mvt_frames = npzfile['noise_mvt_frames']
-                            self.noise_mvt_frames_periods = \
-                                tools_misc.find_continuous_frames_period(self.noise_mvt_frames)
-                        # if (not with_run) and do_detect_twitches:
-                        #     self.detect_twitches()
-            # np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf_new.npz",
-            #          twitches_frames=self.twitches_frames,
-            #          short_lasting_mvt_frames=self.short_lasting_mvt_frames,
-            #          complex_mvt_frames=self.complex_mvt_frames,
-            #          intermediate_behavourial_events_frames=self.intermediate_behavourial_events_frames,
-            #          noise_mvt_frames=self.noise_mvt_frames)
-        if just_load_npz_file:
-            return
-        # 50000 Hz
-        try:
-            abf = pyabf.ABF(self.param.path_data + abf_file_name)
-        except (FileNotFoundError, OSError) as e:
-            print(f"Abf file not found: {abf_file_name}")
-            return
+            abf = None
+            # look for filenames in the first directory, if we don't break, it will go through all directories
+            for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_abf_data):
+                for file_name in local_filenames:
+                    if file_name.endswith("abf"):
+                        abf = pyabf.ABF(os.path.join(self.param.path_data, path_abf_data, file_name))
+                        break
+                break
+            if abf is None:
+                print(f"{self.description} no abf file found in {path_abf_data}")
 
         print(f"{abf}")
         #  1024 cycle = 1 tour de roue (= 2 Pi 1.5) -> Vitesse (cm / temps pour 1024 cycles).
@@ -2747,124 +2771,117 @@ class MouseSession:
         abf.setSweep(sweepNumber=0, channel=frames_channel)
         times_in_sec = abf.sweepX
         frames_data = abf.sweepY
-        if with_run:
+
+        if (run_channel is None) or (lfp_channel is not None):
+            for current_channel in np.arange(1, abf.channelCount):
+                if (run_channel is not None) and (current_channel == run_channel):
+                    continue
+                if (run_channel is not None) and (current_channel == 4) and (lfp_channel is None):
+                    lfp_channel = 4
+                if (run_channel is None) and (current_channel == 3) and (lfp_channel is None):
+                    lfp_channel = 3
+                abf.setSweep(sweepNumber=0, channel=current_channel)
+                mvt_data = abf.sweepY
+                if offset is not None:
+                    mvt_data = mvt_data + offset
+                # self.channelCount-1
+                # first frame
+                first_frame_index = np.where(frames_data < 0.01)[0][0]
+                # removing the part before the recording
+                # print(f"first_frame_index {first_frame_index}")
+                times_in_sec = times_in_sec[:-first_frame_index]
+                frames_data = frames_data[first_frame_index:]
+                mvt_data = mvt_data[first_frame_index:]
+                threshold_value = 0.02
+                if (self.abf_sampling_rate < 50000):
+                    mask_frames_data = np.ones(len(frames_data), dtype="bool")
+                    # we need to detect the frames manually, but first removing data between movies
+                    selection = np.where(frames_data >= threshold_value)[0]
+                    mask_selection = np.zeros(len(selection), dtype="bool")
+                    pos = np.diff(selection)
+                    # looking for continuous data between movies
+                    to_keep_for_removing = np.where(pos == 1)[0] + 1
+                    mask_selection[to_keep_for_removing] = True
+                    selection = selection[mask_selection]
+                    # print(f"len(selection) {len(selection)}")
+                    mask_frames_data[selection] = False
+                    frames_data = frames_data[mask_frames_data]
+                    len_frames_data_in_s = np.round(len(frames_data) / self.abf_sampling_rate, 3)
+                    # print(f"frames_data in sec {len_frames_data_in_s}")
+                    # print(f"frames_data in 100 ms {np.round(len_frames_data_in_s/0.1, 2)}")
+                    mvt_data = mvt_data[mask_frames_data]
+                    times_in_sec = times_in_sec[:-len(np.where(mask_frames_data == 0)[0])]
+                    active_frames = np.linspace(0, len(frames_data), 12500).astype(int)
+                    mean_diff_active_frames = np.mean(np.diff(active_frames)) / self.abf_sampling_rate
+                    print(f"mean diff active_frames {np.round(mean_diff_active_frames, 3)}")
+                    if mean_diff_active_frames < 0.09:
+                        raise Exception("mean_diff_active_frames < 0.09")
+                    # for channel in np.arange(0, 1):
+                    #     fig, ax = plt.subplots(nrows=1, ncols=1,
+                    #                            gridspec_kw={'height_ratios': [1]},
+                    #                            figsize=(20, 8))
+                    #     plt.plot(times_in_sec, frames_data, lw=.5)
+                    #     plt.title(f"channel {channel} {self.description} after correction")
+                    #     plt.show()
+                    #     plt.close()
+                else:
+                    binary_frames_data = np.zeros(len(frames_data), dtype="int8")
+                    binary_frames_data[frames_data >= threshold_value] = 1
+                    binary_frames_data[frames_data < threshold_value] = 0
+                    # +1 due to the shift of diff
+                    # contains the index at which each frame from the movie is matching the abf signal
+                    # length should be 12500
+                    active_frames = np.where(np.diff(binary_frames_data) == 1)[0] + 1
+
+                # correspond of the variation of the piezo
+                mvt_data_without_abs = mvt_data
+                mvt_data = np.abs(mvt_data)
+                # useful is the piezo channel is known
+                # if (run_channel is not None):
+                #     self.raw_piezo = mvt_data
+                #     self.raw_piezo_without_abs = mvt_data_without_abs
+
+                self.abf_times_in_sec = times_in_sec
+                # active_frames = np.concatenate(([0], active_frames))
+                # print(f"active_frames {active_frames}")
+                nb_frames = len(active_frames)
+                self.abf_frames = active_frames
+                print(f"nb_frames {nb_frames}")
+                print(f"len(mvt_data_without_abs) {len(mvt_data_without_abs)}")
+                # print(f"self.abf_frames {self.abf_frames[-50:]}")
+                print(f'Saving abf_frames for {self.description}')
+                np.save(self.param.path_data + path_abf_data + self.description +
+                        f"_abf_frames_channel_{current_channel}.npy", self.abf_frames)
+                # down sampling rate: 50 for piezzo, 1000 for LFP
+                if (lfp_channel is not None) and lfp_channel == current_channel:
+                    down_sampling_hz = 1000
+                elif (piezo_channel is not None) and (piezo_channel == current_channel):
+                    down_sampling_hz = 50
+                elif current_channel <= 2:
+                    down_sampling_hz = 50
+                else:
+                    down_sampling_hz = 1000
+                sampling_step = int(self.abf_sampling_rate/down_sampling_hz)
+                np.save(self.param.path_data + path_abf_data + self.description +
+                        f"_abf_12500_channel_{current_channel}.npy",
+                        mvt_data_without_abs[self.abf_frames])
+                # first we want to keep piezzo data only for the active movie, removing the time between imaging session
+                # to do so we concatenate the time between frames
+                piezzo_shift = np.zeros(0)
+                for i in np.arange(0, 12500, 2500):
+                    new_data = mvt_data_without_abs[np.arange(self.abf_frames[i],
+                                                              self.abf_frames[i+2499], sampling_step)]
+                    piezzo_shift = np.concatenate((piezzo_shift, new_data,
+                                                   np.array([mvt_data_without_abs[self.abf_frames[i+2499]]])))
+                np.save(self.param.path_data + path_abf_data + self.description +
+                        f"_abf_HR_channel_{current_channel}.npy",
+                        piezzo_shift)
+
+        if run_channel is not None:
             abf.setSweep(sweepNumber=0, channel=run_channel)
-        else:
-            abf.setSweep(sweepNumber=0, channel=piezo_channel)
-        mvt_data = abf.sweepY
-        if offset is not None:
-            mvt_data = mvt_data + offset
-
-        # first frame
-        first_frame_index = np.where(frames_data < 0.01)[0][0]
-        # removing the part before the recording
-        # print(f"first_frame_index {first_frame_index}")
-        times_in_sec = times_in_sec[:-first_frame_index]
-        frames_data = frames_data[first_frame_index:]
-        mvt_data = mvt_data[first_frame_index:]
-        threshold_value = 0.02
-        if (self.abf_sampling_rate < 50000):
-            mask_frames_data = np.ones(len(frames_data), dtype="bool")
-            # we need to detect the frames manually, but first removing data between movies
-            selection = np.where(frames_data >= threshold_value)[0]
-            # frames_period = find_continuous_frames_period(selection)
-            # # for period in frames_period:
-            # #     mask_frames_data[period[0]:period[1]+1] = False
-
-            # for channel in np.arange(0, 1):
-            #     print("showing frames")
-            #     fig, ax = plt.subplots(nrows=1, ncols=1,
-            #                            gridspec_kw={'height_ratios': [1]},
-            #                            figsize=(20, 8))
-            #     plt.plot(times_in_sec, frames_data, lw=.5)
-            #     for mvt_period in frames_period:
-            #         color = "red"
-            #         ax.axvspan(mvt_period[0] / self.abf_sampling_rate, mvt_period[1] / self.abf_sampling_rate,
-            #                    alpha=0.5, facecolor=color, zorder=1)
-            #     plt.title(f"channel {channel} {self.description} after correction")
-            #     plt.show()
-            #     plt.close()
-            mask_selection = np.zeros(len(selection), dtype="bool")
-            pos = np.diff(selection)
-            # looking for continuous data between movies
-            to_keep_for_removing = np.where(pos == 1)[0] + 1
-            mask_selection[to_keep_for_removing] = True
-            selection = selection[mask_selection]
-            # print(f"len(selection) {len(selection)}")
-            mask_frames_data[selection] = False
-            frames_data = frames_data[mask_frames_data]
-            len_frames_data_in_s = np.round(len(frames_data) / self.abf_sampling_rate, 3)
-            # print(f"frames_data in sec {len_frames_data_in_s}")
-            # print(f"frames_data in 100 ms {np.round(len_frames_data_in_s/0.1, 2)}")
-            mvt_data = mvt_data[mask_frames_data]
-            times_in_sec = times_in_sec[:-len(np.where(mask_frames_data == 0)[0])]
-            active_frames = np.linspace(0, len(frames_data), 12500).astype(int)
-            mean_diff_active_frames = np.mean(np.diff(active_frames)) / self.abf_sampling_rate
-            print(f"mean diff active_frames {np.round(mean_diff_active_frames, 3)}")
-            if mean_diff_active_frames < 0.09:
-                raise Exception("mean_diff_active_frames < 0.09")
-            # for channel in np.arange(0, 1):
-            #     fig, ax = plt.subplots(nrows=1, ncols=1,
-            #                            gridspec_kw={'height_ratios': [1]},
-            #                            figsize=(20, 8))
-            #     plt.plot(times_in_sec, frames_data, lw=.5)
-            #     plt.title(f"channel {channel} {self.description} after correction")
-            #     plt.show()
-            #     plt.close()
-        else:
-            binary_frames_data = np.zeros(len(frames_data), dtype="int8")
-            binary_frames_data[frames_data >= threshold_value] = 1
-            binary_frames_data[frames_data < threshold_value] = 0
-            # +1 due to the shift of diff
-            # contains the index at which each frame from the movie is matching the abf signal
-            # length should be 12500
-            active_frames = np.where(np.diff(binary_frames_data) == 1)[0] + 1
-
-        # correspond of the variation of the piezo
-        mvt_data_without_abs = mvt_data
-        mvt_data = np.abs(mvt_data)
-        if not with_run:
-            self.raw_piezo = mvt_data
-            self.raw_piezo_without_abs = mvt_data_without_abs
-
-        self.abf_times_in_sec = times_in_sec
-        # active_frames = np.concatenate(([0], active_frames))
-        # print(f"active_frames {active_frames}")
-        nb_frames = len(active_frames)
-        self.abf_frames = active_frames
-        print(f"nb_frames {nb_frames}")
-        print(f"len(mvt_data_without_abs) {len(mvt_data_without_abs)}")
-        # print(f"self.abf_frames {self.abf_frames[-50:]}")
-        print(f'Saving abf_frames for {self.description}')
-        np.save(self.param.path_data + path_abf_data + self.description + "_abf_frames.npy", self.abf_frames)
-        # down sampling rate: 50 for piezzo, 1000 for LFP
-        # down_sampling_hz = 50
-        down_sampling_hz = 1000
-        sampling_step = int(self.abf_sampling_rate/down_sampling_hz)
-        # np.save(self.param.path_data + path_abf_data + self.description + "_abf_12500.npy",
-        #         mvt_data_without_abs[np.arange(self.abf_frames[0], self.abf_frames[-1] + sampling_step, sampling_step)])
-        np.save(self.param.path_data + path_abf_data + self.description + "_abf_12500.npy",
-                mvt_data_without_abs[self.abf_frames])
-        # first we want to keep piezzo data only for the active movie, removing the time between imaging session
-        # to do so we concatenate the time between frames
-        # max_time_between_frames = np.max(np.diff(self.abf_frames[:100]))
-        # print(f"max_time_between_frames {max_time_between_frames}")
-        piezzo_shift = np.zeros(0)
-        for i in np.arange(0, 12500, 2500):
-            # print(f"i {i}, i+2499 {i+2499}")
-            # print(f"self.abf_frames[i] {self.abf_frames[i]}, self.abf_frames[i+2499] {self.abf_frames[i+2499]}, "
-            #       f"sampling_step {sampling_step}")
-            new_data = mvt_data_without_abs[np.arange(self.abf_frames[i],
-                                                      self.abf_frames[i+2499], sampling_step)]
-            piezzo_shift = np.concatenate((piezzo_shift, new_data,
-                                           np.array([mvt_data_without_abs[self.abf_frames[i+2499]]])))
-        np.save(self.param.path_data + path_abf_data + self.description + "_abf_HR.npy",
-                piezzo_shift)
-        # mvt_data_without_abs[np.arange(self.abf_frames[0], self.abf_frames[-1] + sampling_step, sampling_step)]
-        # self.abf_frames
-        if with_run:
+            run_data = abf.sweepY
             mvt_periods, speed_during_mvt_periods, speed_by_time = \
-                self.detect_run_periods(mvt_data=mvt_data, min_speed=0.5)
+                self.detect_run_periods(mvt_data=run_data, min_speed=0.5)
             speed_by_time = speed_by_time[active_frames]
             self.speed_by_frame = speed_by_time
             # matfiledata = {}  # make a dictionary to store the MAT data in
@@ -2874,6 +2891,7 @@ class MouseSession:
             hdf5storage.savemat(os.path.join(self.param.path_data, path_abf_data, f'speed_{self.description}.mat'
                                              ), {'Speed': speed_by_time}, format='7.3')
 
+        self.abf_loaded = True
         # manual selection deactivated
         do_manual_selection = False # not npz_loaded
         if not do_manual_selection:
@@ -2963,10 +2981,6 @@ class MouseSession:
                     np.savez(self.param.path_data + path_abf_data + self.description + "_mvts_from_abf.npz",
                              mvt_frames=self.mvt_frames, raw_piezo=self.raw_piezo, abf_frames=self.abf_frames,
                              abf_times_in_sec=times_in_sec)
-        # continuous_frames_periods = tools_misc.find_continuous_frames_period(self.mvt_frames)
-        # print(f"continuous_frames_periods {continuous_frames_periods}")
-        # print(f"self.mvt_frames_periods {self.mvt_frames_periods}")
-        # print(f"len(mvt_frames) {len(self.mvt_frames)}")
 
     def analyse_piezo_the_khazipov_way(self, threshold_ratio):
         """

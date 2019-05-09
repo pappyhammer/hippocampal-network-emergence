@@ -128,11 +128,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                                 "p5/p5_19_03_25_a001/p5_19_03_25_a001_twitch_MP.npz",
                                                                 variables_mapping=variables_mapping)
 
-        if load_abf:
-            p5_19_03_25_a001_ms.load_abf_file(abf_file_name="p5/p5_19_03_25_a001/p5_19_03_25_a001.abf",
-                                              piezo_channel=2,
-                                              threshold_piezo=25, just_load_npz_file=False)
-
         # prediction based on rnn trained on 50 cells, BO,
         variables_mapping = {"predictions": "predictions"}
         p5_19_03_25_a001_ms.load_raster_dur_from_predictions(
@@ -237,11 +232,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p6_18_02_07_a001_ms.load_data_from_file(file_name_to_load=
                                                 "p6/p6_18_02_07_a001/p6_18_02_07_a001_ops_params.npy",
                                                 variables_mapping=variables_mapping)
-
-        # p6_18_02_07_a001_ms.set_avg_cell_map_tif(file_name="p6/p6_18_02_07_a001/AVG_p6_18_02_07_a001.tif")
-        if load_abf:
-            p6_18_02_07_a001_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a001/p6_18_02_07_001.abf",
-                                              threshold_piezo=25, just_load_npz_file=False)  # 7
         if not try_suite_2p:
             if not for_cell_classifier:
                 p6_18_02_07_a001_ms.clean_data_using_cells_to_remove()
@@ -287,9 +277,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load="p6/p6_18_02_07_a002/p6_18_02_07_a002_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
         p6_18_02_07_a002_ms.set_avg_cell_map_tif(file_name="p6/p6_18_02_07_a002/AVG_p6_18_02_07_a002.tif")
-        if load_abf:
-            p6_18_02_07_a002_ms.load_abf_file(abf_file_name="p6/p6_18_02_07_a002/p6_18_02_07_002.abf",
-                                              threshold_piezo=25)
+
         if load_movie:
             p6_18_02_07_a002_ms.load_tif_movie(path="p6/p6_18_02_07_a002/")
         ms_str_to_ms_dict["p6_18_02_07_a002_ms"] = p6_18_02_07_a002_ms
@@ -389,13 +377,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                 "p7/p7_19_03_05_a000/MichelMotC_p7_19_03_05_a000_params.mat",
                                                 variables_mapping=variables_mapping)
 
-        if load_abf:
-            # channel 3: LFP
-            # channel 2: piezzo
-            p7_19_03_05_a000_ms.load_abf_file(abf_file_name="p7/p7_19_03_05_a000/p7_19_03_05_a000.abf",
-                                              piezo_channel=3,
-                                              threshold_piezo=25, just_load_npz_file=False)
-
         # prediction based on rnn ...
         variables_mapping = {"predictions": "predictions"}
         p7_19_03_05_a000_ms.load_raster_dur_from_predictions(
@@ -449,6 +430,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                 "p7/p7_17_10_18_a002/p7_17_10_18_a002_Corrected_RasterDur.mat",
                                                 variables_mapping=variables_mapping)
         p7_17_10_18_a002_ms.set_avg_cell_map_tif(file_name="p7/p7_17_10_18_a002/AVG_p7_17_10_18_a002.tif")
+
         if load_traces:
             variables_mapping = {"raw_traces": "raw_traces"}
             p7_17_10_18_a002_ms.load_data_from_file(
@@ -538,9 +520,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if load_movie:
             p7_18_02_08_a000_ms.load_tif_movie(path="p7/p7_18_02_08_a000/")
 
-        if load_abf:
-            p7_18_02_08_a000_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a000/p7_18_02_08_a000.abf",
-                                              threshold_ratio=2, just_load_npz_file=True)  # threshold_piezo=4,
         ms_str_to_ms_dict["p7_18_02_08_a000_ms"] = p7_18_02_08_a000_ms
 
     if "p7_18_02_08_a001_ms" in ms_str_to_load:
@@ -576,10 +555,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load=
                                                 "p7/p7_18_02_08_a001/p7_18_02_08_a001_ops_params.npy",
                                                 variables_mapping=variables_mapping)
-
-        if load_abf:
-            p7_18_02_08_a001_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a001/p7_18_02_08_a001.abf",
-                                              threshold_piezo=4)
         if load_movie:
             p7_18_02_08_a001_ms.load_tif_movie(path="p7/p7_18_02_08_a001/")
         ms_str_to_ms_dict["p7_18_02_08_a001_ms"] = p7_18_02_08_a001_ms
@@ -618,9 +593,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         #                                         variables_mapping=variables_mapping)
         if load_movie:
             p7_18_02_08_a002_ms.load_tif_movie(path="p7/p7_18_02_08_a002/")
-        if load_abf:
-            p7_18_02_08_a002_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a002/p7_18_02_08_a002.abf",
-                                              threshold_piezo=2.5)
+
         ms_str_to_ms_dict["p7_18_02_08_a002_ms"] = p7_18_02_08_a002_ms
 
     if "p7_18_02_08_a003_ms" in ms_str_to_load:
@@ -652,9 +625,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                 variables_mapping=variables_mapping)
         if load_movie:
             p7_18_02_08_a003_ms.load_tif_movie(path="p7/p7_18_02_08_a003/")
-        if load_abf:
-            p7_18_02_08_a003_ms.load_abf_file(abf_file_name="p7/p7_18_02_08_a003/p7_18_02_08_a003.abf",
-                                              threshold_piezo=9)  # used to be 2.5
+
         ms_str_to_ms_dict["p7_18_02_08_a003_ms"] = p7_18_02_08_a003_ms
 
     if "p8_18_02_09_a000_ms" in ms_str_to_load:
@@ -689,9 +660,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p8_18_02_09_a000_ms.load_data_from_file(file_name_to_load=
                                                 "p8/p8_18_02_09_a000/p8_18_02_09_a000_ops_params.npy",
                                                 variables_mapping=variables_mapping)
-        if load_abf:
-            p8_18_02_09_a000_ms.load_abf_file(abf_file_name="p8/p8_18_02_09_a000/p8_18_02_09_a000.abf",
-                                              threshold_piezo=2)  # used to be 1.5
+
         if load_movie:
             p8_18_02_09_a000_ms.load_tif_movie(path="p8/p8_18_02_09_a000/")
         ms_str_to_ms_dict["p8_18_02_09_a000_ms"] = p8_18_02_09_a000_ms
@@ -728,9 +697,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                 "p8/p8_18_02_09_a001/p8_18_02_09_a001_ops_params.npy",
                                                 variables_mapping=variables_mapping)
         p8_18_02_09_a001_ms.set_avg_cell_map_tif(file_name="p8/p8_18_02_09_a001/AVG_p8_18_02_09_a001.tif")
-        if load_abf:
-            p8_18_02_09_a001_ms.load_abf_file(abf_file_name="p8/p8_18_02_09_a001/p8_18_02_09_a001.abf",
-                                              threshold_piezo=3)  # 1.5 before then 2
         if load_movie:
             p8_18_02_09_a001_ms.load_tif_movie(path="p8/p8_18_02_09_a001/")
         ms_str_to_ms_dict["p8_18_02_09_a001_ms"] = p8_18_02_09_a001_ms
@@ -795,8 +761,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p8_18_10_17_a001_ms.set_avg_cell_map_tif(file_name="p8/p8_18_10_17_a001/AVG_p8_18_10_17_a001.tif")
         # CORRUPTED ABF ??
         if load_abf:
-            p8_18_10_17_a001_ms.load_abf_file(abf_file_name="p8/p8_18_10_17_a001/p8_18_10_17_a001.abf",
-                                              threshold_piezo=0.4, piezo_channel=2, sampling_rate=10000)
+            p8_18_10_17_a001_ms.load_abf_file(path_abf="p8/p8_18_10_17_a001/", sampling_rate=10000)
         if load_movie:
             p8_18_10_17_a001_ms.load_tif_movie(path="p8/p8_18_10_17_a001/")
         ms_str_to_ms_dict["p8_18_10_17_a001_ms"] = p8_18_10_17_a001_ms
@@ -857,8 +822,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 variables_mapping=variables_mapping)
 
         if load_abf:
-            p8_18_10_24_a005_ms.load_abf_file(abf_file_name="p8/p8_18_10_24_a005/p8_18_10_24_a005.abf",
-                                              threshold_piezo=0.5)  # used to be 0.4
+            p8_18_10_24_a005_ms.load_abf_file(path_abf="p8/p8_18_10_24_a005/")  # used to be 0.4
         if load_movie:
             p8_18_10_24_a005_ms.load_tif_movie(path="p8/p8_18_10_24_a005/")
 
@@ -1051,7 +1015,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p9_18_09_27_a003_ms.set_avg_cell_map_tif(file_name="p9/p9_18_09_27_a003/AVG_p9_18_09_27_a003.tif")
         if load_abf:
             p9_18_09_27_a003_ms.load_abf_file(abf_file_name="p9/p9_18_09_27_a003/p9_18_09_27_a003.abf",
-                                              threshold_piezo=0.06, piezo_channel=2, sampling_rate=10000,
+                                               sampling_rate=10000,
                                               offset=0.1)
         ms_str_to_ms_dict["p9_18_09_27_a003_ms"] = p9_18_09_27_a003_ms
 
@@ -1070,11 +1034,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p9_19_02_20_a003_ms.load_data_from_file(file_name_to_load=
                                                 "p9/p9_19_02_20_a003/MichelMotC_p9_19_02_20_a003_params.mat",
                                                 variables_mapping=variables_mapping)
-
-        if load_abf:
-            p9_19_02_20_a003_ms.load_abf_file(abf_file_name="p9/p9_19_02_20_a003/p9_19_02_20_a003.abf",
-                                              piezo_channel=1,
-                                              threshold_piezo=25, just_load_npz_file=False)
 
         # prediction based on rnn ...
         variables_mapping = {"predictions": "predictions"}
@@ -1499,7 +1458,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p13_18_10_29_a000_ms.set_avg_cell_map_tif(file_name="p13/p13_18_10_29_a000/AVG_p13_18_10_29_a000.tif")
         if load_abf:
             p13_18_10_29_a000_ms.load_abf_file(abf_file_name="p13/p13_18_10_29_a000/p13_18_10_29_a000.abf",
-                                               threshold_piezo=None, with_run=True, sampling_rate=10000)
+                                               threshold_piezo=None,  sampling_rate=10000)
         if load_movie:
             p13_18_10_29_a000_ms.load_tif_movie(path="p13/p13_18_10_29_a000/")
         ms_str_to_ms_dict["p13_18_10_29_a000_ms"] = p13_18_10_29_a000_ms
@@ -1555,7 +1514,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         if load_abf:
             p13_18_10_29_a001_ms.load_abf_file(abf_file_name="p13/p13_18_10_29_a001/p13_18_10_29_a001.abf",
-                                               threshold_piezo=None, with_run=True, sampling_rate=10000)
+                                               threshold_piezo=None, sampling_rate=10000)
         ms_str_to_ms_dict["p13_18_10_29_a001_ms"] = p13_18_10_29_a001_ms
 
     if "p14_18_10_23_a000_ms" in ms_str_to_load:
@@ -1704,7 +1663,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         if load_abf:
             p41_19_04_30_a000_ms.load_abf_file(abf_file_name="p41/p41_19_04_30_a000/p41_19_04_30_a000.abf",
-                                               run_channel=2, with_run=True,
+                                               run_channel=2,
                                                threshold_piezo=25, just_load_npz_file=False)
         # p41_19_04_30_a000.abf
         p41_19_04_30_a000_ms.clean_raster_at_concatenation()
@@ -1866,5 +1825,19 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         richard_028_D2_P1_ms.load_richard_data(path_data="richard_data/028/Nocue/028_D2_P1/")
 
         ms_str_to_ms_dict["richard_028_D2_P1_ms"] = richard_028_D2_P1_ms
+
+    # common action for all mouse sessions
+    for ms in ms_str_to_ms_dict.values():
+        if load_abf and (not ms.abf_loaded):
+            # if sampling_rate is not 50000, load specific data for a session
+            # loading abf
+            if ms.age >= 10:
+                # default LFP channel is 4
+                # if LFP in channel 1, load specific data for a session
+                ms.load_abf_file(path_abf_data=f"p{ms.age}/{ms.description.lower()}/", run_channel=2)
+            else:
+                # default LFP is channel 3
+                # if channel 1 for LFP, load specific data for a session
+                ms.load_abf_file(path_abf_data=f"p{ms.age}/{ms.description.lower()}/")
 
     return ms_str_to_ms_dict

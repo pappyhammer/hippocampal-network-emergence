@@ -2562,7 +2562,7 @@ def robin_loading_process(param, load_traces, load_abf=True):
     # ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p10_17_11_16_a003_ms"]
-    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
     # ms_str_to_load = ["p9_19_03_22_a001_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
@@ -2572,7 +2572,7 @@ def robin_loading_process(param, load_traces, load_abf=True):
     # ms_str_to_load = ["p9_19_02_20_a003_ms"]
     # ms_str_to_load = ["p7_19_03_05_a000_ms"]
     # 4 mice with nice abf + LFP
-    ms_str_to_load = ["p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p7_19_03_05_a000_ms", "p9_19_02_20_a003_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p7_19_03_05_a000_ms", "p9_19_02_20_a003_ms"]
 
     # 256
 
@@ -2638,7 +2638,7 @@ def main():
     if for_lexi:
         ms_str_to_ms_dict = lexi_loading_process(param=param, load_traces=load_traces)
     else:
-        ms_str_to_ms_dict = robin_loading_process(param=param, load_traces=load_traces, load_abf=False)
+        ms_str_to_ms_dict = robin_loading_process(param=param, load_traces=load_traces, load_abf=True)
 
     available_ms = list(ms_str_to_ms_dict.values())
     # for ms in available_ms:
@@ -2646,9 +2646,9 @@ def main():
     #     return
     ms_to_analyse = available_ms
 
-    just_plot_all_basic_stats =True
+    just_plot_all_basic_stats =False
     just_do_stat_on_event_detection_parameters = False
-    just_plot_raster = False
+    just_plot_raster = True
     just_plot_raster_with_periods = False
     just_plot_time_correlation_graph_over_twitches = False
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
