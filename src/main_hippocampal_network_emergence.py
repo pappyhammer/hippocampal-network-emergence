@@ -58,7 +58,7 @@ from ScanImageTiffReader import ScanImageTiffReader
 from pattern_discovery.tools.signal import smooth_convolve
 import PIL
 from PIL import ImageSequence
-import joypy
+# import joypy
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -713,6 +713,7 @@ def plot_all_basic_stats(ms_to_analyse, param, save_formats="pdf"):
     plot_transient_frequency(ms_to_analyse, param, colors=colors, save_formats=save_formats)
     plot_transient_amplitude(ms_to_analyse, param, colors=colors, save_formats=save_formats)
 
+
 def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pdf"):
     path_results = os.path.join(param.path_results, "transient_amplitude")
     if not os.path.isdir(path_results):
@@ -768,7 +769,7 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
                         y_label="Amplitude (DF/F) of transients", colors=colors, param=param, save_formats=save_formats)
 
     box_plot_data_by_age(data_dict=transient_amplitude_by_age_avg_by_cell, title="",
-                               path_results=path_results,
+                               path_results=path_results, with_scatters=False,
                          filename="transient_amplitude_by_age_avg_by_cell",
                         y_label="Avg amplitude (DF/F) of transients by cell", colors=colors,
                          param=param, save_formats=save_formats)
@@ -799,7 +800,7 @@ def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pd
                                twice_more_bins=True,
                                xlabel="Frequency of transients (Hz)", save_formats=save_formats)
     box_plot_data_by_age(data_dict=transient_frequency_by_age, title="", filename="transients_frequency_by_age",
-                               path_results=path_results,
+                               path_results=path_results, with_scatters=False,
                         y_label="Frequency of transients (Hz)", colors=colors, param=param, save_formats=save_formats)
 
 def plot_transient_durations(ms_to_analyse, param, colors=None, save_formats="pdf"):
@@ -1716,7 +1717,7 @@ def box_plot_data_by_age(data_dict, title, filename,
     if with_scatters:
         for data_index, data in enumerate(data_list):
             # Adding jitter
-            x_pos = [1 + data_index + ((np.random.random_sample() - 0.5) * 0.8) for x in np.arange(len(data))]
+            x_pos = [1 + data_index + ((np.random.random_sample() - 0.5) * 0.5) for x in np.arange(len(data))]
             y_pos = data
             font_size = 3
             ax1.scatter(x_pos, y_pos,

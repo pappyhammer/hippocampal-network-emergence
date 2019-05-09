@@ -1012,7 +1012,10 @@ class OptionsFrame(tk.Frame):
                     self.loaded_periods = dict()
                     self.loaded_periods["period_1"] = period_array
                 elif file_name[-3:] == "npz":
-                    self.loaded_periods = np.load(file_name)
+                    npz_file = np.load(file_name)
+                    self.loaded_periods = dict()
+                    for item, value in npz_file.items():
+                        self.loaded_periods[item] = value
             elif data_to_load_str == "trace 1":
                 # print(f"file_name[-3:] {file_name[-3:]}")
                 if file_name[-3:] == "mat":

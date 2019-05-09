@@ -3499,10 +3499,14 @@ class MouseSession:
         if not file_name_to_load.endswith(".npz"):
             print(f"load_data_from_period_selection_gui not a npz file {file_name_to_load}")
             return
-        data = np.load(os.path.join(self.param.path_data, file_name_to_load))
-        self.shift_data_dict = dict()
-        for key, value in variables_mapping.items():
-            self.shift_data_dict[key] = data[value]
+        try:
+            data = np.load(os.path.join(self.param.path_data, file_name_to_load))
+            self.shift_data_dict = dict()
+            for key, value in variables_mapping.items():
+                self.shift_data_dict[key] = data[value]
+        except (FileNotFoundError, OSError) as e:
+            print(f"File not found: {file_name_to_load} in load_data_from_period_selection_gui {self.description}")
+            return
 
     def load_data_from_file(self, file_name_to_load, variables_mapping, frames_filter=None,
                             from_gui=False):
