@@ -41,6 +41,7 @@ import platform
 import tifffile
 from pattern_discovery.tools.signal import smooth_convolve
 from tensorflow.python.client import device_lib
+from alt_model_checkpoint import AltModelCheckpoint
 
 device_lib.list_local_devices()
 
@@ -3941,6 +3942,7 @@ def train_model():
         cells_to_predict = {"p11_17_11_24_a000_ms": np.arange(24)}  # np.array([2, 25])} # np.arange(117)
         cells_to_predict = {"p41_19_04_30_a000_ms": None}
         cells_to_predict = {"p7_171012_a000_ms": np.arange(1)}
+        print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0,
                                          use_data_augmentation=False, using_cnn_predictions=False,
                                          cells_to_predict=cells_to_predict, file_name_bonus_str="",
@@ -3981,9 +3983,9 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    n_gpus = 1
+    n_gpus = 2
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 30
+    n_epochs = 30 # TODO: 30
     # multiplying by the number of gpus used as batches will be distributed to each GPU
     batch_size = 8*n_gpus
     window_len = 100 # TODO: 100
@@ -4202,9 +4204,9 @@ def train_model():
         file_path = param.path_results + "/transient_classifier_weights_{epoch:02d}-{val_acc:.4f}" + end_file_path
         # callbacks_list.append(ModelCheckpoint(filepath=file_path, monitor="val_acc", save_best_only="True",
         #                                       save_weights_only="True", mode="max"))
-
-        callbacks_list.append(ModelCheckpoint(filepath=file_path, monitor="val_acc",
-                                              save_weights_only="True", mode="max"))
+        # https://github.com/TextpertAi/alt-model-checkpoint
+        callbacks_list.append(AltModelCheckpoint(file_path, model, save_weights_only="True"))
+        # monitor="val_acc",  mode="max"
 
     stop_time = time.time()
     print(f"Time for building and compiling the model: "
@@ -4218,7 +4220,7 @@ def train_model():
                                   epochs=n_epochs,
                                   use_multiprocessing=True,
                                   workers=workers,
-                                  callbacks=callbacks_list, verbose=2) #
+                                  callbacks=callbacks_list, verbose=2) #TODO: Verbose=2
 
     print(f"history.history.keys() {history.history.keys()}")
     stop_time = time.time()
