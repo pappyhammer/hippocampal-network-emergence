@@ -677,6 +677,123 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["p7_18_02_08_a003_ms"] = p7_18_02_08_a003_ms
 
+    if "p7_19_03_27_a000_ms" in ms_str_to_load:
+        p7_19_03_27_a000_ms = MouseSession(age=7, session_id="19_03_27_a000", nb_ms_by_frame=100,
+                                           sampling_rate=10, param=param)
+        # for threshold prediction at 0.5
+        # p7_19_03_27_a000_ms.activity_threshold =
+
+        variables_mapping = {"global_roi": "global_roi"}
+        p7_19_03_27_a000_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_19_03_27_a000/p7_19_03_27_a000_global_roi.mat",
+                                                variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xshifts",
+                             "yshifts": "yshifts"}
+        p7_19_03_27_a000_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_19_03_27_a000/MichelMotC_p7_19_03_27_a000_params.mat",
+                                                variables_mapping=variables_mapping)
+
+        # prediction based on rnn ...
+        # variables_mapping = {"predictions": "predictions"}
+        # p7_19_03_27_a000_ms.load_raster_dur_from_predictions(
+        #     file_name="p7/p7_19_03_27_a000/predictions/" +
+        #               "",
+        #     prediction_threshold=0.5, variables_mapping=variables_mapping)
+
+        p7_19_03_27_a000_ms.load_suite2p_data(data_path="p7/p7_19_03_27_a000/suite2p/", with_coord=True)
+
+        # if load_movie:
+        p7_19_03_27_a000_ms.load_tif_movie(path="p7/p7_19_03_27_a000")
+        raw_traces_loaded = p7_19_03_27_a000_ms.load_raw_traces_from_npy(path="p7/p7_19_03_27_a000/")
+        if not raw_traces_loaded:
+            p7_19_03_27_a000_ms.load_tiff_movie_in_memory()
+            p7_19_03_27_a000_ms.raw_traces = p7_19_03_27_a000_ms.build_raw_traces_from_movie()
+            p7_19_03_27_a000_ms.save_raw_traces(path="p7/p7_19_03_27_a000/")
+
+        # p7_19_03_27_a000_ms.clean_raster_at_concatenation()
+
+        # p7_19_03_27_a000_ms.spike_struct.build_spike_nums_and_peak_nums()
+
+        ms_str_to_ms_dict["p7_19_03_27_a000_ms"] = p7_19_03_27_a000_ms
+
+    if "p7_19_03_27_a001_ms" in ms_str_to_load:
+        p7_19_03_27_a001_ms = MouseSession(age=7, session_id="19_03_27_a001", nb_ms_by_frame=100,
+                                           sampling_rate=10, param=param)
+        # for threshold prediction at 0.5
+        # p7_19_03_27_a000_ms.activity_threshold =
+
+        variables_mapping = {"global_roi": "global_roi"}
+        p7_19_03_27_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_19_03_27_a001/p7_19_03_27_a001_global_roi.mat",
+                                                variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xshifts",
+                             "yshifts": "yshifts"}
+        p7_19_03_27_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_19_03_27_a001/MichelMotC_p7_19_03_27_a001_params.mat",
+                                                variables_mapping=variables_mapping)
+
+        # prediction based on rnn ...
+        # variables_mapping = {"predictions": "predictions"}
+        # p7_19_03_27_a001_ms.load_raster_dur_from_predictions(
+        #     file_name="p7/p7_19_03_27_a001/predictions/" +
+        #               "",
+        #     prediction_threshold=0.5, variables_mapping=variables_mapping)
+
+        p7_19_03_27_a001_ms.load_suite2p_data(data_path="p7/p7_19_03_27_a001/suite2p/", with_coord=True)
+
+        # if load_movie:
+        p7_19_03_27_a001_ms.load_tif_movie(path="p7/p7_19_03_27_a001")
+        raw_traces_loaded = p7_19_03_27_a001_ms.load_raw_traces_from_npy(path="p7/p7_19_03_27_a001/")
+        if not raw_traces_loaded:
+            p7_19_03_27_a001_ms.load_tiff_movie_in_memory()
+            p7_19_03_27_a001_ms.raw_traces = p7_19_03_27_a001_ms.build_raw_traces_from_movie()
+            p7_19_03_27_a001_ms.save_raw_traces(path="p7/p7_19_03_27_a001/")
+
+        # p7_19_03_27_a001_ms.clean_raster_at_concatenation()
+
+        # p7_19_03_27_a001_ms.spike_struct.build_spike_nums_and_peak_nums()
+
+        ms_str_to_ms_dict["p7_19_03_27_a001_ms"] = p7_19_03_27_a001_ms
+
+    if "p7_19_03_27_a002_ms" in ms_str_to_load:
+        p7_19_03_27_a002_ms = MouseSession(age=7, session_id="19_03_27_a002", nb_ms_by_frame=100,
+                                           sampling_rate=10, param=param)
+        # for threshold prediction at 0.5
+        # p7_19_03_27_a002_ms.activity_threshold =
+
+        variables_mapping = {"global_roi": "global_roi"}
+        p7_19_03_27_a002_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_19_03_27_a002/p7_19_03_27_a002_global_roi.mat",
+                                                variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xshifts",
+                             "yshifts": "yshifts"}
+        p7_19_03_27_a002_ms.load_data_from_file(file_name_to_load=
+                                                "p7/p7_19_03_27_a002/MichelMotC_p7_19_03_27_a002_params.mat",
+                                                variables_mapping=variables_mapping)
+
+        # prediction based on rnn ...
+        # variables_mapping = {"predictions": "predictions"}
+        # p7_19_03_27_a002_ms.load_raster_dur_from_predictions(
+        #     file_name="p7/p7_19_03_27_a002/predictions/" +
+        #               "",
+        #     prediction_threshold=0.5, variables_mapping=variables_mapping)
+
+        p7_19_03_27_a002_ms.load_suite2p_data(data_path="p7/p7_19_03_27_a002/suite2p/", with_coord=True)
+
+        # if load_movie:
+        p7_19_03_27_a002_ms.load_tif_movie(path="p7/p7_19_03_27_a002")
+        raw_traces_loaded = p7_19_03_27_a002_ms.load_raw_traces_from_npy(path="p7/p7_19_03_27_a002/")
+        if not raw_traces_loaded:
+            p7_19_03_27_a002_ms.load_tiff_movie_in_memory()
+            p7_19_03_27_a002_ms.raw_traces = p7_19_03_27_a002_ms.build_raw_traces_from_movie()
+            p7_19_03_27_a002_ms.save_raw_traces(path="p7/p7_19_03_27_a002/")
+
+        # p7_19_03_27_a002_ms.clean_raster_at_concatenation()
+
+        # p7_19_03_27_a002_ms.spike_struct.build_spike_nums_and_peak_nums()
+
+        ms_str_to_ms_dict["p7_19_03_27_a002_ms"] = p7_19_03_27_a002_ms
+
     if "p8_18_02_09_a000_ms" in ms_str_to_load:
         p8_18_02_09_a000_ms = MouseSession(age=8, session_id="18_02_09_a000", nb_ms_by_frame=100, param=param,
                                            weight=None)
@@ -1062,11 +1179,92 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                               offset=0.1)
         ms_str_to_ms_dict["p9_18_09_27_a003_ms"] = p9_18_09_27_a003_ms
 
+    if "p9_19_02_20_a000_ms" in ms_str_to_load:
+        p9_19_02_20_a000_ms = MouseSession(age=9, session_id="19_02_20_a000", nb_ms_by_frame=100,
+                                           sampling_rate=8, param=param)
+        # for threshold prediction at 0.5
+        # p9_19_02_20_a000_ms.activity_threshold =
+
+        variables_mapping = {"global_roi": "global_roi"}
+        p9_19_02_20_a000_ms.load_data_from_file(file_name_to_load=
+                                                "p9/p9_19_02_20_a000/p9_19_02_20_a000_global_roi.mat",
+                                                variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xshifts",
+                             "yshifts": "yshifts"}
+        p9_19_02_20_a000_ms.load_data_from_file(file_name_to_load=
+                                                "p9/p9_19_02_20_a000/MichelMotC_p9_19_02_20_a000_params.mat",
+                                                variables_mapping=variables_mapping)
+
+        # prediction based on rnn ...
+        # variables_mapping = {"predictions": "predictions"}
+        # p9_19_02_20_a000_ms.load_raster_dur_from_predictions(
+        #     file_name="p9/p9_19_02_20_a000/predictions/" +
+        #               "",
+        #     prediction_threshold=0.5, variables_mapping=variables_mapping)
+
+        p9_19_02_20_a000_ms.load_suite2p_data(data_path="p9/p9_19_02_20_a000/suite2p/", with_coord=True)
+
+        # if load_movie:
+        p9_19_02_20_a000_ms.load_tif_movie(path="p9/p9_19_02_20_a000/")
+        raw_traces_loaded = p9_19_02_20_a000_ms.load_raw_traces_from_npy(path="p9/p9_19_02_20_a000/")
+        if not raw_traces_loaded:
+            p9_19_02_20_a000_ms.load_tiff_movie_in_memory()
+            p9_19_02_20_a000_ms.raw_traces = p9_19_02_20_a000_ms.build_raw_traces_from_movie()
+            p9_19_02_20_a000_ms.save_raw_traces(path="p9/p9_19_02_20_a000/")
+
+        # p9_19_02_20_a000_ms.clean_raster_at_concatenation()
+
+        # p9_19_02_20_a000_ms.spike_struct.build_spike_nums_and_peak_nums()
+
+        ms_str_to_ms_dict["p9_19_02_20_a000_ms"] = p9_19_02_20_a000_ms
+
+    if "p9_19_02_20_a001_ms" in ms_str_to_load:
+        p9_19_02_20_a001_ms = MouseSession(age=9, session_id="19_02_20_a001", nb_ms_by_frame=100,
+                                           sampling_rate=8, param=param)
+        # for threshold prediction at 0.5
+        # p9_19_02_20_a001_ms.activity_threshold =
+
+        variables_mapping = {"global_roi": "global_roi"}
+        p9_19_02_20_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p9/p9_19_02_20_a001/p9_19_02_20_a001_global_roi.mat",
+                                                variables_mapping=variables_mapping)
+        variables_mapping = {"xshifts": "xshifts",
+                             "yshifts": "yshifts"}
+        p9_19_02_20_a001_ms.load_data_from_file(file_name_to_load=
+                                                "p9/p9_19_02_20_a001/MichelMotC_p9_19_02_20_a003_params.mat",
+                                                variables_mapping=variables_mapping)
+
+        # prediction based on rnn ...
+        # variables_mapping = {"predictions": "predictions"}
+        # p9_19_02_20_a001_ms.load_raster_dur_from_predictions(
+        #     file_name="p9/p9_19_02_20_a001/predictions/" +
+        #               "",
+        #     prediction_threshold=0.5, variables_mapping=variables_mapping)
+
+
+        p9_19_02_20_a001_ms.load_suite2p_data(data_path="p9/p9_19_02_20_a001/suite2p/", with_coord=True)
+
+        # if load_movie:
+        p9_19_02_20_a001_ms.load_tif_movie(path="p9/p9_19_02_20_a001/")
+        raw_traces_loaded = p9_19_02_20_a001_ms.load_raw_traces_from_npy(path="p9/p9_19_02_20_a001/")
+        if not raw_traces_loaded:
+            p9_19_02_20_a001_ms.load_tiff_movie_in_memory()
+            p9_19_02_20_a001_ms.raw_traces = p9_19_02_20_a001_ms.build_raw_traces_from_movie()
+            p9_19_02_20_a001_ms.save_raw_traces(path="p9/p9_19_02_20_a001/")
+
+
+        # p9_19_02_20_a001_ms.clean_raster_at_concatenation()
+
+        # p9_19_02_20_a001_ms.spike_struct.build_spike_nums_and_peak_nums()
+
+        ms_str_to_ms_dict["p9_19_02_20_a001_ms"] = p9_19_02_20_a001_ms
+
+
     if "p9_19_02_20_a003_ms" in ms_str_to_load:
         p9_19_02_20_a003_ms = MouseSession(age=9, session_id="19_02_20_a003", nb_ms_by_frame=100,
                                            sampling_rate=8, param=param)
         # for threshold prediction at 0.5
-        # p9_19_02_20_a003.activity_threshold =
+        # p9_19_02_20_a003_ms.activity_threshold =
 
         variables_mapping = {"global_roi": "global_roi"}
         p9_19_02_20_a003_ms.load_data_from_file(file_name_to_load=
