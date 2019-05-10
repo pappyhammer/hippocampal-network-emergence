@@ -109,7 +109,9 @@ class SelectionFrame(tk.Frame):
 
         self.parula_map = LinearSegmentedColormap.from_list('parula', cm_data)
 
+        # for display purpose
         self.robin_mac = False
+        self.robin_fixe = False
 
         self.root = Tk()
         self.root.protocol("WM_DELETE_WINDOW", self.validation_before_closing)
@@ -228,6 +230,8 @@ class SelectionFrame(tk.Frame):
         # plt.ion()
         if self.robin_mac:
             self.fig = plt.figure(figsize=(10, 4))
+        elif self.robin_fixe:
+            self.fig = plt.figure(figsize=(32, 15))
         else:
             self.fig = plt.figure(figsize=(12, 6))
         # self.plot_canvas = MyCanvas(self.fig, canvas_frame, self)

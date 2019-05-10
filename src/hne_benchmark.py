@@ -1282,6 +1282,11 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         elif version == "v_26_02":
             # rnn trained on 26/02/19, predictions on cells 2, 25, epoch 21
             data_dict["rnn"]["file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_24.22-04-49_v_26_02.mat"
+        elif version == "mesocentre_epoch_5":
+            # rnn trained on , predictions on cells mesocentre epoch 5 117 cells
+            data_dict["rnn"]["file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_05_10.19-03-21_mesocentre_epoch_5.mat"
+
+
 
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
@@ -1333,22 +1338,22 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["e_2"]["predictions"] = "predictions"
         # data_dict["e_2"]["prediction_threshold"] = 0.6
         #
-        # data_dict["max_rnn"] = dict()
-        # data_dict["max_rnn"]["path"] = "p7/p7_17_10_12_a000"
-        # # BO before
-        # # data_dict["old_rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
-        #
-        # # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
-        # # rnn trained on 13/04/2019 23-21-27, predictions on cells 2, 25, with epoch 11 (better precision and speci)
-        # data_dict["max_rnn"][
-        #         "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat"
-        # # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
-        # # rnn trained on 13/04/2019 23-21-27, predictions on first 117 cells with epoch 11 (better precision and speci)
-        # data_dict["max_rnn"][
-        #         "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_26.22-41-0988_GT_epoch_11_117_cells.mat"
-        # data_dict["max_rnn"]["var_name"] = "spike_nums_dur_predicted"
-        # data_dict["max_rnn"]["predictions"] = "predictions"
-        # data_dict["max_rnn"]["prediction_threshold"] = 0.5
+        data_dict["epoch_11"] = dict()
+        data_dict["epoch_11"]["path"] = "p7/p7_17_10_12_a000"
+        # BO before
+        # data_dict["old_rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
+
+        # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+        # rnn trained on 13/04/2019 23-21-27, predictions on cells 2, 25, with epoch 11 (better precision and speci)
+        data_dict["epoch_11"][
+                "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat"
+        # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+        # rnn trained on 13/04/2019 23-21-27, predictions on first 117 cells with epoch 11 (no trans, no overlap)
+        data_dict["epoch_11"][
+            "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_30.23-32-43_epoch_11_no_overlap_no_trans.mat"
+        data_dict["epoch_11"]["var_name"] = "spike_nums_dur_predicted"
+        data_dict["epoch_11"]["predictions"] = "predictions"
+        data_dict["epoch_11"]["prediction_threshold"] = 0.5
         #
         # data_dict["no_tr_rnn"] = dict()
         # data_dict["no_tr_rnn"]["path"] = "p7/p7_17_10_12_a000"
@@ -1610,7 +1615,7 @@ def main_benchmark():
     ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms",
                         "p12_17_11_10_a000", "p8_18_10_24_a006_ms"]
     ms_to_benchmarks = ["p12_17_11_10_a000"]
-    ms_to_benchmarks = ["p8_18_10_24_a005_ms"]
+    ms_to_benchmarks = ["p7_17_10_12_a000"]
     # ms_to_benchmark = "artificial_ms"
     do_onsets_benchmarks = False
     do_plot_roc_predictions = True
