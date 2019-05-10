@@ -3,7 +3,7 @@ from pattern_discovery.tools.misc import get_continous_time_periods
 import scipy.signal as signal
 
 
-def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces):
+def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, with_threshold=None):
     """
     Compute the stats based on raster dur
     :param spike_nums_dur: should not be "uint" dtype
@@ -52,7 +52,7 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces):
     # full raster dur represents the raster dur built from all potential onsets and peaks
     full_raster_dur = None
     if traces is not None:
-        full_raster_dur = get_raster_dur_from_traces(traces)
+        full_raster_dur = get_raster_dur_from_traces(traces, with_threshold=with_threshold)
 
     # positive means active frame, negative means non-active frames
     # condition is the ground truth
@@ -204,11 +204,20 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces):
     return frames_stat, transients_stat
 
 
-def get_raster_dur_from_traces(traces):
+def get_raster_dur_from_traces(traces, with_threshold=None):
+    """
+
+    :param traces:
+    :param with_threshold: None or otherwise 1xlen(traces) array with for each cell the threshold under which
+    we should not take into account a peak and the transient associated. The value is without normalization.
+    :return:
+    """
     n_cells = traces.shape[0]
     n_times = traces.shape[1]
 
     for i in np.arange(n_cells):
+        if with_threshold is not None:
+            with_threshold[i] = (with_threshold[i] - np.mean(traces[i, :])) / np.std(traces[i, :])
         traces[i, :] = (traces[i, :] - np.mean(traces[i, :])) / np.std(traces[i, :])
 
     spike_nums_all = np.zeros((n_cells, n_times), dtype="int8")
@@ -229,11 +238,12 @@ def get_raster_dur_from_traces(traces):
         peaks, properties = signal.find_peaks(x=traces[cell])
         peak_nums[cell, peaks] = 1
 
-    spike_nums_dur = build_spike_nums_dur(spike_nums_all, peak_nums)
+    spike_nums_dur = build_spike_nums_dur(spike_nums_all, peak_nums,
+                                          traces=traces, with_threshold=with_threshold)
     return spike_nums_dur
 
 
-def build_spike_nums_dur(spike_nums, peak_nums):
+def build_spike_nums_dur(spike_nums, peak_nums, traces=None, with_threshold=None):
     n_cells = len(spike_nums)
     n_frames = spike_nums.shape[1]
     spike_nums_dur = np.zeros((n_cells, n_frames), dtype="int8")
@@ -247,6 +257,11 @@ def build_spike_nums_dur(spike_nums, peak_nums):
                 continue
             peaks_after = peaks_index[peaks_after]
             peak_after = peaks_after[0]
+
+            if (traces is not None) and (with_threshold is not None):
+                # if the peak amplitude is under the threshold, we don't consider it
+                if traces[cell, peak_after] < with_threshold[cell]:
+                    continue
 
             spike_nums_dur[cell, onset_index:peak_after + 1] = 1
     return spike_nums_dur

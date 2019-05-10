@@ -3591,7 +3591,6 @@ def transients_prediction_from_movie(ms_to_use, param, tiffs_for_transient_class
 
         # we keep the original number of cells, so if predictions were made with another method (such as Caiman)
         # we can still compare using the indices we know
-        spike_nums_dur = np.zeros((n_cells, n_frames), dtype="int8")
         predictions_by_cell = np.zeros((n_cells, n_frames))
 
         # loading model
@@ -3651,15 +3650,12 @@ def transients_prediction_from_movie(ms_to_use, param, tiffs_for_transient_class
                                                        (predictions[:, 0] == max_pred_by_frame))
                 predictions_by_cell[original_cell, real_transient_frames] = 1
 
-            spike_nums_dur[original_cell, predictions_by_cell[original_cell] >= predictions_threshold] = 1
-
         stop_time = time.time()
         print(f"Time to predict {total_n_cells} cells: "
               f"{np.round(stop_time - start_time, 3)} s")
 
         file_name = f"/{ms.description}_predictions_{file_name_bonus_str}_{param.time_str}.mat"
-        sio.savemat(param.path_results + file_name, {'spike_nums_dur_predicted': spike_nums_dur,
-                                                     'predictions': predictions_by_cell})
+        sio.savemat(param.path_results + file_name, {'predictions': predictions_by_cell})
 
 
 def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
@@ -3923,7 +3919,7 @@ def train_model():
         create_tiffs_for_data_generator(ms_to_use=["artificial_ms_2", "artificial_ms_3"],
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
@@ -3931,6 +3927,7 @@ def train_model():
                                  "p13_18_10_29_a001_ms", "p8_18_10_24_a005_ms"]
         ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms"]
         ms_for_rnn_benchmarks = ["p41_19_04_30_a000_ms"]
+        ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
@@ -3941,7 +3938,9 @@ def train_model():
                             "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
         cells_to_predict = {"p11_17_11_24_a000_ms": np.arange(24)}  # np.array([2, 25])} # np.arange(117)
         cells_to_predict = {"p41_19_04_30_a000_ms": None}
-        cells_to_predict = {"p7_171012_a000_ms": np.arange(1)}
+        cells_to_predict = {"p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])}
+        cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33])}
+        cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0,
                                          use_data_augmentation=False, using_cnn_predictions=False,
@@ -4028,7 +4027,7 @@ def train_model():
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
     # Maximum number of processes to spin up when using process-based threading
-    workers = 10
+    workers = 5
 
     movie_patch_generator_choices = dict()
     movie_patch_generator_choices["MaskedAndGlobal"] = \
@@ -4147,7 +4146,7 @@ def train_model():
         parallel_model = multi_gpu_model(model, gpus=n_gpus)
     else:
         parallel_model = model
-    # raise Exception("YOU KNOW NOTHING JON SNOW")
+    raise Exception("YOU KNOW NOTHING JON SNOW")
 
     # Save the model architecture
     with open(

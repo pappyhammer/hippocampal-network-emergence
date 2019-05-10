@@ -58,7 +58,7 @@ from ScanImageTiffReader import ScanImageTiffReader
 from pattern_discovery.tools.signal import smooth_convolve
 import PIL
 from PIL import ImageSequence
-import joypy
+# import joypy
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -712,8 +712,14 @@ def plot_all_basic_stats(ms_to_analyse, param, save_formats="pdf"):
     plot_transient_durations(ms_to_analyse, param, colors=colors, save_formats=save_formats)
     plot_transient_frequency(ms_to_analyse, param, colors=colors, save_formats=save_formats)
     plot_transient_amplitude(ms_to_analyse, param, colors=colors, save_formats=save_formats)
+    plot_transient_durations_normalized_by_amplitude(ms_to_analyse, param, colors=colors, save_formats=save_formats)
+
 
 def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pdf"):
+    path_results = os.path.join(param.path_results, "transient_amplitude")
+    if not os.path.isdir(path_results):
+        os.mkdir(path_results)
+
     transient_amplitude_by_age = dict()
     transient_amplitude_by_age_avg_by_cell = dict()
 
@@ -725,7 +731,6 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
         raw_traces = ms.raw_traces
         transient_amplitude = []
         transient_amplitude_avg_by_cell = []
-        n_times = ms.spike_struct.spike_nums_dur.shape[1]
         for cell, cell_raster in enumerate(ms.spike_struct.spike_nums_dur):
             # DF / F
             raw_trace = raw_traces[cell] / np.mean(raw_traces[cell])
@@ -747,6 +752,7 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
         plot_hist_distribution(distribution_data=transient_amplitude,
                                description=f"{ms.description}_hist_transient_amplitude",
                                param=param,
+                               path_results=path_results,
                                tight_x_range=True,
                                twice_more_bins=True,
                                xlabel="Amplitude (DF/F) of transients", save_formats=save_formats)
@@ -754,18 +760,28 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
         plot_hist_distribution(distribution_data=transient_amplitude_avg_by_cell,
                                description=f"{ms.description}_hist_transient_amplitude_by_cell",
                                param=param,
+                               path_results=path_results,
                                tight_x_range=True,
                                twice_more_bins=True,
                                xlabel="Avg amplitude (DF/F) of transients by cell", save_formats=save_formats)
     box_plot_data_by_age(data_dict=transient_amplitude_by_age, title="", filename="transient_amplitude_by_age",
+                               path_results=path_results, with_scatters=False,
                         y_label="Amplitude (DF/F) of transients", colors=colors, param=param, save_formats=save_formats)
 
-    box_plot_data_by_age(data_dict=transient_amplitude_by_age_avg_by_cell, title="", 
+    box_plot_data_by_age(data_dict=transient_amplitude_by_age_avg_by_cell, title="",
+                               path_results=path_results, with_scatters=True,
                          filename="transient_amplitude_by_age_avg_by_cell",
                         y_label="Avg amplitude (DF/F) of transients by cell", colors=colors,
                          param=param, save_formats=save_formats)
 
+def plot_jsd_correlation():
+    pass
+
 def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pdf"):
+    path_results = os.path.join(param.path_results, "transient_frequency")
+    if not os.path.isdir(path_results):
+        os.mkdir(path_results)
+
     transient_frequency_by_age = dict()
 
     for ms in ms_to_analyse:
@@ -774,7 +790,7 @@ def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pd
         n_times = ms.spike_struct.spike_nums_dur.shape[1]
         for cell_raster in ms.spike_struct.spike_nums_dur:
             n_transients = len(get_continous_time_periods(cell_raster))
-            transient_frequency.append(n_transients/n_times/ms.sampling_rate)
+            transient_frequency.append(n_transients/(n_times/ms.sampling_rate))
         if age_str not in transient_frequency_by_age:
             transient_frequency_by_age[age_str] = []
         transient_frequency_by_age[age_str].extend(transient_frequency)
@@ -782,13 +798,91 @@ def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pd
         plot_hist_distribution(distribution_data=transient_frequency,
                                description=f"{ms.description}_hist_transients_frequency",
                                param=param,
+                               path_results=path_results,
                                tight_x_range=True,
                                twice_more_bins=True,
                                xlabel="Frequency of transients (Hz)", save_formats=save_formats)
     box_plot_data_by_age(data_dict=transient_frequency_by_age, title="", filename="transients_frequency_by_age",
+                               path_results=path_results, with_scatters=True,
                         y_label="Frequency of transients (Hz)", colors=colors, param=param, save_formats=save_formats)
 
+
+def plot_transient_durations_normalized_by_amplitude(ms_to_analyse, param, colors=None, save_formats="pdf"):
+    path_results = os.path.join(param.path_results, "transient_duration_normalized_by_amplitude")
+    if not os.path.isdir(path_results):
+        os.mkdir(path_results)
+    spike_durations_by_age = dict()
+    spike_durations_by_age_avg_by_cell = dict()
+
+    for ms in ms_to_analyse:
+        if ms.raw_traces is None:
+            ms.load_tiff_movie_in_memory()
+            ms.raw_traces = ms.build_raw_traces_from_movie()
+        raw_traces = ms.raw_traces
+
+        age_str = "p" + str(ms.age)
+
+        # list of length n_cells, each element being a list of int representing the duration of the transient
+        # in frames
+        spike_durations = tools_misc.get_spikes_duration_from_raster_dur(spike_nums_dur=ms.spike_struct.spike_nums_dur)
+        distribution_avg_by_cell = []
+        distribution_all = []
+        if age_str not in spike_durations_by_age:
+            spike_durations_by_age[age_str] = []
+        if age_str not in spike_durations_by_age_avg_by_cell:
+            spike_durations_by_age_avg_by_cell[age_str] = []
+        raster_dur = ms.spike_struct.spike_nums_dur
+        for cell in np.arange(len(raster_dur)):
+            # DF / F
+            raw_trace = raw_traces[cell] / np.mean(raw_traces[cell])
+            cell_raster_dur = raster_dur[cell]
+            periods = get_continous_time_periods(cell_raster_dur)
+            durations_for_a_cell = []
+            for period in periods:
+                amplitude = np.max(raw_trace[period[0]:period[1] + 1])
+                duration = period[1] - period[0]
+                duration = (duration / ms.sampling_rate) / amplitude
+                distribution_all.append(duration)
+                durations_for_a_cell.append(duration)
+            if len(durations_for_a_cell) > 0:
+                distribution_avg_by_cell.append(np.mean(durations_for_a_cell))
+        spike_durations_by_age[age_str].extend(distribution_all)
+        spike_durations_by_age_avg_by_cell[age_str].extend(distribution_avg_by_cell)
+
+
+        plot_hist_distribution(distribution_data=distribution_all,
+                               description=f"{ms.description}_hist_rising_time_durations_normalized_by_amplitude",
+                               param=param,
+                               path_results=path_results,
+                               tight_x_range=True,
+                               twice_more_bins=False,
+                               xlabel="Duration of rising time (s)", save_formats=save_formats)
+        plot_hist_distribution(distribution_data=distribution_avg_by_cell,
+                               description=f"{ms.description}_hist_rising_time_duration_avg_by_cell",
+                               param=param,
+                               path_results=path_results,
+                               tight_x_range=True,
+                               twice_more_bins=True,
+                               xlabel="Average duration of rising time for each cell (s)",
+                               save_formats=save_formats)
+
+    box_plot_data_by_age(data_dict=spike_durations_by_age, title="",
+                         filename="rising_time_duration_by_age_normalized_by_amplitude",
+                         y_label="Duration of rising time (s)", colors=colors,
+                               path_results=path_results, with_scatters=False,
+                         param=param, save_formats=save_formats)
+    box_plot_data_by_age(data_dict=spike_durations_by_age_avg_by_cell, title="",
+                         filename="rising_time_durations_by_age_avg_by_cell_normalized_by_amplitude",
+                               path_results=path_results,
+                         y_label="Average duration of rising time for each cell (s)",
+                         colors=colors,
+                         param=param, save_formats=save_formats)
+
+
 def plot_transient_durations(ms_to_analyse, param, colors=None, save_formats="pdf"):
+    path_results = os.path.join(param.path_results, "transient_duration")
+    if not os.path.isdir(path_results):
+        os.mkdir(path_results)
     spike_durations_by_age = dict()
     spike_durations_by_age_avg_by_cell = dict()
 
@@ -817,21 +911,25 @@ def plot_transient_durations(ms_to_analyse, param, colors=None, save_formats="pd
         plot_hist_distribution(distribution_data=distribution_all,
                                description=f"{ms.description}_hist_rising_time_durations",
                                param=param,
+                               path_results=path_results,
                                tight_x_range=True,
                                twice_more_bins=False,
                                xlabel="Duration of rising time (s)", save_formats=save_formats)
         plot_hist_distribution(distribution_data=distribution_avg_by_cell,
                                description=f"{ms.description}_hist_rising_time_duration_avg_by_cell",
                                param=param,
+                               path_results=path_results,
                                tight_x_range=True,
                                twice_more_bins=True,
                                xlabel="Average duration of rising time for each cell (s)", save_formats=save_formats)
 
     box_plot_data_by_age(data_dict=spike_durations_by_age, title="", filename="rising_time_duration_by_age",
-                         y_label="Duration of rising time (s)", colors=colors,
+                         y_label="Duration of rising time (s)", colors=colors, with_scatters=False,
+                               path_results=path_results,
                          param=param, save_formats=save_formats)
     box_plot_data_by_age(data_dict=spike_durations_by_age_avg_by_cell, title="",
                          filename="rising_time_durations_by_age_avg_by_cell",
+                               path_results=path_results,
                          y_label="Average duration of rising time for each cell (s)", colors=colors,
                          param=param, save_formats=save_formats)
 
@@ -887,7 +985,7 @@ def plot_duration_spikes_by_age(mouse_sessions, ms_ages,
 def plot_hist_distribution(distribution_data, description, param, values_to_scatter=None,
                            labels=None, scatter_shapes=None, colors=None, tight_x_range=False,
                            twice_more_bins=False, background_color="black", labels_color="white",
-                           xlabel="", ylabel=None, save_formats="pdf"):
+                           xlabel="", ylabel=None, path_results=None, save_formats="pdf"):
     """
     Plot a distribution in the form of an histogram, with option for adding some scatter values
     :param distribution_data:
@@ -994,8 +1092,10 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
 
     if isinstance(save_formats, str):
         save_formats = [save_formats]
+    if path_results is None:
+        path_results = param.path_results
     for save_format in save_formats:
-        fig.savefig(f'{param.path_results}/{description}'
+        fig.savefig(f'{path_results}/{description}'
                     f'_{param.time_str}.{save_format}',
                     format=f"{save_format}",
                             facecolor=fig.get_facecolor())
@@ -1636,7 +1736,8 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
 
 def box_plot_data_by_age(data_dict, title, filename,
                          y_label, param, colors,
-                         x_label=None,
+                               path_results=None,
+                         x_label=None, with_scatters=True,
                          background_color="black",
                          labels_color="white", save_formats="pdf"):
     """
@@ -1661,8 +1762,9 @@ def box_plot_data_by_age(data_dict, title, filename,
     for age, data in data_dict.items():
         data_list.append(data)
         labels.append(age)
+
     bplot = plt.boxplot(data_list, patch_artist=colorfull,
-                        labels=labels, sym='', zorder=1)  # whis=[5, 95], sym='+'
+                        labels=labels, sym='', zorder=30)  # whis=[5, 95], sym='+'
     # color=["b", "cornflowerblue"],
     # fill with colors
 
@@ -1674,6 +1776,7 @@ def box_plot_data_by_age(data_dict, title, filename,
     for element in ['means', 'medians']:
         plt.setp(bplot[element], color=background_color)
 
+
     if colorfull:
         if colors is None:
             colors = param.colors[:len(data_dict)]
@@ -1683,6 +1786,22 @@ def box_plot_data_by_age(data_dict, title, filename,
             colors = colors[:len(data_dict)]
         for patch, color in zip(bplot['boxes'], colors):
             patch.set_facecolor(color)
+            r, g, b, a = patch.get_facecolor()
+            # for transparency purpose
+            patch.set_facecolor((r, g, b, 0.8))
+
+    if with_scatters:
+        for data_index, data in enumerate(data_list):
+            # Adding jitter
+            x_pos = [1 + data_index + ((np.random.random_sample() - 0.5) * 0.5) for x in np.arange(len(data))]
+            y_pos = data
+            font_size = 3
+            ax1.scatter(x_pos, y_pos,
+                       color=colors[data_index],
+                       alpha=0.5,
+                       marker="o",
+                       edgecolors=background_color,
+                       s=20, zorder=1)
 
     # plt.xlim(0, 100)
     plt.title(title)
@@ -1713,8 +1832,11 @@ def box_plot_data_by_age(data_dict, title, filename,
 
     if isinstance(save_formats, str):
         save_formats = [save_formats]
+
+    if path_results is None:
+        path_results = param.path_results
     for save_format in save_formats:
-        fig.savefig(f'{param.path_results}/{filename}'
+        fig.savefig(f'{path_results}/{filename}'
                     f'_{param.time_str}.{save_format}',
                     format=f"{save_format}",
                             facecolor=fig.get_facecolor())
@@ -2572,9 +2694,15 @@ def robin_loading_process(param, load_traces, load_abf=True):
     # ms_str_to_load = ["p9_19_02_20_a003_ms"]
     # ms_str_to_load = ["p7_19_03_05_a000_ms"]
     # 4 mice with nice abf + LFP
-    # ms_str_to_load = ["p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p7_19_03_05_a000_ms", "p9_19_02_20_a003_ms"]
+    ms_str_to_load = ["p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p7_19_03_05_a000_ms", "p9_19_02_20_a003_ms"]
 
-    # 256
+    # session with mouvements periods (twitch, long mvt etc...) available
+    ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_18_02_08_a001_ms", "p7_18_02_08_a003_ms", "p7_18_02_08_a000_ms",
+                      "p7_19_03_05_a000_ms", "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+                      "p8_18_10_24_a005_ms", "p9_17_12_06_a001_ms",
+                      "p9_19_02_20_a003"]
+
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -2638,7 +2766,7 @@ def main():
     if for_lexi:
         ms_str_to_ms_dict = lexi_loading_process(param=param, load_traces=load_traces)
     else:
-        ms_str_to_ms_dict = robin_loading_process(param=param, load_traces=load_traces, load_abf=True)
+        ms_str_to_ms_dict = robin_loading_process(param=param, load_traces=load_traces, load_abf=False)
 
     available_ms = list(ms_str_to_ms_dict.values())
     # for ms in available_ms:
@@ -2648,8 +2776,9 @@ def main():
 
     just_plot_all_basic_stats =False
     just_do_stat_on_event_detection_parameters = False
-    just_plot_raster = True
-    just_plot_raster_with_periods = False
+    just_plot_raster = False
+    # periods such as twitch etc...
+    just_plot_raster_with_periods = True
     just_plot_time_correlation_graph_over_twitches = False
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_raster_with_cells_assemblies_and_shifts = False
@@ -2945,8 +3074,8 @@ def main():
             continue
 
         if just_plot_raster_with_periods:
+            ms.plot_raster_with_periods(ms.shift_data_dict)
             if ms_index == len(ms_to_analyse) - 1:
-                ms.plot_raster_with_periods(ms.shift_data_dict)
                 raise Exception("The Lannisters always pay their debts")
             continue
 

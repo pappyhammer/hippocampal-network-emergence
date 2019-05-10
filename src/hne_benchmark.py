@@ -120,6 +120,32 @@ class BenchmarkRasterDur:
     def compute_stats(self):
         if self.debug_mode:
             print(f"{self.description} stats on raster dur")
+
+        # first we compute for each cell, the lowest peak predicted, in order to fix a low threshold for
+        # for transients used for benchmarks (possible transients), transients below the threshold are not considered
+        traces_threshold = None
+        if self.traces is not None:
+            traces_threshold = np.zeros(len(self.traces))
+            rd_list = []
+            rd_list.append(self.ground_truth_raster_dur)
+            for key, raster_dur in self.predicted_raster_dur_dict.items():
+                rd_list.append(raster_dur)
+            for cell in np.arange(len(self.traces)):
+                min_value = None
+                for raster_dur in rd_list:
+                    periods = get_continous_time_periods(raster_dur[cell])
+                    for period in periods:
+                        if period[0] == period[1]:
+                            peak_amplitude = self.traces[cell, period[0]:period[1]+1]
+                        else:
+                            peak_amplitude = np.max(self.traces[cell, period[0]:period[1]+1])
+                        if min_value is None:
+                            min_value = peak_amplitude
+                        else:
+                            min_value = min(peak_amplitude, min_value)
+                traces_threshold[cell] = min_value
+
+
         for cell in self.cells:
             if self.debug_mode:
                 print(f"Cell {cell}")
@@ -127,13 +153,15 @@ class BenchmarkRasterDur:
             self.results_transients_dict_by_cell[cell] = SortedDict()
             for key, raster_dur in self.predicted_raster_dur_dict.items():
                 gt_rd = self.ground_truth_raster_dur[cell]
+                # predicted raster_dur
                 p_rd = raster_dur[cell]
                 if self.traces is not None:
                     traces = self.traces[cell]
                 else:
                     traces = None
                 frames_stat, transients_stat = cs.compute_stats(gt_rd, p_rd,
-                                                                traces=traces)
+                                                                traces=traces,
+                                                                with_threshold=traces_threshold)
                 self.results_frames_dict_by_cell[cell][key] = frames_stat
                 self.results_transients_dict_by_cell[cell][key] = transients_stat
                 if self.debug_mode:
@@ -572,171 +600,6 @@ def get_boost_rnn_raster_dur(rnn_raster_dur, traces):
     return new_rnn_raster_dur
 
 
-def build_raster_dur_from_caiman_25000_frames_onsets(file_name, var_name, trace_file_name, trace_var_name,
-                                                     description, path_results):
-    data_onsets = hdf5storage.loadmat(file_name)
-    # print(f"data_onsets {list(data_onsets.keys())}")
-    # return
-    caiman_spike_nums = data_onsets[var_name].astype(float)
-
-    print(f"caiman_spike_nums.shape {caiman_spike_nums.shape}")
-
-    # we need to bin it, to get 12500 frames
-    spike_nums_bin = np.zeros((caiman_spike_nums.shape[0], caiman_spike_nums.shape[1] // 2),
-                              dtype="int8")
-    for cell in np.arange(spike_nums_bin.shape[0]):
-        binned_cell = caiman_spike_nums[cell].reshape(-1, 2).mean(axis=1)
-        binned_cell[binned_cell > 0] = 1
-        spike_nums_bin[cell] = binned_cell.astype("int")
-    caiman_spike_nums = spike_nums_bin
-
-    print(f"caiman_spike_nums.shape {caiman_spike_nums.shape}")
-
-    data_traces = hdf5storage.loadmat(trace_file_name)
-    traces = data_traces[trace_var_name].astype(float)
-
-    n_cells = traces.shape[0]
-    n_times = traces.shape[1]
-
-    for i in np.arange(n_cells):
-        traces[i, :] = (traces[i, :] - np.mean(traces[i, :])) / np.std(traces[i, :])
-        # if smooth_the_trace:
-        #     # smoothing the trace
-        #     windows = ['hanning', 'hamming', 'bartlett', 'blackman']
-        #     i_w = 1
-        #     window_length = 11
-        #     smooth_signal = smooth_convolve(x=traces[i], window_len=window_length,
-        #                                     window=windows[i_w])
-        #     beg = (window_length - 1) // 2
-        #     traces[i] = smooth_signal[beg:-beg]
-
-    # detecting all onsets
-    spike_nums_all = np.zeros((n_cells, n_times), dtype="int8")
-    for cell in np.arange(n_cells):
-        onsets = []
-        diff_values = np.diff(traces[cell])
-        for index, value in enumerate(diff_values):
-            if index == (len(diff_values) - 1):
-                continue
-            if value < 0:
-                if diff_values[index + 1] >= 0:
-                    onsets.append(index + 1)
-        spike_nums_all[cell, np.array(onsets)] = 1
-
-    caiman_peak_nums = np.zeros((n_cells, n_times), dtype="int8")
-    for cell in np.arange(n_cells):
-        peaks, properties = signal.find_peaks(x=traces[cell], distance=2)
-        caiman_peak_nums[cell, peaks] = 1
-
-    spike_nums_dur = np.zeros((n_cells, n_times), dtype="int8")
-
-    for cell in np.arange(n_cells):
-        peaks_index = np.where(caiman_peak_nums[cell])[0]
-        # for each peaks we look at onsets before, until an onset is at higher amplitude than the previous one
-        # if none of the onset are from caiman, we don't consider this peak as part of a transient
-        # otherwise we add the transient to the raster_dur, using the caiman onset with the lowest amplitudes
-        caiman_onsets_index = np.where(caiman_spike_nums[cell])[0]
-        all_onsets_index = np.where(spike_nums_all[cell])[0]
-        n_transients = 0
-        for peak_index in peaks_index:
-            onsets_before_peak = all_onsets_index[all_onsets_index < peak_index]
-            if len(onsets_before_peak) == 0:
-                continue
-            # looking for the lowest amplitude onsets
-            last_amplitude = None
-            lowest_onset = None
-            peak_amplitude = traces[cell, peak_index]
-            last_peak_index = peak_index
-            onset_found = True
-            for onset_index in onsets_before_peak[::-1]:
-                if last_amplitude is None:
-                    last_amplitude = traces[cell, onset_index]
-                    lowest_onset = onset_index
-                    if last_amplitude > peak_amplitude:
-                        onset_found = False
-                        break
-                else:
-                    amplitude = traces[cell, onset_index]
-                    if amplitude > last_amplitude:
-                        # then it's over
-                        break
-                    else:
-                        # first we want to check if no peak between the last peak and the index is higher than the
-                        # lowest peak encounter
-                        new_peaks_index = peaks_index[np.logical_and(peaks_index > onset_index,
-                                                                     peaks_index < last_peak_index)]
-                        if len(new_peaks_index) > 0:
-                            if traces[cell, new_peaks_index[0]] > traces[cell, last_peak_index]:
-                                # print(f"cell {cell}: break peak > last_peak")
-                                break
-                            last_peak_index = new_peaks_index[0]
-                        last_amplitude = amplitude
-                        lowest_onset = onset_index
-            if not onset_found:
-                continue
-            else:
-                # now we want to see if there is a caiman onset between this onset and the peak
-                # taking the furthest one
-                # we allow a 2 frames imprecision, due to the bin operation
-                if lowest_onset > 1:
-                    lowest_onset -= 2
-                # print(f"cell {cell}: len lowest to peak {peak_index + 1 - lowest_onset}")
-                caiman_champion = np.where(np.logical_and(caiman_onsets_index >= lowest_onset,
-                                                          caiman_onsets_index < peak_index))[0]
-                if len(caiman_champion) > 0:
-                    spike_nums_dur[cell, caiman_onsets_index[caiman_champion[0]]:peak_index + 1] = 1
-                    # print(f"cell {cell}: len transient {peak_index + 1 - caiman_onsets_index[caiman_champion[0]]}")
-                    n_transients += 1
-        print(f"cell {cell}: n_transients {n_transients}")
-        periods = get_continous_time_periods(spike_nums_dur[cell])
-        print(f"cell {cell}: real n_transients {len(periods)}")
-    path_results += "/"
-    sio.savemat(path_results + f"{description}_caiman_raster_dur_JD_version.mat", {'rasterdur': spike_nums_dur})
-
-
-def build_p7_17_10_12_a000_raster_dur_caiman(path_data, path_results):
-    path_data += "p7/p7_17_10_12_a000/"
-    file_name_onsets = "Robin_30_01_19/p7_17_10_12_a000_filt_Bin100ms_spikedigital.mat"
-    file_name_trace = "p7_17_10_12_a000_Traces.mat"
-
-    data_onsets = hdf5storage.loadmat(path_data + file_name_onsets)
-    spike_nums = data_onsets["filt_Bin100ms_spikedigital"].astype(float)
-    # raster_dur with just 1 sec filter
-    data_raster_dur = hdf5storage.loadmat(path_data + "Robin_30_01_19/p7_17_10_12_a000_RasterDur.mat")
-    raster_dur_non_filt = data_raster_dur["rasterdur"].astype(int)
-
-    n_cells = len(spike_nums)
-    n_frames = spike_nums.shape[1]
-
-    # building peak_nums
-
-    peak_nums = np.zeros((n_cells, n_frames), dtype="int8")
-    for cell in np.arange(n_cells):
-        time_periods = get_continous_time_periods(raster_dur_non_filt[cell])
-        for time_period in time_periods:
-            peak_nums[cell, time_period[1]] = 1
-
-    spike_nums_dur = np.zeros((n_cells, n_frames), dtype="int8")
-    for cell in np.arange(n_cells):
-        peaks_index = np.where(peak_nums[cell, :])[0]
-        onsets_index = np.where(spike_nums[cell, :])[0]
-
-        for onset_index in onsets_index:
-            peaks_after = np.where(peaks_index > onset_index)[0]
-            if len(peaks_after) == 0:
-                continue
-            peaks_after = peaks_index[peaks_after]
-            peak_after = peaks_after[0]
-            if (peak_after - onset_index) > 200:
-                print(f"long transient in cell {cell} of "
-                      f"duration {peak_after - onset_index} frames at frame {onset_index}")
-
-            spike_nums_dur[cell, onset_index:peak_after + 1] = 1
-
-    path_results += "/"
-    sio.savemat(path_results + "p7_17_10_12_a000_caiman_raster_dur.mat", {'rasterdur': spike_nums_dur})
-
-
 def build_raster_dur_from_predictions(predictions, predictions_threshold, cells, n_total_cells, n_frames):
     predicted_raster_dur_dict = np.zeros((n_total_cells, n_frames), dtype="int8")
     for cell in cells:
@@ -865,14 +728,14 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["gt"]["gt_file"] = "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt"
         # data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P12_17_11_10_a000.txt"
         # data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.array([1, 2]) # 9, 10np.array([0, 3, 6, 7, 9, 10, 12, 14, 15, 19])
+        data_dict["gt"]["cells"] = np.array([9, 10]) # 9, 10np.array([0, 3, 6, 7, 9, 10, 12, 14, 15, 19])
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p12/p12_17_11_10_a000"
         # if traces is given, then rnn will be boosted if boost_rnn is True
         data_dict["rnn"]["trace_file_name"] = "p12_17_11_10_a000_Traces.mat"
         data_dict["rnn"]["trace_var_name"] = "C_df"
-        data_dict["rnn"]["boost_rnn"] = False
+        data_dict["rnn"]["boost_rnn"] = True
         # data_dict["rnn"]["file_name"] = "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat"
 
         # "P12_17_11_10_a000_predictions_2019_02_03.19-16-43.mat" based on best 2 p12 cells predictions
@@ -1094,10 +957,10 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["caiman_raw"]["trace_var_name"] = "C_df"
         # "p12_17_11_10_a000_caiman_raster_dur_JD_version.mat"
 
-        data_dict["suite2p_raw"] = dict()
-        data_dict["suite2p_raw"]["path"] = "p12/p12_17_11_10_a000/suite2p/"
-        data_dict["suite2p_raw"]["caiman_suite2p_mapping"] = "P12_17_11_10_a000_suite2p_vs_caiman.npy"
-        data_dict["suite2p_raw"]["threshold"] = 120  # 50
+        # data_dict["suite2p_raw"] = dict()
+        # data_dict["suite2p_raw"]["path"] = "p12/p12_17_11_10_a000/suite2p/"
+        # data_dict["suite2p_raw"]["caiman_suite2p_mapping"] = "P12_17_11_10_a000_suite2p_vs_caiman.npy"
+        # data_dict["suite2p_raw"]["threshold"] = 120  # 50
 
         # data_dict["caiman_jd"] = dict()
         # data_dict["caiman_jd"]["path"] = "p12/p12_17_11_10_a000"
@@ -1130,6 +993,17 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["caiman_filt"]["path"] = "p8/p8_18_10_24_a006"
         data_dict["caiman_filt"]["file_name"] = "p8_18_10_24_a006_Spikenums_caiman.mat"
         data_dict["caiman_filt"]["var_name"] = "rasterdur"
+
+        if version == "mesocentre_epoch_5":
+            data_dict["best_rnn"] = dict()
+            data_dict["best_rnn"]["path"] = "p8/p8_18_10_24_a006"
+            # trained on cells validated by GT + artificial data, 3 inputs, 100 frames, not trans, no over
+            # rnn trained on 13/04/2019 23-21-27, predictions on cells 28, 32, 33, epoch 11
+            data_dict["best_rnn"]["file_name"] = \
+                "predictions/P8_18_10_24_a006_predictions__2019_05_09.21-52-47_GT_epoch_11_no_trans_no_over.mat"
+            data_dict["best_rnn"]["var_name"] = "spike_nums_dur_predicted"
+            data_dict["best_rnn"]["predictions"] = "predictions"
+            data_dict["best_rnn"]["prediction_threshold"] = 0.5
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p8/p8_18_10_24_a006"
@@ -1174,13 +1048,21 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
             # rnn trained on 13/04/2019 23-21-27, predictions on cells 28, 32, 33, epoch 11
             data_dict["rnn"]["file_name"] = \
                 "predictions/P8_18_10_24_a006_predictions__2019_04_24.20-23-34_GT_epoch_11.mat"
+        elif version == "GT_v1_epoch_11_no_trans_no_over":
+            # trained on cells validated by GT + artificial data, 3 inputs, 100 frames, not trans, no over
+            # rnn trained on 13/04/2019 23-21-27, predictions on cells 28, 32, 33, epoch 11
+            data_dict["rnn"]["file_name"] = \
+                "predictions/P8_18_10_24_a006_predictions__2019_05_09.21-52-47_GT_epoch_11_no_trans_no_over.mat"
         elif version == "v_26_02":
             # rnn trained on 26/02/19, predictions on cells 28, 32, 33, epoch 21
             data_dict["rnn"]["file_name"] = "predictions/P8_18_10_24_a006_predictions__2019_04_24.22-04-49_v_26_02.mat"
+        elif version == "mesocentre_epoch_5":
+            # rnn trained on mesocentre, epoch5 on cells 28, 32, 33
+            data_dict["rnn"]["file_name"] = "predictions/P8_18_10_24_a006_predictions__2019_05_10.15-42-42_mesocentre_5.mat"
 
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.6
+        data_dict["rnn"]["prediction_threshold"] = 0.5
 
         # data_dict["last_rnn"] = dict()
         # data_dict["last_rnn"]["path"] = "p8/p8_18_10_24_a006"
@@ -1207,7 +1089,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # single expert labeling
         data_dict["gt"]["gui_file"] = "p11_17_11_24_a000_fusion_validation.mat"
         # "p11_17_11_24_a000_GUI_transientsRD.mat" "p11_17_11_24_a000_fusion_validation.mat"
-        data_dict["gt"]["cells"] = np.arange(24) # np.array([3, 45])
+        data_dict["gt"]["cells"] = np.array([3, 45]) # np.array([3, 45])
 
         # data_dict["caiman_raw"] = dict()
         # data_dict["caiman_raw"]["path"] = "p11/p11_17_11_24_a000"
@@ -1254,9 +1136,21 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
             # rnn trained on 26/02/19, predictions on cells 3, 45, epoch 21
             data_dict["rnn"]["file_name"] = "predictions/P11_17_11_24_a000_predictions__2019_04_24.22-04-49_v_26_02.mat"
 
+
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
         data_dict["rnn"]["prediction_threshold"] = 0.5
+
+
+
+        # data_dict["caiman_raw"] = dict()
+        # data_dict["caiman_raw"]["path"] = "p11/p11_17_11_24_a000"
+        # data_dict["caiman_raw"]["file_name_onsets"] = "MCMC_p11_17_11_24_a000.mat"
+        # data_dict["caiman_raw"]["onsets_var_name"] = "spikenums"
+        # data_dict["caiman_raw"]["to_bin"] = True
+        # data_dict["caiman_raw"]["trace_file_name"] = "p7_17_10_12_a000_Traces.mat"
+        # data_dict["caiman_raw"]["trace_var_name"] = "C_df"
+
     elif ms_to_benchmark == "artificial_ms":
         data_dict["gt"] = dict()
         data_dict["gt"]["path"] = "artificial_movies"
@@ -1439,32 +1333,32 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["e_2"]["predictions"] = "predictions"
         # data_dict["e_2"]["prediction_threshold"] = 0.6
         #
-        data_dict["max_rnn"] = dict()
-        data_dict["max_rnn"]["path"] = "p7/p7_17_10_12_a000"
-        # BO before
-        # data_dict["old_rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
-
-        # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
-        # rnn trained on 13/04/2019 23-21-27, predictions on cells 2, 25, with epoch 11 (better precision and speci)
-        data_dict["max_rnn"][
-                "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat"
-        # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
-        # rnn trained on 13/04/2019 23-21-27, predictions on first 117 cells with epoch 11 (better precision and speci)
-        data_dict["max_rnn"][
-                "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_26.22-41-0988_GT_epoch_11_117_cells.mat"
-        data_dict["max_rnn"]["var_name"] = "spike_nums_dur_predicted"
-        data_dict["max_rnn"]["predictions"] = "predictions"
-        data_dict["max_rnn"]["prediction_threshold"] = 0.5
-
-        data_dict["no_tr_rnn"] = dict()
-        data_dict["no_tr_rnn"]["path"] = "p7/p7_17_10_12_a000"
-        # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
-        # rnn trained on 13/04/2019 23-21-27, predictions on first 117 cells with epoch 11 (no trans, overlap 0.5)
-        data_dict["no_tr_rnn"][
-            "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_30.21-06-16_epoch_11_no_trans_over_0_5.mat"
-        data_dict["no_tr_rnn"]["var_name"] = "spike_nums_dur_predicted"
-        data_dict["no_tr_rnn"]["predictions"] = "predictions"
-        data_dict["no_tr_rnn"]["prediction_threshold"] = 0.5
+        # data_dict["max_rnn"] = dict()
+        # data_dict["max_rnn"]["path"] = "p7/p7_17_10_12_a000"
+        # # BO before
+        # # data_dict["old_rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
+        #
+        # # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+        # # rnn trained on 13/04/2019 23-21-27, predictions on cells 2, 25, with epoch 11 (better precision and speci)
+        # data_dict["max_rnn"][
+        #         "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat"
+        # # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+        # # rnn trained on 13/04/2019 23-21-27, predictions on first 117 cells with epoch 11 (better precision and speci)
+        # data_dict["max_rnn"][
+        #         "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_26.22-41-0988_GT_epoch_11_117_cells.mat"
+        # data_dict["max_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        # data_dict["max_rnn"]["predictions"] = "predictions"
+        # data_dict["max_rnn"]["prediction_threshold"] = 0.5
+        #
+        # data_dict["no_tr_rnn"] = dict()
+        # data_dict["no_tr_rnn"]["path"] = "p7/p7_17_10_12_a000"
+        # # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+        # # rnn trained on 13/04/2019 23-21-27, predictions on first 117 cells with epoch 11 (no trans, overlap 0.5)
+        # data_dict["no_tr_rnn"][
+        #     "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_30.21-06-16_epoch_11_no_trans_over_0_5.mat"
+        # data_dict["no_tr_rnn"]["var_name"] = "spike_nums_dur_predicted"
+        # data_dict["no_tr_rnn"]["predictions"] = "predictions"
+        # data_dict["no_tr_rnn"]["prediction_threshold"] = 0.5
 
         # data_dict["no_tr_rnn"] = dict()
         # data_dict["no_tr_rnn"]["path"] = "p7/p7_17_10_12_a000"
@@ -1497,12 +1391,13 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # gt as ground_truth
         data_dict["gt"] = dict()
         data_dict["gt"]["path"] = "p8/p8_18_10_24_a005"
-        # data_dict["gt"]["gui_file"] = "p8_18_10_24_a005_fusion_validation.mat"
+        data_dict["gt"]["gui_file"] = "p8_18_10_24_a005_fusion_validation.mat"
         # data_dict["gt"]["gui_file"] = "p8_18_10_24_a005_GUI_transientsRD.mat"
-        data_dict["gt"]["gui_file"] = "p8_18_10_24_a005_GUI_Transiant MP.mat"
+        # data_dict["gt"]["gui_file"] = "p8_18_10_24_a005_GUI_Transiant MP.mat"
         # data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P8_18_10_24_a005.txt"
         # data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.array([2, 3, 4, 5, 6, 7, 8, 11, 12, 14, 16, 17, 18, 19, 20, 21, 22])
+        data_dict["gt"]["cells"] = np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
+        # np.array([2, 3, 4, 5, 6, 7, 8, 11, 12, 14, 16, 17, 18, 19, 20, 21, 22])
         # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
            #   # np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
 
@@ -1569,7 +1464,15 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         elif version == "v_26_02":
             # rnn trained on 26/02/19, predictions on cells 2, 25, epoch 21
             data_dict["rnn"]["file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_04_24.22-04-49_v_26_02.mat"
-
+        elif version == "mesocentre_epoch_2":
+            # rnn trained on 09/05/19, in mesocentre, epoch2 predictions on cells
+            # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
+            data_dict["rnn"]["file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_09.22-35-54_mesocentre_epoch_2.mat"
+        elif version == "mesocentre_epoch_5":
+            # rnn trained on 09/05/19, in mesocentre, epoch5 predictions on cells
+            # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
+            data_dict["rnn"][
+                "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_10.15-23-08_mesocentre_epoch_5.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
         data_dict["rnn"]["prediction_threshold"] = 0.5
@@ -1601,7 +1504,43 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["no_tr_rnn"]["var_name"] = "spike_nums_dur_predicted"
         # data_dict["no_tr_rnn"]["predictions"] = "predictions"
         # data_dict["no_tr_rnn"]["prediction_threshold"] = 0.5
+        if version == "mesocentre_epoch_5":
+            data_dict["meso_2"] = dict()
+            data_dict["meso_2"]["path"] = "p8/p8_18_10_24_a005"
+            # rnn trained on 09/05/19, in mesocentre, epoch2 predictions on cells
+            # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
+            data_dict["meso_2"]["file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_09.22-35-54_mesocentre_epoch_2.mat"
+            data_dict["meso_2"]["var_name"] = "spike_nums_dur_predicted"
+            data_dict["meso_2"]["predictions"] = "predictions"
+            data_dict["meso_2"]["prediction_threshold"] = 0.5
 
+            data_dict["meso_3"] = dict()
+            data_dict["meso_3"]["path"] = "p8/p8_18_10_24_a005"
+            # rnn trained on 09/05/19, in mesocentre, epoch3 predictions on cells
+            # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
+            data_dict["meso_3"][
+                "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_09.22-08-02_mesocentre_epoch_3.mat"
+            data_dict["meso_3"]["var_name"] = "spike_nums_dur_predicted"
+            data_dict["meso_3"]["predictions"] = "predictions"
+            data_dict["meso_3"]["prediction_threshold"] = 0.5
+
+            data_dict["meso_4"] = dict()
+            data_dict["meso_4"]["path"] = "p8/p8_18_10_24_a005"
+            # rnn trained on 09/05/19, in mesocentre, epoch3 predictions on cells
+            # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
+            data_dict["meso_4"][
+                "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_10.15-19-35_mesocentre_epoch_4.mat"
+            data_dict["meso_4"]["var_name"] = "spike_nums_dur_predicted"
+            data_dict["meso_4"]["predictions"] = "predictions"
+            data_dict["meso_4"]["prediction_threshold"] = 0.5
+
+            data_dict["best_rnn"] = dict()
+            data_dict["best_rnn"]["path"] = "p8/p8_18_10_24_a005"
+            data_dict["best_rnn"][
+                "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_02.12-55-41_GT_epoch_11_no_trans_no_over_all_cells.mat"
+            data_dict["best_rnn"]["var_name"] = "spike_nums_dur_predicted"
+            data_dict["best_rnn"]["predictions"] = "predictions"
+            data_dict["best_rnn"]["prediction_threshold"] = 0.5
 
         data_dict["caiman_raw"] = dict()
         data_dict["caiman_raw"]["path"] = "p8/p8_18_10_24_a005"
@@ -1611,15 +1550,15 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["caiman_raw"]["trace_file_name"] = "p8_18_10_24_a005_Traces.mat"
         data_dict["caiman_raw"]["trace_var_name"] = "C_df"
 
-        data_dict["suite2p_raw"] = dict()
-        data_dict["suite2p_raw"]["path"] = "p8/p8_18_10_24_a005/suite2p/"
-        data_dict["suite2p_raw"]["caiman_suite2p_mapping"] = "P8_18_10_24_a005_suite2p_vs_caiman.npy"
-        data_dict["suite2p_raw"]["threshold"] = 70  # try 30
+        # data_dict["suite2p_raw"] = dict()
+        # data_dict["suite2p_raw"]["path"] = "p8/p8_18_10_24_a005/suite2p/"
+        # data_dict["suite2p_raw"]["caiman_suite2p_mapping"] = "P8_18_10_24_a005_suite2p_vs_caiman.npy"
+        # data_dict["suite2p_raw"]["threshold"] = 70  # try 30
 
-        data_dict["caiman_filt"] = dict()
-        data_dict["caiman_filt"]["path"] = "p8/p8_18_10_24_a005"
-        data_dict["caiman_filt"]["file_name"] = "p8_18_10_24_a005_filt_RasterDur.mat"
-        data_dict["caiman_filt"]["var_name"] = "rasterdur"
+        # data_dict["caiman_filt"] = dict()
+        # data_dict["caiman_filt"]["path"] = "p8/p8_18_10_24_a005"
+        # data_dict["caiman_filt"]["file_name"] = "p8_18_10_24_a005_filt_RasterDur.mat"
+        # data_dict["caiman_filt"]["var_name"] = "rasterdur"
 
 
 def main_benchmark():
@@ -1637,36 +1576,6 @@ def main_benchmark():
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     path_results = path_results_raw + f"{time_str}"
     os.mkdir(path_results)
-
-    do_build_raster_dur_on_25000 = False
-    if do_build_raster_dur_on_25000:
-        build_p12 = False
-        build_p7 = True
-        if build_p12:
-            path_data = path_data + "p12/p12_17_11_10_a000/"
-            file_name = path_data + "robin_28_01_19/" + "p12_17_11_10_a000_Spikenums_caiman.mat"
-            var_name = "spikenums"
-            trace_file_name = path_data + "p12_17_11_10_a000_Traces.mat"
-            trace_var_name = "C_df"
-            description = "p12_17_11_10_a000"
-        if build_p7:
-            path_data = path_data + "p7/p7_17_10_12_a000/"
-            file_name = path_data + "Robin_30_01_19/" + "p7_17_10_12_a000_spikenums.mat"
-            var_name = "spikenums"
-            trace_file_name = path_data + "p7_17_10_12_a000_Traces.mat"
-            trace_var_name = "C_df"
-            description = "p7_17_10_12_a000"
-
-        build_raster_dur_from_caiman_25000_frames_onsets(file_name=file_name, var_name=var_name,
-                                                         trace_file_name=trace_file_name, trace_var_name=trace_var_name,
-                                                         description=description,
-                                                         path_results=path_results)
-        return
-
-    build_p7 = False
-    if build_p7:
-        build_p7_17_10_12_a000_raster_dur_caiman(path_data=path_data, path_results=path_results)
-        return
 
     boost_rnn = False
     if boost_rnn:
@@ -1690,15 +1599,18 @@ def main_benchmark():
     # ########### options ###################
     ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
                          "p12_17_11_10_a000"]
-    ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-                        "p12_17_11_10_a000", "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"]
     # "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"
     # ms_to_benchmarks = ["p12_17_11_10_a000"]
     ms_to_benchmarks = ["p11_17_11_24_a000_ms"]
     # ms_to_benchmarks = ["p7_17_10_12_a000"]
     # ms_to_benchmarks = ["p13_18_10_29_a001_ms"]
-    # ms_to_benchmarks = ["p8_18_10_24_a005_ms"]
     # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
+    ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+                        "p12_17_11_10_a000", "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"]
+    ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms",
+                        "p12_17_11_10_a000", "p8_18_10_24_a006_ms"]
+    ms_to_benchmarks = ["p12_17_11_10_a000"]
+    ms_to_benchmarks = ["p8_18_10_24_a005_ms"]
     # ms_to_benchmark = "artificial_ms"
     do_onsets_benchmarks = False
     do_plot_roc_predictions = True
@@ -1710,8 +1622,8 @@ def main_benchmark():
     for ms_to_benchmark in ms_to_benchmarks:
         data_dict = dict()
         # GT_v1_epoch_11, GT_v1_epoch_17, v_26_02, GT_v1_epoch_11_no_trans, GT_v1_epoch_11_no_trans_over_0_5,
-        # GT_v1_epoch_11_no_trans_no_over
-        load_data_dict(ms_to_benchmark, data_dict, version="GT_v1_epoch_11_no_trans_no_over")
+        # GT_v1_epoch_11_no_trans_no_over,  mesocentre_epoch_2, mesocentre_epoch_3
+        load_data_dict(ms_to_benchmark, data_dict, version="mesocentre_epoch_5")
         # ground truth
         data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gui_file"]))
         peak_nums = data_file['LocPeakMatrix_Python'].astype(int)
@@ -1756,7 +1668,9 @@ def main_benchmark():
         # adding cells not selected by cnn
         if cells_to_remove is not None:
             print(f"cells_to_remove {cells_to_remove}")
+            # print(f"cells_for_benchmark before removing {cells_for_benchmark}")
             cells_for_benchmark = np.setdiff1d(cells_for_benchmark, cells_to_remove)
+            # print(f"cells_for_benchmark after removing {cells_for_benchmark}")
 
         if "cells_to_remove" in data_dict["gt"]:
             cells_for_benchmark = np.setdiff1d(cells_for_benchmark, data_dict["gt"]["cells_to_remove"])
