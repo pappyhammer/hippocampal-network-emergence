@@ -453,7 +453,7 @@ class SelectionFrame(tk.Frame):
         # update to remove the cross of the first click at least
         self.update_plot()
 
-    def plot_graph(self, first_time=False):
+    def plot_graph(self, first_time=False, left_x_limit_1=None, right_x_limit_1=None):
         """
 
         :param first_time:
@@ -484,6 +484,12 @@ class SelectionFrame(tk.Frame):
                 # if self.axe_plot_2 is not None:
                 #     ax_to_use = self.axe_plot_2
                 # else:
+                if (left_x_limit_1 is not None) and (right_x_limit_1 is not None):
+                    if period_tuple[0] > right_x_limit_1:
+                        continue
+                    if period_tuple[1] < left_x_limit_1:
+                        continue
+
                 ax_to_use = self.axe_plot
                 ax_to_use.axvspan(period_tuple[0], period_tuple[1], ymin=0.8, ymax=1,
                                       alpha=0.8, facecolor=self.periods_color[period_name], zorder=1)
@@ -492,8 +498,8 @@ class SelectionFrame(tk.Frame):
             self.line2, = self.axe_plot_2.plot(np.arange(len(self.trace_2)), self.trace_2,
                                          color=color_trace_2, zorder=10)
 
-            interval = 200
-            self.axe_plot.vlines(np.arange(interval, self.n_times, interval), self.y_min_value,
+        interval = 10
+        self.axe_plot.vlines(np.arange(interval, self.n_times, interval), self.y_min_value,
                                  math.ceil(self.y_max_value),
                                  color="white", linewidth=0.3,
                                  linestyles="dashed", zorder=9)
@@ -550,7 +556,7 @@ class SelectionFrame(tk.Frame):
             bottom_limit_2, top_limit_2 = self.axe_plot_2.get_ylim()
             self.axe_plot_2.clear()
 
-        self.plot_graph()
+        self.plot_graph(left_x_limit_1, right_x_limit_1)
 
         # to keep the same zoom
         self.axe_plot.set_xlim(left=left_x_limit_1, right=right_x_limit_1, auto=None)
@@ -947,7 +953,10 @@ class OptionsFrame(tk.Frame):
     def go_go(self):
         self.go_button['state'] = DISABLED
 
-        self.data_and_param.trace = self.trace
+        if self.trace is None:
+            self.data_and_param.trace = np.ones(12500, dtype="int8")
+        else:
+            self.data_and_param.trace = self.trace
         self.data_and_param.trace_2 = self.trace_2
 
         self.data_and_param.periods = self.loaded_periods

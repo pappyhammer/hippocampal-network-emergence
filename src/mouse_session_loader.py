@@ -310,6 +310,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load=
                                                 "p6/p6_18_02_07_a002/p6_18_02_07_a002_RasterDur_2nd_dec.mat",
                                                 variables_mapping=variables_mapping)
+
         variables_mapping = {"xshifts": "xoff",
                              "yshifts": "yoff"}
         p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load=
@@ -438,14 +439,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             file_name="p7/p7_19_03_05_a000/predictions/" +
                       "P7_19_03_05_a000_predictions__2019_05_07.21-11-05_GT_epoch_11_all_cells",
             prediction_threshold=0.5, variables_mapping=variables_mapping)
-
-        # DATA FROM period_selection_gui
-        variables_mapping = {"shift_twitch": "shift_twitch",
-                             "shift_long": "shift_long",
-                             "shift_unclassified": "shift_unclassified"}
-        p7_19_03_05_a000_ms.load_data_from_period_selection_gui(file_name_to_load=
-                                                                "p7/p7_19_03_05_a000/p7_19_03_05_mvt_categories.npz",
-                                                                variables_mapping=variables_mapping)
 
         # # variables_mapping = {"shift_periods_bool": "shift"}
         # p7_19_03_05_a000_ms.load_data_from_file(file_name_to_load=
@@ -601,9 +594,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             p7_18_02_08_a001_ms.load_data_from_file(
                 file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_raw_Traces.mat",
                 variables_mapping=variables_mapping)
-        variables_mapping = {"coord": "ContoursAll"}
-        p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_CellDetect.mat",
-                                                variables_mapping=variables_mapping)
+        # variables_mapping = {"coord": "ContoursAll"}
+        # p7_18_02_08_a001_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a001/p7_18_02_08_a001_CellDetect.mat",
+        #                                         variables_mapping=variables_mapping)
 
         variables_mapping = {"xshifts": "xoff",
                              "yshifts": "yoff"}
@@ -678,6 +671,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         variables_mapping = {"coord": "ContoursAll"}
         p7_18_02_08_a003_ms.load_data_from_file(file_name_to_load="p7/p7_18_02_08_a003/p7_18_02_08_a003_CellDetect.mat",
                                                 variables_mapping=variables_mapping)
+
         if load_movie:
             p7_18_02_08_a003_ms.load_tif_movie(path="p7/p7_18_02_08_a003/")
 
@@ -735,6 +729,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load=
                                                 "p8/p8_18_02_09_a001/p8_18_02_09_a001_Corrected_RasterDur.mat",
                                                 variables_mapping=variables_mapping)
+
         if load_traces:
             variables_mapping = {"traces": "C_df"}
             p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_Traces.mat",
@@ -743,9 +738,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             p8_18_02_09_a001_ms.load_data_from_file(
                 file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_raw_Traces.mat",
                 variables_mapping=variables_mapping)
-        variables_mapping = {"coord": "ContoursAll"}
-        p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_CellDetect.mat",
-                                                variables_mapping=variables_mapping)
+        # variables_mapping = {"coord": "ContoursAll"}
+        # p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_02_09_a001/p8_18_02_09_a001_CellDetect.mat",
+        #                                         variables_mapping=variables_mapping)
         variables_mapping = {"xshifts": "xoff",
                              "yshifts": "yoff"}
         p8_18_02_09_a001_ms.load_data_from_file(file_name_to_load=
@@ -1876,6 +1871,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     # common action for all mouse sessions
     for ms in ms_str_to_ms_dict.values():
+        variables_mapping = {"shift_twitch": "shift_twitch",
+                             "shift_long": "shift_long",
+                             "shift_unclassified": "shift_unclassified"}
+        ms.load_data_from_period_selection_gui(path_to_load=f"p{ms.age}/{ms.description.lower()}/",
+                                                                variables_mapping=variables_mapping)
         if load_abf and (not ms.abf_loaded):
             # if sampling_rate is not 50000, load specific data for a session
             # loading abf
@@ -1887,5 +1887,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 # default LFP is channel 3
                 # if channel 1 for LFP, load specific data for a session
                 ms.load_abf_file(path_abf_data=f"p{ms.age}/{ms.description.lower()}/")
+
+
 
     return ms_str_to_ms_dict

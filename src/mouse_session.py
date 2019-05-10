@@ -19,7 +19,7 @@ from pattern_discovery.graph.misc import welsh_powell
 import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.tools.misc import get_time_correlation_data
 from pattern_discovery.tools.misc import get_continous_time_periods
-# from pattern_discovery.display.raster import plot_spikes_raster
+from pattern_discovery.display.raster import plot_spikes_raster
 # from pattern_discovery.display.misc import time_correlation_graph
 from pattern_discovery.display.cells_map_module import CoordClass
 from sortedcontainers import SortedDict
@@ -3495,18 +3495,41 @@ class MouseSession:
         np.save(os.path.join(self.param.path_data, path, f"{self.description}_raw_traces.npy".lower()),
                 self.raw_traces)
         
-    def load_data_from_period_selection_gui(self, variables_mapping, file_name_to_load):
-        if not file_name_to_load.endswith(".npz"):
-            print(f"load_data_from_period_selection_gui not a npz file {file_name_to_load}")
+    def load_data_from_period_selection_gui(self, variables_mapping, file_name_to_load=None, path_to_load=None):
+        if self.shift_data_dict is not None:
             return
-        try:
-            data = np.load(os.path.join(self.param.path_data, file_name_to_load))
-            self.shift_data_dict = dict()
-            for key, value in variables_mapping.items():
-                self.shift_data_dict[key] = data[value]
-        except (FileNotFoundError, OSError) as e:
-            print(f"File not found: {file_name_to_load} in load_data_from_period_selection_gui {self.description}")
+
+        if (file_name_to_load is None) and (path_to_load is None):
+            print(f"{self.description} load_data_from_period_selection_gui "
+                  f"file_name_to_load and path_to_load are None")
             return
+
+        if file_name_to_load is not None:
+            if not file_name_to_load.endswith(".npz"):
+                print(f"load_data_from_period_selection_gui not a npz file {file_name_to_load}")
+                return
+            try:
+                data = np.load(os.path.join(self.param.path_data, file_name_to_load))
+                self.shift_data_dict = dict()
+                for key, value in variables_mapping.items():
+                    self.shift_data_dict[key] = data[value]
+            except (FileNotFoundError, OSError) as e:
+                print(f"File not found: {file_name_to_load} in load_data_from_period_selection_gui {self.description}")
+                return
+        else:
+            shift_data_found = False
+            for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data,path_to_load)):
+                for file_name in local_filenames:
+                    if (("mvt_categories" in file_name.lower()) or ("mvts_categories" in file_name.lower())) \
+                            and file_name.endswith(".npz"):
+                        data = np.load(os.path.join(self.param.path_data, path_to_load, file_name))
+                        self.shift_data_dict = dict()
+                        for key, value in variables_mapping.items():
+                            self.shift_data_dict[key] = data[value]
+                        shift_data_found = True
+                break
+            if not shift_data_found:
+                print(f"{self.description} no period_selection_gui data found")
 
     def load_data_from_file(self, file_name_to_load, variables_mapping, frames_filter=None,
                             from_gui=False):

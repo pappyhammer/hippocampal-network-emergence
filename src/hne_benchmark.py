@@ -124,26 +124,26 @@ class BenchmarkRasterDur:
         # first we compute for each cell, the lowest peak predicted, in order to fix a low threshold for
         # for transients used for benchmarks (possible transients), transients below the threshold are not considered
         traces_threshold = None
-        # if self.traces is not None:
-        #     traces_threshold = np.zeros(len(self.traces))
-        #     rd_list = []
-        #     rd_list.append(self.ground_truth_raster_dur)
-        #     for key, raster_dur in self.predicted_raster_dur_dict.items():
-        #         rd_list.append(raster_dur)
-        #     for cell in np.arange(len(self.traces)):
-        #         min_value = None
-        #         for raster_dur in rd_list:
-        #             periods = get_continous_time_periods(raster_dur[cell])
-        #             for period in periods:
-        #                 if period[0] == period[1]:
-        #                     peak_amplitude = self.traces[cell, period[0]:period[1]+1]
-        #                 else:
-        #                     peak_amplitude = np.max(self.traces[cell, period[0]:period[1]+1])
-        #                 if min_value is None:
-        #                     min_value = peak_amplitude
-        #                 else:
-        #                     min_value = min(peak_amplitude, min_value)
-        #         traces_threshold[cell] = min_value
+        if self.traces is not None:
+            traces_threshold = np.zeros(len(self.traces))
+            rd_list = []
+            rd_list.append(self.ground_truth_raster_dur)
+            for key, raster_dur in self.predicted_raster_dur_dict.items():
+                rd_list.append(raster_dur)
+            for cell in np.arange(len(self.traces)):
+                min_value = None
+                for raster_dur in rd_list:
+                    periods = get_continous_time_periods(raster_dur[cell])
+                    for period in periods:
+                        if period[0] == period[1]:
+                            peak_amplitude = self.traces[cell, period[0]:period[1]+1]
+                        else:
+                            peak_amplitude = np.max(self.traces[cell, period[0]:period[1]+1])
+                        if min_value is None:
+                            min_value = peak_amplitude
+                        else:
+                            min_value = min(peak_amplitude, min_value)
+                traces_threshold[cell] = min_value
 
 
         for cell in self.cells:
@@ -600,49 +600,6 @@ def get_boost_rnn_raster_dur(rnn_raster_dur, traces):
     return new_rnn_raster_dur
 
 
-def build_p7_17_10_12_a000_raster_dur_caiman(path_data, path_results):
-    path_data += "p7/p7_17_10_12_a000/"
-    file_name_onsets = "Robin_30_01_19/p7_17_10_12_a000_filt_Bin100ms_spikedigital.mat"
-    file_name_trace = "p7_17_10_12_a000_Traces.mat"
-
-    data_onsets = hdf5storage.loadmat(path_data + file_name_onsets)
-    spike_nums = data_onsets["filt_Bin100ms_spikedigital"].astype(float)
-    # raster_dur with just 1 sec filter
-    data_raster_dur = hdf5storage.loadmat(path_data + "Robin_30_01_19/p7_17_10_12_a000_RasterDur.mat")
-    raster_dur_non_filt = data_raster_dur["rasterdur"].astype(int)
-
-    n_cells = len(spike_nums)
-    n_frames = spike_nums.shape[1]
-
-    # building peak_nums
-
-    peak_nums = np.zeros((n_cells, n_frames), dtype="int8")
-    for cell in np.arange(n_cells):
-        time_periods = get_continous_time_periods(raster_dur_non_filt[cell])
-        for time_period in time_periods:
-            peak_nums[cell, time_period[1]] = 1
-
-    spike_nums_dur = np.zeros((n_cells, n_frames), dtype="int8")
-    for cell in np.arange(n_cells):
-        peaks_index = np.where(peak_nums[cell, :])[0]
-        onsets_index = np.where(spike_nums[cell, :])[0]
-
-        for onset_index in onsets_index:
-            peaks_after = np.where(peaks_index > onset_index)[0]
-            if len(peaks_after) == 0:
-                continue
-            peaks_after = peaks_index[peaks_after]
-            peak_after = peaks_after[0]
-            if (peak_after - onset_index) > 200:
-                print(f"long transient in cell {cell} of "
-                      f"duration {peak_after - onset_index} frames at frame {onset_index}")
-
-            spike_nums_dur[cell, onset_index:peak_after + 1] = 1
-
-    path_results += "/"
-    sio.savemat(path_results + "p7_17_10_12_a000_caiman_raster_dur.mat", {'rasterdur': spike_nums_dur})
-
-
 def build_raster_dur_from_predictions(predictions, predictions_threshold, cells, n_total_cells, n_frames):
     predicted_raster_dur_dict = np.zeros((n_total_cells, n_frames), dtype="int8")
     for cell in cells:
@@ -1037,6 +994,17 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["caiman_filt"]["file_name"] = "p8_18_10_24_a006_Spikenums_caiman.mat"
         data_dict["caiman_filt"]["var_name"] = "rasterdur"
 
+        if version == "mesocentre_epoch_5":
+            data_dict["best_rnn"] = dict()
+            data_dict["best_rnn"]["path"] = "p8/p8_18_10_24_a006"
+            # trained on cells validated by GT + artificial data, 3 inputs, 100 frames, not trans, no over
+            # rnn trained on 13/04/2019 23-21-27, predictions on cells 28, 32, 33, epoch 11
+            data_dict["best_rnn"]["file_name"] = \
+                "predictions/P8_18_10_24_a006_predictions__2019_05_09.21-52-47_GT_epoch_11_no_trans_no_over.mat"
+            data_dict["best_rnn"]["var_name"] = "spike_nums_dur_predicted"
+            data_dict["best_rnn"]["predictions"] = "predictions"
+            data_dict["best_rnn"]["prediction_threshold"] = 0.5
+
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p8/p8_18_10_24_a006"
         # if traces is given, then rnn will be boosted
@@ -1088,10 +1056,13 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         elif version == "v_26_02":
             # rnn trained on 26/02/19, predictions on cells 28, 32, 33, epoch 21
             data_dict["rnn"]["file_name"] = "predictions/P8_18_10_24_a006_predictions__2019_04_24.22-04-49_v_26_02.mat"
+        elif version == "mesocentre_epoch_5":
+            # rnn trained on mesocentre, epoch5 on cells 28, 32, 33
+            data_dict["rnn"]["file_name"] = "predictions/P8_18_10_24_a006_predictions__2019_05_10.15-42-42_mesocentre_5.mat"
 
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
-        data_dict["rnn"]["prediction_threshold"] = 0.6
+        data_dict["rnn"]["prediction_threshold"] = 0.5
 
         # data_dict["last_rnn"] = dict()
         # data_dict["last_rnn"]["path"] = "p8/p8_18_10_24_a006"
@@ -1497,11 +1468,11 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
             # rnn trained on 09/05/19, in mesocentre, epoch2 predictions on cells
             # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
             data_dict["rnn"]["file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_09.22-35-54_mesocentre_epoch_2.mat"
-        elif version == "mesocentre_epoch_3":
-            # rnn trained on 09/05/19, in mesocentre, epoch3 predictions on cells
+        elif version == "mesocentre_epoch_5":
+            # rnn trained on 09/05/19, in mesocentre, epoch5 predictions on cells
             # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
             data_dict["rnn"][
-                "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_09.22-08-02_mesocentre_epoch_3.mat"
+                "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_10.15-23-08_mesocentre_epoch_5.mat"
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
         data_dict["rnn"]["prediction_threshold"] = 0.5
@@ -1533,7 +1504,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["no_tr_rnn"]["var_name"] = "spike_nums_dur_predicted"
         # data_dict["no_tr_rnn"]["predictions"] = "predictions"
         # data_dict["no_tr_rnn"]["prediction_threshold"] = 0.5
-        if version == "mesocentre_epoch_3":
+        if version == "mesocentre_epoch_5":
             data_dict["meso_2"] = dict()
             data_dict["meso_2"]["path"] = "p8/p8_18_10_24_a005"
             # rnn trained on 09/05/19, in mesocentre, epoch2 predictions on cells
@@ -1542,6 +1513,26 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
             data_dict["meso_2"]["var_name"] = "spike_nums_dur_predicted"
             data_dict["meso_2"]["predictions"] = "predictions"
             data_dict["meso_2"]["prediction_threshold"] = 0.5
+
+            data_dict["meso_3"] = dict()
+            data_dict["meso_3"]["path"] = "p8/p8_18_10_24_a005"
+            # rnn trained on 09/05/19, in mesocentre, epoch3 predictions on cells
+            # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
+            data_dict["meso_3"][
+                "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_09.22-08-02_mesocentre_epoch_3.mat"
+            data_dict["meso_3"]["var_name"] = "spike_nums_dur_predicted"
+            data_dict["meso_3"]["predictions"] = "predictions"
+            data_dict["meso_3"]["prediction_threshold"] = 0.5
+
+            data_dict["meso_4"] = dict()
+            data_dict["meso_4"]["path"] = "p8/p8_18_10_24_a005"
+            # rnn trained on 09/05/19, in mesocentre, epoch3 predictions on cells
+            # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
+            data_dict["meso_4"][
+                "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_10.15-19-35_mesocentre_epoch_4.mat"
+            data_dict["meso_4"]["var_name"] = "spike_nums_dur_predicted"
+            data_dict["meso_4"]["predictions"] = "predictions"
+            data_dict["meso_4"]["prediction_threshold"] = 0.5
 
             data_dict["best_rnn"] = dict()
             data_dict["best_rnn"]["path"] = "p8/p8_18_10_24_a005"
@@ -1564,10 +1555,10 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["suite2p_raw"]["caiman_suite2p_mapping"] = "P8_18_10_24_a005_suite2p_vs_caiman.npy"
         # data_dict["suite2p_raw"]["threshold"] = 70  # try 30
 
-        data_dict["caiman_filt"] = dict()
-        data_dict["caiman_filt"]["path"] = "p8/p8_18_10_24_a005"
-        data_dict["caiman_filt"]["file_name"] = "p8_18_10_24_a005_filt_RasterDur.mat"
-        data_dict["caiman_filt"]["var_name"] = "rasterdur"
+        # data_dict["caiman_filt"] = dict()
+        # data_dict["caiman_filt"]["path"] = "p8/p8_18_10_24_a005"
+        # data_dict["caiman_filt"]["file_name"] = "p8_18_10_24_a005_filt_RasterDur.mat"
+        # data_dict["caiman_filt"]["var_name"] = "rasterdur"
 
 
 def main_benchmark():
@@ -1585,11 +1576,6 @@ def main_benchmark():
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     path_results = path_results_raw + f"{time_str}"
     os.mkdir(path_results)
-
-    build_p7 = False
-    if build_p7:
-        build_p7_17_10_12_a000_raster_dur_caiman(path_data=path_data, path_results=path_results)
-        return
 
     boost_rnn = False
     if boost_rnn:
@@ -1637,7 +1623,7 @@ def main_benchmark():
         data_dict = dict()
         # GT_v1_epoch_11, GT_v1_epoch_17, v_26_02, GT_v1_epoch_11_no_trans, GT_v1_epoch_11_no_trans_over_0_5,
         # GT_v1_epoch_11_no_trans_no_over,  mesocentre_epoch_2, mesocentre_epoch_3
-        load_data_dict(ms_to_benchmark, data_dict, version="mesocentre_epoch_3")
+        load_data_dict(ms_to_benchmark, data_dict, version="mesocentre_epoch_5")
         # ground truth
         data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gui_file"]))
         peak_nums = data_file['LocPeakMatrix_Python'].astype(int)
