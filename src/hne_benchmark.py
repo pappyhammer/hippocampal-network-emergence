@@ -994,16 +994,25 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["caiman_filt"]["file_name"] = "p8_18_10_24_a006_Spikenums_caiman.mat"
         data_dict["caiman_filt"]["var_name"] = "rasterdur"
 
-        if version == "mesocentre_epoch_5":
-            data_dict["best_rnn"] = dict()
-            data_dict["best_rnn"]["path"] = "p8/p8_18_10_24_a006"
+        if version == "mesocentre_epoch_6":
+            data_dict["epoch_11"] = dict()
+            data_dict["epoch_11"]["path"] = "p8/p8_18_10_24_a006"
             # trained on cells validated by GT + artificial data, 3 inputs, 100 frames, not trans, no over
             # rnn trained on 13/04/2019 23-21-27, predictions on cells 28, 32, 33, epoch 11
-            data_dict["best_rnn"]["file_name"] = \
+            data_dict["epoch_11"]["file_name"] = \
                 "predictions/P8_18_10_24_a006_predictions__2019_05_09.21-52-47_GT_epoch_11_no_trans_no_over.mat"
-            data_dict["best_rnn"]["var_name"] = "spike_nums_dur_predicted"
-            data_dict["best_rnn"]["predictions"] = "predictions"
-            data_dict["best_rnn"]["prediction_threshold"] = 0.5
+            data_dict["epoch_11"]["var_name"] = "spike_nums_dur_predicted"
+            data_dict["epoch_11"]["predictions"] = "predictions"
+            data_dict["epoch_11"]["prediction_threshold"] = 0.5
+
+            data_dict["meso_5"] = dict()
+            data_dict["meso_5"]["path"] = "p8/p8_18_10_24_a006"
+            # rnn trained on mesocentre, epoch5 on cells 28, 32, 33
+            data_dict["meso_5"][
+                "file_name"] = "predictions/P8_18_10_24_a006_predictions__2019_05_10.15-42-42_mesocentre_5.mat"
+            data_dict["meso_5"]["var_name"] = "spike_nums_dur_predicted"
+            data_dict["meso_5"]["predictions"] = "predictions"
+            data_dict["meso_5"]["prediction_threshold"] = 0.5
 
         data_dict["rnn"] = dict()
         data_dict["rnn"]["path"] = "p8/p8_18_10_24_a006"
@@ -1059,6 +1068,10 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         elif version == "mesocentre_epoch_5":
             # rnn trained on mesocentre, epoch5 on cells 28, 32, 33
             data_dict["rnn"]["file_name"] = "predictions/P8_18_10_24_a006_predictions__2019_05_10.15-42-42_mesocentre_5.mat"
+        elif version == "mesocentre_epoch_6":
+            # rnn trained on mesocentre, epoch5 on cells 28, 32, 33
+            data_dict["rnn"][
+                "file_name"] = "predictions/P8_18_10_24_a006_predictions_meso_6_2019_05_11.02-09-47.mat"
 
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
@@ -1282,11 +1295,33 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         elif version == "v_26_02":
             # rnn trained on 26/02/19, predictions on cells 2, 25, epoch 21
             data_dict["rnn"]["file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_24.22-04-49_v_26_02.mat"
+        elif version == "mesocentre_epoch_4":
+            # rnn trained on , predictions on cells mesocentre epoch 5 117 cells
+            data_dict["rnn"]["file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_05_10.20-54-30_mesocentre_epoch_4.mat"
         elif version == "mesocentre_epoch_5":
             # rnn trained on , predictions on cells mesocentre epoch 5 117 cells
             data_dict["rnn"]["file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_05_10.19-03-21_mesocentre_epoch_5.mat"
+        elif version == "mesocentre_epoch_6":
+            # rnn trained on , predictions on cells mesocentre epoch 5 117 cells
+            data_dict["rnn"][
+                "file_name"] = "predictions/P7_17_10_12_a000_predictions_meso_6_2019_05_11.02-09-47.mat"
 
+        if version == "mesocentre_epoch_6":
+            data_dict["meso_5"] = dict()
+            data_dict["meso_5"]["path"] = "p7/p7_17_10_12_a000"
+            # BO before
+            # data_dict["old_rnn"]["file_name"] = "P7_17_10_12_a000_predictions_2019_01_31.19-26-49.mat"
 
+            # trained on cells validated by GT + artificial data, 3 inputs, 100 frames
+            # rnn trained on 13/04/2019 23-21-27, predictions on cells 2, 25, with epoch 11 (better precision and speci)
+            data_dict["meso_5"][
+                "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_04_24.18-02-47_GT_epoch_11.mat"
+            # rnn trained on , predictions on cells mesocentre epoch 5 117 cells
+            data_dict["meso_5"][
+                "file_name"] = "predictions/P7_17_10_12_a000_predictions__2019_05_10.19-03-21_mesocentre_epoch_5.mat"
+            data_dict["meso_5"]["var_name"] = "spike_nums_dur_predicted"
+            data_dict["meso_5"]["predictions"] = "predictions"
+            data_dict["meso_5"]["prediction_threshold"] = 0.5
 
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
@@ -1478,6 +1513,12 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
             # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
             data_dict["rnn"][
                 "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_10.15-23-08_mesocentre_epoch_5.mat"
+        elif version == "mesocentre_epoch_6":
+            # rnn trained on 09/05/19, in mesocentre, epoch6 predictions on cells
+            # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
+            data_dict["rnn"][
+                "file_name"] = "predictions/P8_18_10_24_a005_predictions_2019_05_11.02-07-06_meso_6.mat"
+
         data_dict["rnn"]["var_name"] = "spike_nums_dur_predicted"
         data_dict["rnn"]["predictions"] = "predictions"
         data_dict["rnn"]["prediction_threshold"] = 0.5
@@ -1509,7 +1550,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["no_tr_rnn"]["var_name"] = "spike_nums_dur_predicted"
         # data_dict["no_tr_rnn"]["predictions"] = "predictions"
         # data_dict["no_tr_rnn"]["prediction_threshold"] = 0.5
-        if version == "mesocentre_epoch_5":
+        if version == "mesocentre_epoch_6":
             data_dict["meso_2"] = dict()
             data_dict["meso_2"]["path"] = "p8/p8_18_10_24_a005"
             # rnn trained on 09/05/19, in mesocentre, epoch2 predictions on cells
@@ -1531,13 +1572,23 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
 
             data_dict["meso_4"] = dict()
             data_dict["meso_4"]["path"] = "p8/p8_18_10_24_a005"
-            # rnn trained on 09/05/19, in mesocentre, epoch3 predictions on cells
+            # rnn trained on 09/05/19, in mesocentre, epoch4 predictions on cells
             # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
             data_dict["meso_4"][
                 "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_10.15-19-35_mesocentre_epoch_4.mat"
             data_dict["meso_4"]["var_name"] = "spike_nums_dur_predicted"
             data_dict["meso_4"]["predictions"] = "predictions"
             data_dict["meso_4"]["prediction_threshold"] = 0.5
+
+            data_dict["meso_5"] = dict()
+            data_dict["meso_5"]["path"] = "p8/p8_18_10_24_a005"
+            # rnn trained on 09/05/19, in mesocentre, epoch5 predictions on cells
+            # np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
+            data_dict["meso_5"][
+                "file_name"] = "predictions/P8_18_10_24_a005_predictions__2019_05_10.15-23-08_mesocentre_epoch_5.mat"
+            data_dict["meso_5"]["var_name"] = "spike_nums_dur_predicted"
+            data_dict["meso_5"]["predictions"] = "predictions"
+            data_dict["meso_5"]["prediction_threshold"] = 0.5
 
             data_dict["best_rnn"] = dict()
             data_dict["best_rnn"]["path"] = "p8/p8_18_10_24_a005"
@@ -1616,6 +1667,8 @@ def main_benchmark():
                         "p12_17_11_10_a000", "p8_18_10_24_a006_ms"]
     ms_to_benchmarks = ["p12_17_11_10_a000"]
     ms_to_benchmarks = ["p7_17_10_12_a000"]
+    ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
+    ms_to_benchmarks = ["p8_18_10_24_a005_ms"]
     # ms_to_benchmark = "artificial_ms"
     do_onsets_benchmarks = False
     do_plot_roc_predictions = True
@@ -1627,8 +1680,9 @@ def main_benchmark():
     for ms_to_benchmark in ms_to_benchmarks:
         data_dict = dict()
         # GT_v1_epoch_11, GT_v1_epoch_17, v_26_02, GT_v1_epoch_11_no_trans, GT_v1_epoch_11_no_trans_over_0_5,
-        # GT_v1_epoch_11_no_trans_no_over,  mesocentre_epoch_2, mesocentre_epoch_3
-        load_data_dict(ms_to_benchmark, data_dict, version="mesocentre_epoch_5")
+        # GT_v1_epoch_11_no_trans_no_over,  mesocentre_epoch_2, mesocentre_epoch_3, mesocentre_epoch_4,
+        # mesocentre_epoch_5, mesocentre_epoch_6
+        load_data_dict(ms_to_benchmark, data_dict, version="mesocentre_epoch_6")
         # ground truth
         data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gui_file"]))
         peak_nums = data_file['LocPeakMatrix_Python'].astype(int)

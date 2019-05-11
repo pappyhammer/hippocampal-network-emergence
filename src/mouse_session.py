@@ -2247,8 +2247,8 @@ class MouseSession:
             labels = np.arange(len(self.spike_struct.spike_nums_dur))
             spike_nums_dur = self.spike_struct.spike_nums_dur
 
-        span_area_coords = None
-        span_area_colors = None
+        # span_area_coords = None
+        # span_area_colors = None
         colors = ["red", "green", "blue", "pink", "orange"]
         i = 0
         span_area_coords = []
@@ -2259,6 +2259,12 @@ class MouseSession:
             print(f"Period {name_period} -> {colors[i]}")
             i += 1
 
+        if len(spike_nums_dur) < 200:
+            spike_shape_size = 1
+        if len(spike_nums_dur) < 500:
+            spike_shape_size = 0.2
+        else:
+            spike_shape_size = 0.1
         plot_spikes_raster(spike_nums=spike_nums_dur, param=self.param,
                            title=f"{self.description}_spike_nums_periods",
                            spike_train_format=False,
@@ -2275,7 +2281,7 @@ class MouseSession:
                            span_area_coords=span_area_coords,
                            span_area_colors=span_area_colors,
                            spike_shape="o",
-                           spike_shape_size=1,
+                           spike_shape_size=spike_shape_size,
                            span_area_only_on_raster=False,
                            without_activity_sum=False,
                            activity_threshold=self.activity_threshold,
