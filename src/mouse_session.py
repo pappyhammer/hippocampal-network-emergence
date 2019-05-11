@@ -2777,15 +2777,15 @@ class MouseSession:
         abf.setSweep(sweepNumber=0, channel=frames_channel)
         times_in_sec = abf.sweepX
         frames_data = abf.sweepY
+        original_time_in_sec = times_in_sec
+        original_frames_data = frames_data
         # first frame
         first_frame_index = np.where(frames_data < 0.01)[0][0]
-        # removing the part before the recording
-        # print(f"first_frame_index {first_frame_index}")
-        times_in_sec = times_in_sec[:-first_frame_index]
-        frames_data = frames_data[first_frame_index:]
 
         if (run_channel is None) or (lfp_channel is not None):
             for current_channel in np.arange(1, abf.channelCount):
+                times_in_sec = np.copy(original_time_in_sec)
+                frames_data = np.copy(original_frames_data)
                 if (run_channel is not None) and (current_channel == run_channel):
                     continue
                 if (run_channel is not None) and (current_channel == 4) and (lfp_channel is None):
@@ -2798,6 +2798,8 @@ class MouseSession:
                     mvt_data = mvt_data + offset
                 # self.channelCount-1
                 mvt_data = mvt_data[first_frame_index:]
+                times_in_sec = times_in_sec[:-first_frame_index]
+                frames_data = frames_data[first_frame_index:]
                 threshold_value = 0.02
                 if self.abf_sampling_rate < 50000:
                     mask_frames_data = np.ones(len(frames_data), dtype="bool")
@@ -2812,24 +2814,14 @@ class MouseSession:
                     # print(f"len(selection) {len(selection)}")
                     mask_frames_data[selection] = False
                     frames_data = frames_data[mask_frames_data]
-                    len_frames_data_in_s = np.round(len(frames_data) / self.abf_sampling_rate, 3)
-                    # print(f"frames_data in sec {len_frames_data_in_s}")
-                    # print(f"frames_data in 100 ms {np.round(len_frames_data_in_s/0.1, 2)}")
+                    # len_frames_data_in_s = np.round(len(frames_data) / self.abf_sampling_rate, 3)
                     mvt_data = mvt_data[mask_frames_data]
                     times_in_sec = times_in_sec[:-len(np.where(mask_frames_data == 0)[0])]
                     active_frames = np.linspace(0, len(frames_data), 12500).astype(int)
                     mean_diff_active_frames = np.mean(np.diff(active_frames)) / self.abf_sampling_rate
-                    print(f"mean diff active_frames {np.round(mean_diff_active_frames, 3)}")
+                    # print(f"mean diff active_frames {np.round(mean_diff_active_frames, 3)}")
                     if mean_diff_active_frames < 0.09:
                         raise Exception("mean_diff_active_frames < 0.09")
-                    # for channel in np.arange(0, 1):
-                    #     fig, ax = plt.subplots(nrows=1, ncols=1,
-                    #                            gridspec_kw={'height_ratios': [1]},
-                    #                            figsize=(20, 8))
-                    #     plt.plot(times_in_sec, frames_data, lw=.5)
-                    #     plt.title(f"channel {channel} {self.description} after correction")
-                    #     plt.show()
-                    #     plt.close()
                 else:
                     binary_frames_data = np.zeros(len(frames_data), dtype="int8")
                     binary_frames_data[frames_data >= threshold_value] = 1
