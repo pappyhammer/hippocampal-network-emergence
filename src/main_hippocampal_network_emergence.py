@@ -697,6 +697,19 @@ def plot_activity_duration_vs_age(mouse_sessions, ms_ages, duration_values_list,
 
     plt.close()
 
+def plot_movement_stat(ms_to_analyse, param, save_formats="pdf"):
+    # TODO: finish
+    data_types = ["shift_twitch", "shift_long"]
+    for ms in ms_to_analyse:
+        # if not None, filter the frame keeping the kind of mouvements choosen, if available
+        # if "no_shift" then select the frame that are not in any period
+        # Other keys are: shift_twitch, shift_long, shift_unclassified
+        # or a list of those 3 keys and then will take all frames except those
+
+        if ms.shift_data_dict is None:
+            continue
+
+
 
 def plot_all_basic_stats(ms_to_analyse, param, save_formats="pdf"):
     # from: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8
@@ -2192,14 +2205,12 @@ def test_seq_detect(ms, span_area_coords=None, span_area_colors=None):
                        # link_seq_alpha=0.9,
                        jitter_links_range=0,
                        min_len_links_seq=3,
-                       spike_shape="o",
-                       spike_shape_size=1,
-                       # spike_shape="|",
-                       # spike_shape_size=10,
-                       # span_area_coords=span_area_coords,
-                       # span_area_colors=span_area_colors,
-                       # span_area_coords=span_area_coords,
-                       # span_area_colors=span_area_colors,
+                       # spike_shape="o",
+                       # spike_shape_size=0.2,
+                       spike_shape="|",
+                       spike_shape_size=10,
+                       span_area_coords=span_area_coords,
+                       span_area_colors=span_area_colors,
                        # span_area_only_on_raster=False,
                        without_activity_sum=True,
                        size_fig=(15, 6))
@@ -2553,6 +2564,33 @@ def print_surprise_for_michou(n_lines, actual_line):
 
     print(f"{result}")
 
+def remove_spike_nums_dur_and_associated_transients(spike_nums_dur, frames_to_keep):
+    """
+
+    :param spike_nums_dur: 2-d binary array
+    :param frames_to_keep: Array of len n_frames of one dimension, of type bool, True is cell to keep
+    :return:
+    """
+    spike_nums_dur = np.copy(spike_nums_dur)
+    spike_nums_dur_transient_id = spike_nums_dur.astype("int16")
+    n_cells = len(spike_nums_dur)
+    frames_to_remove = np.invert(frames_to_keep)
+    # first for each cell, we create a copy of spike_nums_dur in which each transient is identified
+    # (unique id for a cell)
+    for cell in np.arange(n_cells):
+        periods = get_continous_time_periods(spike_nums_dur[cell])
+        for period_index, period in enumerate(periods):
+            spike_nums_dur_transient_id[cell, period[0]:period[1]+1] = period_index
+        # get transients id that are in the frames to remove
+        transients_id_to_remove = np.unique(spike_nums_dur_transient_id[cell, frames_to_remove])
+        if len(transients_id_to_remove) > 0:
+            for transient_id in transients_id_to_remove:
+                indices = np.where(spike_nums_dur_transient_id[cell] == transient_id)[0]
+                # removing the transient
+                spike_nums_dur[cell, indices] = 0
+    spike_nums_dur = spike_nums_dur[:, frames_to_keep]
+    return spike_nums_dur
+
 def lexi_loading_process(param, load_traces):
     ms_str_to_load = ["ms"]
 
@@ -2684,7 +2722,6 @@ def robin_loading_process(param, load_traces, load_abf=True):
     # ms_str_to_load = ["p6_18_02_07_a002_ms", "p10_17_11_16_a003_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p10_17_11_16_a003_ms"]
-    ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
     # ms_str_to_load = ["p9_19_03_22_a001_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
@@ -2702,6 +2739,9 @@ def robin_loading_process(param, load_traces, load_abf=True):
                       "p7_19_03_05_a000_ms", "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
                       "p8_18_10_24_a005_ms", "p9_17_12_06_a001_ms",
                       "p9_19_02_20_a003"]
+    ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    ms_str_to_load = ["p8_19_03_19_a000_ms"]
 
 
     # loading data
@@ -2728,8 +2768,8 @@ def main():
 
     path_data = root_path + "data/"
     path_results_raw = root_path + "results_hne/"
-    cell_assemblies_data_path = path_data + "cell_assemblies/v4/"
-    best_order_data_path = path_data + "best_order_data/v2/"
+    cell_assemblies_data_path = path_data + "cell_assemblies/v5/"
+    best_order_data_path = path_data + "best_order_data/v3/"
 
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     path_results = path_results_raw + f"{time_str}"
@@ -2774,11 +2814,12 @@ def main():
     #     return
     ms_to_analyse = available_ms
 
-    just_plot_all_basic_stats =False
+    just_plot_all_basic_stats = False
+    just_plot_movement_stat = False
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
     # periods such as twitch etc...
-    just_plot_raster_with_periods = True
+    just_plot_raster_with_periods = False
     just_plot_time_correlation_graph_over_twitches = False
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_raster_with_cells_assemblies_and_shifts = False
@@ -2786,7 +2827,7 @@ def main():
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = False
+    just_plot_all_cells_on_map = True
     do_plot_psth_twitches = False
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
@@ -2815,27 +2856,74 @@ def main():
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
     do_clustering = False
+    # to add in the file title
+    clustering_bonus_descr = ""
     # if False, clustering will be done using kmean
     do_fca_clustering = False
+    # instead of sce, take the twitches periods
     do_clustering_with_twitches_events = False
     with_cells_in_cluster_seq_sorted = False
     use_richard_option = for_richard
     # wake, sleep, quiet_wake, sleep_quiet_wake, active_wake
     richard_option = "active_wake"
+    if do_clustering:
+        # filtering spike_nums_dur using speed info if available
+        for ms in ms_to_analyse:
+            if ms.speed_by_frame is not None:
+                ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, ms.speed_by_frame < 0.5]
+                print(f"Using speed_by_frame {len(ms.spike_struct.spike_nums_dur)}")
+                ms.spike_struct.build_spike_nums_and_peak_nums()
 
-    # filtering spike_nums_dur using speed info if available
-    for ms in ms_to_analyse:
-        if ms.speed_by_frame is not None:
-            ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, ms.speed_by_frame < 0.5]
-            print(f"Using speed_by_frame {len(ms.spike_struct.spike_nums_dur)}")
-            ms.spike_struct.build_spike_nums_and_peak_nums()
+        for ms in ms_to_analyse:
+            # if not None, filter the frame keeping the kind of mouvements choosen, if available
+            # if "no_shift" then select the frame that are not in any period
+            # Other keys are: shift_twitch, shift_long, shift_unclassified
+            # or a list of those 3 keys and then will take all frames except those
+            with_period_mvt_filter = "shift_long" # ["shift_long", "shift_unclassified"]
+            if (with_period_mvt_filter is not None) and (ms.shift_data_dict is not None):
+                if isinstance(with_period_mvt_filter, list):
+                    clustering_bonus_descr = "_all_frames_but_" + '_'.join(with_period_mvt_filter)
+                    shift_bool = np.ones(ms.spike_struct.spike_nums_dur.shape[1], dtype="bool")
+                    for shift_key in with_period_mvt_filter:
+                        shift_bool_tmp = ms.shift_data_dict[shift_key]
+                        shift_bool[shift_bool_tmp] = False
+                    ms.spike_struct.spike_nums_dur = \
+                        remove_spike_nums_dur_and_associated_transients(spike_nums_dur=ms.spike_struct.spike_nums_dur,
+                                                                        frames_to_keep=shift_bool)
+                    # ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, shift_bool]
+                    print(f"{ms.description} filtering spike_nums removing all shifts")
+                    ms.spike_struct.build_spike_nums_and_peak_nums()
+                elif with_period_mvt_filter == "no_shift":
+                    clustering_bonus_descr = "_no_shift_"
+                    shift_bool = np.ones(ms.spike_struct.spike_nums_dur.shape[1], dtype="bool")
+                    for shift_key in ["shift_twitch", "shift_long", "shift_unclassified"]:
+                        shift_bool_tmp = ms.shift_data_dict[shift_key]
+                        shift_bool[shift_bool_tmp] = False
+                    ms.spike_struct.spike_nums_dur = \
+                        remove_spike_nums_dur_and_associated_transients(spike_nums_dur=ms.spike_struct.spike_nums_dur,
+                                                                        frames_to_keep=shift_bool)
+                    # ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, shift_bool]
+                    print(f"{ms.description} filtering spike_nums removing all shifts")
+                    ms.spike_struct.build_spike_nums_and_peak_nums()
+
+                else:
+                    clustering_bonus_descr = f"_{with_period_mvt_filter}_"
+                    shift_bool = ms.shift_data_dict[with_period_mvt_filter]
+                    # ms.spike_struct.spike_nums_dur = \
+                    #     remove_spike_nums_dur_and_associated_transients(spike_nums_dur=ms.spike_struct.spike_nums_dur,
+                    #                                                     frames_to_keep=shift_bool)
+                    ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, shift_bool]
+                    print(f"{ms.description} filtering spike_nums with shift {with_period_mvt_filter}")
+                    ms.spike_struct.build_spike_nums_and_peak_nums()
+                print(f"{ms.description} n frames left {ms.spike_struct.spike_nums_dur.shape[1]}")
+
     # ##### for fca #####
     n_surrogate_fca = 20
 
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 4)
+    range_n_clusters_k_mean = np.arange(3, 7)
     # range_n_clusters_k_mean = np.array([4])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
@@ -2856,9 +2944,9 @@ def main():
     param.error_rate = 0.25  # 0.25 0.1
     param.max_branches = 10
     param.time_inter_seq = 30  # 30 3
-    param.min_duration_intra_seq = 0
-    param.min_len_seq = 5  # 5
-    param.min_rep_nb = 5 # 3
+    param.min_duration_intra_seq = 1
+    param.min_len_seq = 4  # 5
+    param.min_rep_nb = 4 # 3
 
     debug_mode = False
 
@@ -2866,6 +2954,10 @@ def main():
     if just_plot_all_basic_stats:
         plot_all_basic_stats(ms_to_analyse, param)
         raise Exception("just_plot_all_basic_stats")
+
+    if just_plot_movement_stat:
+        plot_movement_stat(ms_to_analyse, param)
+        raise Exception("just_plot_movement_stat")
 
     ms_by_age = dict()
     for ms_index, ms in enumerate(ms_to_analyse):
@@ -2951,6 +3043,17 @@ def main():
                 periods = get_continous_time_periods(bin_array)
                 span_area_coords = [periods]
                 span_area_colors = ["red"]
+            if ms.shift_data_dict is not None:
+                colors = ["red", "green", "blue", "pink", "orange"]
+                i = 0
+                span_area_coords = []
+                span_area_colors = []
+                for name_period, period in ms.shift_data_dict.items():
+                    span_area_coords.append(get_continous_time_periods(period.astype("int8")))
+                    span_area_colors.append(colors[i % len(colors)])
+                    print(f"Period {name_period} -> {colors[i]}")
+                    i += 1
+
             test_seq_detect(ms, span_area_coords=span_area_coords, span_area_colors=span_area_colors)
             raise Exception("just_display_seq_with_cell_assembly")
 
@@ -4011,58 +4114,60 @@ def main():
                                                              with_cells_in_cluster_seq_sorted,
                                                              use_uniform_jittering=True)
             else:
-                if do_clustering_with_twitches_events:
-                    n_times = len(sce_times_numbers)
-                    ms.define_twitches_events()
-                    for twitch_group in [9]:  # 1, 3, 4, 5, 6, 7, 8
-                        twitches_times = ms.events_by_twitches_group[twitch_group]
-                        cellsinpeak = np.zeros((n_cells, len(twitches_times)), dtype="int16")
-                        for twitch_index, twitch_period in enumerate(twitches_times):
-                            cellsinpeak[:, twitch_index] = np.sum(
-                                spike_nums_to_use[:, twitch_period[0]:twitch_period[1] + 1], axis=1)
-                            cellsinpeak[cellsinpeak[:, twitch_index] > 0, twitch_index] = 1
-
-                        twitches_times_numbers = np.ones(n_times, dtype="int16")
-                        twitches_times_numbers *= -1
-                        for twitch_index, twitch_period in enumerate(twitches_times):
-                            twitches_times_numbers[twitch_period[0]:twitch_period[1] + 1] = twitch_index
-
-                        twitches_times_bool = np.zeros(n_times, dtype="bool")
-                        for twitch_index, twitch_period in enumerate(twitches_times):
-                            twitches_times_bool[twitch_period[0]:twitch_period[1] + 1] = True
-                        descr_twitch = ""
-                        descr_twitch += data_descr
-                        descr_twitch += "_" + ms.twitches_group_title[twitch_group]
-
-                        print(f"twitch_group {twitch_group}: {len(twitches_times)}")
-                        if len(twitches_times) < 10:
-                            continue
-                        print(f"")
-                        range_n_clusters_k_mean = np.arange(2, np.min((len(twitches_times) // 2, 10)))
-
-                        compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels,
-                                                                       activity_threshold=
-                                                                       ms.spike_struct.activity_threshold,
-                                                                       range_n_clusters_k_mean=range_n_clusters_k_mean,
-                                                                       n_surrogate_k_mean=n_surrogate_k_mean,
-                                                                       with_shuffling=with_shuffling,
-                                                                       spike_nums_to_use=spike_nums_to_use,
-                                                                       cellsinpeak=cellsinpeak,
-                                                                       data_descr=descr_twitch,
-                                                                       param=ms.param,
-                                                                       sliding_window_duration=sliding_window_duration,
-                                                                       SCE_times=twitches_times,
-                                                                       sce_times_numbers=twitches_times_numbers,
-                                                                       sce_times_bool=twitches_times_bool,
-                                                                       perc_threshold=perc_threshold,
-                                                                       n_surrogate_activity_threshold=
-                                                                       n_surrogate_activity_threshold,
-                                                                       debug_mode=debug_mode,
-                                                                       fct_to_keep_best_silhouettes=np.median,
-                                                                       with_cells_in_cluster_seq_sorted=
-                                                                       with_cells_in_cluster_seq_sorted,
-                                                                       keep_only_the_best=
-                                                                       keep_only_the_best_kmean_cluster)
+                if False:
+                    pass
+                # if do_clustering_with_twitches_events:
+                #     n_times = len(sce_times_numbers)
+                #     ms.define_twitches_events()
+                #     for twitch_group in [9]:  # 1, 3, 4, 5, 6, 7, 8
+                #         twitches_times = ms.events_by_twitches_group[twitch_group]
+                #         cellsinpeak = np.zeros((n_cells, len(twitches_times)), dtype="int16")
+                #         for twitch_index, twitch_period in enumerate(twitches_times):
+                #             cellsinpeak[:, twitch_index] = np.sum(
+                #                 spike_nums_to_use[:, twitch_period[0]:twitch_period[1] + 1], axis=1)
+                #             cellsinpeak[cellsinpeak[:, twitch_index] > 0, twitch_index] = 1
+                #
+                #         twitches_times_numbers = np.ones(n_times, dtype="int16")
+                #         twitches_times_numbers *= -1
+                #         for twitch_index, twitch_period in enumerate(twitches_times):
+                #             twitches_times_numbers[twitch_period[0]:twitch_period[1] + 1] = twitch_index
+                #
+                #         twitches_times_bool = np.zeros(n_times, dtype="bool")
+                #         for twitch_index, twitch_period in enumerate(twitches_times):
+                #             twitches_times_bool[twitch_period[0]:twitch_period[1] + 1] = True
+                #         descr_twitch = ""
+                #         descr_twitch += data_descr
+                #         descr_twitch += "_" + ms.twitches_group_title[twitch_group]
+                #
+                #         print(f"twitch_group {twitch_group}: {len(twitches_times)}")
+                #         if len(twitches_times) < 10:
+                #             continue
+                #         print(f"")
+                #         range_n_clusters_k_mean = np.arange(2, np.min((len(twitches_times) // 2, 10)))
+                #
+                #         compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels,
+                #                                                        activity_threshold=
+                #                                                        ms.spike_struct.activity_threshold,
+                #                                                        range_n_clusters_k_mean=range_n_clusters_k_mean,
+                #                                                        n_surrogate_k_mean=n_surrogate_k_mean,
+                #                                                        with_shuffling=with_shuffling,
+                #                                                        spike_nums_to_use=spike_nums_to_use,
+                #                                                        cellsinpeak=cellsinpeak,
+                #                                                        data_descr=descr_twitch,
+                #                                                        param=ms.param,
+                #                                                        sliding_window_duration=sliding_window_duration,
+                #                                                        SCE_times=twitches_times,
+                #                                                        sce_times_numbers=twitches_times_numbers,
+                #                                                        sce_times_bool=twitches_times_bool,
+                #                                                        perc_threshold=perc_threshold,
+                #                                                        n_surrogate_activity_threshold=
+                #                                                        n_surrogate_activity_threshold,
+                #                                                        debug_mode=debug_mode,
+                #                                                        fct_to_keep_best_silhouettes=np.median,
+                #                                                        with_cells_in_cluster_seq_sorted=
+                #                                                        with_cells_in_cluster_seq_sorted,
+                #                                                        keep_only_the_best=
+                #                                                        keep_only_the_best_kmean_cluster)
                 else:
 
                     #
@@ -4087,7 +4192,7 @@ def main():
                     # ms.sce_bool = sce_times_bool
                     # ms.sce_times_numbers = sce_times_numbers
                     # ms.SCE_times = SCE_times
-                    if ms.shift_data_dict is not None:
+                    if (ms.shift_data_dict is not None) and do_clustering_with_twitches_events:
                         # using twitch periods instead of SCE if info is available
                         sce_times_bool = ms.shift_data_dict["shift_twitch"]
                         SCE_times = get_continous_time_periods(sce_times_bool.astype("int8"))
@@ -4099,6 +4204,7 @@ def main():
                             cellsinpeak[:, index] = np.sum(
                                 spike_nums_to_use[:, period[0]:period[1] + 1], axis=1)
                             cellsinpeak[cellsinpeak[:, index] > 0, index] = 1
+                        data_descr += "_twtich_time_as_sce_"
                     compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels,
                                                                    activity_threshold=ms.spike_struct.activity_threshold,
                                                                    range_n_clusters_k_mean=range_n_clusters_k_mean,
@@ -4106,7 +4212,7 @@ def main():
                                                                    with_shuffling=with_shuffling,
                                                                    spike_nums_to_use=spike_nums_to_use,
                                                                    cellsinpeak=cellsinpeak,
-                                                                   data_descr=data_descr,
+                                                                   data_descr=data_descr+clustering_bonus_descr,
                                                                    param=ms.param,
                                                                    sliding_window_duration=sliding_window_duration,
                                                                    SCE_times=SCE_times,

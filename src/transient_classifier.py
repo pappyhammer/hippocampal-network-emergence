@@ -2775,8 +2775,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     add_doubt_at_movie_concatenation_frames = True
     use_cnn_to_select_cells = False
     use_small_sample = False
-    use_triple_blinded_data = True
-    use_test_sample = False
+    use_triple_blinded_data = False
+    use_test_sample = True
     # used for counting how many cells and transients available
     load_them_all = False
 
@@ -3928,7 +3928,8 @@ def train_model():
         ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms"]
         ms_for_rnn_benchmarks = ["p41_19_04_30_a000_ms"]
         ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
-        ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
+        ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms"]
+        # ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
                             "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
@@ -3939,12 +3940,13 @@ def train_model():
         cells_to_predict = {"p11_17_11_24_a000_ms": np.arange(24)}  # np.array([2, 25])} # np.arange(117)
         cells_to_predict = {"p41_19_04_30_a000_ms": None}
         cells_to_predict = {"p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])}
-        cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33])}
-        cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
+        cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33]), "p7_171012_a000_ms": np.arange(117),
+                            "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])}
+        # cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0,
                                          use_data_augmentation=False, using_cnn_predictions=False,
-                                         cells_to_predict=cells_to_predict, file_name_bonus_str="",
+                                         cells_to_predict=cells_to_predict, file_name_bonus_str="meso_6",
                                          tiffs_for_transient_classifier_path = path_for_tiffs)
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
@@ -3982,9 +3984,9 @@ def train_model():
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    n_gpus = 2
+    n_gpus = 1
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 30 # TODO: 30
+    n_epochs = 20 # TODO: 30
     # multiplying by the number of gpus used as batches will be distributed to each GPU
     batch_size = 8*n_gpus
     window_len = 100 # TODO: 100

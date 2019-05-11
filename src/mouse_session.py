@@ -37,7 +37,7 @@ import hne_animation as hne_anim
 import math
 
 class MouseSession:
-    def __init__(self, age, session_id, param, nb_ms_by_frame, sampling_rate=10, weight=None, spike_nums=None, spike_nums_dur=None,
+    def __init__(self, age, session_id, param, sampling_rate=10, weight=None, spike_nums=None, spike_nums_dur=None,
                  percentile_for_low_activity_threshold=1):
         """
 
@@ -55,7 +55,6 @@ class MouseSession:
         self.param = param
         self.age = age
         self.session_id = str(session_id)
-        self.nb_ms_by_frame = nb_ms_by_frame
         self.sampling_rate = sampling_rate
         self.description = f"P{self.age}_{self.session_id}"
         # tell when an abf file has been loaded
@@ -2247,8 +2246,8 @@ class MouseSession:
             labels = np.arange(len(self.spike_struct.spike_nums_dur))
             spike_nums_dur = self.spike_struct.spike_nums_dur
 
-        span_area_coords = None
-        span_area_colors = None
+        # span_area_coords = None
+        # span_area_colors = None
         colors = ["red", "green", "blue", "pink", "orange"]
         i = 0
         span_area_coords = []
@@ -2259,6 +2258,12 @@ class MouseSession:
             print(f"Period {name_period} -> {colors[i]}")
             i += 1
 
+        if len(spike_nums_dur) < 200:
+            spike_shape_size = 1
+        if len(spike_nums_dur) < 500:
+            spike_shape_size = 0.2
+        else:
+            spike_shape_size = 0.1
         plot_spikes_raster(spike_nums=spike_nums_dur, param=self.param,
                            title=f"{self.description}_spike_nums_periods",
                            spike_train_format=False,
@@ -2275,7 +2280,7 @@ class MouseSession:
                            span_area_coords=span_area_coords,
                            span_area_colors=span_area_colors,
                            spike_shape="o",
-                           spike_shape_size=1,
+                           spike_shape_size=spike_shape_size,
                            span_area_only_on_raster=False,
                            without_activity_sum=False,
                            activity_threshold=self.activity_threshold,
