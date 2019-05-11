@@ -37,7 +37,7 @@ import hne_animation as hne_anim
 import math
 
 class MouseSession:
-    def __init__(self, age, session_id, param, nb_ms_by_frame, sampling_rate=10, weight=None, spike_nums=None, spike_nums_dur=None,
+    def __init__(self, age, session_id, param, sampling_rate=10, weight=None, spike_nums=None, spike_nums_dur=None,
                  percentile_for_low_activity_threshold=1):
         """
 
@@ -55,7 +55,6 @@ class MouseSession:
         self.param = param
         self.age = age
         self.session_id = str(session_id)
-        self.nb_ms_by_frame = nb_ms_by_frame
         self.sampling_rate = sampling_rate
         self.description = f"P{self.age}_{self.session_id}"
         # tell when an abf file has been loaded

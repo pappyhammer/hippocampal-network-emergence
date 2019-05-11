@@ -3919,7 +3919,7 @@ def train_model():
         create_tiffs_for_data_generator(ms_to_use=["artificial_ms_2", "artificial_ms_3"],
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
@@ -3928,7 +3928,7 @@ def train_model():
         ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms"]
         ms_for_rnn_benchmarks = ["p41_19_04_30_a000_ms"]
         ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
-        ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms"]
+        ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms"]
         # ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
@@ -3940,7 +3940,8 @@ def train_model():
         cells_to_predict = {"p11_17_11_24_a000_ms": np.arange(24)}  # np.array([2, 25])} # np.arange(117)
         cells_to_predict = {"p41_19_04_30_a000_ms": None}
         cells_to_predict = {"p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])}
-        cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33]), "p7_171012_a000_ms": np.arange(117)}
+        cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33]), "p7_171012_a000_ms": np.arange(117),
+                            "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])}
         # cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0,

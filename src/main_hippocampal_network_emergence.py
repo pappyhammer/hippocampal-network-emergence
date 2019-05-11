@@ -2741,6 +2741,7 @@ def robin_loading_process(param, load_traces, load_abf=True):
                       "p9_19_02_20_a003"]
     ms_str_to_load = ["p5_19_03_25_a001_ms"]
     ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    ms_str_to_load = ["p8_19_03_19_a000_ms"]
 
 
     # loading data
@@ -2826,12 +2827,12 @@ def main():
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = False
+    just_plot_all_cells_on_map = True
     do_plot_psth_twitches = False
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
     just_do_pca_on_raster = False
-    just_display_seq_with_cell_assembly = True
+    just_display_seq_with_cell_assembly = False
     just_produce_animation = False
     just_plot_ratio_spikes_for_shift = False
 
