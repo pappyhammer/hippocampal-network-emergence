@@ -2777,6 +2777,12 @@ class MouseSession:
         abf.setSweep(sweepNumber=0, channel=frames_channel)
         times_in_sec = abf.sweepX
         frames_data = abf.sweepY
+        # first frame
+        first_frame_index = np.where(frames_data < 0.01)[0][0]
+        # removing the part before the recording
+        # print(f"first_frame_index {first_frame_index}")
+        times_in_sec = times_in_sec[:-first_frame_index]
+        frames_data = frames_data[first_frame_index:]
 
         if (run_channel is None) or (lfp_channel is not None):
             for current_channel in np.arange(1, abf.channelCount):
@@ -2791,15 +2797,9 @@ class MouseSession:
                 if offset is not None:
                     mvt_data = mvt_data + offset
                 # self.channelCount-1
-                # first frame
-                first_frame_index = np.where(frames_data < 0.01)[0][0]
-                # removing the part before the recording
-                # print(f"first_frame_index {first_frame_index}")
-                times_in_sec = times_in_sec[:-first_frame_index]
-                frames_data = frames_data[first_frame_index:]
                 mvt_data = mvt_data[first_frame_index:]
                 threshold_value = 0.02
-                if (self.abf_sampling_rate < 50000):
+                if self.abf_sampling_rate < 50000:
                     mask_frames_data = np.ones(len(frames_data), dtype="bool")
                     # we need to detect the frames manually, but first removing data between movies
                     selection = np.where(frames_data >= threshold_value)[0]
@@ -2875,10 +2875,13 @@ class MouseSession:
                 # to do so we concatenate the time between frames
                 piezzo_shift = np.zeros(0)
                 for i in np.arange(0, 12500, 2500):
+                    last_abf_frame = self.abf_frames[i+2499]
+                    if (self.abf_frames[i+2499] == len(mvt_data_without_abs)):
+                        last_abf_frame -= 1
                     new_data = mvt_data_without_abs[np.arange(self.abf_frames[i],
-                                                              self.abf_frames[i+2499], sampling_step)]
+                                                              last_abf_frame, sampling_step)]
                     piezzo_shift = np.concatenate((piezzo_shift, new_data,
-                                                   np.array([mvt_data_without_abs[self.abf_frames[i+2499]]])))
+                                                   np.array([mvt_data_without_abs[last_abf_frame]])))
                 np.save(self.param.path_data + path_abf_data + self.description +
                         f"_abf_HR_channel_{current_channel}.npy",
                         piezzo_shift)
