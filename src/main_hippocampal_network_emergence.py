@@ -59,6 +59,7 @@ from pattern_discovery.tools.signal import smooth_convolve
 import PIL
 from PIL import ImageSequence
 # import joypy
+import math
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -697,9 +698,20 @@ def plot_activity_duration_vs_age(mouse_sessions, ms_ages, duration_values_list,
 
     plt.close()
 
-def plot_movement_stat(ms_to_analyse, param, save_formats="pdf"):
-    # TODO: finish
+
+def plot_movement_activity(ms_to_analyse, param, save_formats="pdf"):
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+    path_results = os.path.join(param.path_results, "movement_activity")
+    if not os.path.isdir(path_results):
+        os.mkdir(path_results)
+
     data_types = ["shift_twitch", "shift_long"]
+    movement_stat_by_age = dict()
+    for data_type in data_types:
+        movement_stat_by_age[data_type] = dict()
+
     for ms in ms_to_analyse:
         # if not None, filter the frame keeping the kind of mouvements choosen, if available
         # if "no_shift" then select the frame that are not in any period
@@ -709,6 +721,176 @@ def plot_movement_stat(ms_to_analyse, param, save_formats="pdf"):
         if ms.shift_data_dict is None:
             continue
 
+        n_cells = ms.spike_struct.spike_nums_dur.shape[0]
+        for data_type in data_types:
+            ms_distribution = []
+            array_bool = ms.shift_data_dict[data_type]
+            periods = get_continous_time_periods(array_bool.astype("int8"))
+            for period in periods:
+                # see to associate a period to a period of activity
+                sum_activity = np.sum(ms.spike_struct.spike_nums_dur[:, period[0]:period[1]+1], axis=1)
+                sum_activity = len(np.where(sum_activity > 0)[0])
+                sum_activity = sum_activity / n_cells
+                sum_activity = sum_activity / ((period[1] - period[0] + 1) / ms.sampling_rate)
+                ms_distribution.append(sum_activity)
+            if ("p" + str(ms.age)) not in movement_stat_by_age[data_type]:
+                movement_stat_by_age[data_type][("p" + str(ms.age))] = []
+            movement_stat_by_age[data_type][("p" + str(ms.age))].extend(ms_distribution)
+
+            plot_hist_distribution(distribution_data=ms_distribution,
+                                   description=f"{ms.description}_hist_{data_type}_activity",
+                                   param=param,
+                                   path_results=path_results,
+                                   tight_x_range=True,
+                                   twice_more_bins=True,
+                                   xlabel=f"{data_type} activity", save_formats=save_formats)
+    for data_type in data_types:
+        box_plot_data_by_age(data_dict=movement_stat_by_age[data_type], title="",
+                             filename=f"{data_type}_activity_box_plot",
+                             path_results=path_results, with_scatters=False,
+                             y_label=f"{data_type} activity", colors=colors, param=param,
+                             save_formats=save_formats)
+
+
+def plot_all_sum_spikes_dur(ms_to_analyse, param, save_formats="pdf"):
+    """
+    Will plot in one plot with subplots all sum of activity by age
+    :param ms_to_analyse:
+    :param param:
+    :param save_formats:
+    :return:
+    """
+    # from: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8
+    colors = ['#ffffd9', '#edf8b1', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']
+    # orange ones: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8#type=sequential&scheme=YlOrBr&n=9
+    # colors = ['#ffffe5', '#fff7bc', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#993404', '#662506']
+    # diverging, 11 colors : http://colorbrewer2.org/?type=diverging&scheme=RdYlBu&n=11
+    # colors = ['#a50026', '#d73027', '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+    #           '#74add1', '#4575b4', '#313695']
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+    background_color = "black"
+    labels_color = "white"
+    max_sum = 0
+
+    sum_activity_by_age_dict = SortedDict()
+    ms_description_by_age_dict = SortedDict()
+
+    for ms in ms_to_analyse:
+        if ms.spike_struct.spike_nums_dur is None:
+            print(f"plot_all_sum_spikes_dur: {ms.description}: spike_nums_dur is None")
+            continue
+        if ms.age not in sum_activity_by_age_dict:
+            sum_activity_by_age_dict[ms.age] = []
+            ms_description_by_age_dict[ms.age] = []
+        sum_spikes = np.sum(ms.spike_struct.spike_nums_dur, axis=0)
+        # normalizing by the number of cell
+        sum_spikes = (sum_spikes / ms.spike_struct.spike_nums_dur.shape[0]) * 100
+        max_sum = max(max_sum, np.max(sum_spikes))
+        sum_activity_by_age_dict[ms.age].append(sum_spikes)
+        ms_description_by_age_dict[ms.age].append(ms.description)
+
+    sum_activity_list = []
+    ms_description_list = []
+    for age, sum_activities in sum_activity_by_age_dict.items():
+        sum_activity_list.extend(sum_activities)
+        ms_description_list.extend(ms_description_by_age_dict[age])
+    n_plots = len(sum_activity_list)
+
+    max_n_lines = 20
+    n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
+    n_col = math.ceil(n_plots / n_lines)
+
+    fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                             gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
+                             figsize=(30, 20))
+    fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig.patch.set_facecolor(background_color)
+
+    axes = axes.flatten()
+    for ax_index, ax in enumerate(axes):
+        ax.set_facecolor(background_color)
+        if ax_index >= n_plots:
+            continue
+
+        sum_spikes = sum_activity_list[ax_index]
+        label = ms_description_list[ax_index]
+        face_color = colors[ax_index%len(colors)]
+        x_value = np.arange(len(sum_spikes))
+        ax.fill_between(x_value, 0, sum_spikes, facecolor=face_color, label=label)
+        ax.set_ylim(0, max_sum)
+        ax.legend()
+
+        # ax.yaxis.set_tick_params(labelsize=20)
+        # ax.xaxis.set_tick_params(labelsize=20)
+        ax.tick_params(axis='y', colors=labels_color)
+        ax.tick_params(axis='x', colors=labels_color)
+
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/plots_sum_activity_by_age_'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+    plt.close()
+
+def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, save_formats="pdf"):
+    """
+    Will plot in one plot with subplots all twitches PSTH
+    :param ms_to_analyse:
+    :param param:
+    :param save_formats:
+    :return:
+    """
+    # from: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8
+    colors = ['#ffffd9', '#edf8b1', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']
+    # orange ones: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8#type=sequential&scheme=YlOrBr&n=9
+    # colors = ['#ffffe5', '#fff7bc', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#993404', '#662506']
+    # diverging, 11 colors : http://colorbrewer2.org/?type=diverging&scheme=RdYlBu&n=11
+    # colors = ['#a50026', '#d73027', '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+    #           '#74add1', '#4575b4', '#313695']
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+    background_color = "black"
+    labels_color = "white"
+    max_sum = 0
+
+    if line_mode:
+        n_plots = len(ms_to_analyse) + 1
+    else:
+        n_plots = len(ms_to_analyse) + 1
+
+
+    max_n_lines = 3
+    n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
+    n_col = math.ceil(n_plots / n_lines)
+
+    fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                             gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
+                             figsize=(30, 20))
+    fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig.patch.set_facecolor(background_color)
+
+    axes = axes.flatten()
+    for ax_index, ax in enumerate(axes):
+        ax.set_facecolor(background_color)
+        if ax_index >= len(ms_to_analyse):
+            continue
+        ms = ms_to_analyse[ax_index]
+        ms.plot_psth_twitches(line_mode=line_mode, ax_to_use=ax, put_mean_line_on_plt=line_mode,
+                              color_to_use=colors[ax_index % len(colors)])
+
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/twitches_psth_'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+    plt.close()
 
 
 def plot_all_basic_stats(ms_to_analyse, param, save_formats="pdf"):
@@ -2733,16 +2915,30 @@ def robin_loading_process(param, load_traces, load_abf=True):
     # 4 mice with nice abf + LFP
     ms_str_to_load = ["p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p7_19_03_05_a000_ms", "p9_19_02_20_a003_ms"]
 
+    ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    # ms_str_to_load = ["p8_19_03_19_a000_ms"]
+    ms_str_to_load = ["p8_18_10_17_a001_ms"]
+
     # session with mouvements periods (twitch, long mvt etc...) available
     ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
                       "p7_18_02_08_a001_ms", "p7_18_02_08_a003_ms", "p7_18_02_08_a000_ms",
                       "p7_19_03_05_a000_ms", "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
                       "p8_18_10_24_a005_ms", "p9_17_12_06_a001_ms",
                       "p9_19_02_20_a003"]
-    ms_str_to_load = ["p5_19_03_25_a001_ms"]
-    ms_str_to_load = ["p6_18_02_07_a002_ms"]
-    ms_str_to_load = ["p8_19_03_19_a000_ms"]
-
+    #
+    # ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    #                   "p7_18_02_08_a001_ms", "p7_18_02_08_a003_ms", "p7_18_02_08_a000_ms",
+    #                   "p7_19_03_05_a000_ms", "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+    #                   "p8_18_10_24_a005_ms", "p9_17_12_06_a001_ms",
+    #                   "p9_19_02_20_a003", "p10_17_11_16_a003_ms",
+    #                   "p11_17_11_24_a001_ms", "p11_17_11_24_a000_ms",
+    #                   "p12_171110_a000_ms",
+    #                   "p12_17_11_10_a002_ms",
+    #                   "p13_18_10_29_a000_ms",
+    #                   "p13_18_10_29_a001_ms",
+    #                   "p14_18_10_23_a000_ms",
+    #                   "p14_18_10_30_a001_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -2801,7 +2997,7 @@ def main():
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
 
-    load_traces = True
+    load_traces = False
 
     if for_lexi:
         ms_str_to_ms_dict = lexi_loading_process(param=param, load_traces=load_traces)
@@ -2815,7 +3011,9 @@ def main():
     ms_to_analyse = available_ms
 
     just_plot_all_basic_stats = False
-    just_plot_movement_stat = False
+    just_save_sum_spikes_dur_in_npy_file = False
+    just_plot_all_sum_spikes_dur = False
+    just_plot_movement_activity = False
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
     # periods such as twitch etc...
@@ -2827,8 +3025,8 @@ def main():
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = True
-    do_plot_psth_twitches = False
+    just_plot_all_cells_on_map = False
+    do_plot_psth_twitches = True
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
     just_do_pca_on_raster = False
@@ -2861,7 +3059,7 @@ def main():
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     # instead of sce, take the twitches periods
-    do_clustering_with_twitches_events = False
+    do_clustering_with_twitches_events = True
     with_cells_in_cluster_seq_sorted = False
     use_richard_option = for_richard
     # wake, sleep, quiet_wake, sleep_quiet_wake, active_wake
@@ -2879,13 +3077,27 @@ def main():
             # if "no_shift" then select the frame that are not in any period
             # Other keys are: shift_twitch, shift_long, shift_unclassified
             # or a list of those 3 keys and then will take all frames except those
-            with_period_mvt_filter = "shift_long" # ["shift_long", "shift_unclassified"]
-            if (with_period_mvt_filter is not None) and (ms.shift_data_dict is not None):
+            with_period_mvt_filter = "shift_twitch" # ["shift_twitch","shift_long", "shift_unclassified"]
+            if (with_period_mvt_filter is not None) and (ms.shift_data_dict is not None) and \
+                    (not do_clustering_with_twitches_events):
+                n_frames = ms.spike_struct.spike_nums_dur.shape[1]
                 if isinstance(with_period_mvt_filter, list):
                     clustering_bonus_descr = "_all_frames_but_" + '_'.join(with_period_mvt_filter)
-                    shift_bool = np.ones(ms.spike_struct.spike_nums_dur.shape[1], dtype="bool")
+                    shift_bool = np.ones(n_frames, dtype="bool")
                     for shift_key in with_period_mvt_filter:
                         shift_bool_tmp = ms.shift_data_dict[shift_key]
+                        if shift_key == "shift_twitch":
+                            extension_frames_after = 50
+                            extension_frames_before = 20
+                        else:
+                            extension_frames_after = 20
+                            extension_frames_before = 20
+                        # we extend each period, implementation is not the fastest and more elegant way
+                        true_frames = np.where(shift_bool_tmp)[0]
+                        for frame in true_frames:
+                            first_frame = max(0, frame - extension_frames_before)
+                            last_frame = min(n_frames-1, frame + extension_frames_after)
+                            shift_bool_tmp[first_frame:last_frame+1] = True
                         shift_bool[shift_bool_tmp] = False
                     ms.spike_struct.spike_nums_dur = \
                         remove_spike_nums_dur_and_associated_transients(spike_nums_dur=ms.spike_struct.spike_nums_dur,
@@ -2909,10 +3121,22 @@ def main():
                 else:
                     clustering_bonus_descr = f"_{with_period_mvt_filter}_"
                     shift_bool = ms.shift_data_dict[with_period_mvt_filter]
-                    # ms.spike_struct.spike_nums_dur = \
-                    #     remove_spike_nums_dur_and_associated_transients(spike_nums_dur=ms.spike_struct.spike_nums_dur,
-                    #                                                     frames_to_keep=shift_bool)
-                    ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, shift_bool]
+                    shift_bool_copy = np.copy(shift_bool)
+                    # period_extension
+                    if with_period_mvt_filter == "shift_twitch":
+                        extension_frames_after = 50
+                        extension_frames_before = 20
+                        shift_bool_tmp = np.copy(shift_bool_copy)
+                        true_frames = np.where(shift_bool_copy)[0]
+                        for frame in true_frames:
+                            first_frame = max(0, frame - extension_frames_before)
+                            last_frame = min(n_frames - 1, frame + extension_frames_after)
+                            shift_bool_tmp[first_frame:last_frame + 1] = True
+                        shift_bool_copy[shift_bool_tmp] = True
+                    ms.spike_struct.spike_nums_dur = \
+                        remove_spike_nums_dur_and_associated_transients(spike_nums_dur=ms.spike_struct.spike_nums_dur,
+                                                                        frames_to_keep=shift_bool_copy)
+                    # ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, shift_bool]
                     print(f"{ms.description} filtering spike_nums with shift {with_period_mvt_filter}")
                     ms.spike_struct.build_spike_nums_and_peak_nums()
                 print(f"{ms.description} n frames left {ms.spike_struct.spike_nums_dur.shape[1]}")
@@ -2955,9 +3179,13 @@ def main():
         plot_all_basic_stats(ms_to_analyse, param)
         raise Exception("just_plot_all_basic_stats")
 
-    if just_plot_movement_stat:
-        plot_movement_stat(ms_to_analyse, param)
-        raise Exception("just_plot_movement_stat")
+    if just_plot_all_sum_spikes_dur:
+        plot_all_sum_spikes_dur(ms_to_analyse, param)
+        raise Exception("plot_all_sum_spikes_dur")
+
+    if just_plot_movement_activity:
+        plot_movement_activity(ms_to_analyse, param)
+        raise Exception("just_plot_movement_activity")
 
     ms_by_age = dict()
     for ms_index, ms in enumerate(ms_to_analyse):
@@ -2969,8 +3197,26 @@ def main():
         #          spike_nums_dur=ms.spike_struct.spike_nums_dur[:50, :5000])
         # raise Exception("ambre")
 
+        if just_save_sum_spikes_dur_in_npy_file:
+            ms.save_sum_spikes_dur_in_npy_file()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_save_sum_spikes_dur_in_npy_file")
+            continue
+
+        if do_plot_psth_twitches:
+            line_mode = False
+            plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode,  save_formats="pdf")
+            # ms.plot_psth_twitches(line_mode=line_mode)
+            # ms.plot_psth_twitches(twitches_group=1, line_mode=line_mode)
+            # ms.plot_psth_twitches(twitches_group=2, line_mode=line_mode)
+            # ms.plot_psth_twitches(twitches_group=3, line_mode=line_mode)
+            # ms.plot_psth_twitches(twitches_group=4, line_mode=line_mode)
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("do_plot_psth_twitches")
+            continue
+
         if just_plot_time_correlation_graph_over_twitches:
-            ms.plot_time_correlation_graph_over_twitches()
+            ms.plot_time_correlation_graph_over_twitches(time_around_events=10)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("loko")
             continue
@@ -3634,13 +3880,7 @@ def main():
                             span_area_coords.append(ms.mvt_frames_periods)
                             # span_area_coords.append(ms.mvt_frames_periods)
                             span_area_colors.append("red")
-                    if do_plot_psth_twitches:
-                        line_mode = True
-                        ms.plot_psth_twitches(line_mode=line_mode)
-                        ms.plot_psth_twitches(twitches_group=1, line_mode=line_mode)
-                        ms.plot_psth_twitches(twitches_group=2, line_mode=line_mode)
-                        ms.plot_psth_twitches(twitches_group=3, line_mode=line_mode)
-                        ms.plot_psth_twitches(twitches_group=4, line_mode=line_mode)
+
                     plot_spikes_raster(spike_nums=spike_nums_to_use, param=ms.param,
                                        span_cells_to_highlight=inter_neurons,
                                        span_cells_to_highlight_colors=["red"] * len(inter_neurons),
@@ -3777,14 +4017,14 @@ def main():
         if do_plot_psth_twitches:
             for age, ms_of_this_age in ms_by_age.items():
                 ms_of_this_age[0].plot_psth_twitches(line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
-                ms_of_this_age[0].plot_psth_twitches(twitches_group=1,
-                                                     line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
-                ms_of_this_age[0].plot_psth_twitches(twitches_group=2,
-                                                     line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
-                ms_of_this_age[0].plot_psth_twitches(twitches_group=3,
-                                                     line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
-                ms_of_this_age[0].plot_psth_twitches(twitches_group=4,
-                                                     line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
+                # ms_of_this_age[0].plot_psth_twitches(twitches_group=1,
+                #                                      line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
+                # ms_of_this_age[0].plot_psth_twitches(twitches_group=2,
+                #                                      line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
+                # ms_of_this_age[0].plot_psth_twitches(twitches_group=3,
+                #                                      line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
+                # ms_of_this_age[0].plot_psth_twitches(twitches_group=4,
+                #                                      line_mode=line_mode, with_other_ms=ms_of_this_age[1:])
 
         ratio_spikes_events_non_interneurons_by_age = dict()
         ratio_spikes_events_interneurons_by_age = dict()
@@ -4195,6 +4435,19 @@ def main():
                     if (ms.shift_data_dict is not None) and do_clustering_with_twitches_events:
                         # using twitch periods instead of SCE if info is available
                         sce_times_bool = ms.shift_data_dict["shift_twitch"]
+                        n_frames = len(sce_times_bool)
+                        # extending twitch periods
+                        # period_extension
+                        if with_period_mvt_filter == "shift_twitch":
+                            extension_frames_after = 50
+                            extension_frames_before = 10
+                            shift_bool_tmp = np.copy(sce_times_bool)
+                            true_frames = np.where(sce_times_bool)[0]
+                            for frame in true_frames:
+                                first_frame = max(0, frame - extension_frames_before)
+                                last_frame = min(n_frames - 1, frame + extension_frames_after)
+                                shift_bool_tmp[first_frame:last_frame + 1] = True
+                            sce_times_bool[shift_bool_tmp] = True
                         SCE_times = get_continous_time_periods(sce_times_bool.astype("int8"))
                         sce_times_numbers = np.ones(len(sce_times_bool), dtype="int16")
                         sce_times_numbers *= -1

@@ -4,7 +4,7 @@ from scipy import signal
 # important to avoid a bug when using virtualenv
 # import matplotlib
 # matplotlib.use('TkAgg')
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 import hdf5storage
 import time
@@ -20,7 +20,7 @@ import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.tools.misc import get_time_correlation_data
 from pattern_discovery.tools.misc import get_continous_time_periods
 from pattern_discovery.display.raster import plot_spikes_raster
-# from pattern_discovery.display.misc import time_correlation_graph
+from pattern_discovery.display.misc import time_correlation_graph
 from pattern_discovery.display.cells_map_module import CoordClass
 from sortedcontainers import SortedDict
 from matplotlib.patches import Patch
@@ -383,7 +383,7 @@ class MouseSession:
 
     def plot_psth_over_twitches_time_correlation_graph_style(self):
         """
-        Same shape as a time-correlation graph but the zeo will correpsond the twitches time, the celle will be
+        Same shape as a time-correlation graph but the zero will correpsond the twitches time, the celle will be
         correlated with itself
         :return:
         """
@@ -813,11 +813,12 @@ class MouseSession:
             raw_traces[cell, :] = np.mean(self.tiff_movie[:, mask], axis=1)
         return raw_traces
 
-    def plot_time_correlation_graph_over_twitches(self):
-        if self.twitches_frames_periods is None:
+    def plot_time_correlation_graph_over_twitches(self, time_around_events=10):
+        if self.shift_data_dict is None:
             return
+        twitches_frames_periods = get_continous_time_periods(self.shift_data_dict["shift_twitch"].astype("int8"))
         results = get_time_correlation_data(spike_nums=self.spike_struct.spike_nums,
-                                            events_times=self.twitches_frames_periods, time_around_events=10)
+                                            events_times=twitches_frames_periods, time_around_events=time_around_events)
         self.time_lags_list, self.correlation_list, \
         self.time_lags_dict, self.correlation_dict, self.time_lags_window, cells_list = results
 
@@ -845,7 +846,7 @@ class MouseSession:
                                correlation_dict=self.correlation_dict,
                                n_cells=self.spike_struct.n_cells,
                                time_window=time_window,
-                               plot_cell_numbers=True,
+                               plot_cell_numbers=False,
                                cells_groups=cells_groups,
                                groups_colors=groups_colors,
                                data_id=self.description + "around_twitches",
@@ -1056,59 +1057,66 @@ class MouseSession:
         twitches_times = []
         twitches_periods = []
 
-        if twitches_group == 7:
-            sce_times_related_to_twitch = np.zeros(len(sce_bool), dtype="bool")
-            for twitch_period in self.twitches_frames_periods:
-                is_in_sce = np.any(sce_bool[twitch_period[0]: twitch_period[1] + 1])
-                if is_in_sce:
-                    indices = np.where(sce_bool[twitch_period[0]: twitch_period[1] + 1])[0] + twitch_period[0]
-                    sce_times_related_to_twitch[indices] = True
-                # looking if there is a sce less than a second after
-                end_time = np.min((twitch_period[1] + 1 + 10, len(sce_bool)))
-                sce_after = np.any(sce_bool[twitch_period[1]:end_time])
-
-                if sce_after:
-                    indices = np.where(sce_bool[twitch_period[1]:end_time])[0] + twitch_period[1]
-                    sce_times_related_to_twitch[indices] = True
-
-            for sce_period in sce_periods:
-                if not np.any(sce_times_related_to_twitch[sce_period[0]:sce_period[1] + 1]):
-                    twitches_times.append((sce_period[0] + sce_period[1]) // 2)
-                    twitches_periods.append((sce_period[0], sce_period[1]))
-
-        for twitch_period in self.twitches_frames_periods:
+        # not using twitches_groups anymore
+        twitches_frames_periods = get_continous_time_periods(self.shift_data_dict["shift_twitch"].astype("int8"))
+        for twitch_period in twitches_frames_periods:
             if (sce_bool is None) or (twitches_group == 0):
                 twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
                 twitches_periods.append((twitch_period[0], twitch_period[1]))
-                continue
-            is_in_sce = np.any(sce_bool[twitch_period[0]: twitch_period[1] + 1])
-            if twitches_group == 1:
-                if is_in_sce:
-                    twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
-                    twitches_periods.append((twitch_period[0], twitch_period[1]))
-                continue
 
-            if twitches_group == 2:
-                if not is_in_sce:
-                    twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
-                    twitches_periods.append((twitch_period[0], twitch_period[1]))
-                continue
-
-            if is_in_sce:
-                continue
-            # looking if there is a sce less than a second after
-            end_time = np.min((twitch_period[1] + 1 + 10, len(sce_bool)))
-            sce_after = np.any(sce_bool[twitch_period[1]:end_time])
-            if twitches_group == 3:
-                if sce_after:
-                    twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
-                    twitches_periods.append((twitch_period[0], twitch_period[1]))
-                    continue
-            if twitches_group == 4:
-                if not sce_after:
-                    twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
-                    twitches_periods.append((twitch_period[0], twitch_period[1]))
-                    continue
+        # if twitches_group == 7:
+        #     sce_times_related_to_twitch = np.zeros(len(sce_bool), dtype="bool")
+        #     for twitch_period in self.twitches_frames_periods:
+        #         is_in_sce = np.any(sce_bool[twitch_period[0]: twitch_period[1] + 1])
+        #         if is_in_sce:
+        #             indices = np.where(sce_bool[twitch_period[0]: twitch_period[1] + 1])[0] + twitch_period[0]
+        #             sce_times_related_to_twitch[indices] = True
+        #         # looking if there is a sce less than a second after
+        #         end_time = np.min((twitch_period[1] + 1 + 10, len(sce_bool)))
+        #         sce_after = np.any(sce_bool[twitch_period[1]:end_time])
+        #
+        #         if sce_after:
+        #             indices = np.where(sce_bool[twitch_period[1]:end_time])[0] + twitch_period[1]
+        #             sce_times_related_to_twitch[indices] = True
+        #
+        #     for sce_period in sce_periods:
+        #         if not np.any(sce_times_related_to_twitch[sce_period[0]:sce_period[1] + 1]):
+        #             twitches_times.append((sce_period[0] + sce_period[1]) // 2)
+        #             twitches_periods.append((sce_period[0], sce_period[1]))
+        #
+        # for twitch_period in self.twitches_frames_periods:
+        #     if (sce_bool is None) or (twitches_group == 0):
+        #         twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+        #         twitches_periods.append((twitch_period[0], twitch_period[1]))
+        #         continue
+        #     is_in_sce = np.any(sce_bool[twitch_period[0]: twitch_period[1] + 1])
+        #     if twitches_group == 1:
+        #         if is_in_sce:
+        #             twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+        #             twitches_periods.append((twitch_period[0], twitch_period[1]))
+        #         continue
+        #
+        #     if twitches_group == 2:
+        #         if not is_in_sce:
+        #             twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+        #             twitches_periods.append((twitch_period[0], twitch_period[1]))
+        #         continue
+        #
+        #     if is_in_sce:
+        #         continue
+        #     # looking if there is a sce less than a second after
+        #     end_time = np.min((twitch_period[1] + 1 + 10, len(sce_bool)))
+        #     sce_after = np.any(sce_bool[twitch_period[1]:end_time])
+        #     if twitches_group == 3:
+        #         if sce_after:
+        #             twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+        #             twitches_periods.append((twitch_period[0], twitch_period[1]))
+        #             continue
+        #     if twitches_group == 4:
+        #         if not sce_after:
+        #             twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+        #             twitches_periods.append((twitch_period[0], twitch_period[1]))
+        #             continue
         return twitches_times, twitches_periods
 
     def get_spikes_values_around_twitches(self, sce_bool=None, time_around=100,
@@ -1163,10 +1171,12 @@ class MouseSession:
 
     def plot_psth_twitches(self, time_around=100,
                            twitches_group=0, line_mode=False,
+                           ax_to_use=None, put_mean_line_on_plt=False,
+                           color_to_use=None,
                            with_other_ms=None,
                            save_formats="pdf"):
         """
-
+        Not using groups anymore
         :param sce_bool:
         :param only_in_sce:
         :param time_around:
@@ -1179,10 +1189,13 @@ class MouseSession:
         :return:
         """
 
-        if self.twitches_frames_periods is None:
+        # if self.twitches_frames_periods is None:
+        #     return
+        if self.shift_data_dict is None:
             return
 
-        sce_bool = self.sce_bool
+        # sce_bool = self.sce_bool
+        sce_bool = None
 
         if with_other_ms is not None:
             line_mode = True
@@ -1196,7 +1209,7 @@ class MouseSession:
         n_twitches, time_x_values, mean_values, median_values, low_values, high_values, std_values = results
 
         n_cells = len(self.spike_struct.spike_nums_dur)
-        activity_threshold_percentage = (self.activity_threshold / n_cells) * 100
+        # activity_threshold_percentage = (self.activity_threshold / n_cells) * 100
 
         hist_color = "blue"
         edge_color = "white"
@@ -1212,12 +1225,17 @@ class MouseSession:
 
         title_option = self.twitches_group_title[twitches_group]
 
-        for mean_version in [True, False]:
+        for mean_version in [True]: # False
             max_value = 0
-            fig, ax1 = plt.subplots(nrows=1, ncols=1,
-                                    gridspec_kw={'height_ratios': [1]},
-                                    figsize=(15, 10))
-            ax1.set_facecolor("black")
+            if ax_to_use is None:
+                fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                        gridspec_kw={'height_ratios': [1]},
+                                        figsize=(15, 10))
+                fig.patch.set_facecolor("black")
+
+                ax1.set_facecolor("black")
+            else:
+                ax1 = ax_to_use
             if line_mode:
                 ms_to_plot = [self]
                 if with_other_ms is not None:
@@ -1239,38 +1257,54 @@ class MouseSession:
                         ms_n_twitches, ms_time_x_values, ms_mean_values, ms_median_values, \
                         ms_low_values, ms_high_values, ms_std_values = results
 
-                    if with_other_ms is None:
+                    if color_to_use is not None:
+                        color = color_to_use
+                    elif with_other_ms is None:
                         color = hist_color
                     else:
                         color = cm.nipy_spectral(float(index_ms + 1) / (len(with_other_ms) + 2))
                     if mean_version:
-                        plt.plot(time_x_values,
-                                 ms_mean_values, color=color, lw=2, label=f"{ms.description}")
+                        ax1.plot(time_x_values,
+                                 ms_mean_values, color=color, lw=2, label=f"{ms.description} {n_twitches} twitches")
+                        if put_mean_line_on_plt:
+                            plt.plot(time_x_values,
+                                     ms_mean_values, color=color, lw=2)
                         if with_other_ms is None:
                             ax1.fill_between(time_x_values, ms_mean_values - ms_std_values,
                                              ms_mean_values + ms_std_values,
                                              alpha=0.5, facecolor=color)
                         max_value = np.max((max_value, np.max(ms_mean_values + ms_std_values)))
                     else:
-                        plt.plot(time_x_values,
-                                 ms_median_values, color=color, lw=2, label=f"{ms.description}")
+                        ax1.plot(time_x_values,
+                                 ms_median_values, color=color, lw=2, label=f"{ms.description} {n_twitches} twitches")
                         if with_other_ms is None:
                             ax1.fill_between(time_x_values, ms_low_values, ms_high_values,
                                              alpha=0.5, facecolor=color)
                         max_value = np.max((max_value, np.max(ms_high_values)))
             else:
-                plt.bar(time_x_values,
-                        mean_values, color=hist_color, edgecolor=edge_color)
+                if color_to_use is not None:
+                    hist_color = color_to_use
+                    edge_color = "white"
+                ax1.bar(time_x_values,
+                        mean_values, color=hist_color, edgecolor=edge_color,
+                        label=f"{self.description} {n_twitches} twitches")
                 max_value = np.max((max_value, np.max(mean_values)))
             ax1.vlines(0, 0,
                        np.max(mean_values), color="white", linewidth=2,
                        linestyles="dashed")
-            ax1.hlines(activity_threshold_percentage, -1 * time_around, time_around,
-                       color="white", linewidth=1,
+            if put_mean_line_on_plt:
+                plt.vlines(0, 0,
+                       np.max(mean_values), color="white", linewidth=2,
                        linestyles="dashed")
+            # ax1.hlines(activity_threshold_percentage, -1 * time_around, time_around,
+            #            color="white", linewidth=1,
+            #            linestyles="dashed")
 
-            if with_other_ms is not None:
-                ax1.legend()
+            ax1.tick_params(axis='y', colors="white")
+            ax1.tick_params(axis='x', colors="white")
+
+            # if with_other_ms is not None:
+            ax1.legend()
 
             extra_info = ""
             if line_mode:
@@ -1284,23 +1318,29 @@ class MouseSession:
             if with_other_ms is not None:
                 descr = f"p{self.age}"
 
-            plt.title(f"{descr} {n_twitches} twitches bar chart {title_option} {extra_info}")
+            # ax1.title(f"{descr} {n_twitches} twitches bar chart {title_option} {extra_info}")
             ax1.set_ylabel(f"Spikes (%)")
             ax1.set_xlabel("time (frames)")
-            ax1.set_ylim(0, np.max((activity_threshold_percentage, max_value)) + 1)
+            ax1.set_ylim(0, max_value + 1)
+            # ax1.set_ylim(0, np.max((activity_threshold_percentage, max_value)) + 1)
+
+            ax1.xaxis.label.set_color("white")
+            ax1.yaxis.label.set_color("white")
             # xticks = np.arange(0, len(data_dict))
             # ax1.set_xticks(xticks)
             # # sce clusters labels
             # ax1.set_xticklabels(labels)
-            if isinstance(save_formats, str):
-                save_formats = [save_formats]
-            for save_format in save_formats:
-                fig.savefig(f'{self.param.path_results}/{descr}_bar_chart_'
-                            f'{n_twitches}_twitches_{title_option}'
-                            f'_{extra_info}{self.param.time_str}.{save_format}',
-                            format=f"{save_format}")
+            if ax_to_use is None:
+                if isinstance(save_formats, str):
+                    save_formats = [save_formats]
+                for save_format in save_formats:
+                    fig.savefig(f'{self.param.path_results}/{descr}_bar_chart_'
+                                f'{n_twitches}_twitches_{title_option}'
+                                f'_{extra_info}{self.param.time_str}.{save_format}',
+                                format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
 
-            plt.close()
+                plt.close()
 
         # if len(distribution) == 0:
         #     continue
@@ -2652,6 +2692,18 @@ class MouseSession:
 
     def set_inter_neurons(self, inter_neurons):
         self.spike_struct.inter_neurons = np.array(inter_neurons).astype(int)
+
+    def save_sum_spikes_dur_in_npy_file(self):
+        if self.spike_struct.spike_nums_dur is None:
+            print(f"{self.description}: spike_nmus_dur None, not able to save sum activity")
+            return
+
+        np.save(os.path.join(self.param.path_data, f"p{self.age}", f"{self.description.lower()}",
+                             f"{self.description}_sum_activity.npy"),
+                np.sum(self.spike_struct.spike_nums_dur, axis=0))
+        # np.save(os.path.join(self.param.path_results, f"{self.description}_sum_activity.npy"),
+        #         np.sum(self.spike_struct.spike_nums_dur, axis=0))
+        print(f"{self.description}: sum of spike_nums_dur saved")
 
     def load_abf_file(self, path_abf_data=None, abf_file_name=None, threshold_piezo=None,
                       frames_channel=0, piezo_channel=None, run_channel=None, lfp_channel=None, threshold_ratio=2,

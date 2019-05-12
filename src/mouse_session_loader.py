@@ -143,11 +143,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p5_19_03_25_a000_ms.load_suite2p_data(data_path="p5/p5_19_03_25_a000/suite2p/", with_coord=True)
 
         p5_19_03_25_a000_ms.load_tif_movie(path="p5/p5_19_03_25_a000")
-        raw_traces_loaded = p5_19_03_25_a000_ms.load_raw_traces_from_npy(path="p5/p5_19_03_25_a000")
-        if not raw_traces_loaded:
-            p5_19_03_25_a000_ms.load_tiff_movie_in_memory()
-            p5_19_03_25_a000_ms.raw_traces = p5_19_03_25_a001_ms.build_raw_traces_from_movie()
-            p5_19_03_25_a000_ms.save_raw_traces(path="p5/p5_19_03_25_a000")
+        if load_traces:
+            raw_traces_loaded = p5_19_03_25_a000_ms.load_raw_traces_from_npy(path="p5/p5_19_03_25_a000")
+            if not raw_traces_loaded:
+                p5_19_03_25_a000_ms.load_tiff_movie_in_memory()
+                p5_19_03_25_a000_ms.raw_traces = p5_19_03_25_a001_ms.build_raw_traces_from_movie()
+                p5_19_03_25_a000_ms.save_raw_traces(path="p5/p5_19_03_25_a000")
 
         p5_19_03_25_a000_ms.clean_raster_at_concatenation()
 
@@ -198,11 +199,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p5_19_03_25_a001_ms.load_suite2p_data(data_path="p5/p5_19_03_25_a001/suite2p/", with_coord=True)
 
         p5_19_03_25_a001_ms.load_tif_movie(path="p5/p5_19_03_25_a001")
-        raw_traces_loaded = p5_19_03_25_a001_ms.load_raw_traces_from_npy(path="p5/p5_19_03_25_a001")
-        if not raw_traces_loaded:
-            p5_19_03_25_a001_ms.load_tiff_movie_in_memory()
-            p5_19_03_25_a001_ms.raw_traces = p5_19_03_25_a001_ms.build_raw_traces_from_movie()
-            p5_19_03_25_a001_ms.save_raw_traces(path="p5/p5_19_03_25_a001")
+        if load_traces:
+            raw_traces_loaded = p5_19_03_25_a001_ms.load_raw_traces_from_npy(path="p5/p5_19_03_25_a001")
+            if not raw_traces_loaded:
+                p5_19_03_25_a001_ms.load_tiff_movie_in_memory()
+                p5_19_03_25_a001_ms.raw_traces = p5_19_03_25_a001_ms.build_raw_traces_from_movie()
+                p5_19_03_25_a001_ms.save_raw_traces(path="p5/p5_19_03_25_a001")
 
         p5_19_03_25_a001_ms.clean_raster_at_concatenation()
 
@@ -310,6 +312,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p6_18_02_07_a002_ms.load_data_from_file(file_name_to_load=
                                                 "p6/p6_18_02_07_a002/p6_18_02_07_a002_RasterDur_2nd_dec.mat",
                                                 variables_mapping=variables_mapping)
+        p6_18_02_07_a002_ms.spike_struct.build_spike_nums_and_peak_nums()
 
         variables_mapping = {"xshifts": "xoff",
                              "yshifts": "yoff"}
@@ -655,6 +658,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                       "P7_19_03_05_a000_predictions__2019_05_07.21-11-05_GT_epoch_11_all_cells",
             prediction_threshold=0.5, variables_mapping=variables_mapping)
 
+        p7_19_03_05_a000_ms.clean_raster_at_concatenation()
+
+        p7_19_03_05_a000_ms.spike_struct.build_spike_nums_and_peak_nums()
+
         # # variables_mapping = {"shift_periods_bool": "shift"}
         # p7_19_03_05_a000_ms.load_data_from_file(file_name_to_load=
         #                                         "p7/p7_19_03_05_a000/p7_19_03_05_a000_shift_period_selection.npz",
@@ -664,16 +671,14 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         # if load_movie:
         p7_19_03_05_a000_ms.load_tif_movie(path="p7/p7_19_03_05_a000")
-        raw_traces_loaded = p7_19_03_05_a000_ms.load_raw_traces_from_npy(path="p7/p7_19_03_05_a000/")
-        if not raw_traces_loaded:
-            p7_19_03_05_a000_ms.load_tiff_movie_in_memory()
-            p7_19_03_05_a000_ms.raw_traces = p7_19_03_05_a000_ms.build_raw_traces_from_movie()
-            p7_19_03_05_a000_ms.save_raw_traces(path="p7/p7_19_03_05_a000/")
+        if load_traces:
+            raw_traces_loaded = p7_19_03_05_a000_ms.load_raw_traces_from_npy(path="p7/p7_19_03_05_a000/")
+            if not raw_traces_loaded:
+                p7_19_03_05_a000_ms.load_tiff_movie_in_memory()
+                p7_19_03_05_a000_ms.raw_traces = p7_19_03_05_a000_ms.build_raw_traces_from_movie()
+                p7_19_03_05_a000_ms.save_raw_traces(path="p7/p7_19_03_05_a000/")
         #
 
-        # p7_19_03_05_a000_ms.clean_raster_at_concatenation()
-
-        # p7_19_03_05_a000_ms.spike_struct.build_spike_nums_and_peak_nums()
 
         ms_str_to_ms_dict["p7_19_03_05_a000_ms"] = p7_19_03_05_a000_ms
 
@@ -974,6 +979,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                     file_name="p8/p8_18_10_24_a005/predictions/" +
                               "P8_18_10_24_a005_predictions__2019_05_02.12-55-41_GT_epoch_11_no_trans_no_over_all_cells.mat",
                     prediction_threshold=0.5, variables_mapping=variables_mapping)
+                p8_18_10_24_a005_ms.clean_raster_at_concatenation()
+                p8_18_10_24_a005_ms.spike_struct.build_spike_nums_and_peak_nums()
 
             if load_traces:
                 variables_mapping = {"traces": "C_df"}
@@ -1795,10 +1802,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             p13_18_10_29_a000_ms.load_data_from_file(
                 file_name_to_load="p13/p13_18_10_29_a000/p13_2018_10_29_a000_raw_Traces.mat",
                 variables_mapping=variables_mapping)
-        variables_mapping = {"coord": "ContoursAll"}
-        p13_18_10_29_a000_ms.load_data_from_file(file_name_to_load=
-                                                 "p13/p13_18_10_29_a000/p13_18_10_29_a000_CellDetect.mat",
-                                                 variables_mapping=variables_mapping)
+        # variables_mapping = {"coord": "ContoursAll"}
+        # p13_18_10_29_a000_ms.load_data_from_file(file_name_to_load=
+        #                                          "p13/p13_18_10_29_a000/p13_18_10_29_a000_CellDetect.mat",
+        #                                          variables_mapping=variables_mapping)
         p13_18_10_29_a000_ms.set_avg_cell_map_tif(file_name="p13/p13_18_10_29_a000/AVG_p13_18_10_29_a000.tif")
         if load_abf:
             p13_18_10_29_a000_ms.load_abf_file(abf_file_name="p13/p13_18_10_29_a000/p13_18_10_29_a000.abf",

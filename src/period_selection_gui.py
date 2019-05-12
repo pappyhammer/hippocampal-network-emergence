@@ -133,18 +133,21 @@ class SelectionFrame(tk.Frame):
         # ------------- colors (end) --------
 
         self.trace = data_and_param.trace
-        # normalizing it
-        if np.nanstd(self.trace) == 0:
-            self.trace = (self.trace - np.nanmean(self.trace))
-        else:
-            self.trace = (self.trace - np.nanmean(self.trace)) / np.nanstd(self.trace)
+        with_normalization = True
+        if with_normalization:
+            # normalizing it
+            if np.nanstd(self.trace) == 0:
+                self.trace = (self.trace - np.nanmean(self.trace))
+            else:
+                self.trace = (self.trace - np.nanmean(self.trace)) / np.nanstd(self.trace)
         self.y_max_value = np.nanmax(self.trace)
         self.y_min_value = np.nanmin(self.trace)
         # in case there is a 2nd trace to display
         self.trace_2 = data_and_param.trace_2
         self.ratio_traces = None
         if self.trace_2 is not None:
-            self.trace_2 = (self.trace_2 - np.mean(self.trace_2)) / np.std(self.trace_2)
+            if with_normalization:
+                self.trace_2 = (self.trace_2 - np.mean(self.trace_2)) / np.std(self.trace_2)
             min_trace = np.nanmin(self.trace)
             max_trace_2 = np.nanmax(self.trace_2)
             self.trace_2 = self.trace_2 - np.abs(max_trace_2 - min_trace)
