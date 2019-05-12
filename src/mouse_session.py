@@ -20,7 +20,7 @@ import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.tools.misc import get_time_correlation_data
 from pattern_discovery.tools.misc import get_continous_time_periods
 from pattern_discovery.display.raster import plot_spikes_raster
-from pattern_discovery.display.misc import time_correlation_graph
+from pattern_discovery.display.misc import time_correlation_graph, plot_hist_distribution
 from pattern_discovery.display.cells_map_module import CoordClass
 from sortedcontainers import SortedDict
 from matplotlib.patches import Patch
@@ -35,6 +35,7 @@ from shapely.geometry import MultiPoint
 from ScanImageTiffReader import ScanImageTiffReader
 import hne_animation as hne_anim
 import math
+
 
 class MouseSession:
     def __init__(self, age, session_id, param, sampling_rate=10, weight=None, spike_nums=None, spike_nums_dur=None,
@@ -381,13 +382,16 @@ class MouseSession:
                 self.z_score_smooth_traces[i, :] = (self.smooth_traces[i, :] - np.mean(self.smooth_traces[i, :])) \
                                         / np.std(self.smooth_traces[i, :])
 
-    def plot_psth_over_twitches_time_correlation_graph_style(self):
+    def plot_psth_over_event_time_correlation_graph_style(self, event_str, time_around_events=10,
+                                                             ax_to_use=None, color_to_use=None,
+                                                          ax_to_use_total_events=None, color_to_use_total_events=None,
+                                                          ax_to_use_total_spikes=None, color_to_use_total_spikes=None):
         """
-        Same shape as a time-correlation graph but the zero will correpsond the twitches time, the celle will be
+        Same shape as a time-correlation graph but the zero will correpsond the event time, the celle will be
         correlated with itself
         :return:
         """
-        if self.twitches_frames_periods is None:
+        if self.shift_data_dict is None:
             return
 
         # results = get_time_correlation_data(spike_nums=self.spike_struct.spike_nums,
@@ -395,10 +399,12 @@ class MouseSession:
         # self.time_lags_list, self.correlation_list, \
         # self.time_lags_dict, self.correlation_dict, self.time_lags_window, cells_list = results
         spike_nums = self.spike_struct.spike_nums
-        events_times = self.twitches_frames_periods
+
+        # events_times = self.twitches_frames_periods
+        events_times = get_continous_time_periods(self.shift_data_dict[event_str].astype("int8"))
         n_twitches = len(events_times)
         print(f"{self.description}: number of twitches {n_twitches}")
-        time_around_events = 10
+        time_around_events = time_around_events
 
         nb_neurons = len(spike_nums)
         n_times = len(spike_nums[0, :])
@@ -409,6 +415,7 @@ class MouseSession:
         time_lags_list = []
         correlation_list = []
         cells_list = []
+        nb_spikes_by_cell = dict()
 
         # first determining what is the maximum duration of an event, for array dimension purpose
         # max_duration_event = 0
@@ -442,7 +449,9 @@ class MouseSession:
             # looping on each spike of the main neuron
             for n, event_times in enumerate(events_times):
                 # only taking in consideration events that are not too close from bottom range or upper range
-                event_time = (event_times[0] + event_times[1]) // 2
+                # event_time = (event_times[0] + event_times[1]) // 2
+                # taking beginning of event
+                event_time = event_times[0]
                 min_limit = max(0, (event_time - time_around_events))
                 max_limit = min(event_time + 1 + time_around_events, n_times)
                 # min((peak_time + time_window), (n_times - 1))
@@ -450,6 +459,8 @@ class MouseSession:
                     continue
                 # see to consider the case in which the cell spikes 2 times around a peak during the tim_window
                 neuron_spike_time = spike_nums[neuron, min_limit:max_limit]
+                # if np.sum(neuron_spike_time) > 1:
+                print(f"np.sum(neuron_spike_time) {np.sum(neuron_spike_time)} {np.where(neuron_spike_time)[0]}")
                 # spikes_indices = np.where(spike_nums_to_use[:, min_limit:max_limit])
                 beg_index = 0
                 if (event_time - time_around_events) < 0:
@@ -460,31 +471,48 @@ class MouseSession:
                 distribution_array[beg_index:beg_index + len_result] += neuron_spike_time
                 # distribution_array_2_d[neuron, :] = copy_of_neuron_distrib
             total_spikes = np.sum(distribution_array)
-            adding_this_neuron = True
+            total_spikes_after = np.sum(distribution_array[time_around_events-1:])
+            adding_this_neuron = total_spikes > 0
 
-            if np.sum(distribution_array[time_around_events - 2:]) < 2:
-                adding_this_neuron = False
+            # if np.sum(distribution_array[time_around_events - 2:]) < 2:
+            #     adding_this_neuron = False
+            #
+            # if np.sum(distribution_array[time_around_events - 2:]) <= 2 * np.sum(
+            #         distribution_array[:time_around_events - 2]):
+            #     adding_this_neuron = False
 
-            if np.sum(distribution_array[time_around_events - 2:]) <= 2 * np.sum(
-                    distribution_array[:time_around_events - 2]):
-                adding_this_neuron = False
-
-            if np.sum(distribution_array[time_around_events - 2:]) > 1:
-                nb_spikes = np.sum(distribution_array[time_around_events - 2:])
-                print(f"cell {neuron}: distribution_array {distribution_array}")
+            # if np.sum(distribution_array[time_around_events - 2:]) > 1:
+            if adding_this_neuron:
+                # nb_spikes = np.sum(distribution_array[time_around_events - 2:])
+                # nb_spikes = total_spikes
+                nb_spikes_by_cell[neuron] = total_spikes
+                nb_spikes = total_spikes_after
+                # print(f"cell {neuron}: distribution_array {distribution_array}")
                 # TODO: plot distribution of % ratio
                 # TODO: plot piezzo for top cells in distribution
                 ratio_cells.append(neuron)
                 ratio_spike_twitch_total_twitches.append((nb_spikes / n_twitches) * 100)
                 ratio_spike_twitch_total_spikes.append((nb_spikes / np.sum(spike_nums[neuron, :])) * 100)
-                print(f"ratio spikes after twitch / n_twitches: "
-                      f"{np.round(nb_spikes / n_twitches, 3)}")
-                print(f"ratio spikes after twitch / n_spikes: "
-                      f"{np.round(nb_spikes / np.sum(spike_nums[neuron, :]), 3)}")
+                # print(f"ratio spikes after twitch / n_twitches: "
+                #       f"{np.round(nb_spikes / n_twitches, 3)}")
+                # print(f"ratio spikes after twitch / n_spikes: "
+                #       f"{np.round(nb_spikes / np.sum(spike_nums[neuron, :]), 3)}")
 
             # adding the cell only if it has at least a spike around peak times
             if adding_this_neuron:
-                correlation_value = np.max(distribution_array) / total_spikes
+                bin_distrib = np.copy(distribution_array)
+                # joining 2 frames
+                bin_size = 2
+                if len(bin_distrib) % 2 != 0:
+                    bin_distrib = bin_distrib[:-1]
+                # elif len(bin_distrib) % 3 == 0:
+                #     bin_size = 3
+
+                bin_distrib = np.reshape(bin_distrib, (bin_size, len(bin_distrib) // bin_size))
+                bin_distrib = np.sum(bin_distrib, axis=0)
+                bin_distrib = np.reshape(bin_distrib, (bin_size, len(bin_distrib) // bin_size))
+                bin_distrib = np.sum(bin_distrib, axis=0)
+                correlation_value = np.max(bin_distrib) / total_spikes
                 # array_to_average = np.zeros(np.sum(distribution_array))
                 # start = 0
                 # for index, time_lag in enumerate(np.arange(-time_window * 2, time_window * 2 + 1)):
@@ -508,9 +536,12 @@ class MouseSession:
         ratio_spike_twitch_total_spikes = np.array(ratio_spike_twitch_total_spikes)
         ratio_cells = np.array(ratio_cells)
 
-        inter_neurons = np.array(self.spike_struct.inter_neurons)
-        # keeping only interneurons that are among the selected cells
-        inter_neurons = np.intersect1d(ratio_cells, inter_neurons)
+        if self.spike_struct.inter_neurons is not None:
+            inter_neurons = np.array(self.spike_struct.inter_neurons)
+            # keeping only interneurons that are among the selected cells
+            inter_neurons = np.intersect1d(ratio_cells, inter_neurons)
+        else:
+            inter_neurons = []
         values_to_scatter = []
         non_inter_neurons = np.setdiff1d(ratio_cells, inter_neurons)
         ratio_interneurons = []
@@ -542,14 +573,17 @@ class MouseSession:
             colors.extend(["red"])
             colors.extend(["red"] * len(inter_neurons))
 
-        plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spike_twitch_total_spikes,
-                                      description=f"{self.description}_hist_spike_twitches_ratio_over_total_spikes",
+        plot_hist_distribution(distribution_data=ratio_spike_twitch_total_spikes,
+                                      description=f"{self.description}",
                                       values_to_scatter=np.array(values_to_scatter),
                                       labels=labels,
                                       scatter_shapes=scatter_shapes,
-                                      colors=colors, twice_more_bins=True,
-                                      xlabel="spikes in twitch vs total spikes (%)",
-                                      param=self.param)
+                                      colors=colors,
+                               twice_more_bins=True,
+                                      xlabel=f"spikes in {event_str} vs total spikes (%)",
+                                      param=self.param,
+                               ax_to_use=ax_to_use_total_spikes,
+                               color_to_use=color_to_use_total_spikes)
 
         # keeping only interneurons that are among the selected cells
         inter_neurons = np.intersect1d(ratio_cells, inter_neurons)
@@ -584,14 +618,17 @@ class MouseSession:
             colors.extend(["red"])
             colors.extend(["red"] * len(inter_neurons))
 
-        plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spike_twitch_total_twitches,
-                                      description=f"{self.description}_hist_spike_twitches_ratio_over_total_twitches",
+        plot_hist_distribution(distribution_data=ratio_spike_twitch_total_twitches,
+                                description=f"{self.description}",
                                       values_to_scatter=np.array(values_to_scatter),
                                       labels=labels,
                                       scatter_shapes=scatter_shapes,
-                                      colors=colors, twice_more_bins=True,
-                                      xlabel="spikes in twitch vs total twitches (%)",
-                                      param=self.param)
+                                      colors=colors,
+                               twice_more_bins=True,
+                                      xlabel=f"spikes in {event_str} vs total {event_str} (%)",
+                                      param=self.param,
+                               ax_to_use=ax_to_use_total_events,
+                               color_to_use=color_to_use_total_events)
         #
 
         cells_groups = []
@@ -619,15 +656,17 @@ class MouseSession:
                                n_cells=self.spike_struct.n_cells,
                                time_window=time_window,
                                plot_cell_numbers=True,
+                               value_to_text_in_cell=nb_spikes_by_cell,
                                cells_groups=cells_groups,
                                groups_colors=groups_colors,
-                               data_id=self.description + "_around_twitches_psth_style",
+                               data_id=self.description + f"_{event_str}_{n_twitches}",
                                param=self.param,
                                set_x_limit_to_max=True,
                                time_stamps_by_ms=0.01,
                                ms_scale=200,
                                size_cells_in_groups=150,
-                               show_percentiles=show_percentiles)
+                               show_percentiles=show_percentiles,
+                               ax_to_use=ax_to_use, color_to_use=color_to_use)
 
         # now we take the cells that are the most correlated to twitches
 
@@ -813,10 +852,10 @@ class MouseSession:
             raw_traces[cell, :] = np.mean(self.tiff_movie[:, mask], axis=1)
         return raw_traces
 
-    def plot_time_correlation_graph_over_twitches(self, time_around_events=10):
+    def plot_time_correlation_graph_over_events(self, event_str, time_around_events=10, ax_to_use=None, color_to_use=None):
         if self.shift_data_dict is None:
             return
-        twitches_frames_periods = get_continous_time_periods(self.shift_data_dict["shift_twitch"].astype("int8"))
+        twitches_frames_periods = get_continous_time_periods(self.shift_data_dict[event_str].astype("int8"))
         results = get_time_correlation_data(spike_nums=self.spike_struct.spike_nums,
                                             events_times=twitches_frames_periods, time_around_events=time_around_events)
         self.time_lags_list, self.correlation_list, \
@@ -849,13 +888,15 @@ class MouseSession:
                                plot_cell_numbers=False,
                                cells_groups=cells_groups,
                                groups_colors=groups_colors,
-                               data_id=self.description + "around_twitches",
+                               data_id=self.description + "_" + event_str,
                                param=self.param,
                                set_x_limit_to_max=True,
                                time_stamps_by_ms=0.01,
                                ms_scale=200,
                                size_cells_in_groups=150,
-                               show_percentiles=show_percentiles)
+                               show_percentiles=show_percentiles,
+                               ax_to_use=ax_to_use,
+                               color_to_use=color_to_use)
 
     def define_twitches_events(self):
         if self.twitches_frames_periods is None:
@@ -1061,7 +1102,9 @@ class MouseSession:
         twitches_frames_periods = get_continous_time_periods(self.shift_data_dict["shift_twitch"].astype("int8"))
         for twitch_period in twitches_frames_periods:
             if (sce_bool is None) or (twitches_group == 0):
-                twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+                # twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+                # taking beginning of twitch
+                twitches_times.append(twitch_period[0])
                 twitches_periods.append((twitch_period[0], twitch_period[1]))
 
         # if twitches_group == 7:
@@ -2251,6 +2294,7 @@ class MouseSession:
         cells_to_highlight_colors = []
         if with_cell_assemblies:
             n_cells = len(self.spike_struct.spike_nums_dur)
+            print(f"n_cells {n_cells}")
             n_cell_assemblies = len(self.cell_assemblies)
             n_cells_in_assemblies = 0
             for cell_assembly in self.cell_assemblies:
@@ -2292,18 +2336,19 @@ class MouseSession:
         i = 0
         span_area_coords = []
         span_area_colors = []
-        for name_period, period in periods_dict.items():
-            span_area_coords.append(get_continous_time_periods(period.astype("int8")))
-            span_area_colors.append(colors[i%len(colors)])
-            print(f"Period {name_period} -> {colors[i]}")
-            i += 1
+        if periods_dict is not None:
+            for name_period, period in periods_dict.items():
+                span_area_coords.append(get_continous_time_periods(period.astype("int8")))
+                span_area_colors.append(colors[i%len(colors)])
+                print(f"Period {name_period} -> {colors[i]}")
+                i += 1
 
         if len(spike_nums_dur) < 200:
-            spike_shape_size = 1
-        if len(spike_nums_dur) < 500:
-            spike_shape_size = 0.2
+            spike_shape_size = 0.3
+        elif len(spike_nums_dur) < 500:
+            spike_shape_size = 0.05
         else:
-            spike_shape_size = 0.1
+            spike_shape_size = 0.02
         plot_spikes_raster(spike_nums=spike_nums_dur, param=self.param,
                            title=f"{self.description}_spike_nums_periods",
                            spike_train_format=False,

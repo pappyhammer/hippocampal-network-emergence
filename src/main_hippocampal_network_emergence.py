@@ -751,6 +751,148 @@ def plot_movement_activity(ms_to_analyse, param, save_formats="pdf"):
                              y_label=f"{data_type} activity", colors=colors, param=param,
                              save_formats=save_formats)
 
+def plot_psth_over_event_time_correlation_graph_style(ms_to_analyse, event_str, param, time_around_events=10,
+                                                      save_formats="pdf"):
+    """
+            Will plot in one plot with subplots all time_correlation_graph_over event periods
+            Event could be "shift_twitch" or "shift_long'
+            :param ms_to_analyse:
+            :param param:
+            :param save_formats:
+            :return:
+            """
+    print("plot_psth_over_event_time_correlation_graph_style")
+    # from: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8
+    colors = ['#ffffd9', '#edf8b1', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']
+    # orange ones: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8#type=sequential&scheme=YlOrBr&n=9
+    # colors = ['#ffffe5', '#fff7bc', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#993404', '#662506']
+    # diverging, 11 colors : http://colorbrewer2.org/?type=diverging&scheme=RdYlBu&n=11
+    # colors = ['#a50026', '#d73027', '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+    #           '#74add1', '#4575b4', '#313695']
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+    background_color = "black"
+    labels_color = "white"
+    max_sum = 0
+
+    n_plots = len(ms_to_analyse)
+
+    max_n_lines = 3
+    n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
+    n_col = math.ceil(n_plots / n_lines)
+
+    # for histogram all spikes
+    fig_all_spikes, axes_all_spikes = plt.subplots(nrows=n_lines, ncols=n_col,
+                             gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
+                             figsize=(30, 20))
+    fig_all_spikes.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig_all_spikes.patch.set_facecolor(background_color)
+    axes_all_spikes = axes_all_spikes.flatten()
+
+    # for histogram all events
+    fig_all_events, axes_all_events = plt.subplots(nrows=n_lines, ncols=n_col,
+                                                   gridspec_kw={'width_ratios': [1] * n_col,
+                                                                'height_ratios': [1] * n_lines},
+                                                   figsize=(30, 20))
+    fig_all_events.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig_all_events.patch.set_facecolor(background_color)
+    axes_all_events = axes_all_events.flatten()
+
+    # figure for the psth
+    fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                             gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
+                             figsize=(30, 20))
+    fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig.patch.set_facecolor(background_color)
+    axes = axes.flatten()
+    for ax_index, ax in enumerate(axes):
+        ax.set_facecolor(background_color)
+        axes_all_spikes[ax_index].set_facecolor(background_color)
+        axes_all_events[ax_index].set_facecolor(background_color)
+        if ax_index >= len(ms_to_analyse):
+            continue
+        ms = ms_to_analyse[ax_index]
+        ms.plot_psth_over_event_time_correlation_graph_style(event_str=event_str, time_around_events=time_around_events,
+                                                   ax_to_use=ax,
+                                                   color_to_use=colors[ax_index % len(colors)],
+                                                    ax_to_use_total_spikes=axes_all_spikes[ax_index],
+                                                    color_to_use_total_spikes=colors[ax_index % len(colors)],
+                                                    ax_to_use_total_events = axes_all_events[ax_index],
+                                                    color_to_use_total_events =colors[ax_index % len(colors)])
+
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/time_correlation_graph_over_{event_str}'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+        fig_all_spikes.savefig(f'{param.path_results}/hist_spike_{event_str}_{time_around_events}_by_session'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+        fig_all_events.savefig(f'{param.path_results}/hist_event_{event_str}_{time_around_events}_by_session'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+
+    plt.close()
+
+def plot_all_time_correlation_graph_over_events(ms_to_analyse, event_str, param, time_around_events=1, save_formats="pdf"):
+    """
+        Will plot in one plot with subplots all time_correlation_graph_over event periods
+        Event could be "shift_twitch" or "shift_long'
+        :param ms_to_analyse:
+        :param param:
+        :param save_formats:
+        :return:
+        """
+    # from: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8
+    colors = ['#ffffd9', '#edf8b1', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']
+    # orange ones: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8#type=sequential&scheme=YlOrBr&n=9
+    # colors = ['#ffffe5', '#fff7bc', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#993404', '#662506']
+    # diverging, 11 colors : http://colorbrewer2.org/?type=diverging&scheme=RdYlBu&n=11
+    # colors = ['#a50026', '#d73027', '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+    #           '#74add1', '#4575b4', '#313695']
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+    background_color = "black"
+    labels_color = "white"
+    max_sum = 0
+
+    n_plots = len(ms_to_analyse)
+
+    max_n_lines = 3
+    n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
+    n_col = math.ceil(n_plots / n_lines)
+
+    fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                             gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
+                             figsize=(30, 20))
+    fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig.patch.set_facecolor(background_color)
+
+    axes = axes.flatten()
+    for ax_index, ax in enumerate(axes):
+        ax.set_facecolor(background_color)
+        if ax_index >= len(ms_to_analyse):
+            continue
+        ms = ms_to_analyse[ax_index]
+        ms.plot_time_correlation_graph_over_events(event_str=event_str, time_around_events=time_around_events,
+                                                     ax_to_use=ax,
+                                                    color_to_use=colors[ax_index % len(colors)])
+
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/time_correlation_graph_over_{event_str}'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+    plt.close()
 
 def plot_all_sum_spikes_dur(ms_to_analyse, param, save_formats="pdf"):
     """
@@ -861,7 +1003,7 @@ def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, sav
     if line_mode:
         n_plots = len(ms_to_analyse) + 1
     else:
-        n_plots = len(ms_to_analyse) + 1
+        n_plots = len(ms_to_analyse)
 
 
     max_n_lines = 3
@@ -2925,13 +3067,13 @@ def robin_loading_process(param, load_traces, load_abf=True):
                       "p7_18_02_08_a001_ms", "p7_18_02_08_a003_ms", "p7_18_02_08_a000_ms",
                       "p7_19_03_05_a000_ms", "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
                       "p8_18_10_24_a005_ms", "p9_17_12_06_a001_ms",
-                      "p9_19_02_20_a003"]
+                      "p9_19_02_20_a003_ms"]
     #
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
     #                   "p7_18_02_08_a001_ms", "p7_18_02_08_a003_ms", "p7_18_02_08_a000_ms",
     #                   "p7_19_03_05_a000_ms", "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
     #                   "p8_18_10_24_a005_ms", "p9_17_12_06_a001_ms",
-    #                   "p9_19_02_20_a003", "p10_17_11_16_a003_ms",
+    #                   "p9_19_02_20_a003_ms", "p10_17_11_16_a003_ms",
     #                   "p11_17_11_24_a001_ms", "p11_17_11_24_a000_ms",
     #                   "p12_171110_a000_ms",
     #                   "p12_17_11_10_a002_ms",
@@ -2939,6 +3081,7 @@ def robin_loading_process(param, load_traces, load_abf=True):
     #                   "p13_18_10_29_a001_ms",
     #                   "p14_18_10_23_a000_ms",
     #                   "p14_18_10_30_a001_ms"]
+    # ms_str_to_load = ["richard_015_D74_P2_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -3011,14 +3154,15 @@ def main():
     ms_to_analyse = available_ms
 
     just_plot_all_basic_stats = False
-    just_save_sum_spikes_dur_in_npy_file = False
     just_plot_all_sum_spikes_dur = False
     just_plot_movement_activity = False
+    just_plot_all_time_correlation_graph_over_events = False
+    just_plot_psth_over_event_time_correlation_graph_style = False
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
     # periods such as twitch etc...
     just_plot_raster_with_periods = False
-    just_plot_time_correlation_graph_over_twitches = False
+    do_plot_psth_twitches = True
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_raster_with_cells_assemblies_and_shifts = False
     just_plot_traces_raster = False
@@ -3026,13 +3170,13 @@ def main():
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_plot_cell_assemblies_on_map = False
     just_plot_all_cells_on_map = False
-    do_plot_psth_twitches = True
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
     just_do_pca_on_raster = False
     just_display_seq_with_cell_assembly = False
     just_produce_animation = False
     just_plot_ratio_spikes_for_shift = False
+    just_save_sum_spikes_dur_in_npy_file = False
 
     # for events (sce) detection
     perc_threshold = 99
@@ -3063,7 +3207,7 @@ def main():
     with_cells_in_cluster_seq_sorted = False
     use_richard_option = for_richard
     # wake, sleep, quiet_wake, sleep_quiet_wake, active_wake
-    richard_option = "active_wake"
+    richard_option = "wake"
     if do_clustering:
         # filtering spike_nums_dur using speed info if available
         for ms in ms_to_analyse:
@@ -3183,6 +3327,16 @@ def main():
         plot_all_sum_spikes_dur(ms_to_analyse, param)
         raise Exception("plot_all_sum_spikes_dur")
 
+    if just_plot_all_time_correlation_graph_over_events:
+        # event_str = "shift_twitch" "shift_long"
+        plot_all_time_correlation_graph_over_events(event_str="shift_long", ms_to_analyse=ms_to_analyse,
+                                                      param=param, time_around_events=1)
+        raise Exception("just_plot_all_time_correlation_graph_over_events")
+    if just_plot_psth_over_event_time_correlation_graph_style:
+        plot_psth_over_event_time_correlation_graph_style(event_str="shift_twitch", ms_to_analyse=ms_to_analyse,
+                                                      param=param, time_around_events=20)
+        raise Exception("just_plot_psth_over_event_time_correlation_graph_style")
+
     if just_plot_movement_activity:
         plot_movement_activity(ms_to_analyse, param)
         raise Exception("just_plot_movement_activity")
@@ -3204,7 +3358,7 @@ def main():
             continue
 
         if do_plot_psth_twitches:
-            line_mode = False
+            line_mode = True
             plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode,  save_formats="pdf")
             # ms.plot_psth_twitches(line_mode=line_mode)
             # ms.plot_psth_twitches(twitches_group=1, line_mode=line_mode)
@@ -3215,10 +3369,13 @@ def main():
                 raise Exception("do_plot_psth_twitches")
             continue
 
-        if just_plot_time_correlation_graph_over_twitches:
-            ms.plot_time_correlation_graph_over_twitches(time_around_events=10)
+        if just_plot_raster_with_periods:
+            frames_selected = ms.richard_dict["Active_Wake_Frames"]
+            frames_selected = frames_selected[frames_selected < ms.spike_struct.spike_nums_dur.shape[1]]
+            ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, frames_selected]
+            ms.plot_raster_with_periods(ms.shift_data_dict)
             if ms_index == len(ms_to_analyse) - 1:
-                raise Exception("loko")
+                raise Exception("The Lannisters always pay their debts")
             continue
 
         if just_plot_all_cells_on_map:
@@ -3422,11 +3579,6 @@ def main():
                 raise Exception("fifi")
             continue
 
-        if just_plot_raster_with_periods:
-            ms.plot_raster_with_periods(ms.shift_data_dict)
-            if ms_index == len(ms_to_analyse) - 1:
-                raise Exception("The Lannisters always pay their debts")
-            continue
 
         if just_plot_raster_with_cells_assemblies_and_shifts:
             ms.plot_raster_with_cells_assemblies_and_shifts(only_cell_assemblies=True)

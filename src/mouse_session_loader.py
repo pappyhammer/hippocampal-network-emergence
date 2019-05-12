@@ -21,8 +21,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     ms_str_to_ms_dict = dict()
 
     if "artificial_ms_1" in ms_str_to_load:
-        artificial_ms = MouseSession(age=1, session_id="artificial_1",
-                                     nb_ms_by_frame=100, param=param)
+        artificial_ms = MouseSession(age=1, session_id="artificial_1", param=param)
         variables_mapping = {"coord": "coord_python"}
         artificial_ms.load_data_from_file(file_name_to_load="artificial_movies/1/map_coords.mat",
                                           variables_mapping=variables_mapping)
@@ -48,8 +47,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["artificial_ms_1"] = artificial_ms
 
     if "artificial_ms_2" in ms_str_to_load:
-        artificial_ms = MouseSession(age=2, session_id="artificial_2",
-                                     nb_ms_by_frame=100, param=param)
+        artificial_ms = MouseSession(age=2, session_id="artificial_2", param=param)
         variables_mapping = {"coord": "coord_python"}
         artificial_ms.load_data_from_file(file_name_to_load="artificial_movies/2_suite2p_contours/map_coords.mat",
                                           variables_mapping=variables_mapping)
@@ -74,8 +72,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["artificial_ms_2"] = artificial_ms
     if "artificial_ms_3" in ms_str_to_load:
-        artificial_ms = MouseSession(age=3, session_id="artificial_3",
-                                     nb_ms_by_frame=100, param=param)
+        artificial_ms = MouseSession(age=3, session_id="artificial_3", param=param)
         variables_mapping = {"coord": "coord_python"}
         artificial_ms.load_data_from_file(file_name_to_load="artificial_movies/3_suite2p_contours/map_coords.mat",
                                           variables_mapping=variables_mapping)
@@ -1228,7 +1225,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         variables_mapping = {"xshifts": "xshifts",
                              "yshifts": "yshifts"}
         p9_19_02_20_a001_ms.load_data_from_file(file_name_to_load=
-                                                "p9/p9_19_02_20_a001/MichelMotC_p9_19_02_20_a003_params.mat",
+                                                "p9/p9_19_02_20_a001/MichelMotC_p9_19_02_20_a001_params.mat",
                                                 variables_mapping=variables_mapping)
 
         # prediction based on rnn ...
@@ -1295,6 +1292,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             file_name="p9/p9_19_02_20_a003/predictions/" +
                       "P9_19_02_20_a003_predictions__2019_05_07.22-06-15_GT_epoch_11_all_cells.mat",
             prediction_threshold=0.5, variables_mapping=variables_mapping)
+        p9_19_02_20_a003_ms.spike_struct.build_spike_nums_and_peak_nums()
+
 
         # DATA FROM period_selection_gui
         variables_mapping = {"shift_twitch": "shift_twitch",
@@ -1322,7 +1321,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         # p9_19_02_20_a003_ms.clean_raster_at_concatenation()
 
-        # p9_19_02_20_a003_ms.spike_struct.build_spike_nums_and_peak_nums()
+
 
         ms_str_to_ms_dict["p9_19_02_20_a003_ms"] = p9_19_02_20_a003_ms
 
@@ -2083,8 +2082,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "richard_015_D74_P2_ms" in ms_str_to_load:
         # from 46517 to the end : all awake, no sleep, but no information about moving or not.
-        richard_015_D74_P2_ms = MouseSession(age=60, session_id="richard_015_D74_P2",
-                                             nb_ms_by_frame=100, param=param)
+        richard_015_D74_P2_ms = MouseSession(age=60, session_id="richard_015_D74_P2", param=param)
         richard_015_D74_P2_ms.activity_threshold = 19
         variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
         richard_015_D74_P2_ms.load_data_from_file(file_name_to_load=
@@ -2094,8 +2092,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["richard_015_D74_P2_ms"] = richard_015_D74_P2_ms
 
     if "richard_015_D89_P2_ms" in ms_str_to_load:
-        richard_015_D89_P2_ms = MouseSession(age=60, session_id="richard_015_D89_P2",
-                                             nb_ms_by_frame=100, param=param)
+        richard_015_D89_P2_ms = MouseSession(age=60, session_id="richard_015_D89_P2", param=param)
         richard_015_D89_P2_ms.activity_threshold = 22
         variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
         richard_015_D89_P2_ms.load_data_from_file(file_name_to_load=
@@ -2106,8 +2103,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["richard_015_D89_P2_ms"] = richard_015_D89_P2_ms
 
     if "richard_015_D66_P2_ms" in ms_str_to_load:
-        richard_015_D66_P2_ms = MouseSession(age=60, session_id="richard_015_D66_P2",
-                                             nb_ms_by_frame=100, param=param)
+        richard_015_D66_P2_ms = MouseSession(age=60, session_id="richard_015_D66_P2", param=param)
         variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
         richard_015_D66_P2_ms.activity_threshold = 22
         richard_015_D66_P2_ms.load_data_from_file(file_name_to_load=
@@ -2118,8 +2114,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["richard_015_D66_P2_ms"] = richard_015_D66_P2_ms
 
     if "richard_015_D75_P2_ms" in ms_str_to_load:
-        richard_015_D75_P2_ms = MouseSession(age=60, session_id="richard_015_D75_P2",
-                                             nb_ms_by_frame=100, param=param)
+        richard_015_D75_P2_ms = MouseSession(age=60, session_id="richard_015_D75_P2", param=param)
         richard_015_D75_P2_ms.activity_threshold = 18
         variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
         richard_015_D75_P2_ms.load_data_from_file(file_name_to_load=
@@ -2130,8 +2125,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["richard_015_D75_P2_ms"] = richard_015_D75_P2_ms
 
     if "richard_018_D32_P2_ms" in ms_str_to_load:
-        richard_018_D32_P2_ms = MouseSession(age=60, session_id="richard_018_D32_P2",
-                                             nb_ms_by_frame=100, param=param)
+        richard_018_D32_P2_ms = MouseSession(age=60, session_id="richard_018_D32_P2", param=param)
         richard_018_D32_P2_ms.activity_threshold = 18
         variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
         richard_018_D32_P2_ms.load_data_from_file(file_name_to_load=
@@ -2142,8 +2136,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["richard_018_D32_P2_ms"] = richard_018_D32_P2_ms
 
     if "richard_018_D28_P2_ms" in ms_str_to_load:
-        richard_018_D28_P2_ms = MouseSession(age=60, session_id="richard_018_D28_P2",
-                                             nb_ms_by_frame=100, param=param)
+        richard_018_D28_P2_ms = MouseSession(age=60, session_id="richard_018_D28_P2", param=param)
         richard_018_D28_P2_ms.activity_threshold = 22
         variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
         richard_018_D28_P2_ms.load_data_from_file(file_name_to_load=
@@ -2154,8 +2147,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["richard_018_D28_P2_ms"] = richard_018_D28_P2_ms
 
     if "richard_028_D1_P1_ms" in ms_str_to_load:
-        richard_028_D1_P1_ms = MouseSession(age=60, session_id="richard_028_D1_P1",
-                                            nb_ms_by_frame=100, param=param)
+        richard_028_D1_P1_ms = MouseSession(age=60, session_id="richard_028_D1_P1",param=param)
         richard_028_D1_P1_ms.activity_threshold = 44
         variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
         richard_028_D1_P1_ms.load_data_from_file(file_name_to_load=
@@ -2166,8 +2158,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["richard_028_D1_P1_ms"] = richard_028_D1_P1_ms
 
     if "richard_028_D2_P1_ms" in ms_str_to_load:
-        richard_028_D2_P1_ms = MouseSession(age=60, session_id="richard_028_D2_P1",
-                                            nb_ms_by_frame=100, param=param)
+        richard_028_D2_P1_ms = MouseSession(age=60, session_id="richard_028_D2_P1", param=param)
         richard_028_D2_P1_ms.activity_threshold = 30
         variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
         richard_028_D2_P1_ms.load_data_from_file(file_name_to_load=

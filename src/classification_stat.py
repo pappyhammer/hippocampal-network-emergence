@@ -166,6 +166,7 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, with_thresho
     transients_stat["TP"] = tp_transients
     transients_stat["FN"] = fn_transients
     if traces is not None:
+        # print(f"tn_transients {tn_transients}")
         transients_stat["TN"] = tn_transients
         transients_stat["FP"] = fp_transients
 
