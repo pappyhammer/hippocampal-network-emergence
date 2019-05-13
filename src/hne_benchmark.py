@@ -221,7 +221,9 @@ class BenchmarkRasterDur:
         if not for_frames:
             result_dict_to_use = self.results_transients_dict_by_cell
         stats_to_show = ["sensitivity", "specificity", "PPV", "NPV"]
-        colors = ["cornflowerblue", "blue", "steelblue", "red", "orange", "yellow", "green", "purple", "brown"]
+        # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+        colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+                  '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
 
         stat_fig, axes = plt.subplots(nrows=2, ncols=2, squeeze=True,
                                       gridspec_kw={'height_ratios': [0.5, 0.5],
@@ -945,11 +947,12 @@ def main_benchmark():
     # ms_to_benchmarks = ["p8_18_10_24_a005_ms"]
     # ms_to_benchmark = "artificial_ms"
     # ms_to_benchmarks = ["p13_18_10_29_a001_ms"]
-    ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-                        "p12_17_11_10_a000", "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"]
-    ms_to_benchmarks = ["p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-                        "p12_17_11_10_a000", "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"]
-    # ms_to_benchmarks = ["p11_17_11_24_a000_ms"]
+    # ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+    #                     "p12_17_11_10_a000", "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"]
+    ms_to_benchmarks = ["p8_18_10_24_a005_ms",
+                        "p12_17_11_10_a000", "p11_17_11_24_a000_ms"]
+    # ms_to_benchmarks = ["p7_17_10_12_a000"]
+    # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
     do_onsets_benchmarks = False
     do_plot_roc_predictions = False
     produce_separate_benchmarks = True
@@ -960,13 +963,11 @@ def main_benchmark():
     boost_predictions = False
     predictions_threshold = 0.5
 
-    predictions_to_load = ["epoch_11", "meso_2", "meso_3", "meso_4", "meso_8", "meso_6", "meso_7", "meso_8", "meso_9"]
+    predictions_to_load = ["epoch_11", "meso_2", "meso_3", "meso_4", "meso_8", "meso_6", "meso_7", "meso_8", "meso_9",
+                           "meso_10", "meso_11", "meso_12"]
     for ms_to_benchmark in ms_to_benchmarks:
         print(f"ms_to_benchmark {ms_to_benchmark}")
         data_dict = dict()
-        # GT_v1_epoch_11, GT_v1_epoch_17, v_26_02, GT_v1_epoch_11_no_trans, GT_v1_epoch_11_no_trans_over_0_5,
-        # GT_v1_epoch_11_no_trans_no_over,  mesocentre_epoch_2, mesocentre_epoch_3, mesocentre_epoch_4,
-        # mesocentre_epoch_5, mesocentre_epoch_6, mesocentre_epoch_7, mesocentre_epoch_8, mesocentre_epoch_9
         load_data_dict(ms_to_benchmark, data_dict, predictions_to_load=predictions_to_load)
         # ground truth
         data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gui_file"]))

@@ -718,7 +718,7 @@ def plot_movement_activity(ms_to_analyse, param, save_formats="pdf"):
         # Other keys are: shift_twitch, shift_long, shift_unclassified
         # or a list of those 3 keys and then will take all frames except those
 
-        if ms.shift_data_dict is None:
+        if (ms.shift_data_dict is None) or (ms.spike_struct.spike_nums_dur is None):
             continue
 
         n_cells = ms.spike_struct.spike_nums_dur.shape[0]
@@ -778,9 +778,18 @@ def plot_psth_over_event_time_correlation_graph_style(ms_to_analyse, event_str, 
 
     n_plots = len(ms_to_analyse)
 
-    max_n_lines = 3
+    max_n_lines = 5
     n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
     n_col = math.ceil(n_plots / n_lines)
+
+    # for scatter, ratio all spikes vs all twitches
+    fig_for_scatter, axes_for_scatter = plt.subplots(nrows=n_lines, ncols=n_col,
+                                                   gridspec_kw={'width_ratios': [1] * n_col,
+                                                                'height_ratios': [1] * n_lines},
+                                                   figsize=(30, 20))
+    fig_for_scatter.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig_for_scatter.patch.set_facecolor(background_color)
+    axes_for_scatter = axes_for_scatter.flatten()
 
     # for histogram all spikes
     fig_all_spikes, axes_all_spikes = plt.subplots(nrows=n_lines, ncols=n_col,
@@ -810,6 +819,7 @@ def plot_psth_over_event_time_correlation_graph_style(ms_to_analyse, event_str, 
         ax.set_facecolor(background_color)
         axes_all_spikes[ax_index].set_facecolor(background_color)
         axes_all_events[ax_index].set_facecolor(background_color)
+        axes_for_scatter[ax_index].set_facecolor(background_color)
         if ax_index >= len(ms_to_analyse):
             continue
         ms = ms_to_analyse[ax_index]
@@ -819,7 +829,9 @@ def plot_psth_over_event_time_correlation_graph_style(ms_to_analyse, event_str, 
                                                     ax_to_use_total_spikes=axes_all_spikes[ax_index],
                                                     color_to_use_total_spikes=colors[ax_index % len(colors)],
                                                     ax_to_use_total_events = axes_all_events[ax_index],
-                                                    color_to_use_total_events =colors[ax_index % len(colors)])
+                                                    color_to_use_total_events =colors[ax_index % len(colors)],
+                                                             ax_to_use_for_scatter=axes_for_scatter[ax_index],
+                                                             color_to_use_for_scatter=colors[ax_index % len(colors)])
 
     if isinstance(save_formats, str):
         save_formats = [save_formats]
@@ -837,6 +849,10 @@ def plot_psth_over_event_time_correlation_graph_style(ms_to_analyse, event_str, 
                     f'_{param.time_str}.{save_format}',
                     format=f"{save_format}",
                     facecolor=fig.get_facecolor())
+        fig_for_scatter.savefig(f'{param.path_results}/scatter_all_spikes_vs_all_twitches_{event_str}_{time_around_events}_by_session'
+                               f'_{param.time_str}.{save_format}',
+                               format=f"{save_format}",
+                               facecolor=fig.get_facecolor())
 
     plt.close()
 
@@ -978,7 +994,7 @@ def plot_all_sum_spikes_dur(ms_to_analyse, param, save_formats="pdf"):
                     facecolor=fig.get_facecolor())
     plt.close()
 
-def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, save_formats="pdf"):
+def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, duration_option=False, save_formats="pdf"):
     """
     Will plot in one plot with subplots all twitches PSTH
     :param ms_to_analyse:
@@ -1006,7 +1022,7 @@ def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, sav
         n_plots = len(ms_to_analyse)
 
 
-    max_n_lines = 3
+    max_n_lines = 5
     n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
     n_col = math.ceil(n_plots / n_lines)
 
@@ -1023,12 +1039,14 @@ def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, sav
             continue
         ms = ms_to_analyse[ax_index]
         ms.plot_psth_twitches(line_mode=line_mode, ax_to_use=ax, put_mean_line_on_plt=line_mode,
-                              color_to_use=colors[ax_index % len(colors)])
-
+                              color_to_use=colors[ax_index % len(colors)], duration_option=duration_option)
+    bonus_file_name = ""
+    if duration_option:
+        bonus_file_name = "_duration"
     if isinstance(save_formats, str):
         save_formats = [save_formats]
     for save_format in save_formats:
-        fig.savefig(f'{param.path_results}/twitches_psth_'
+        fig.savefig(f'{param.path_results}/twitches_psth{bonus_file_name}_'
                     f'_{param.time_str}.{save_format}',
                     format=f"{save_format}",
                     facecolor=fig.get_facecolor())
@@ -1046,10 +1064,12 @@ def plot_all_basic_stats(ms_to_analyse, param, save_formats="pdf"):
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
               '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+
     plot_transient_durations(ms_to_analyse, param, colors=colors, save_formats=save_formats)
     plot_transient_frequency(ms_to_analyse, param, colors=colors, save_formats=save_formats)
     plot_transient_amplitude(ms_to_analyse, param, colors=colors, save_formats=save_formats)
     plot_transient_durations_normalized_by_amplitude(ms_to_analyse, param, colors=colors, save_formats=save_formats)
+
 
 
 def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pdf"):
@@ -1059,8 +1079,41 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
 
     transient_amplitude_by_age = dict()
     transient_amplitude_by_age_avg_by_cell = dict()
+    n_ms = 0
+    for ms_index, ms in enumerate(ms_to_analyse):
+        if ms.spike_struct.spike_nums_dur is not None:
+            n_ms += 1
 
-    for ms in ms_to_analyse:
+    background_color = "black"
+    max_n_lines = 5
+    n_lines = n_ms if n_ms <= max_n_lines else max_n_lines
+    n_col = math.ceil(n_ms / n_lines)
+    # for histogram all events
+    fig_tr_amplitude, axes_tr_amplitude = plt.subplots(nrows=n_lines, ncols=n_col,
+                                                   gridspec_kw={'width_ratios': [1] * n_col,
+                                                                'height_ratios': [1] * n_lines},
+                                                   figsize=(30, 20))
+    fig_tr_amplitude.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig_tr_amplitude.patch.set_facecolor(background_color)
+    axes_tr_amplitude = axes_tr_amplitude.flatten()
+
+    # figure for the psth
+    fig_tr_amplitude_avg, axes_tr_amplitude_avg = plt.subplots(nrows=n_lines, ncols=n_col,
+                             gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
+                             figsize=(30, 20))
+    fig_tr_amplitude_avg.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig_tr_amplitude_avg.patch.set_facecolor(background_color)
+    axes_tr_amplitude_avg = axes_tr_amplitude_avg.flatten()
+
+    for ax_index, ax in enumerate(axes_tr_amplitude):
+        ax.set_facecolor(background_color)
+        axes_tr_amplitude_avg[ax_index].set_facecolor(background_color)
+
+    real_ms_index = 0
+    for ms_index, ms in enumerate(ms_to_analyse):
+        if ms.spike_struct.spike_nums_dur is None:
+            continue
+
         age_str = "p" + str(ms.age)
         if ms.raw_traces is None:
             ms.load_tiff_movie_in_memory()
@@ -1092,6 +1145,9 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
                                path_results=path_results,
                                tight_x_range=True,
                                twice_more_bins=True,
+                               ax_to_use=axes_tr_amplitude[real_ms_index],
+                               color_to_use=colors[real_ms_index%len(colors)],
+                               legend_str=f"{ms.description}",
                                xlabel="Amplitude (DF/F) of transients", save_formats=save_formats)
 
         plot_hist_distribution(distribution_data=transient_amplitude_avg_by_cell,
@@ -1100,7 +1156,25 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
                                path_results=path_results,
                                tight_x_range=True,
                                twice_more_bins=True,
+                               ax_to_use= axes_tr_amplitude_avg[real_ms_index],
+                               color_to_use=colors[real_ms_index%len(colors)],
+                               legend_str=f"{ms.description}",
                                xlabel="Avg amplitude (DF/F) of transients by cell", save_formats=save_formats)
+        real_ms_index += 1
+
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+
+    for save_format in save_formats:
+        fig_tr_amplitude.savefig(f'{path_results}/_hist_transient_amplitude'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig_tr_amplitude.get_facecolor())
+        fig_tr_amplitude_avg.savefig(f'{path_results}/hist_transient_amplitude_by_cell'
+                               f'_{param.time_str}.{save_format}',
+                               format=f"{save_format}",
+                               facecolor=fig_tr_amplitude_avg.get_facecolor())
+
     box_plot_data_by_age(data_dict=transient_amplitude_by_age, title="", filename="transient_amplitude_by_age",
                                path_results=path_results, with_scatters=False,
                         y_label="Amplitude (DF/F) of transients", colors=colors, param=param, save_formats=save_formats)
@@ -1122,6 +1196,10 @@ def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pd
     transient_frequency_by_age = dict()
 
     for ms in ms_to_analyse:
+        if ms.spike_struct.spike_nums_dur is None:
+            print(f"{ms.description} no spike_nums_dur")
+            continue
+
         age_str = "p" + str(ms.age)
         transient_frequency = []
         n_times = ms.spike_struct.spike_nums_dur.shape[1]
@@ -1152,6 +1230,9 @@ def plot_transient_durations_normalized_by_amplitude(ms_to_analyse, param, color
     spike_durations_by_age_avg_by_cell = dict()
 
     for ms in ms_to_analyse:
+        if ms.spike_struct.spike_nums_dur is None:
+            continue
+
         if ms.raw_traces is None:
             ms.load_tiff_movie_in_memory()
             ms.raw_traces = ms.build_raw_traces_from_movie()
@@ -1224,6 +1305,8 @@ def plot_transient_durations(ms_to_analyse, param, colors=None, save_formats="pd
     spike_durations_by_age_avg_by_cell = dict()
 
     for ms in ms_to_analyse:
+        if ms.spike_struct.spike_nums_dur is None:
+            continue
         # print(f"plot_transient_durations: {ms.description}")
         age_str = "p" + str(ms.age)
         # list of length n_cells, each element being a list of int representing the duration of the transient
@@ -1322,7 +1405,8 @@ def plot_duration_spikes_by_age(mouse_sessions, ms_ages,
 def plot_hist_distribution(distribution_data, description, param, values_to_scatter=None,
                            labels=None, scatter_shapes=None, colors=None, tight_x_range=False,
                            twice_more_bins=False, background_color="black", labels_color="white",
-                           xlabel="", ylabel=None, path_results=None, save_formats="pdf"):
+                           xlabel="", ylabel=None, path_results=None, save_formats="pdf",
+                           ax_to_use=None, color_to_use=None, legend_str=""):
     """
     Plot a distribution in the form of an histogram, with option for adding some scatter values
     :param distribution_data:
@@ -1340,7 +1424,10 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
     :return:
     """
     distribution = np.array(distribution_data)
-    hist_color = "blue"
+    if color_to_use is None:
+        hist_color = "blue"
+    else:
+        hist_color = color_to_use
     edge_color = "white"
     if tight_x_range:
         max_range = np.max(distribution)
@@ -1350,15 +1437,18 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
         min_range = 0
     weights = (np.ones_like(distribution) / (len(distribution))) * 100
 
-    fig, ax1 = plt.subplots(nrows=1, ncols=1,
-                            gridspec_kw={'height_ratios': [1]},
-                            figsize=(12, 12))
-    ax1.set_facecolor(background_color)
-    fig.patch.set_facecolor(background_color)
+    if ax_to_use is None:
+        fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                gridspec_kw={'height_ratios': [1]},
+                                figsize=(12, 12))
+        ax1.set_facecolor(background_color)
+        fig.patch.set_facecolor(background_color)
+    else:
+        ax1 = ax_to_use
     bins = int(np.sqrt(len(distribution)))
     if twice_more_bins:
         bins *= 2
-    hist_plt, edges_plt, patches_plt = plt.hist(distribution, bins=bins, range=(min_range, max_range),
+    hist_plt, edges_plt, patches_plt = ax1.hist(distribution, bins=bins, range=(min_range, max_range),
                                                 facecolor=hist_color,
                                                 edgecolor=edge_color,
                                                 weights=weights, log=False)
@@ -1391,17 +1481,17 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
         decay = np.linspace(1.1, 1.15, len(values_to_scatter))
         for i, value_to_scatter in enumerate(values_to_scatter):
             if i < len(labels):
-                plt.scatter(x=value_to_scatter, y=hist_plt[scatter_bins[i]] * decay[i], marker=scatter_shapes[i],
+                ax1.scatter(x=value_to_scatter, y=hist_plt[scatter_bins[i]] * decay[i], marker=scatter_shapes[i],
                             color=colors[i], s=60, zorder=20, label=labels[i])
             else:
-                plt.scatter(x=value_to_scatter, y=hist_plt[scatter_bins[i]] * decay[i], marker=scatter_shapes[i],
+                ax1.scatter(x=value_to_scatter, y=hist_plt[scatter_bins[i]] * decay[i], marker=scatter_shapes[i],
                             color=colors[i], s=60, zorder=20)
         ax1.legend()
 
     if tight_x_range:
-        plt.xlim(min_range, max_range)
+        ax1.set_xlim(min_range, max_range)
     else:
-        plt.xlim(0, 100)
+        ax1.set_xlim(0, 100)
         xticks = np.arange(0, 110, 10)
 
         ax1.set_xticks(xticks)
@@ -1423,21 +1513,22 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
     ax1.xaxis.label.set_color(labels_color)
     ax1.yaxis.label.set_color(labels_color)
 
-    # padding between ticks label and  label axis
-    # ax1.tick_params(axis='both', which='major', pad=15)
-    fig.tight_layout()
+    if ax_to_use is None:
+        # padding between ticks label and  label axis
+        # ax1.tick_params(axis='both', which='major', pad=15)
+        fig.tight_layout()
 
-    if isinstance(save_formats, str):
-        save_formats = [save_formats]
-    if path_results is None:
-        path_results = param.path_results
-    for save_format in save_formats:
-        fig.savefig(f'{path_results}/{description}'
-                    f'_{param.time_str}.{save_format}',
-                    format=f"{save_format}",
-                            facecolor=fig.get_facecolor())
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+        if path_results is None:
+            path_results = param.path_results
+        for save_format in save_formats:
+            fig.savefig(f'{path_results}/{description}'
+                        f'_{param.time_str}.{save_format}',
+                        format=f"{save_format}",
+                                facecolor=fig.get_facecolor())
 
-    plt.close()
+        plt.close()
 
 
 def correlate_global_roi_and_shift(path_data, param):
@@ -2888,6 +2979,33 @@ def print_surprise_for_michou(n_lines, actual_line):
 
     print(f"{result}")
 
+def get_threshold_sum_activity_for_time_periods(raster, time_periods, perc_threshold=95, n_surrogate=1000):
+    """
+    Take a raster and a list of periods (tuple of int), and will shuffle the data (rolling) n times and each time
+    will measure the sum of activity in each period and return the percentile value of the distribution of all periods
+    over the 1000 shuffling
+    :param raster:
+    :param time_periods:
+    :param percentile_threshold:
+    :return:
+    """
+    n_times = raster.shape[1]
+    n_periods = time_periods
+    count = 0
+    n_rand_sum = np.zeros(n_surrogate * n_periods)
+    for i in np.arange(n_surrogate):
+        copy_raster = np.copy(raster)
+        for n, neuron_spikes in enumerate(copy_raster):
+            # roll the data to a random displace number
+            copy_raster[n, :] = np.roll(neuron_spikes, np.random.randint(1, n_times))
+        for period in time_periods:
+            n_rand_sum[count] = np.sum(copy_raster[period[0]:period[1]], axis=0)
+            count += 1
+
+    activity_threshold = np.percentile(n_rand_sum, perc_threshold)
+
+    return activity_threshold
+
 def remove_spike_nums_dur_and_associated_transients(spike_nums_dur, frames_to_keep):
     """
 
@@ -3063,12 +3181,17 @@ def robin_loading_process(param, load_traces, load_abf=True):
     ms_str_to_load = ["p8_18_10_17_a001_ms"]
 
     # session with mouvements periods (twitch, long mvt etc...) available
-    ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                      "p7_18_02_08_a001_ms", "p7_18_02_08_a003_ms", "p7_18_02_08_a000_ms",
-                      "p7_19_03_05_a000_ms", "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                      "p8_18_10_24_a005_ms", "p9_17_12_06_a001_ms",
-                      "p9_19_02_20_a003_ms"]
-    #
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+                      "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                      "p7_19_03_27_a002_ms",
+                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms", "p11_17_11_24_a000_ms"]
+    #   for test
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
     #                   "p7_18_02_08_a001_ms", "p7_18_02_08_a003_ms", "p7_18_02_08_a000_ms",
     #                   "p7_19_03_05_a000_ms", "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
@@ -3140,7 +3263,7 @@ def main():
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
 
-    load_traces = False
+    load_traces = True
 
     if for_lexi:
         ms_str_to_ms_dict = lexi_loading_process(param=param, load_traces=load_traces)
@@ -3156,13 +3279,14 @@ def main():
     just_plot_all_basic_stats = False
     just_plot_all_sum_spikes_dur = False
     just_plot_movement_activity = False
-    just_plot_all_time_correlation_graph_over_events = False
     just_plot_psth_over_event_time_correlation_graph_style = False
+    do_plot_psth_twitches = True
+    just_plot_all_time_correlation_graph_over_events = False
+    just_plot_raster_with_periods = False
+
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
     # periods such as twitch etc...
-    just_plot_raster_with_periods = False
-    do_plot_psth_twitches = True
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_raster_with_cells_assemblies_and_shifts = False
     just_plot_traces_raster = False
@@ -3329,8 +3453,8 @@ def main():
 
     if just_plot_all_time_correlation_graph_over_events:
         # event_str = "shift_twitch" "shift_long"
-        plot_all_time_correlation_graph_over_events(event_str="shift_long", ms_to_analyse=ms_to_analyse,
-                                                      param=param, time_around_events=1)
+        plot_all_time_correlation_graph_over_events(event_str="shift_twitch", ms_to_analyse=ms_to_analyse,
+                                                      param=param, time_around_events=10)
         raise Exception("just_plot_all_time_correlation_graph_over_events")
     if just_plot_psth_over_event_time_correlation_graph_style:
         plot_psth_over_event_time_correlation_graph_style(event_str="shift_twitch", ms_to_analyse=ms_to_analyse,
@@ -3345,7 +3469,7 @@ def main():
     for ms_index, ms in enumerate(ms_to_analyse):
         if do_pattern_search or do_clustering:
             break
-        print(f"ms {ms.description}")
+        print(f"for: ms {ms.description}")
         # np.savez(ms.param.path_data + ms.description + "_rasters_reduced.npz",
         #          spike_nums=ms.spike_struct.spike_nums[:50, :5000],
         #          spike_nums_dur=ms.spike_struct.spike_nums_dur[:50, :5000])
@@ -3359,7 +3483,9 @@ def main():
 
         if do_plot_psth_twitches:
             line_mode = True
-            plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode,  save_formats="pdf")
+            duration_option = True
+            plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode,
+                                               duration_option=duration_option, save_formats="pdf")
             # ms.plot_psth_twitches(line_mode=line_mode)
             # ms.plot_psth_twitches(twitches_group=1, line_mode=line_mode)
             # ms.plot_psth_twitches(twitches_group=2, line_mode=line_mode)
@@ -3370,9 +3496,9 @@ def main():
             continue
 
         if just_plot_raster_with_periods:
-            frames_selected = ms.richard_dict["Active_Wake_Frames"]
-            frames_selected = frames_selected[frames_selected < ms.spike_struct.spike_nums_dur.shape[1]]
-            ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, frames_selected]
+            # frames_selected = ms.richard_dict["Active_Wake_Frames"]
+            # frames_selected = frames_selected[frames_selected < ms.spike_struct.spike_nums_dur.shape[1]]
+            # ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, frames_selected]
             ms.plot_raster_with_periods(ms.shift_data_dict)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("The Lannisters always pay their debts")

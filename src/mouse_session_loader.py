@@ -98,7 +98,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["artificial_ms_3"] = artificial_ms
 
     if "p5_19_03_25_a000_ms" in ms_str_to_load:
-        p5_19_03_25_a000_ms = MouseSession(age=5, session_id="19_03_25_a001",
+        p5_19_03_25_a000_ms = MouseSession(age=5, session_id="19_03_25_a000",
                                            sampling_rate=8, param=param)
         # for threshold prediction at 0.5
         # p5_19_03_25_a000_ms.activity_threshold =
@@ -144,7 +144,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             raw_traces_loaded = p5_19_03_25_a000_ms.load_raw_traces_from_npy(path="p5/p5_19_03_25_a000")
             if not raw_traces_loaded:
                 p5_19_03_25_a000_ms.load_tiff_movie_in_memory()
-                p5_19_03_25_a000_ms.raw_traces = p5_19_03_25_a001_ms.build_raw_traces_from_movie()
+                p5_19_03_25_a000_ms.raw_traces = p5_19_03_25_a000_ms.build_raw_traces_from_movie()
                 p5_19_03_25_a000_ms.save_raw_traces(path="p5/p5_19_03_25_a000")
 
         p5_19_03_25_a000_ms.clean_raster_at_concatenation()
@@ -173,13 +173,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p5_19_03_25_a001_ms.load_data_from_file(file_name_to_load=
                                                 "p5/p5_19_03_25_a001/MichelMotC_p5_19_03_25_a001_params.mat",
                                                 variables_mapping=variables_mapping)
-
-        variables_mapping = {"shift_twitch": "shift_twitch",
-                             "shift_long": "shift_long",
-                             "shift_unclassified": "shift_unclassified"}
-        p5_19_03_25_a001_ms.load_data_from_period_selection_gui(file_name_to_load=
-                                                                "p5/p5_19_03_25_a001/p5_19_03_25_a001_twitch_MP.npz",
-                                                                variables_mapping=variables_mapping)
 
         # prediction based on rnn trained on 50 cells, BO,
         variables_mapping = {"predictions": "predictions"}
@@ -905,10 +898,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p8_18_10_17_a001_ms = MouseSession(age=8, session_id="18_10_17_a001", sampling_rate=10, param=param,
                                            weight=6)
         # calculated with 99th percentile on raster dur
-        p8_18_10_17_a001_ms.activity_threshold = 9
+        # p8_18_10_17_a001_ms.activity_threshold = 9
         # p8_18_10_17_a001_ms.set_low_activity_threshold(threshold=0, percentile_value=1)
         # p8_18_10_17_a001_ms.set_low_activity_threshold(threshold=1, percentile_value=5)
-        p8_18_10_17_a001_ms.set_inter_neurons([117, 135, 217, 271])
+        # p8_18_10_17_a001_ms.set_inter_neurons([117, 135, 217, 271])
         # duration of those interneurons: 32.33, 171, 144.5, 48.8
         variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
                              "spike_nums": "filt_Bin100ms_spikedigital",
@@ -924,10 +917,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             p8_18_10_17_a001_ms.load_data_from_file(
                 file_name_to_load="p8/p8_18_10_17_a001/p8_18_10_17_a001_raw_Traces.mat",
                 variables_mapping=variables_mapping)
-        variables_mapping = {"coord": "ContoursAll"}
-        p8_18_10_17_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a001/p8_18_10_17_a001_CellDetect.mat",
-                                                variables_mapping=variables_mapping)
-        p8_18_10_17_a001_ms.set_avg_cell_map_tif(file_name="p8/p8_18_10_17_a001/AVG_p8_18_10_17_a001.tif")
+        # variables_mapping = {"coord": "ContoursAll"}
+        # p8_18_10_17_a001_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_17_a001/p8_18_10_17_a001_CellDetect.mat",
+        #                                         variables_mapping=variables_mapping)
+        # p8_18_10_17_a001_ms.set_avg_cell_map_tif(file_name="p8/p8_18_10_17_a001/AVG_p8_18_10_17_a001.tif")
         # CORRUPTED ABF ??
         if load_abf:
             # TODO: SEE why it's crashing
