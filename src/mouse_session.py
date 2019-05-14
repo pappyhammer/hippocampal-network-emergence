@@ -4,7 +4,7 @@ from scipy import signal
 # important to avoid a bug when using virtualenv
 # import matplotlib
 # matplotlib.use('TkAgg')
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 import hdf5storage
 import time
@@ -20,7 +20,7 @@ import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.tools.misc import get_time_correlation_data
 from pattern_discovery.tools.misc import get_continous_time_periods
 from pattern_discovery.display.raster import plot_spikes_raster
-# from pattern_discovery.display.misc import time_correlation_graph
+from pattern_discovery.display.misc import time_correlation_graph, plot_hist_distribution, plot_scatters
 from pattern_discovery.display.cells_map_module import CoordClass
 from sortedcontainers import SortedDict
 from matplotlib.patches import Patch
@@ -31,10 +31,11 @@ from pattern_discovery.tools.signal import smooth_convolve
 import PIL
 from PIL import ImageSequence
 from sklearn.decomposition import PCA
-from shapely.geometry import MultiPoint
+from shapely.geometry import MultiPoint, LineString
 from ScanImageTiffReader import ScanImageTiffReader
 import hne_animation as hne_anim
 import math
+
 
 class MouseSession:
     def __init__(self, age, session_id, param, sampling_rate=10, weight=None, spike_nums=None, spike_nums_dur=None,
@@ -381,13 +382,17 @@ class MouseSession:
                 self.z_score_smooth_traces[i, :] = (self.smooth_traces[i, :] - np.mean(self.smooth_traces[i, :])) \
                                         / np.std(self.smooth_traces[i, :])
 
-    def plot_psth_over_twitches_time_correlation_graph_style(self):
+    def plot_psth_over_event_time_correlation_graph_style(self, event_str, time_around_events=10,
+                                                             ax_to_use=None, color_to_use=None,
+                                                          ax_to_use_total_events=None, color_to_use_total_events=None,
+                                                          ax_to_use_total_spikes=None, color_to_use_total_spikes=None,
+                                                          ax_to_use_for_scatter=None, color_to_use_for_scatter=None):
         """
-        Same shape as a time-correlation graph but the zeo will correpsond the twitches time, the celle will be
+        Same shape as a time-correlation graph but the zero will correpsond the event time, the celle will be
         correlated with itself
         :return:
         """
-        if self.twitches_frames_periods is None:
+        if (self.shift_data_dict is None) or (self.spike_struct.spike_nums is None):
             return
 
         # results = get_time_correlation_data(spike_nums=self.spike_struct.spike_nums,
@@ -395,10 +400,12 @@ class MouseSession:
         # self.time_lags_list, self.correlation_list, \
         # self.time_lags_dict, self.correlation_dict, self.time_lags_window, cells_list = results
         spike_nums = self.spike_struct.spike_nums
-        events_times = self.twitches_frames_periods
+
+        # events_times = self.twitches_frames_periods
+        events_times = get_continous_time_periods(self.shift_data_dict[event_str].astype("int8"))
         n_twitches = len(events_times)
         print(f"{self.description}: number of twitches {n_twitches}")
-        time_around_events = 10
+        time_around_events = time_around_events
 
         nb_neurons = len(spike_nums)
         n_times = len(spike_nums[0, :])
@@ -409,6 +416,7 @@ class MouseSession:
         time_lags_list = []
         correlation_list = []
         cells_list = []
+        nb_spikes_by_cell = dict()
 
         # first determining what is the maximum duration of an event, for array dimension purpose
         # max_duration_event = 0
@@ -442,7 +450,9 @@ class MouseSession:
             # looping on each spike of the main neuron
             for n, event_times in enumerate(events_times):
                 # only taking in consideration events that are not too close from bottom range or upper range
-                event_time = (event_times[0] + event_times[1]) // 2
+                # event_time = (event_times[0] + event_times[1]) // 2
+                # taking beginning of event
+                event_time = event_times[0]
                 min_limit = max(0, (event_time - time_around_events))
                 max_limit = min(event_time + 1 + time_around_events, n_times)
                 # min((peak_time + time_window), (n_times - 1))
@@ -450,6 +460,8 @@ class MouseSession:
                     continue
                 # see to consider the case in which the cell spikes 2 times around a peak during the tim_window
                 neuron_spike_time = spike_nums[neuron, min_limit:max_limit]
+                # if np.sum(neuron_spike_time) > 1:
+                # print(f"np.sum(neuron_spike_time) {np.sum(neuron_spike_time)} {np.where(neuron_spike_time)[0]}")
                 # spikes_indices = np.where(spike_nums_to_use[:, min_limit:max_limit])
                 beg_index = 0
                 if (event_time - time_around_events) < 0:
@@ -460,31 +472,48 @@ class MouseSession:
                 distribution_array[beg_index:beg_index + len_result] += neuron_spike_time
                 # distribution_array_2_d[neuron, :] = copy_of_neuron_distrib
             total_spikes = np.sum(distribution_array)
-            adding_this_neuron = True
+            total_spikes_after = np.sum(distribution_array[time_around_events-1:])
+            adding_this_neuron = total_spikes > 0
 
-            if np.sum(distribution_array[time_around_events - 2:]) < 2:
-                adding_this_neuron = False
+            # if np.sum(distribution_array[time_around_events - 2:]) < 2:
+            #     adding_this_neuron = False
+            #
+            # if np.sum(distribution_array[time_around_events - 2:]) <= 2 * np.sum(
+            #         distribution_array[:time_around_events - 2]):
+            #     adding_this_neuron = False
 
-            if np.sum(distribution_array[time_around_events - 2:]) <= 2 * np.sum(
-                    distribution_array[:time_around_events - 2]):
-                adding_this_neuron = False
-
-            if np.sum(distribution_array[time_around_events - 2:]) > 1:
-                nb_spikes = np.sum(distribution_array[time_around_events - 2:])
-                print(f"cell {neuron}: distribution_array {distribution_array}")
+            # if np.sum(distribution_array[time_around_events - 2:]) > 1:
+            if adding_this_neuron:
+                # nb_spikes = np.sum(distribution_array[time_around_events - 2:])
+                # nb_spikes = total_spikes
+                nb_spikes_by_cell[neuron] = total_spikes
+                nb_spikes = total_spikes_after
+                # print(f"cell {neuron}: distribution_array {distribution_array}")
                 # TODO: plot distribution of % ratio
                 # TODO: plot piezzo for top cells in distribution
                 ratio_cells.append(neuron)
                 ratio_spike_twitch_total_twitches.append((nb_spikes / n_twitches) * 100)
                 ratio_spike_twitch_total_spikes.append((nb_spikes / np.sum(spike_nums[neuron, :])) * 100)
-                print(f"ratio spikes after twitch / n_twitches: "
-                      f"{np.round(nb_spikes / n_twitches, 3)}")
-                print(f"ratio spikes after twitch / n_spikes: "
-                      f"{np.round(nb_spikes / np.sum(spike_nums[neuron, :]), 3)}")
+                # print(f"ratio spikes after twitch / n_twitches: "
+                #       f"{np.round(nb_spikes / n_twitches, 3)}")
+                # print(f"ratio spikes after twitch / n_spikes: "
+                #       f"{np.round(nb_spikes / np.sum(spike_nums[neuron, :]), 3)}")
 
             # adding the cell only if it has at least a spike around peak times
             if adding_this_neuron:
-                correlation_value = np.max(distribution_array) / total_spikes
+                bin_distrib = np.copy(distribution_array)
+                # joining 2 frames
+                bin_size = 2
+                if len(bin_distrib) % 2 != 0:
+                    bin_distrib = bin_distrib[:-1]
+                # elif len(bin_distrib) % 3 == 0:
+                #     bin_size = 3
+
+                bin_distrib = np.reshape(bin_distrib, (bin_size, len(bin_distrib) // bin_size))
+                bin_distrib = np.sum(bin_distrib, axis=0)
+                bin_distrib = np.reshape(bin_distrib, (bin_size, len(bin_distrib) // bin_size))
+                bin_distrib = np.sum(bin_distrib, axis=0)
+                correlation_value = np.max(bin_distrib) / total_spikes
                 # array_to_average = np.zeros(np.sum(distribution_array))
                 # start = 0
                 # for index, time_lag in enumerate(np.arange(-time_window * 2, time_window * 2 + 1)):
@@ -508,9 +537,21 @@ class MouseSession:
         ratio_spike_twitch_total_spikes = np.array(ratio_spike_twitch_total_spikes)
         ratio_cells = np.array(ratio_cells)
 
-        inter_neurons = np.array(self.spike_struct.inter_neurons)
-        # keeping only interneurons that are among the selected cells
-        inter_neurons = np.intersect1d(ratio_cells, inter_neurons)
+        # plot both ratio on the same plot
+        plot_scatters(ratio_spike_twitch_total_twitches, ratio_spike_twitch_total_spikes, size_scatter=30,
+                      ax_to_use=ax_to_use_for_scatter, color_to_use=color_to_use_for_scatter,
+                      legend_str=self.description,
+                      xlabel="spikes in twitches vs total twitches (%)",
+                      ylabel="spikes in twitches vs total spikes (%)",
+                      filename_option="total_twitches_vs_total_spikes",
+                      save_formats="pdf")
+
+        if self.spike_struct.inter_neurons is not None:
+            inter_neurons = np.array(self.spike_struct.inter_neurons)
+            # keeping only interneurons that are among the selected cells
+            inter_neurons = np.intersect1d(ratio_cells, inter_neurons)
+        else:
+            inter_neurons = []
         values_to_scatter = []
         non_inter_neurons = np.setdiff1d(ratio_cells, inter_neurons)
         ratio_interneurons = []
@@ -533,23 +574,26 @@ class MouseSession:
             labels.extend(["mean"])
             scatter_shapes.extend(["o"])
             colors.extend(["white"])
-        if len(ratio_interneurons) > 0:
-            values_to_scatter.append(np.mean(ratio_interneurons))
-            values_to_scatter.extend(ratio_interneurons)
-            labels.extend(["mean", f"interneuron (x{len(inter_neurons)})"])
-            scatter_shapes.extend(["o"])
-            scatter_shapes.extend(["*"] * len(inter_neurons))
-            colors.extend(["red"])
-            colors.extend(["red"] * len(inter_neurons))
+        # if len(ratio_interneurons) > 0:
+        #     values_to_scatter.append(np.mean(ratio_interneurons))
+        #     values_to_scatter.extend(ratio_interneurons)
+        #     labels.extend(["mean", f"interneuron (x{len(inter_neurons)})"])
+        #     scatter_shapes.extend(["o"])
+        #     scatter_shapes.extend(["*"] * len(inter_neurons))
+        #     colors.extend(["red"])
+        #     colors.extend(["red"] * len(inter_neurons))
 
-        plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spike_twitch_total_spikes,
-                                      description=f"{self.description}_hist_spike_twitches_ratio_over_total_spikes",
+        plot_hist_distribution(distribution_data=ratio_spike_twitch_total_spikes,
+                                      description=f"{self.description}",
                                       values_to_scatter=np.array(values_to_scatter),
                                       labels=labels,
                                       scatter_shapes=scatter_shapes,
-                                      colors=colors, twice_more_bins=True,
-                                      xlabel="spikes in twitch vs total spikes (%)",
-                                      param=self.param)
+                                      colors=colors,
+                               twice_more_bins=True,
+                                      xlabel=f"spikes in {event_str} vs total spikes (%)",
+                                      param=self.param,
+                               ax_to_use=ax_to_use_total_spikes,
+                               color_to_use=color_to_use_total_spikes)
 
         # keeping only interneurons that are among the selected cells
         inter_neurons = np.intersect1d(ratio_cells, inter_neurons)
@@ -575,23 +619,26 @@ class MouseSession:
             labels.extend(["mean"])
             scatter_shapes.extend(["o"])
             colors.extend(["white"])
-        if len(ratio_interneurons) > 0:
-            values_to_scatter.append(np.mean(ratio_interneurons))
-            values_to_scatter.extend(ratio_interneurons)
-            labels.extend(["mean", f"interneuron (x{len(inter_neurons)})"])
-            scatter_shapes.extend(["o"])
-            scatter_shapes.extend(["*"] * len(inter_neurons))
-            colors.extend(["red"])
-            colors.extend(["red"] * len(inter_neurons))
+        # if len(ratio_interneurons) > 0:
+        #     values_to_scatter.append(np.mean(ratio_interneurons))
+        #     values_to_scatter.extend(ratio_interneurons)
+        #     labels.extend(["mean", f"interneuron (x{len(inter_neurons)})"])
+        #     scatter_shapes.extend(["o"])
+        #     scatter_shapes.extend(["*"] * len(inter_neurons))
+        #     colors.extend(["red"])
+        #     colors.extend(["red"] * len(inter_neurons))
 
-        plot_hist_ratio_spikes_events(ratio_spikes_events=ratio_spike_twitch_total_twitches,
-                                      description=f"{self.description}_hist_spike_twitches_ratio_over_total_twitches",
+        plot_hist_distribution(distribution_data=ratio_spike_twitch_total_twitches,
+                                description=f"{self.description}",
                                       values_to_scatter=np.array(values_to_scatter),
                                       labels=labels,
                                       scatter_shapes=scatter_shapes,
-                                      colors=colors, twice_more_bins=True,
-                                      xlabel="spikes in twitch vs total twitches (%)",
-                                      param=self.param)
+                                      colors=colors,
+                               twice_more_bins=True,
+                                      xlabel=f"spikes in {event_str} vs total {event_str} (%)",
+                                      param=self.param,
+                               ax_to_use=ax_to_use_total_events,
+                               color_to_use=color_to_use_total_events)
         #
 
         cells_groups = []
@@ -619,15 +666,17 @@ class MouseSession:
                                n_cells=self.spike_struct.n_cells,
                                time_window=time_window,
                                plot_cell_numbers=True,
+                               value_to_text_in_cell=nb_spikes_by_cell,
                                cells_groups=cells_groups,
                                groups_colors=groups_colors,
-                               data_id=self.description + "_around_twitches_psth_style",
+                               data_id=self.description + f"_{event_str}_{n_twitches}",
                                param=self.param,
                                set_x_limit_to_max=True,
                                time_stamps_by_ms=0.01,
                                ms_scale=200,
                                size_cells_in_groups=150,
-                               show_percentiles=show_percentiles)
+                               show_percentiles=show_percentiles,
+                               ax_to_use=ax_to_use, color_to_use=color_to_use)
 
         # now we take the cells that are the most correlated to twitches
 
@@ -813,11 +862,12 @@ class MouseSession:
             raw_traces[cell, :] = np.mean(self.tiff_movie[:, mask], axis=1)
         return raw_traces
 
-    def plot_time_correlation_graph_over_twitches(self):
-        if self.twitches_frames_periods is None:
+    def plot_time_correlation_graph_over_events(self, event_str, time_around_events=10, ax_to_use=None, color_to_use=None):
+        if (self.shift_data_dict is None) or (self.spike_struct.spike_nums is None):
             return
+        twitches_frames_periods = get_continous_time_periods(self.shift_data_dict[event_str].astype("int8"))
         results = get_time_correlation_data(spike_nums=self.spike_struct.spike_nums,
-                                            events_times=self.twitches_frames_periods, time_around_events=10)
+                                            events_times=twitches_frames_periods, time_around_events=time_around_events)
         self.time_lags_list, self.correlation_list, \
         self.time_lags_dict, self.correlation_dict, self.time_lags_window, cells_list = results
 
@@ -845,16 +895,18 @@ class MouseSession:
                                correlation_dict=self.correlation_dict,
                                n_cells=self.spike_struct.n_cells,
                                time_window=time_window,
-                               plot_cell_numbers=True,
+                               plot_cell_numbers=False,
                                cells_groups=cells_groups,
                                groups_colors=groups_colors,
-                               data_id=self.description + "around_twitches",
+                               data_id=self.description + "_" + event_str,
                                param=self.param,
                                set_x_limit_to_max=True,
                                time_stamps_by_ms=0.01,
                                ms_scale=200,
                                size_cells_in_groups=150,
-                               show_percentiles=show_percentiles)
+                               show_percentiles=show_percentiles,
+                               ax_to_use=ax_to_use,
+                               color_to_use=color_to_use)
 
     def define_twitches_events(self):
         if self.twitches_frames_periods is None:
@@ -1000,6 +1052,93 @@ class MouseSession:
                 spikes_at_time_dict[time_spike].append(np.where(spike_nums_to_use[:, twitch_time + i])[0])
         return spike_sum_of_sum_at_time_dict, spikes_sums_at_time_dict, spikes_at_time_dict
 
+    def get_spikes_duration_by_time_around_a_time(self, twitches_times, spike_nums_to_use, time_around):
+
+        # key is an int which reprensent the sum of spikes's duration at a certain distance (in ms) of the event,
+        # negative or positive
+        spike_sum_of_sum_at_time_dict = SortedDict()
+        # same as before, but not normalized
+        spike_sum_of_sum_non_norm_at_time_dict = SortedDict()
+        spikes_sums_at_time_dict = SortedDict()
+        spikes_at_time_dict = SortedDict()
+
+        n_times = len(spike_nums_to_use[0, :])
+        n_cells = len(spike_nums_to_use)
+
+        if len(twitches_times) == 0:
+            return
+
+        for twitch_id, twitch_time in enumerate(twitches_times):
+
+            beg_time = np.max((0, twitch_time - time_around))
+            end_time = np.min((n_times, twitch_time + time_around + 1))
+
+            # before the event
+            spike_nums_duration = np.copy(spike_nums_to_use).astype("int16")
+            # we put at each time the duration of the transient instead of the ones
+            for cell in np.arange(len(spike_nums_to_use)):
+                periods = get_continous_time_periods(spike_nums_to_use[cell])
+                for period in periods:
+                    # in ms
+                    duration = int(((period[1] - period[0] + 1) / self.sampling_rate) * 1000)
+                    spike_nums_duration[cell, period[0]:period[1]+1] = duration
+            duration_spikes = np.sum(spike_nums_duration[:, beg_time:twitch_time], axis=0)
+            sum_spikes = np.sum(spike_nums_to_use[:, beg_time:twitch_time], axis=0)
+
+            # print(f"before time_spikes {time_spikes}")
+            time_spikes = np.arange(-(twitch_time - beg_time), 0)
+            for i, time_spike in enumerate(time_spikes):
+                # normalizaing by the number of cells
+                if sum_spikes[i] > 0:
+                    spike_sum_of_sum_at_time_dict[time_spike] = spike_sum_of_sum_at_time_dict.get(time_spike, 0) + \
+                                                                (duration_spikes[i] / sum_spikes[i])
+                else:
+                    spike_sum_of_sum_at_time_dict[time_spike] = spike_sum_of_sum_at_time_dict.get(time_spike, 0) + \
+                                                                duration_spikes[i]
+                spike_sum_of_sum_non_norm_at_time_dict[time_spike] = \
+                    spike_sum_of_sum_non_norm_at_time_dict.get(time_spike, 0) + \
+                                                            duration_spikes[i]
+                if time_spike not in spikes_sums_at_time_dict:
+                    spikes_sums_at_time_dict[time_spike] = []
+                if sum_spikes[i] > 0:
+                    spikes_sums_at_time_dict[time_spike].append((duration_spikes[i] / sum_spikes[i]))
+                else:
+                    spikes_sums_at_time_dict[time_spike].append(0)
+
+                if time_spike not in spikes_at_time_dict:
+                    spikes_at_time_dict[time_spike] = []
+                spikes_at_time_dict[time_spike].append(np.where(spike_nums_to_use[:, beg_time + i])[0])
+
+            # after the event
+            duration_spikes = np.sum(spike_nums_duration[:, twitch_time:end_time], axis=0)
+            sum_spikes = np.sum(spike_nums_to_use[:, twitch_time:end_time], axis=0)
+
+            time_spikes = np.arange(0, end_time - twitch_time)
+            for i, time_spike in enumerate(time_spikes):
+                if sum_spikes[i] > 0:
+                    spike_sum_of_sum_at_time_dict[time_spike] = spike_sum_of_sum_at_time_dict.get(time_spike, 0) + \
+                                                                (duration_spikes[i] / sum_spikes[i])
+                else:
+                    spike_sum_of_sum_at_time_dict[time_spike] = spike_sum_of_sum_at_time_dict.get(time_spike, 0) + \
+                                                                duration_spikes[i]
+
+                spike_sum_of_sum_non_norm_at_time_dict[time_spike] = \
+                    spike_sum_of_sum_non_norm_at_time_dict.get(time_spike, 0) + \
+                    duration_spikes[i]
+
+                if time_spike not in spikes_sums_at_time_dict:
+                    spikes_sums_at_time_dict[time_spike] = []
+                if sum_spikes[i] > 0:
+                    spikes_sums_at_time_dict[time_spike].append((duration_spikes[i] / sum_spikes[i]))
+                else:
+                    spikes_sums_at_time_dict[time_spike].append(0)
+
+                if time_spike not in spikes_at_time_dict:
+                    spikes_at_time_dict[time_spike] = []
+                spikes_at_time_dict[time_spike].append(np.where(spike_nums_to_use[:, twitch_time + i])[0])
+        return spike_sum_of_sum_at_time_dict, spike_sum_of_sum_non_norm_at_time_dict, spikes_sums_at_time_dict, \
+               spikes_at_time_dict
+
     def detect_twitches(self):
         """
         Detecting twitches based on the mvt periods. A twitch should be short movement with no movement
@@ -1056,63 +1195,75 @@ class MouseSession:
         twitches_times = []
         twitches_periods = []
 
-        if twitches_group == 7:
-            sce_times_related_to_twitch = np.zeros(len(sce_bool), dtype="bool")
-            for twitch_period in self.twitches_frames_periods:
-                is_in_sce = np.any(sce_bool[twitch_period[0]: twitch_period[1] + 1])
-                if is_in_sce:
-                    indices = np.where(sce_bool[twitch_period[0]: twitch_period[1] + 1])[0] + twitch_period[0]
-                    sce_times_related_to_twitch[indices] = True
-                # looking if there is a sce less than a second after
-                end_time = np.min((twitch_period[1] + 1 + 10, len(sce_bool)))
-                sce_after = np.any(sce_bool[twitch_period[1]:end_time])
-
-                if sce_after:
-                    indices = np.where(sce_bool[twitch_period[1]:end_time])[0] + twitch_period[1]
-                    sce_times_related_to_twitch[indices] = True
-
-            for sce_period in sce_periods:
-                if not np.any(sce_times_related_to_twitch[sce_period[0]:sce_period[1] + 1]):
-                    twitches_times.append((sce_period[0] + sce_period[1]) // 2)
-                    twitches_periods.append((sce_period[0], sce_period[1]))
-
-        for twitch_period in self.twitches_frames_periods:
+        # not using twitches_groups anymore
+        twitches_frames_periods = get_continous_time_periods(self.shift_data_dict["shift_twitch"].astype("int8"))
+        for twitch_period in twitches_frames_periods:
             if (sce_bool is None) or (twitches_group == 0):
-                twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+                # twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+                # taking beginning of twitch
+                twitches_times.append(twitch_period[0])
                 twitches_periods.append((twitch_period[0], twitch_period[1]))
-                continue
-            is_in_sce = np.any(sce_bool[twitch_period[0]: twitch_period[1] + 1])
-            if twitches_group == 1:
-                if is_in_sce:
-                    twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
-                    twitches_periods.append((twitch_period[0], twitch_period[1]))
-                continue
 
-            if twitches_group == 2:
-                if not is_in_sce:
-                    twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
-                    twitches_periods.append((twitch_period[0], twitch_period[1]))
-                continue
-
-            if is_in_sce:
-                continue
-            # looking if there is a sce less than a second after
-            end_time = np.min((twitch_period[1] + 1 + 10, len(sce_bool)))
-            sce_after = np.any(sce_bool[twitch_period[1]:end_time])
-            if twitches_group == 3:
-                if sce_after:
-                    twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
-                    twitches_periods.append((twitch_period[0], twitch_period[1]))
-                    continue
-            if twitches_group == 4:
-                if not sce_after:
-                    twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
-                    twitches_periods.append((twitch_period[0], twitch_period[1]))
-                    continue
+        # if twitches_group == 7:
+        #     sce_times_related_to_twitch = np.zeros(len(sce_bool), dtype="bool")
+        #     for twitch_period in self.twitches_frames_periods:
+        #         is_in_sce = np.any(sce_bool[twitch_period[0]: twitch_period[1] + 1])
+        #         if is_in_sce:
+        #             indices = np.where(sce_bool[twitch_period[0]: twitch_period[1] + 1])[0] + twitch_period[0]
+        #             sce_times_related_to_twitch[indices] = True
+        #         # looking if there is a sce less than a second after
+        #         end_time = np.min((twitch_period[1] + 1 + 10, len(sce_bool)))
+        #         sce_after = np.any(sce_bool[twitch_period[1]:end_time])
+        #
+        #         if sce_after:
+        #             indices = np.where(sce_bool[twitch_period[1]:end_time])[0] + twitch_period[1]
+        #             sce_times_related_to_twitch[indices] = True
+        #
+        #     for sce_period in sce_periods:
+        #         if not np.any(sce_times_related_to_twitch[sce_period[0]:sce_period[1] + 1]):
+        #             twitches_times.append((sce_period[0] + sce_period[1]) // 2)
+        #             twitches_periods.append((sce_period[0], sce_period[1]))
+        #
+        # for twitch_period in self.twitches_frames_periods:
+        #     if (sce_bool is None) or (twitches_group == 0):
+        #         twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+        #         twitches_periods.append((twitch_period[0], twitch_period[1]))
+        #         continue
+        #     is_in_sce = np.any(sce_bool[twitch_period[0]: twitch_period[1] + 1])
+        #     if twitches_group == 1:
+        #         if is_in_sce:
+        #             twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+        #             twitches_periods.append((twitch_period[0], twitch_period[1]))
+        #         continue
+        #
+        #     if twitches_group == 2:
+        #         if not is_in_sce:
+        #             twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+        #             twitches_periods.append((twitch_period[0], twitch_period[1]))
+        #         continue
+        #
+        #     if is_in_sce:
+        #         continue
+        #     # looking if there is a sce less than a second after
+        #     end_time = np.min((twitch_period[1] + 1 + 10, len(sce_bool)))
+        #     sce_after = np.any(sce_bool[twitch_period[1]:end_time])
+        #     if twitches_group == 3:
+        #         if sce_after:
+        #             twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+        #             twitches_periods.append((twitch_period[0], twitch_period[1]))
+        #             continue
+        #     if twitches_group == 4:
+        #         if not sce_after:
+        #             twitches_times.append((twitch_period[0] + twitch_period[1]) // 2)
+        #             twitches_periods.append((twitch_period[0], twitch_period[1]))
+        #             continue
         return twitches_times, twitches_periods
 
     def get_spikes_values_around_twitches(self, sce_bool=None, time_around=100,
                                           twitches_group=0, low_percentile=25, high_percentile=75):
+        if self.spike_struct.spike_nums_dur is None:
+            return
+
         spike_nums_dur = self.spike_struct.spike_nums_dur
         # spike_nums = self.spike_struct.spike_nums
         spike_nums_to_use = spike_nums_dur
@@ -1161,12 +1312,69 @@ class MouseSession:
         return n_twitches, time_x_values, np.array(mean_values), \
                np.array(median_values), np.array(low_values), np.array(high_values), np.array(std_values)
 
+    def get_spikes_duration_values_around_twitches(self, sce_bool=None, time_around=100,
+                                          twitches_group=0, low_percentile=25, high_percentile=75):
+        # UGLY CODE
+        if self.spike_struct.spike_nums_dur is None:
+            return
+
+        spike_nums_dur = self.spike_struct.spike_nums_dur
+        # spike_nums = self.spike_struct.spike_nums
+        spike_nums_to_use = spike_nums_dur
+
+        n_cells = len(spike_nums_dur)
+
+        # frames on which to center the ptsth
+        twitches_times, twitches_periods = self.get_twitches_times_by_group(sce_bool=sce_bool,
+                                                                            twitches_group=twitches_group)
+
+        n_twitches = len(twitches_times)
+
+        results = self.get_spikes_duration_by_time_around_a_time(twitches_times, spike_nums_to_use, time_around)
+        if results is None:
+            return
+
+        # sum of duration, already normalized by the number of active cells
+        spike_sum_of_sum_at_time_dict, spike_sum_of_sum_non_norm_at_time_dict, spikes_sums_at_time_dict, \
+        spikes_at_time_dict = results
+
+        distribution = []
+        mean_values = []
+        median_values = []
+        low_values = []
+        high_values = []
+        std_values = []
+        time_x_values = np.arange(-1 * time_around, time_around + 1)
+        for time, duration_spikes_at_time in spike_sum_of_sum_non_norm_at_time_dict.items():
+            # print(f"time {time}")
+            distribution.extend([time] * duration_spikes_at_time)
+            # mean percentage of cells at each twitch
+        for time_value in time_x_values:
+            if time_value in spike_sum_of_sum_at_time_dict:
+                mean_values.append(np.mean(spikes_sums_at_time_dict[time_value]))
+                median_values.append(np.median(spikes_sums_at_time_dict[time_value]))
+                std_values.append(np.std(spikes_sums_at_time_dict[time_value]))
+                low_values.append(np.percentile(spikes_sums_at_time_dict[time_value], low_percentile) / n_cells)
+                high_values.append(np.percentile(spikes_sums_at_time_dict[time_value], high_percentile) / n_cells)
+            else:
+                print(f"time {time_value} not there")
+                mean_values.append(0)
+                std_values.append(0)
+                median_values.append(0)
+                low_values.append(0)
+                high_values.append(0)
+        return n_twitches, time_x_values, np.array(mean_values), \
+               np.array(median_values), np.array(low_values), np.array(high_values), np.array(std_values)
+
     def plot_psth_twitches(self, time_around=100,
                            twitches_group=0, line_mode=False,
+                           ax_to_use=None, put_mean_line_on_plt=False,
+                           color_to_use=None,
                            with_other_ms=None,
+                           duration_option = False,
                            save_formats="pdf"):
         """
-
+        Not using groups anymore
         :param sce_bool:
         :param only_in_sce:
         :param time_around:
@@ -1179,24 +1387,31 @@ class MouseSession:
         :return:
         """
 
-        if self.twitches_frames_periods is None:
+        # if self.twitches_frames_periods is None:
+        #     return
+        if self.shift_data_dict is None:
             return
 
-        sce_bool = self.sce_bool
+        # sce_bool = self.sce_bool
+        sce_bool = None
 
         if with_other_ms is not None:
             line_mode = True
-
-        results = \
-            self.get_spikes_values_around_twitches(sce_bool=sce_bool, time_around=time_around,
-                                                   twitches_group=twitches_group)
+        if duration_option:
+            results = \
+                self.get_spikes_duration_values_around_twitches(sce_bool=sce_bool, time_around=time_around,
+                                                       twitches_group=twitches_group)
+        else:
+            results = \
+                self.get_spikes_values_around_twitches(sce_bool=sce_bool, time_around=time_around,
+                                                       twitches_group=twitches_group)
 
         if results is None:
             return
         n_twitches, time_x_values, mean_values, median_values, low_values, high_values, std_values = results
 
         n_cells = len(self.spike_struct.spike_nums_dur)
-        activity_threshold_percentage = (self.activity_threshold / n_cells) * 100
+        # activity_threshold_percentage = (self.activity_threshold / n_cells) * 100
 
         hist_color = "blue"
         edge_color = "white"
@@ -1212,12 +1427,17 @@ class MouseSession:
 
         title_option = self.twitches_group_title[twitches_group]
 
-        for mean_version in [True, False]:
+        for mean_version in [True]: # False
             max_value = 0
-            fig, ax1 = plt.subplots(nrows=1, ncols=1,
-                                    gridspec_kw={'height_ratios': [1]},
-                                    figsize=(15, 10))
-            ax1.set_facecolor("black")
+            if ax_to_use is None:
+                fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                        gridspec_kw={'height_ratios': [1]},
+                                        figsize=(15, 10))
+                fig.patch.set_facecolor("black")
+
+                ax1.set_facecolor("black")
+            else:
+                ax1 = ax_to_use
             if line_mode:
                 ms_to_plot = [self]
                 if with_other_ms is not None:
@@ -1230,8 +1450,15 @@ class MouseSession:
                         ms_low_values = low_values
                         ms_high_values = high_values
                     else:
-                        results = \
-                            ms.get_spikes_values_around_twitches(sce_bool=ms.sce_bool, time_around=time_around,
+                        line_mode = True
+                        if duration_option:
+                            results = \
+                                ms.get_spikes_duration_values_around_twitches(sce_bool=sce_bool,
+                                                                                time_around=time_around,
+                                                                                twitches_group=twitches_group)
+                        else:
+                            results = \
+                                ms.get_spikes_values_around_twitches(sce_bool=ms.sce_bool, time_around=time_around,
                                                                  twitches_group=twitches_group)
 
                         if results is None:
@@ -1239,38 +1466,54 @@ class MouseSession:
                         ms_n_twitches, ms_time_x_values, ms_mean_values, ms_median_values, \
                         ms_low_values, ms_high_values, ms_std_values = results
 
-                    if with_other_ms is None:
+                    if color_to_use is not None:
+                        color = color_to_use
+                    elif with_other_ms is None:
                         color = hist_color
                     else:
                         color = cm.nipy_spectral(float(index_ms + 1) / (len(with_other_ms) + 2))
                     if mean_version:
-                        plt.plot(time_x_values,
-                                 ms_mean_values, color=color, lw=2, label=f"{ms.description}")
+                        ax1.plot(time_x_values,
+                                 ms_mean_values, color=color, lw=2, label=f"{ms.description} {n_twitches} twitches")
+                        if put_mean_line_on_plt:
+                            plt.plot(time_x_values,
+                                     ms_mean_values, color=color, lw=2)
                         if with_other_ms is None:
                             ax1.fill_between(time_x_values, ms_mean_values - ms_std_values,
                                              ms_mean_values + ms_std_values,
                                              alpha=0.5, facecolor=color)
                         max_value = np.max((max_value, np.max(ms_mean_values + ms_std_values)))
                     else:
-                        plt.plot(time_x_values,
-                                 ms_median_values, color=color, lw=2, label=f"{ms.description}")
+                        ax1.plot(time_x_values,
+                                 ms_median_values, color=color, lw=2, label=f"{ms.description} {n_twitches} twitches")
                         if with_other_ms is None:
                             ax1.fill_between(time_x_values, ms_low_values, ms_high_values,
                                              alpha=0.5, facecolor=color)
                         max_value = np.max((max_value, np.max(ms_high_values)))
             else:
-                plt.bar(time_x_values,
-                        mean_values, color=hist_color, edgecolor=edge_color)
+                if color_to_use is not None:
+                    hist_color = color_to_use
+                    edge_color = "white"
+                ax1.bar(time_x_values,
+                        mean_values, color=hist_color, edgecolor=edge_color,
+                        label=f"{self.description} {n_twitches} twitches")
                 max_value = np.max((max_value, np.max(mean_values)))
             ax1.vlines(0, 0,
                        np.max(mean_values), color="white", linewidth=2,
                        linestyles="dashed")
-            ax1.hlines(activity_threshold_percentage, -1 * time_around, time_around,
-                       color="white", linewidth=1,
+            if put_mean_line_on_plt:
+                plt.vlines(0, 0,
+                       np.max(mean_values), color="white", linewidth=2,
                        linestyles="dashed")
+            # ax1.hlines(activity_threshold_percentage, -1 * time_around, time_around,
+            #            color="white", linewidth=1,
+            #            linestyles="dashed")
 
-            if with_other_ms is not None:
-                ax1.legend()
+            ax1.tick_params(axis='y', colors="white")
+            ax1.tick_params(axis='x', colors="white")
+
+            # if with_other_ms is not None:
+            ax1.legend()
 
             extra_info = ""
             if line_mode:
@@ -1284,23 +1527,34 @@ class MouseSession:
             if with_other_ms is not None:
                 descr = f"p{self.age}"
 
-            plt.title(f"{descr} {n_twitches} twitches bar chart {title_option} {extra_info}")
-            ax1.set_ylabel(f"Spikes (%)")
+            # ax1.title(f"{descr} {n_twitches} twitches bar chart {title_option} {extra_info}")
+            if duration_option:
+                ax1.set_ylabel(f"Duration (ms)")
+            else:
+                ax1.set_ylabel(f"Spikes (%)")
             ax1.set_xlabel("time (frames)")
-            ax1.set_ylim(0, np.max((activity_threshold_percentage, max_value)) + 1)
+            ax1.set_ylim(0, max_value + 1)
+            # ax1.set_ylim(0, np.max((activity_threshold_percentage, max_value)) + 1)
+
+            ax1.xaxis.label.set_color("white")
+            ax1.yaxis.label.set_color("white")
             # xticks = np.arange(0, len(data_dict))
             # ax1.set_xticks(xticks)
             # # sce clusters labels
             # ax1.set_xticklabels(labels)
-            if isinstance(save_formats, str):
-                save_formats = [save_formats]
-            for save_format in save_formats:
-                fig.savefig(f'{self.param.path_results}/{descr}_bar_chart_'
-                            f'{n_twitches}_twitches_{title_option}'
-                            f'_{extra_info}{self.param.time_str}.{save_format}',
-                            format=f"{save_format}")
+            if duration_option:
+                title_option += "_duration"
+            if ax_to_use is None:
+                if isinstance(save_formats, str):
+                    save_formats = [save_formats]
+                for save_format in save_formats:
+                    fig.savefig(f'{self.param.path_results}/{descr}_bar_chart_'
+                                f'{n_twitches}_twitches_{title_option}'
+                                f'_{extra_info}{self.param.time_str}.{save_format}',
+                                format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
 
-            plt.close()
+                plt.close()
 
         # if len(distribution) == 0:
         #     continue
@@ -2204,6 +2458,9 @@ class MouseSession:
                            size_fig=(15, 5))
 
     def plot_raster_with_periods(self, periods_dict, with_cell_assemblies=True, only_cell_assemblies=False):
+        if self.spike_struct.spike_nums_dur is None:
+            return
+
         if self.sce_times_in_cell_assemblies is None:
             with_cell_assemblies = False
 
@@ -2211,6 +2468,7 @@ class MouseSession:
         cells_to_highlight_colors = []
         if with_cell_assemblies:
             n_cells = len(self.spike_struct.spike_nums_dur)
+            print(f"n_cells {n_cells}")
             n_cell_assemblies = len(self.cell_assemblies)
             n_cells_in_assemblies = 0
             for cell_assembly in self.cell_assemblies:
@@ -2252,18 +2510,19 @@ class MouseSession:
         i = 0
         span_area_coords = []
         span_area_colors = []
-        for name_period, period in periods_dict.items():
-            span_area_coords.append(get_continous_time_periods(period.astype("int8")))
-            span_area_colors.append(colors[i%len(colors)])
-            print(f"Period {name_period} -> {colors[i]}")
-            i += 1
+        if periods_dict is not None:
+            for name_period, period in periods_dict.items():
+                span_area_coords.append(get_continous_time_periods(period.astype("int8")))
+                span_area_colors.append(colors[i%len(colors)])
+                print(f"Period {name_period} -> {colors[i]}")
+                i += 1
 
         if len(spike_nums_dur) < 200:
-            spike_shape_size = 1
-        if len(spike_nums_dur) < 500:
-            spike_shape_size = 0.2
+            spike_shape_size = 0.3
+        elif len(spike_nums_dur) < 500:
+            spike_shape_size = 0.05
         else:
-            spike_shape_size = 0.1
+            spike_shape_size = 0.02
         plot_spikes_raster(spike_nums=spike_nums_dur, param=self.param,
                            title=f"{self.description}_spike_nums_periods",
                            spike_train_format=False,
@@ -2376,7 +2635,11 @@ class MouseSession:
                 if is_cell[cell][0] == 0:
                     continue
                 list_points_coord = [(x, y) for x, y in zip(stat[cell]["xpix"], stat[cell]["ypix"])]
-                coord_shapely = MultiPoint(list_points_coord).convex_hull.exterior.coords
+                convex_hull = MultiPoint(list_points_coord).convex_hull
+                if isinstance(convex_hull, LineString):
+                    coord_shapely = MultiPoint(list_points_coord).convex_hull.coords
+                else:
+                    coord_shapely = MultiPoint(list_points_coord).convex_hull.exterior.coords
                 coord.append(np.array(coord_shapely).transpose())
         self.suite2p_data["coord"] = coord
         compare_suite_2p_and_caiman = False
@@ -2652,6 +2915,18 @@ class MouseSession:
 
     def set_inter_neurons(self, inter_neurons):
         self.spike_struct.inter_neurons = np.array(inter_neurons).astype(int)
+
+    def save_sum_spikes_dur_in_npy_file(self):
+        if self.spike_struct.spike_nums_dur is None:
+            print(f"{self.description}: spike_nmus_dur None, not able to save sum activity")
+            return
+
+        np.save(os.path.join(self.param.path_data, f"p{self.age}", f"{self.description.lower()}",
+                             f"{self.description}_sum_activity.npy"),
+                np.sum(self.spike_struct.spike_nums_dur, axis=0))
+        # np.save(os.path.join(self.param.path_results, f"{self.description}_sum_activity.npy"),
+        #         np.sum(self.spike_struct.spike_nums_dur, axis=0))
+        print(f"{self.description}: sum of spike_nums_dur saved")
 
     def load_abf_file(self, path_abf_data=None, abf_file_name=None, threshold_piezo=None,
                       frames_channel=0, piezo_channel=None, run_channel=None, lfp_channel=None, threshold_ratio=2,
