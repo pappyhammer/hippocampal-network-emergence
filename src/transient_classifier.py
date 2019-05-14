@@ -2633,12 +2633,13 @@ def cell_encoding(ms, cell):
     return encoded_frames, decoding_frame_dict
 
 
-def load_data_for_prediction(ms, cell, sliding_window_len, overlap_value, augmentation_functions):
+def load_data_for_prediction(ms, cell, sliding_window_len, overlap_value, augmentation_functions, n_frames=None):
+    # n_frames is None, the movie need to have been loaded
     # we suppose that the movie is already loaded and normalized
     movie_patch_data = []
     data_frame_indices = []
-
-    n_frames = ms.tiff_movie.shape[0]
+    if n_frames is None:
+        n_frames = ms.tiff_movie.shape[0]
     frames_step = int(np.ceil(sliding_window_len * (1 - overlap_value)))
     # number of indices to remove so index + sliding_window_len won't be superior to number of frames
     n_step_to_remove = 0 if (overlap_value == 0) else int(1 / (1 - overlap_value))
@@ -3582,13 +3583,17 @@ def transients_prediction_from_movie(ms_to_use, param, tiffs_for_transient_class
         if total_n_cells == 0:
             raise Exception(f"No cells loaded")
 
-        movie_loaded = load_movie(ms)
-        if not movie_loaded:
-            raise Exception(f"could not load movie of ms {ms.description}")
+        # using tiffs created from the movie to avoid memory issue
+        use_loaded_movie = False
+        if use_loaded_movie:
+            movie_loaded = load_movie(ms)
+            if not movie_loaded:
+                raise Exception(f"could not load movie of ms {ms.description}")
+            n_frames = ms.tiff_movie.shape[0]
+        else:
+            n_frames = ms.get_n_frames_from_movie_file_without_loading_it()
 
-        n_frames = ms.tiff_movie.shape[0]
         print(f"transients_prediction_from_movie n_frames {n_frames}")
-
         # we keep the original number of cells, so if predictions were made with another method (such as Caiman)
         # we can still compare using the indices we know
         predictions_by_cell = np.zeros((n_cells, n_frames))
@@ -3629,7 +3634,7 @@ def transients_prediction_from_movie(ms_to_use, param, tiffs_for_transient_class
         for cell_index, cell in enumerate(cells_to_load):
             original_cell = original_cell_indices_mapping[cell_index]
             predictions = predict_transient_from_model(ms=ms, cell=cell, model=model, overlap_value=overlap_value,
-                                                       use_data_augmentation=use_data_augmentation)
+                                                       use_data_augmentation=use_data_augmentation, n_frames=n_frames)
             if len(predictions.shape) == 1:
                 predictions_by_cell[original_cell] = predictions
             elif (len(predictions.shape) == 2) and (predictions.shape[1] == 1):
@@ -3654,14 +3659,16 @@ def transients_prediction_from_movie(ms_to_use, param, tiffs_for_transient_class
         print(f"Time to predict {total_n_cells} cells: "
               f"{np.round(stop_time - start_time, 3)} s")
 
-        file_name = f"/{ms.description}_predictions_{file_name_bonus_str}_{param.time_str}.mat"
+        file_name = f"/{ms.description}_predictions_{file_name_bonus_str}.mat"
         sio.savemat(param.path_results + file_name, {'predictions': predictions_by_cell})
 
 
 def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
-                                 use_data_augmentation=True, buffer=None):
+                                 use_data_augmentation=True, buffer=None, n_frames=None):
+    # if n_frames is None, then the movie need to have been loaded
     start_time = time.time()
-    n_frames = len(ms.tiff_movie)
+    if n_frames is None:
+        n_frames = len(ms.tiff_movie)
     # multi_inputs = (model.layers[0].output_shape == model.layers[1].output_shape)
     window_len = model.layers[0].output_shape[1]
     max_height = model.layers[0].output_shape[2]
@@ -3679,11 +3686,15 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
         # augmentation_functions = [horizontal_flip, vertical_flip]
     else:
         augmentation_functions = None
-
+    # start_time_load_data = time.time()
     movie_patch_data, data_frame_indices = load_data_for_prediction(ms=ms, cell=cell,
                                                                     sliding_window_len=window_len,
                                                                     overlap_value=overlap_value,
-                                                                    augmentation_functions=augmentation_functions)
+                                                                    augmentation_functions=augmentation_functions,
+                                                                    n_frames=n_frames)
+    # stop_time_load_data = time.time()
+    # print(f"Time to load_data_for_prediction: "
+    #       f"{np.round(stop_time_load_data - start_time_load_data, 3)} s")
     # TODO: Read the txt saved after model training to choose generator, pixels_around and buffer values.
     pixels_around = 0
     movie_patch_generator_choices = dict()
@@ -3916,7 +3927,7 @@ def train_model():
         # ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms",
         #  "p12_171110_a000_ms",
         #  "p13_18_10_29_a001_ms", "artificial_ms_1"]
-        create_tiffs_for_data_generator(ms_to_use=["artificial_ms_2", "artificial_ms_3"],
+        create_tiffs_for_data_generator(ms_to_use=["p5_19_03_25_a000_ms"],
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
     go_predict_from_movie = True
@@ -3931,7 +3942,7 @@ def train_model():
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
                                  "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms", "p12_171110_a000_ms"]
         # ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
-        # ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
+        ms_for_rnn_benchmarks = ["p8_18_10_24_a006_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
                             "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
@@ -3949,11 +3960,11 @@ def train_model():
                             "p13_18_10_29_a001_ms": np.array([77, 117])}
         # cells_to_predict = {"p11_17_11_24_a000_ms": np.array([3, 45]),
         #                     "p12_171110_a000_ms": np.array([9, 10])}
-        # cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
+        cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33])}
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0,
                                          use_data_augmentation=False, using_cnn_predictions=False,
-                                         cells_to_predict=cells_to_predict, file_name_bonus_str="meso_6",
+                                         cells_to_predict=cells_to_predict, file_name_bonus_str="meso_9",
                                          tiffs_for_transient_classifier_path = path_for_tiffs)
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"

@@ -3435,7 +3435,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #   for test
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
-    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     #                   "p7_18_02_08_a001_ms", "p7_18_02_08_a003_ms", "p7_18_02_08_a000_ms",
@@ -3450,7 +3450,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p14_18_10_23_a000_ms",
     #                   "p14_18_10_30_a001_ms"]
     # ms_str_to_load = ["richard_015_D74_P2_ms"]
-    ms_str_to_load = ["p8_18_10_24_a006_ms"]
+    ms_str_to_load = ["p5_19_03_25_a001_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -3531,11 +3531,11 @@ def main():
     just_plot_all_time_correlation_graph_over_events = False
     just_plot_raster_with_periods = False
     just_do_stat_significant_time_period = False
-    just_plot_twitch_ratio_activity = True
+    just_plot_twitch_ratio_activity = False
     just_fca_clustering_on_twitches_activity = False
 
     just_do_stat_on_event_detection_parameters = False
-    just_plot_raster = False
+    just_plot_raster = True
     # periods such as twitch etc...
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_raster_with_cells_assemblies_and_shifts = False

@@ -69,6 +69,8 @@ class MouseSession:
         self.caiman_active_periods = None
         # will be a dict, see load_suite2p_data() to know the key
         self.suite2p_data = None
+        # if True, will use suite2p_data for all computations
+        self.use_suite_2p = False
         self.traces = None
         self.raw_traces = None
         self.smooth_traces = None
@@ -679,6 +681,18 @@ class MouseSession:
                                ax_to_use=ax_to_use, color_to_use=color_to_use)
 
         # now we take the cells that are the most correlated to twitches
+
+    def get_n_frames_from_movie_file_without_loading_it(self):
+        if self.tif_movie_file_name is not None:
+            start_time = time.time()
+            im = PIL.Image.open(self.tif_movie_file_name)
+            n_frames = len(list(ImageSequence.Iterator(im)))
+            stop_time = time.time()
+            print(f"Time to get movie n_frames: "
+                  f"{np.round(stop_time - start_time, 3)} s")
+            return n_frames
+        print("No movie file_name, n_frames couldn't be obtained")
+        return None
 
     def load_tiff_movie_in_memory(self):
         if self.tif_movie_file_name is not None:
@@ -2556,6 +2570,15 @@ class MouseSession:
             self.plot_connectivity_maps_of_a_cell(cell_to_map=inter_neuron, cell_descr="inter_neuron")
 
     def load_suite2p_data(self, data_path, with_coord=False):
+        if not os.path.isdir(os.path.join(self.param.path_data, data_path)):
+            print(f"Suite 2p data could not be loaded for {self.description}, "
+                  f"the directory {os.path.join(self.param.path_data, data_path)}: doesn't exist")
+            return
+
+        if self.suite2p_data is not None:
+            # already loaded
+            return
+
         self.suite2p_data = dict()
         if os.path.isfile(os.path.join(self.param.path_data, data_path, 'F.npy')):
             f = np.load(os.path.join(self.param.path_data, data_path, 'F.npy'))
@@ -2658,6 +2681,11 @@ class MouseSession:
             # print(f"self.coord len: {len(self.coord)}")
             self.coord_obj = CoordClass(coord=self.coord, nb_col=self.movie_len_x,
                                         nb_lines=self.movie_len_y, from_suite_2p=True)
+
+        bonus = ""
+        if with_coord:
+            bonus = " with coord"
+        print(f"suite2p data loaded for {self.description}{bonus}")
 
 
     def plot_connectivity_maps_of_a_cell(self, cell_to_map, cell_descr, not_in=False,
@@ -3650,12 +3678,47 @@ class MouseSession:
         # print(f"{self.description}: self.movie_len_x {self.movie_len_x}, self.movie_len_y {self.movie_len_y}")
         # raise Exception("JOJO")
 
-    def load_raster_dur_from_predictions(self, file_name, prediction_threshold, variables_mapping):
-        try:
-            data = hdf5storage.loadmat(os.path.join(self.param.path_data, file_name))
-        except (FileNotFoundError, OSError) as e:
-            print(f"Load_raster_dur_from_predictions File not fount: {file_name}")
+    def load_raster_dur_from_predictions(self, prediction_threshold, variables_mapping, file_name=None,
+                                         path_name=None, prediction_key=None):
+        """
+
+        :param prediction_threshold:
+        :param variables_mapping:
+        :param file_name:
+        :param path_name: if given, will look for a file in this directory with key_prediction on it
+        :param prediction_key:
+        :return:
+        """
+
+        if (file_name is None) and (path_name is None):
+            print("load_raster_dur_from_predictions no file_name or path_name")
             return
+
+        if path_name is not None:
+            data = None
+            # loading predictions
+            file_names = []
+            # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+            for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data,
+                                                                             path_name)):
+                file_names.extend(local_filenames)
+                break
+
+            if len(file_names) > 0:
+                for file_name in file_names:
+                    if prediction_key in file_name:
+                        data = hdf5storage.loadmat(os.path.join(self.param.path_data,
+                                                                     path_name, file_name))
+            if data is None:
+                print(f"load_raster_dur_from_predictions no file_name with {prediction_key} found in "
+                      f"{os.path.join(self.param.path_data, path_name)}")
+                return
+        else:
+            try:
+                data = hdf5storage.loadmat(os.path.join(self.param.path_data, file_name))
+            except (FileNotFoundError, OSError) as e:
+                print(f"Load_raster_dur_from_predictions File not fount: {file_name}")
+                return
         if "predictions" in variables_mapping:
             predictions = data[variables_mapping["predictions"]]
             self.rnn_transients_predictions = predictions
