@@ -3042,25 +3042,40 @@ def lexi_loading_process(param, load_traces):
     return ms_str_to_ms_dict
 
 
-def robin_loading_process(param, load_traces, load_abf=True):
-    available_ms_str = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                        "p7_171012_a000_ms", "p7_18_02_08_a000_ms",
+def robin_loading_process(param, load_traces, load_abf=False):
+    available_ms_str = ["p5_19_03_25_a000_ms", "p5_19_03_25_a000_ms",
+                        "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                        "p7_171012_a000_ms",
                         "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-                        "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
-                        "p7_18_02_08_a003_ms",
+                        "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+                        "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+                        "p7_19_03_05_a000_ms",
+                        "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                        "p7_19_03_27_a002_ms", "p7_19_03_27_a003_ms"
                         "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                        "p8_18_10_24_a005_ms", "p8_18_10_17_a001_ms",
-                        "p8_18_10_17_a000_ms",  # new
+                        "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+                        "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms"
+                        "p8_19_03_19_a000_ms",
                         "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
-                        "p9_18_09_27_a003_ms",  # new
-                        "p10_17_11_16_a003_ms",
-                        "p11_17_11_24_a001_ms", "p11_17_11_24_a000_ms",
+                        "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+                        "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
+                        "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                        "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
+                        "p9_19_03_22_a001_ms",
+                        "p10_17_11_16_a003_ms", "p10_19_02_22_a002_ms",
+                        "p10_19_02_22_a003_ms", "p10_19_02_22_a005_ms",
+                        "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+                        "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+                        "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
                         "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
-                        "p13_18_10_29_a000_ms",  # new
-                        "p13_18_10_29_a001_ms",
-                        "p14_18_10_23_a000_ms",
-                        "p14_18_10_30_a001_ms", "p41_19_04_30_a000_ms",
-                        "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
+                        "p13_18_10_29_a000_ms",  "p13_18_10_29_a001_ms",
+                        "p13_19_03_11_a000_ms",
+                        "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+                        "p16_18_11_01_a002_ms",
+                        "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms"
+                        "p41_19_04_30_a000_ms"]
+    gadcre_ms= [ ]
+    arnaud_ms = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
     abf_corrupted = ["p8_18_10_17_a001_ms", "p9_18_09_27_a003_ms"]
 
     ms_with_piezo = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms", "p7_18_02_08_a000_ms",
@@ -3205,10 +3220,12 @@ def robin_loading_process(param, load_traces, load_abf=True):
     #                   "p14_18_10_23_a000_ms",
     #                   "p14_18_10_30_a001_ms"]
     # ms_str_to_load = ["richard_015_D74_P2_ms"]
+    ms_str_to_load = ["p8_18_10_24_a006_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
+
     return ms_str_to_ms_dict
 
 
