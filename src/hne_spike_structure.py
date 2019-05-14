@@ -180,6 +180,7 @@ class HNESpikeStructure:
     def build_spike_nums_dur(self):
         if (self.spike_nums is None) or (self.peak_nums is None):
             return
+        print(f"{self.mouse_session.description} build_spike_nums_dur from spike_nums and peak_nums")
         n_cells = len(self.spike_nums)
         n_frames = self.spike_nums.shape[1]
         ms = self.mouse_session

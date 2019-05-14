@@ -3270,7 +3270,7 @@ def lexi_loading_process(param, load_traces):
 
 
 def robin_loading_process(param, load_traces, load_abf=False):
-    available_ms_str = ["p5_19_03_25_a000_ms", "p5_19_03_25_a000_ms",
+    available_ms_str = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
                         "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
                         "p7_171012_a000_ms",
                         "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
