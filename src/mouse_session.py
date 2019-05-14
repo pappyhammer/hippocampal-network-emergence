@@ -2457,7 +2457,7 @@ class MouseSession:
                            spikes_sum_to_use=shifts,
                            size_fig=(15, 5))
 
-    def plot_raster_with_periods(self, periods_dict, with_cell_assemblies=True, only_cell_assemblies=False):
+    def plot_raster_with_periods(self, periods_dict, bonus_title="", with_cell_assemblies=True, only_cell_assemblies=False):
         if self.spike_struct.spike_nums_dur is None:
             return
 
@@ -2526,7 +2526,7 @@ class MouseSession:
         plot_spikes_raster(spike_nums=spike_nums_dur, param=self.param,
                            title=f"{self.description}_spike_nums_periods",
                            spike_train_format=False,
-                           file_name=f"{self.description}_spike_nums_periods",
+                           file_name=f"{self.description}_spike_nums_periods{bonus_title}",
                            y_ticks_labels=labels,
                            save_raster=True,
                            show_raster=False,

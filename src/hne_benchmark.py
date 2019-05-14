@@ -221,9 +221,10 @@ class BenchmarkRasterDur:
         if not for_frames:
             result_dict_to_use = self.results_transients_dict_by_cell
         stats_to_show = ["sensitivity", "specificity", "PPV", "NPV"]
-        # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+        # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12 + 12 blue range
         colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
-                  '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+                  '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#ffffd9', '#edf8b1', '#c7e9b4',
+                  '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']
 
         stat_fig, axes = plt.subplots(nrows=2, ncols=2, squeeze=True,
                                       gridspec_kw={'height_ratios': [0.5, 0.5],
@@ -247,7 +248,7 @@ class BenchmarkRasterDur:
             ax.xaxis.set_ticks_position('none')
             ax.xaxis.label.set_color(text_color)
             ax.tick_params(axis='x', colors=text_color)
-            ax.xaxis.set_tick_params(labelsize=6)
+            ax.xaxis.set_tick_params(labelsize=4)
             ax.yaxis.label.set_color(text_color)
             ax.tick_params(axis='y', colors=text_color)
             # ax.set_xticklabels([])
@@ -273,7 +274,7 @@ class BenchmarkRasterDur:
                         y_pos = result_dict_to_use[cell_to_display][label][stat_name]
                         font_size = 3
                         ax.scatter(x_pos, y_pos,
-                                    color=colors[label_index],
+                                    color=colors[label_index%len(colors)],
                                     marker="o",
                                     edgecolors="white",
                                     s=60, zorder=21)
@@ -947,10 +948,10 @@ def main_benchmark():
     # ms_to_benchmarks = ["p8_18_10_24_a005_ms"]
     # ms_to_benchmark = "artificial_ms"
     # ms_to_benchmarks = ["p13_18_10_29_a001_ms"]
-    # ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-    #                     "p12_17_11_10_a000", "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"]
-    ms_to_benchmarks = ["p8_18_10_24_a005_ms",
-                        "p12_17_11_10_a000", "p11_17_11_24_a000_ms"]
+    ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+                        "p12_17_11_10_a000", "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"]
+    # ms_to_benchmarks = ["p8_18_10_24_a005_ms",
+    #                     "p12_17_11_10_a000", "p11_17_11_24_a000_ms"]
     # ms_to_benchmarks = ["p7_17_10_12_a000"]
     # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
     do_onsets_benchmarks = False
@@ -964,7 +965,7 @@ def main_benchmark():
     predictions_threshold = 0.5
 
     predictions_to_load = ["epoch_11", "meso_2", "meso_3", "meso_4", "meso_8", "meso_6", "meso_7", "meso_8", "meso_9",
-                           "meso_10", "meso_11", "meso_12"]
+                           "meso_10", "meso_11", "meso_12", "meso_13"]
     for ms_to_benchmark in ms_to_benchmarks:
         print(f"ms_to_benchmark {ms_to_benchmark}")
         data_dict = dict()
