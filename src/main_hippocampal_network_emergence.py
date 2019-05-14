@@ -34,6 +34,7 @@ from pattern_discovery.tools.misc import get_continous_time_periods
 from pattern_discovery.tools.misc import find_continuous_frames_period
 from pattern_discovery.display.raster import plot_spikes_raster
 from pattern_discovery.display.misc import time_correlation_graph
+import pattern_discovery.display.misc as display_misc
 from pattern_discovery.display.cells_map_module import CoordClass
 from pattern_discovery.tools.sce_detection import get_sce_detection_threshold, detect_sce_with_sliding_window, \
     get_low_activity_events_detection_threshold, detect_sce_potatoes_style
@@ -1450,7 +1451,7 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
         bins *= 2
     hist_plt, edges_plt, patches_plt = ax1.hist(distribution, bins=bins, range=(min_range, max_range),
                                                 facecolor=hist_color,
-                                                edgecolor=edge_color,
+                                                edgecolor=edge_color, label=f"{legend_str}",
                                                 weights=weights, log=False)
     if values_to_scatter is not None:
         scatter_bins = np.ones(len(values_to_scatter), dtype="int16")
@@ -1486,7 +1487,7 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
             else:
                 ax1.scatter(x=value_to_scatter, y=hist_plt[scatter_bins[i]] * decay[i], marker=scatter_shapes[i],
                             color=colors[i], s=60, zorder=20)
-        ax1.legend()
+    ax1.legend()
 
     if tight_x_range:
         ax1.set_xlim(min_range, max_range)
@@ -2979,6 +2980,102 @@ def print_surprise_for_michou(n_lines, actual_line):
 
     print(f"{result}")
 
+
+def plot_twitch_ratio_activity(ms_to_analyse, param, time_around=20, save_formats="pdf"):
+    """
+    For each session, look around twitches, and calculte a ratio definin if the sum of activity is greater
+    after or before each twitch
+    :param ms_to_analyse:
+    :param time_around:
+    :return:
+    """
+
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+    # first key age in int, then dict with key: session_id string, then dict with key cell, and results list of ratio
+    ratio_dict = dict()
+    n_ms = 0
+    for ms in ms_to_analyse:
+        if ms.spike_struct.spike_nums_dur is None:
+            continue
+        n_ms += 1
+
+        if ms.age not in ratio_dict:
+            ratio_dict[ms.age] = dict()
+
+        ratio_dict[ms.age][ms.description] = []
+
+        n_cells = ms.spike_struct.spike_nums_dur.shape[0]
+        n_frames = ms.spike_struct.spike_nums_dur.shape[1]
+        shift_bool = ms.shift_data_dict["shift_twitch"]
+        periods = get_continous_time_periods(shift_bool.astype("int8"))
+        # for cell in np.arange(n_cells):
+        #     ratio_dict[ms.age][ms.description][cell] = []
+        for period in periods:
+            start_period = max(0, period[0] - time_around)
+            end_period = min(n_frames - 1, period[1] + time_around)
+            # sum before the twitch
+            sum_before = np.sum(np.sum(ms.spike_struct.spike_nums_dur[:, start_period:period[0]]))
+
+            sum_after = np.sum(np.sum(ms.spike_struct.spike_nums_dur[:, period[0]:end_period + 1]))
+            ratio = (sum_after / (sum_after + sum_before)) * 100
+            ratio_dict[ms.age][ms.description].append(ratio)
+
+    # we plot one distribution for each session with the ratio
+    background_color = "black"
+    max_n_lines = 5
+    n_lines = n_ms if n_ms <= max_n_lines else max_n_lines
+    n_col = math.ceil(n_ms / n_lines)
+    # for histogram all events
+    fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                                                       gridspec_kw={'width_ratios': [1] * n_col,
+                                                                    'height_ratios': [1] * n_lines},
+                                                       figsize=(30, 25))
+    fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig.patch.set_facecolor(background_color)
+    axes = axes.flatten()
+
+    for ax_index, ax in enumerate(axes):
+        ax.set_facecolor(background_color)
+        axes[ax_index].set_facecolor(background_color)
+
+    real_ms_index = 0
+    for ms_index, ms in enumerate(ms_to_analyse):
+        if ms.spike_struct.spike_nums_dur is None:
+            continue
+
+        distribution_ratio = ratio_dict[ms.age][ms.description]
+        distribution_ratio = np.array(distribution_ratio)
+        threshold = 50
+        n_twitches = len(distribution_ratio)
+        # number of twitches with ratio sup or inf
+        n_twitches_low_ratio = len(np.where(distribution_ratio < threshold)[0])
+        n_twitches_high_ratio = len(np.where(distribution_ratio >= threshold)[0])
+        perc_sum_activity_after = str(np.round((n_twitches_high_ratio / n_twitches) * 100, 1))
+        display_misc.plot_hist_distribution(distribution_data=distribution_ratio,
+                                            description=f"{ms.description} \n {n_twitches} twitches: "
+                                            f"{n_twitches_low_ratio} / {n_twitches_high_ratio} "
+                                            f"({perc_sum_activity_after} %)",
+                                            param=param,
+                                            path_results=param.path_results,
+                                            tight_x_range=True,
+                                            twice_more_bins=True,
+                                            ax_to_use=axes[real_ms_index],
+                                            color_to_use=colors[real_ms_index % len(colors)],
+                                            v_line=threshold,
+                                            xlabel="Ratio", save_formats=save_formats)
+        real_ms_index += 1
+    if isinstance(save_formats, str):
+
+        save_formats = [save_formats]
+
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/ratio_twitches'
+                                     f'_{param.time_str}.{save_format}',
+                                     format=f"{save_format}",
+                                     facecolor=fig.get_facecolor())
+
 def get_threshold_sum_activity_for_time_periods(raster, time_periods, perc_threshold=95, n_surrogate=1000):
     """
     Take a raster and a list of periods (tuple of int), and will shuffle the data (rolling) n times and each time
@@ -2990,7 +3087,7 @@ def get_threshold_sum_activity_for_time_periods(raster, time_periods, perc_thres
     :return:
     """
     n_times = raster.shape[1]
-    n_periods = time_periods
+    n_periods = len(time_periods)
     count = 0
     n_rand_sum = np.zeros(n_surrogate * n_periods)
     for i in np.arange(n_surrogate):
@@ -2999,12 +3096,142 @@ def get_threshold_sum_activity_for_time_periods(raster, time_periods, perc_thres
             # roll the data to a random displace number
             copy_raster[n, :] = np.roll(neuron_spikes, np.random.randint(1, n_times))
         for period in time_periods:
-            n_rand_sum[count] = np.sum(copy_raster[period[0]:period[1]], axis=0)
+            n_rand_sum[count] = np.sum(np.sum(copy_raster[:, period[0]:period[1]+1], axis=0))
             count += 1
 
     activity_threshold = np.percentile(n_rand_sum, perc_threshold)
 
     return activity_threshold
+
+
+def select_significant_time_periods(raster, time_periods, description="", perc_threshold=95, n_surrogate=1000):
+    """
+    Take a raster and a list of tuple representing periods.
+    :param raster:
+    :param time_periods:
+    :param description: a string representing the data analysed
+    :param perc_threshold:
+    :param n_surrogate:
+    :return: A list of tuple representing the periods that pass the threshold
+    """
+
+    activity_threshold = get_threshold_sum_activity_for_time_periods(raster, time_periods,
+                                                                     perc_threshold=perc_threshold,
+                                                                     n_surrogate=n_surrogate)
+    print(f"{description} threshold with {perc_threshold} p and {n_surrogate} surrogate: {activity_threshold}")
+    significant_time_periods = []
+    significant_time_periods_indices = []
+    for period_index, period in enumerate(time_periods):
+        sum_activity = np.sum(np.sum(raster[:, period[0]:period[1]+1], axis=0))
+        if sum_activity >= activity_threshold:
+            significant_time_periods.append(period)
+            significant_time_periods_indices.append(period_index)
+
+    return significant_time_periods, significant_time_periods_indices
+
+
+def stat_significant_time_period(ms_to_analyse, shift_key, perc_threshold=95, n_surrogate=1000):
+    for ms in ms_to_analyse:
+        if ms.spike_struct.spike_nums_dur is None:
+            continue
+        n_frames = ms.spike_struct.spike_nums_dur.shape[1]
+        shift_bool = ms.shift_data_dict[shift_key]
+        if shift_key == "shift_twitch":
+            extension_frames_after = 15
+            extension_frames_before = 0
+        else:
+            extension_frames_after = 20
+            extension_frames_before = 20
+        # we extend each period, implementation is not the fastest and more elegant way
+        true_frames = np.where(shift_bool)[0]
+        for frame in true_frames:
+            first_frame = max(0, frame - extension_frames_before)
+            last_frame = min(n_frames - 1, frame + extension_frames_after)
+            shift_bool[first_frame:last_frame + 1] = True
+
+        shift_time_periods = get_continous_time_periods(shift_bool.astype("int8"))
+
+        significant_time_periods, significant_time_periods_indices = \
+            select_significant_time_periods(raster=ms.spike_struct.spike_nums_dur, time_periods=shift_time_periods,
+                                            description=f"{ms.description}_{shift_key}", perc_threshold=perc_threshold,
+                                            n_surrogate=n_surrogate)
+
+        print(f"{ms.description}: {shift_key} analysis")
+        print(f"{len(shift_time_periods)} n {shift_key}")
+        print(f"{len(significant_time_periods)} n significant {shift_key}")
+
+        # print(f"significant periods: ")
+
+        significant_shift_bool = np.zeros(len(shift_bool), dtype=bool)
+        non_significant_shift_bool = np.zeros(len(shift_bool), dtype=bool)
+        for i in np.arange(len(shift_time_periods)):
+            if i in significant_time_periods_indices:
+                # print(f"{shift_time_periods[i]}")
+                significant_shift_bool[shift_time_periods[i][0]:shift_time_periods[i][1]+1] = True
+            else:
+                non_significant_shift_bool[shift_time_periods[i][0]:shift_time_periods[i][1]+1] = True
+
+        new_periods_dict = dict()
+        new_periods_dict["significant_twitches"] = significant_shift_bool
+        new_periods_dict["non_significant_twitches"] = non_significant_shift_bool
+        # plotting the significant twitches
+        ms.plot_raster_with_periods(new_periods_dict, bonus_title="_significant",
+                                    with_cell_assemblies=False)
+
+def fca_clustering_on_twitches_activity(ms, param, save_formats="pdf"):
+    if ms.spike_struct.spike_nums_dur is None:
+        return
+    n_frames = ms.spike_struct.spike_nums_dur.shape[1]
+    n_cells = ms.spike_struct.spike_nums_dur.shape[0]
+    shift_bool = ms.shift_data_dict["shift_twitch"]
+    n_twiches = len(shift_bool)
+    extension_frames_after = 15
+    extension_frames_before = 0
+    # we extend each period, implementation is not the fastest and more elegant way
+    true_frames = np.where(shift_bool)[0]
+    for frame in true_frames:
+        first_frame = max(0, frame - extension_frames_before)
+        last_frame = min(n_frames - 1, frame + extension_frames_after)
+        shift_bool[first_frame:last_frame + 1] = True
+
+    shift_time_periods = get_continous_time_periods(shift_bool.astype("int8"))
+
+    spike_nums = np.zeros((n_cells, n_twiches), dtype="int8")
+    shift_time_numbers = np.zeros(n_twiches, dtype="int16")
+    for period_index, period in enumerate(shift_time_periods):
+        shift_time_numbers[period[0]:period[1]+1] = period_index
+        cells_active_in_twitch = np.where(np.sum(ms.spike_struct.spike_nums_dur[:, period[0]:period[1]+1], axis=1))[0]
+        spike_nums[cells_active_in_twitch, period_index] = 1
+
+    spike_trains = []
+    for cell_spikes in spike_nums:
+        spike_trains.append(np.where(cell_spikes)[0].astype(float))
+    # just for stat, not useful
+    perc_threshold = 95
+    n_surrogate_activity_threshold = 100
+    # useful
+    n_surrogate_fca = 20
+    sliding_window_duration = 1
+    # sigma is the std of the random distribution used to jitter the data
+    sigma = 20
+    jitter_range = n_twiches // 8
+    compute_and_plot_clusters_raster_fca_version(spike_trains=spike_trains,
+                                                 spike_nums=spike_nums,
+                                                 data_descr=ms.description, param=param,
+                                                 sliding_window_duration=sliding_window_duration,
+                                                 SCE_times=None,
+                                                 sce_times_numbers=shift_time_numbers,
+                                                 perc_threshold=perc_threshold,
+                                                 n_surrogate_activity_threshold=
+                                                 n_surrogate_activity_threshold,
+                                                 sigma=sigma, n_surrogate_fca=n_surrogate_fca,
+                                                 labels=np.arange(n_cells),
+                                                 jitter_range=jitter_range,
+                                                 activity_threshold=None,
+                                                 fca_early_stop=True,
+                                                 with_cells_in_cluster_seq_sorted=
+                                                 False,
+                                                 use_uniform_jittering=True)
 
 def remove_spike_nums_dur_and_associated_transients(spike_nums_dur, frames_to_keep):
     """
@@ -3207,7 +3434,10 @@ def robin_loading_process(param, load_traces, load_abf=False):
                       "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms", "p11_17_11_24_a000_ms"]
     #   for test
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
-    # ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    # ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     #                   "p7_18_02_08_a001_ms", "p7_18_02_08_a003_ms", "p7_18_02_08_a000_ms",
     #                   "p7_19_03_05_a000_ms", "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
     #                   "p8_18_10_24_a005_ms", "p9_17_12_06_a001_ms",
@@ -3297,9 +3527,12 @@ def main():
     just_plot_all_sum_spikes_dur = False
     just_plot_movement_activity = False
     just_plot_psth_over_event_time_correlation_graph_style = False
-    do_plot_psth_twitches = True
+    do_plot_psth_twitches = False
     just_plot_all_time_correlation_graph_over_events = False
     just_plot_raster_with_periods = False
+    just_do_stat_significant_time_period = False
+    just_plot_twitch_ratio_activity = True
+    just_fca_clustering_on_twitches_activity = False
 
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
@@ -3482,6 +3715,14 @@ def main():
         plot_movement_activity(ms_to_analyse, param)
         raise Exception("just_plot_movement_activity")
 
+    if just_do_stat_significant_time_period:
+        stat_significant_time_period(ms_to_analyse, shift_key="shift_twitch", perc_threshold=95, n_surrogate=1000)
+        raise Exception("just_do_stat_significant_time_period")
+
+    if just_plot_twitch_ratio_activity :
+        plot_twitch_ratio_activity(ms_to_analyse, time_around=20, param=param, save_formats="pdf")
+        raise Exception("just_plot_twitch_ratio_activity")
+
     ms_by_age = dict()
     for ms_index, ms in enumerate(ms_to_analyse):
         if do_pattern_search or do_clustering:
@@ -3496,6 +3737,12 @@ def main():
             ms.save_sum_spikes_dur_in_npy_file()
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_save_sum_spikes_dur_in_npy_file")
+            continue
+
+        if just_fca_clustering_on_twitches_activity:
+            fca_clustering_on_twitches_activity(ms, param, save_formats="pdf")
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_fca_clustering_on_twitches_activity")
             continue
 
         if do_plot_psth_twitches:

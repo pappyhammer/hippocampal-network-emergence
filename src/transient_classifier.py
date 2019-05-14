@@ -3930,6 +3930,7 @@ def train_model():
         ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
                                  "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms", "p12_171110_a000_ms"]
+        # ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
         # ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
@@ -3946,11 +3947,13 @@ def train_model():
                             "p11_17_11_24_a000_ms": np.array([3, 45]),
                             "p12_171110_a000_ms": np.array([9, 10]),
                             "p13_18_10_29_a001_ms": np.array([77, 117])}
+        # cells_to_predict = {"p11_17_11_24_a000_ms": np.array([3, 45]),
+        #                     "p12_171110_a000_ms": np.array([9, 10])}
         # cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0,
                                          use_data_augmentation=False, using_cnn_predictions=False,
-                                         cells_to_predict=cells_to_predict, file_name_bonus_str="meso_12",
+                                         cells_to_predict=cells_to_predict, file_name_bonus_str="meso_6",
                                          tiffs_for_transient_classifier_path = path_for_tiffs)
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
