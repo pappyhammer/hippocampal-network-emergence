@@ -4,7 +4,7 @@ from scipy import signal
 # important to avoid a bug when using virtualenv
 # import matplotlib
 # matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 import hdf5storage
 import time
