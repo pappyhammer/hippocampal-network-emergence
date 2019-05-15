@@ -102,7 +102,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                            sampling_rate=8, param=param)
         p5_19_03_25_a000_ms.use_suite_2p = True
         # for threshold prediction at 0.5
-        # p5_19_03_25_a000_ms.activity_threshold =
+        # p5_19_03_25_a000_ms.activity_threshold = 12  # 1.6%
 
         # prediction based on rnn trained on 50 cells, BO,
         # variables_mapping = {"predictions": "predictions"}
@@ -304,7 +304,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         # calculated with 99th percentile on raster dur
         # p7_17_10_18_a004_ms.activity_threshold = 13
-        if not p7_17_10_18_a002_ms.use_suite_2p:
+        if not p7_17_10_18_a004_ms.use_suite_2p:
             variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
                                  "spike_nums": "filt_Bin100ms_spikedigital",
                                  "spike_durations": "LOC3"}
@@ -389,7 +389,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # calculated with 99th percentile on raster dur
         # p7_18_02_08_a002_ms.activity_threshold =
 
-        if not p7_18_02_08_a001_ms.use_suite_2p:
+        if not p7_18_02_08_a002_ms.use_suite_2p:
             variables_mapping = {"spike_nums_dur": "corrected_rasterdur",
                                  "spike_nums": "filt_Bin100ms_spikedigital",
                                  "spike_durations": "LOC3"}
@@ -1444,7 +1444,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["p41_19_04_30_a000_ms"] = p41_19_04_30_a000_ms
 
     if "p60_arnaud_ms" in ms_str_to_load:
-        p60_arnaud_ms = MouseSession(age=60, session_id="arnaud_a_529", nb_ms_by_frame=100, param=param)
+        p60_arnaud_ms = MouseSession(age=60, session_id="arnaud_a_529", sampling_rate=10, param=param)
         p60_arnaud_ms.activity_threshold = 9
         p60_arnaud_ms.set_inter_neurons([])
         # duration of those interneurons:
@@ -1464,7 +1464,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["p60_arnaud_ms"] = p60_arnaud_ms
 
     if "p60_a529_2015_02_25_ms" in ms_str_to_load:
-        p60_a529_2015_02_25_ms = MouseSession(age=60, session_id="a529_2015_02_25", nb_ms_by_frame=100, param=param)
+        p60_a529_2015_02_25_ms = MouseSession(age=60, session_id="a529_2015_02_25", sampling_rate=10, param=param)
         p60_a529_2015_02_25_ms.activity_threshold = 10
         p60_a529_2015_02_25_ms.set_inter_neurons([])
         # duration of those interneurons:
@@ -1603,7 +1603,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                     ms.load_tiff_movie_in_memory()
                     ms.raw_traces = ms.build_raw_traces_from_movie()
                     ms.save_raw_traces(path=f"p{ms.age}/{ms.description.lower()}/")
-
+        # TODO: option to load predictions, clean the raster produced to eliminate overlap base on co-activation
+        # of overlaping cell and correlation value of source_profile, then save this file for later use
+        # {self.description_}spike_nums_dur_predicted_and_cleaned_{key_prediction}.npy
         # LOADING PREDICTIONS if not loaded (if no spike_nums loaded, could be caiman one)
         if ms.spike_struct.spike_nums_dur is None:
             prediction_threshold = 0.5

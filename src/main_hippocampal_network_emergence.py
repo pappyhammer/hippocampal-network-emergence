@@ -61,6 +61,7 @@ import PIL
 from PIL import ImageSequence
 # import joypy
 import math
+import hdbscan
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -2167,6 +2168,7 @@ def box_plot_data_by_age(data_dict, title, filename,
                          y_label, param, colors,
                                path_results=None,
                          x_label=None, with_scatters=True,
+                         scatter_size=20,
                          background_color="black",
                          labels_color="white", save_formats="pdf"):
     """
@@ -2230,7 +2232,7 @@ def box_plot_data_by_age(data_dict, title, filename,
                        alpha=0.5,
                        marker="o",
                        edgecolors=background_color,
-                       s=20, zorder=1)
+                       s=scatter_size, zorder=1)
 
     # plt.xlim(0, 100)
     plt.title(title)
@@ -2981,6 +2983,47 @@ def print_surprise_for_michou(n_lines, actual_line):
     print(f"{result}")
 
 
+def save_stat_about_mvt_for_each_ms(ms_to_analyse, param):
+    file_name = os.path.join(param.path_results, f"ms_stat_mvt_{param.time_str}.txt")
+    with open(file_name, "w", encoding='UTF-8') as file:
+        for ms in ms_to_analyse:
+            if ms.shift_data_dict is None:
+                continue
+            shift_twitch_bool = ms.shift_data_dict["shift_twitch"]
+            shift_long_bool = ms.shift_data_dict["shift_long"]
+            shift_unclassified_bool = ms.shift_data_dict["shift_unclassified"]
+            n_frames = len(shift_twitch_bool)
+            ratio_twitch = str(np.round((np.sum(shift_twitch_bool) / n_frames) * 100, 2))
+            ratio_long = str(np.round((np.sum(shift_long_bool) / n_frames) * 100, 2))
+            ratio_unclassified = str(np.round((np.sum(shift_unclassified_bool) / n_frames) * 100, 2))
+            still_n_frames = n_frames - np.sum(shift_twitch_bool) - np.sum(shift_long_bool) - np.sum(shift_unclassified_bool)
+            ratio_still = str(np.round((np.sum(still_n_frames) / n_frames) * 100, 2))
+            file.write(
+                f"{ms.description}: {ratio_twitch} % twitches, {ratio_long} % long mvt,"
+                f" {ratio_unclassified} % unclassified, {ratio_still} % still  \n")
+            file.write("" + '\n')
+
+def plot_all_cell_assemblies_proportion_on_shift_categories(ms_to_analyse,
+                                                                param, save_formats="pdf"):
+    # TODO : to finish
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+
+    # key is age (p_age) each dict contains a dict with key being a mvt (twitch, shift_long, unidentified, still) and a list of float
+    # (from 0 to 100)
+    proportion_by_age_dict = dict()
+
+    n_ms = 0
+    for ms in ms_to_analyse:
+        if ms.shift_data_dict is None:
+            continue
+
+        if ("p" + str(ms.age)) not in proportion_by_age_dict:
+            proportion_by_age_dict[("p" + str(ms.age))] = dict()
+
+        n_ms += 1
+
 def plot_twitch_ratio_activity(ms_to_analyse, param, time_around=20, save_formats="pdf"):
     """
     For each session, look around twitches, and calculte a ratio definin if the sum of activity is greater
@@ -3103,6 +3146,108 @@ def get_threshold_sum_activity_for_time_periods(raster, time_periods, perc_thres
 
     return activity_threshold
 
+def get_thresholds_cell_transient_post_twitches(raster, time_periods_bool, perc_threshold=95, n_surrogate=1000):
+    """
+    Take a raster and a list of periods (tuple of int), and will shuffle the data (rolling) n times and each time
+    will measure how many transient of each cell will be during this time period and return the percentile value of the distribution of all periods
+    over the 1000 shuffling for each cell
+    :param raster: should be onsets
+    :param time_periods:
+    :param percentile_threshold:
+    :return:
+    """
+    n_times = raster.shape[1]
+    n_cells = raster.shape[0]
+
+    n_rand_sum = np.zeros((n_cells, n_surrogate))
+    for i in np.arange(n_surrogate):
+        copy_raster = np.copy(raster)
+        for n, neuron_spikes in enumerate(copy_raster):
+            # roll the data to a random displace number
+            copy_raster[n, :] = np.roll(neuron_spikes, np.random.randint(1, n_times))
+            # if raster wouldn't be onsets, and rasterdur instead, we could transfer the raster_dur such that
+            # each transient for a given cell has a unique id and then count how many unique id are in the bool
+            n_rand_sum[n, i] = np.sum(copy_raster[n, time_periods_bool])
+
+    activity_threshold = np.percentile(n_rand_sum, perc_threshold, axis=1)
+    print(f"get_thresholds_cell_transient_post_twitches: len(activity_threshold) {len(activity_threshold)}")
+
+    return activity_threshold
+
+def select_cells_that_fire_during_time_periods(raster, time_periods_bool, description="", perc_threshold=95, n_surrogate=1000):
+    """
+    Take a raster and a list of tuple representing periods.
+    :param raster: represents the onsets
+    :param time_periods:
+    :param description: a string representing the data analysed
+    :param perc_threshold:
+    :param n_surrogate:
+    :return: A list of tuple representing the periods that pass the threshold
+    """
+
+    activity_threshold = get_thresholds_cell_transient_post_twitches(raster, time_periods_bool,
+                                                                     perc_threshold=perc_threshold,
+                                                                     n_surrogate=n_surrogate)
+    # print(f"{description} threshold with {perc_threshold} p and {n_surrogate} surrogate: {activity_threshold}")
+    significant_cells = []
+    n_cells = raster.shape[0]
+    for n in np.arange(n_cells):
+        n_count = np.sum(raster[n, time_periods_bool])
+        if n_count >= activity_threshold[n]:
+            significant_cells.append(n)
+
+    return significant_cells
+
+
+def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_key, param, perc_threshold=95, n_surrogate=1000,
+                                             save_formats="pdf"):
+    # key is p_age, and value a list of the % of cell in that period of time
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+
+    results_dict = dict()
+
+    for ms in ms_to_analyse:
+        if ms.spike_struct.spike_nums is None:
+            continue
+        if ("p" + str(ms.age)) not in results_dict:
+            results_dict[("p" + str(ms.age))] = []
+
+        n_frames = ms.spike_struct.spike_nums.shape[1]
+        n_cells = ms.spike_struct.spike_nums.shape[0]
+        shift_bool = ms.shift_data_dict[shift_key]
+        if shift_key == "shift_twitch":
+            extension_frames_after = 15
+            extension_frames_before = 1
+        else:
+            extension_frames_after = 0
+            extension_frames_before = 0
+        # we extend each period, implementation is not the fastest and more elegant way
+        true_frames = np.where(shift_bool)[0]
+        for frame in true_frames:
+            first_frame = max(0, frame - extension_frames_before)
+            last_frame = min(n_frames - 1, frame + extension_frames_after)
+            shift_bool[first_frame:last_frame + 1] = True
+
+        # shift_time_periods = get_continous_time_periods(shift_bool.astype("int8"))
+
+        significant_cells = select_cells_that_fire_during_time_periods(raster=ms.spike_struct.spike_nums,
+                                                                       time_periods_bool=shift_bool,
+                                                                       description=f"{ms.description}_{shift_key}",
+                                                                       perc_threshold=perc_threshold,
+                                                                       n_surrogate=n_surrogate)
+
+        print(f"{ms.description}: {shift_key} analysis")
+        print(f"{n_cells} cells")
+        print(f"{len(significant_cells)} significant cells")
+        ratio_significant_cells = (len(significant_cells) / n_cells) * 100
+        results_dict[("p" + str(ms.age))].append(ratio_significant_cells)
+
+    box_plot_data_by_age(data_dict=results_dict, title="", filename=f"cells_associated_to_{shift_key}",
+                             y_label=f"Cells associated to {shift_key} (%)", colors=colors, with_scatters=True,
+                             path_results=param.path_results, scatter_size=40,
+                             param=param, save_formats=save_formats)
 
 def select_significant_time_periods(raster, time_periods, description="", perc_threshold=95, n_surrogate=1000):
     """
@@ -3128,6 +3273,180 @@ def select_significant_time_periods(raster, time_periods, description="", perc_t
             significant_time_periods_indices.append(period_index)
 
     return significant_time_periods, significant_time_periods_indices
+
+# normalized co-variance
+def covnorm(m_sces):
+    nb_events = np.shape(m_sces)[1]
+    co_var_matrix = np.zeros((nb_events, nb_events))
+    for i in np.arange(nb_events):
+        for j in np.arange(nb_events):
+            if np.correlate(m_sces[:, i], m_sces[:, j]) == 0:
+                co_var_matrix[i, j] = 0
+            else:
+                co_var_matrix[i, j] = np.correlate(m_sces[:, i], m_sces[:, j]) / np.std(m_sces[:, i]) \
+                                      / np.std(m_sces[:, j]) / nb_events
+    return co_var_matrix
+
+def plot_covnorm_matrix(m_sces, n_clusters, cluster_labels, param, data_descr):
+    fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                            gridspec_kw={'height_ratios': [1]},
+                            figsize=(12, 12))
+    # display the normlized covariance matrix organized by cluster of SCE such as detected by initial kmeans
+    # contains the neurons from the SCE, but ordered by cluster
+    ordered_m_sces = np.zeros((np.shape(m_sces)[0], np.shape(m_sces)[1]))
+    # to plot line that separate clusters
+    cluster_coord_thresholds = []
+    cluster_x_ticks_coord = []
+    start = 0
+    for k in np.arange(-1, n_clusters):
+        e = np.equal(cluster_labels, k)
+        nb_k = np.sum(e)
+        ordered_m_sces[start:start + nb_k, :] = m_sces[e, :]
+        ordered_m_sces[:, start:start + nb_k] = m_sces[:, e]
+        start += nb_k
+        if (k + 1) < n_clusters:
+            if k == -1:
+                cluster_x_ticks_coord.append(start / 2)
+            else:
+                cluster_x_ticks_coord.append((start + cluster_coord_thresholds[-1]) / 2)
+            cluster_coord_thresholds.append(start)
+        else:
+            cluster_x_ticks_coord.append((start + cluster_coord_thresholds[-1]) / 2)
+
+    co_var = np.corrcoef(ordered_m_sces)  # cov
+    # sns.set()
+    result = sns.heatmap(co_var, cmap="Blues", ax=ax1)  # , vmin=0, vmax=1) YlGnBu  cmap="jet" Blues
+    # ax1.hlines(cluster_coord_thresholds, 0, np.shape(co_var)[0], color="black", linewidth=1,
+    #            linestyles="dashed")
+    for n_c, clusters_threshold in enumerate(cluster_coord_thresholds):
+        # if (n_c+1) == len(cluster_coord_thresholds):
+        #     break
+        x_begin = 0
+        if n_c > 0:
+            x_begin = cluster_coord_thresholds[n_c - 1]
+        x_end = np.shape(co_var)[0]
+        if n_c < len(cluster_coord_thresholds) - 1:
+            x_end = cluster_coord_thresholds[n_c + 1]
+        ax1.hlines(clusters_threshold, x_begin, x_end, color="black", linewidth=2,
+                   linestyles="dashed")
+    for n_c, clusters_threshold in enumerate(cluster_coord_thresholds):
+        # if (n_c+1) == len(cluster_coord_thresholds):
+        #     break
+        y_begin = 0
+        if n_c > 0:
+            y_begin = cluster_coord_thresholds[n_c - 1]
+        y_end = np.shape(co_var)[0]
+        if n_c < len(cluster_coord_thresholds) - 1:
+            y_end = cluster_coord_thresholds[n_c + 1]
+        ax1.vlines(clusters_threshold, y_begin, y_end, color="black", linewidth=2,
+                   linestyles="dashed")
+    # ax1.xaxis.get_majorticklabels().set_rotation(90)
+    # plt.setp(ax1.xaxis.get_majorticklabels(), rotation=90)
+    # plt.setp(ax1.yaxis.get_majorticklabels(), rotation=0)
+    ax1.set_xticks(cluster_x_ticks_coord)
+    ax1.set_xticklabels(np.arange(n_clusters))
+    ax1.set_yticks(cluster_x_ticks_coord)
+    ax1.set_yticklabels(np.arange(n_clusters))
+    ax1.set_title(f"{np.shape(m_sces)[0]} SCEs")
+    # ax1.xaxis.set_tick_params(labelsize=5)
+    # ax1.yaxis.set_tick_params(labelsize=5)
+    ax1.invert_yaxis()
+
+    save_formats = ["pdf"]
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+
+    path_results = param.path_results
+    for save_format in save_formats:
+        fig.savefig(f'{path_results}/{data_descr}_covariance_matrix_clustered'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                            facecolor=fig.get_facecolor())
+
+    plt.close()
+
+def try_hdbscan(cells_in_sce, param, activity_threshold, spike_nums, SCE_times, data_descr):
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+    use_co_var = True
+
+    m_sces = cells_in_sce
+    # m_sces = spike_nums
+    # normalized covariance matrix
+    if use_co_var:
+        m_sces = covnorm(m_sces)
+    # m_sces = np.corrcoef(m_sces)
+    # print(f"m_sces.shape {m_sces.shape}")
+
+    if use_co_var:
+        metric = 'precomputed'
+    else:
+        metric = 'euclidean'
+    clusterer = hdbscan.HDBSCAN(algorithm='best', alpha=1.0, approx_min_span_tree=True,
+                                gen_min_span_tree=False, leaf_size=40,
+                                metric='precomputed', min_cluster_size=5, min_samples=None, p=None)
+    # metric='precomputed' euclidean
+    clusterer.fit(m_sces)
+
+    labels = clusterer.labels_
+
+    print(f"labels.shape: {labels.shape}")
+    print(f"N clusters hdbscan: {labels.max()+1}")
+    print(f"labels: {labels}")
+
+    print(f"With no clusters hdbscan: {len(np.where(labels == -1)[0])}")
+
+    if use_co_var:
+        plot_covnorm_matrix(m_sces=m_sces, n_clusters=labels.max()+1, cluster_labels=labels, param=param,
+                            data_descr=data_descr)
+        return
+    n_cells = spike_nums.shape[0]
+    clustered_spike_nums = np.zeros(spike_nums.shape, dtype="int8")
+    cells_to_highlight = []
+    cells_to_highlight_colors = []
+    count_cells = 0
+    cell_labels = np.zeros(0, dtype="int8")
+    for i, cluster_id in enumerate(np.arange(labels.max()+1)):
+        cells_in_clusters = np.where(labels == cluster_id)[0]
+        n_cells_in_cluster = len(cells_in_clusters)
+        cell_labels = np.concatenate([cell_labels, cells_in_clusters])
+        cells_to_highlight.extend(list(np.arange(count_cells, count_cells+n_cells_in_cluster)))
+        cells_to_highlight_colors.extend([colors[i%len(colors)]]*n_cells_in_cluster)
+        clustered_spike_nums[count_cells:count_cells+n_cells_in_cluster, :] = spike_nums[cells_in_clusters, :]
+        count_cells += n_cells_in_cluster
+
+    cells_in_clusters = np.where(labels == -1)[0]
+    n_cells_in_cluster = len(cells_in_clusters)
+    cells_to_highlight.extend(list(np.arange(count_cells, n_cells)))
+    cells_to_highlight_colors.extend(["white"]*n_cells_in_cluster)
+    clustered_spike_nums[count_cells:, :] = spike_nums[cells_in_clusters, :]
+    cell_labels = np.concatenate([cell_labels, cells_in_clusters])
+    count_cells += n_cells_in_cluster
+
+    plot_spikes_raster(spike_nums=clustered_spike_nums, param=param,
+                       spike_train_format=False,
+                       title=f"hdbscan clusters raster plot {data_descr}",
+                       file_name=f"spike_nums_{data_descr}_hdbscan",
+                       y_ticks_labels=cell_labels,
+                       y_ticks_labels_size=2,
+                       save_raster=True,
+                       show_raster=False,
+                       plot_with_amplitude=False,
+                       activity_threshold=activity_threshold,
+                       raster_face_color='black',
+                       cell_spikes_color='white',
+                       span_area_coords=[SCE_times],
+                       span_area_colors=['white'],
+                       cells_to_highlight=cells_to_highlight,
+                       cells_to_highlight_colors=cells_to_highlight_colors,
+                       sliding_window_duration=1,
+                       show_sum_spikes_as_percentage=True,
+                       spike_shape="o",
+                       spike_shape_size=0.2,
+                       save_formats="pdf",
+                       SCE_times=SCE_times)
+    raise Exception("NOT TODAY HDBSCAN")
 
 
 def stat_significant_time_period(ms_to_analyse, shift_key, perc_threshold=95, n_surrogate=1000):
@@ -3431,11 +3750,11 @@ def robin_loading_process(param, load_traces, load_abf=False):
                       "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
                       "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
                       "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms", "p11_17_11_24_a000_ms"]
+                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
     #   for test
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
-    ms_str_to_load = ["p5_19_03_25_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     #                   "p7_18_02_08_a001_ms", "p7_18_02_08_a003_ms", "p7_18_02_08_a000_ms",
@@ -3450,7 +3769,11 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p14_18_10_23_a000_ms",
     #                   "p14_18_10_30_a001_ms"]
     # ms_str_to_load = ["richard_015_D74_P2_ms"]
-    ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
+    # ms_str_to_load = ["p60_arnaud_ms"]
+    # ms_str_to_load = ["p41_19_04_30_a000_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -3477,7 +3800,7 @@ def main():
 
     path_data = root_path + "data/"
     path_results_raw = root_path + "results_hne/"
-    cell_assemblies_data_path = path_data + "cell_assemblies/v5/"
+    cell_assemblies_data_path = path_data + "cell_assemblies/v6/"
     best_order_data_path = path_data + "best_order_data/v3/"
 
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
@@ -3510,7 +3833,7 @@ def main():
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
 
-    load_traces = True
+    load_traces = False
 
     if for_lexi:
         ms_str_to_ms_dict = lexi_loading_process(param=param, load_traces=load_traces)
@@ -3531,18 +3854,21 @@ def main():
     just_plot_all_time_correlation_graph_over_events = False
     just_plot_raster_with_periods = False
     just_do_stat_significant_time_period = False
+    just_plot_cells_that_fire_during_time_periods = False
     just_plot_twitch_ratio_activity = False
     just_fca_clustering_on_twitches_activity = False
+    just_save_stat_about_mvt_for_each_ms = False
+    just_plot_cell_assemblies_on_map = False
+    just_plot_all_cell_assemblies_proportion_on_shift_categories = False
 
     just_do_stat_on_event_detection_parameters = False
-    just_plot_raster = True
+    just_plot_raster = False
     # periods such as twitch etc...
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_raster_with_cells_assemblies_and_shifts = False
     just_plot_traces_raster = False
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
-    just_plot_cell_assemblies_on_map = False
     just_plot_all_cells_on_map = False
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
@@ -3553,7 +3879,7 @@ def main():
     just_save_sum_spikes_dur_in_npy_file = False
 
     # for events (sce) detection
-    perc_threshold = 99
+    perc_threshold = 95
     use_max_of_each_surrogate = False
     n_surrogate_activity_threshold = 1000
     use_raster_dur = True
@@ -3571,13 +3897,14 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = False
+    do_clustering = True
+    use_hdbscan = True
     # to add in the file title
     clustering_bonus_descr = ""
     # if False, clustering will be done using kmean
     do_fca_clustering = False
     # instead of sce, take the twitches periods
-    do_clustering_with_twitches_events = True
+    do_clustering_with_twitches_events = False
     with_cells_in_cluster_seq_sorted = False
     use_richard_option = for_richard
     # wake, sleep, quiet_wake, sleep_quiet_wake, active_wake
@@ -3595,7 +3922,7 @@ def main():
             # if "no_shift" then select the frame that are not in any period
             # Other keys are: shift_twitch, shift_long, shift_unclassified
             # or a list of those 3 keys and then will take all frames except those
-            with_period_mvt_filter = "shift_twitch" # ["shift_twitch","shift_long", "shift_unclassified"]
+            with_period_mvt_filter = None # ["shift_twitch","shift_long", "shift_unclassified"]
             if (with_period_mvt_filter is not None) and (ms.shift_data_dict is not None) and \
                     (not do_clustering_with_twitches_events):
                 n_frames = ms.spike_struct.spike_nums_dur.shape[1]
@@ -3719,9 +4046,25 @@ def main():
         stat_significant_time_period(ms_to_analyse, shift_key="shift_twitch", perc_threshold=95, n_surrogate=1000)
         raise Exception("just_do_stat_significant_time_period")
 
-    if just_plot_twitch_ratio_activity :
+    if just_plot_cells_that_fire_during_time_periods:
+        # shift_long, shift_twitch
+        plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_key="shift_long", param=param,
+                                                      perc_threshold=95, n_surrogate=1000)
+        raise Exception("just_plot_cells_that_fire_during_time_periods")
+
+    if just_plot_twitch_ratio_activity:
         plot_twitch_ratio_activity(ms_to_analyse, time_around=20, param=param, save_formats="pdf")
         raise Exception("just_plot_twitch_ratio_activity")
+
+    if just_save_stat_about_mvt_for_each_ms:
+        save_stat_about_mvt_for_each_ms(ms_to_analyse, param=param)
+        raise Exception("just_save_stat_about_mvt_for_each_ms")
+
+    if just_plot_all_cell_assemblies_proportion_on_shift_categories:
+        plot_all_cell_assemblies_proportion_on_shift_categories(ms_to_analyse,
+                                                                param=param, save_formats="pdf")
+        raise Exception("just_plot_all_cell_assemblies_proportion_on_shift_categories")
+
 
     ms_by_age = dict()
     for ms_index, ms in enumerate(ms_to_analyse):
@@ -3763,7 +4106,7 @@ def main():
             # frames_selected = ms.richard_dict["Active_Wake_Frames"]
             # frames_selected = frames_selected[frames_selected < ms.spike_struct.spike_nums_dur.shape[1]]
             # ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, frames_selected]
-            ms.plot_raster_with_periods(ms.shift_data_dict)
+            ms.plot_raster_with_periods(ms.shift_data_dict, with_cell_assemblies=True, only_cell_assemblies=True)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("The Lannisters always pay their debts")
             continue
@@ -3969,7 +4312,6 @@ def main():
                 raise Exception("fifi")
             continue
 
-
         if just_plot_raster_with_cells_assemblies_and_shifts:
             ms.plot_raster_with_cells_assemblies_and_shifts(only_cell_assemblies=True)
             if ms_index == len(ms_to_analyse) - 1:
@@ -4061,7 +4403,7 @@ def main():
             continue
 
         if just_plot_cell_assemblies_on_map:
-            ms.plot_cell_assemblies_on_map()
+            ms.plot_cell_assemblies_on_map(save_formats=["pdf"])
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_plot_cell_assemblies_on_map exception")
             continue
@@ -4975,14 +5317,16 @@ def main():
                     # ms.sce_times_numbers = sce_times_numbers
                     # ms.SCE_times = SCE_times
                     if (ms.shift_data_dict is not None) and do_clustering_with_twitches_events:
-                        # using twitch periods instead of SCE if info is available
-                        sce_times_bool = ms.shift_data_dict["shift_twitch"]
+                        # using twitch periods instead of SCE if info is available "shift_twitch"
+                        shift_to_use = "shift_twitch"
+                        # print(f"shift_to_use {shift_to_use}")
+                        sce_times_bool = ms.shift_data_dict[shift_to_use]
                         n_frames = len(sce_times_bool)
                         # extending twitch periods
                         # period_extension
-                        if with_period_mvt_filter == "shift_twitch":
-                            extension_frames_after = 50
-                            extension_frames_before = 10
+                        if shift_to_use == "shift_twitch":
+                            extension_frames_after = 20
+                            extension_frames_before = 1
                             shift_bool_tmp = np.copy(sce_times_bool)
                             true_frames = np.where(sce_times_bool)[0]
                             for frame in true_frames:
@@ -4999,8 +5343,14 @@ def main():
                             cellsinpeak[:, index] = np.sum(
                                 spike_nums_to_use[:, period[0]:period[1] + 1], axis=1)
                             cellsinpeak[cellsinpeak[:, index] > 0, index] = 1
-                        data_descr += "_twtich_time_as_sce_"
-                    compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels,
+                        data_descr += f"_{shift_to_use}_time_as_sce_"
+
+                    if use_hdbscan:
+                        try_hdbscan(cells_in_sce=cellsinpeak, spike_nums=spike_nums_to_use, param=ms.param,
+                                    SCE_times=SCE_times,
+                                    data_descr=data_descr+clustering_bonus_descr, activity_threshold=activity_threshold)
+                    else:
+                        compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels,
                                                                    activity_threshold=ms.spike_struct.activity_threshold,
                                                                    range_n_clusters_k_mean=range_n_clusters_k_mean,
                                                                    n_surrogate_k_mean=n_surrogate_k_mean,

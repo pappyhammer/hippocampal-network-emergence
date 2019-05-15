@@ -4,7 +4,7 @@ from scipy import signal
 # important to avoid a bug when using virtualenv
 # import matplotlib
 # matplotlib.use('TkAgg')
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 import hdf5storage
 import time
@@ -1652,9 +1652,13 @@ class MouseSession:
             descr = self.description.lower()
             if not file_name.startswith(descr):
                 continue
+            # list of list, each list correspond to one cell assemblie
             self.cell_assemblies = []
+            # key is the CA index, eachkey is a list correspond to tuples
+            # (first and last index of the SCE in frames)
             self.sce_times_in_single_cell_assemblies = dict()
             self.sce_times_in_multiple_cell_assemblies = []
+            # list of list, each list correspond to tuples (first and last index of the SCE in frames)
             self.sce_times_in_cell_assemblies = []
             with open(self.param.cell_assemblies_data_path + file_name_original, "r", encoding='UTF-8') as file:
                 param_section = False
@@ -2911,7 +2915,7 @@ class MouseSession:
         if return_fig:
             return fig
 
-    def plot_cell_assemblies_on_map(self):
+    def plot_cell_assemblies_on_map(self, save_formats=["pdf"]):
         if (self.cell_assemblies is None) or (self.coord_obj is None):
             return
 
@@ -2933,7 +2937,7 @@ class MouseSession:
                                       cells_groups=self.cell_assemblies,
                                       cells_groups_colors=cells_groups_colors,
                                       dont_fill_cells_not_in_groups=True,
-                                      with_cell_numbers=False, save_formats=["png", "pdf", "eps"])
+                                      with_cell_numbers=False, save_formats=save_formats)
 
     def set_low_activity_threshold(self, threshold, percentile_value):
         self.low_activity_threshold_by_percentile[percentile_value] = threshold
