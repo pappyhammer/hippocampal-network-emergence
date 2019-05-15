@@ -189,8 +189,8 @@ class ChooseSessionFrame(tk.Frame):
                         "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
                         "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
                         "p9_19_03_22_a001_ms",
-                        "p10_17_11_16_a003_ms", "p10_19_02_22_a002_ms",
-                        "p10_19_02_22_a003_ms", "p10_19_02_22_a005_ms",
+                        "p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+                        "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
                         "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
                         "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
                         "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
@@ -214,7 +214,7 @@ class ChooseSessionFrame(tk.Frame):
         self.go_button['state'] = DISABLED
         ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=[self.option_menu_variable.get()],
                                                 param=self.data_and_param, for_cell_classifier=False,
-                                                load_traces=True, load_abf=True)
+                                                load_traces=True, load_abf=False)
         self.data_and_param.ms = ms_str_to_ms_dict[self.option_menu_variable.get()]
         self.data_and_param.ms.load_tiff_movie_in_memory()
 
