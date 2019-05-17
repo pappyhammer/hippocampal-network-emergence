@@ -834,17 +834,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # for threshold prediction at 0.5
         # p9_19_02_20_a000_ms.activity_threshold =
 
-        if not p9_19_02_20_a000_ms.use_suite_2p:
-            variables_mapping = {"global_roi": "global_roi"}
-            p9_19_02_20_a000_ms.load_data_from_file(file_name_to_load=
-                                                    "p9/p9_19_02_20_a000/p9_19_02_20_a000_global_roi.mat",
-                                                    variables_mapping=variables_mapping)
-            variables_mapping = {"xshifts": "xshifts",
-                                 "yshifts": "yshifts"}
-            p9_19_02_20_a000_ms.load_data_from_file(file_name_to_load=
-                                                    "p9/p9_19_02_20_a000/MichelMotC_p9_19_02_20_a000_params.mat",
-                                                    variables_mapping=variables_mapping)
-
         ms_str_to_ms_dict["p9_19_02_20_a000_ms"] = p9_19_02_20_a000_ms
 
     if "p9_19_02_20_a001_ms" in ms_str_to_load:
@@ -1376,7 +1365,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # calculated with 99th percentile on raster dur
         # p14_18_10_30_a001_ms.activity_threshold =
 
-        if p14_18_10_30_a001_ms:
+        if not p14_18_10_30_a001_ms.use_suite_2p:
             variables_mapping = {"spike_nums_dur": "rasterdur",
                                  "spike_nums": "filt_Bin100ms_spikedigital",
                                  "spike_durations": "LOC3"}
@@ -1615,7 +1604,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             ms.load_raster_dur_from_predictions(
                 path_name=f"p{ms.age}/{ms.description.lower()}/predictions/",
                 prediction_key=prediction_key,
-                prediction_threshold=prediction_threshold, variables_mapping=variables_mapping)
+                prediction_threshold=prediction_threshold,
+                variables_mapping=variables_mapping, use_filtered_version=False)
 
         # next 2 functions won't do anything is spike_nums_dur is None
         ms.clean_raster_at_concatenation()

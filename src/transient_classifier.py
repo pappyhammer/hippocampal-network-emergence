@@ -3927,12 +3927,8 @@ def train_model():
         # ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms",
         #  "p12_171110_a000_ms",
         #  "p13_18_10_29_a001_ms", "artificial_ms_1"]
-        create_tiffs_for_data_generator(ms_to_use=[
-                        "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                        "p7_19_03_27_a002_ms", "p7_19_03_27_a003_ms"
-                        "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                        "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-                        "p8_19_03_19_a000_ms"],
+        create_tiffs_for_data_generator(ms_to_use=["p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
+                                 "p9_19_03_22_a001_ms", "p13_19_03_11_a000_ms","p12_171110_a000_ms", "p9_19_02_20_a000_ms"],
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
     go_predict_from_movie = True
@@ -3967,11 +3963,18 @@ def train_model():
         # cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33])}
 
         # Julien
-        ms_for_rnn_benchmarks = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                        "p7_19_03_27_a002_ms", "p7_19_03_27_a003_ms"
-                        "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                        "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-                        "p8_19_03_19_a000_ms"]
+        ms_for_rnn_benchmarks = ["p9_19_03_22_a000_ms",
+                                 "p9_19_03_22_a001_ms", "p13_19_03_11_a000_ms",
+                                 "p12_171110_a000_ms", "p9_19_02_20_a000_ms"]
+        # "p9_19_02_20_a000_ms" -> issue with cell_ccontour on Robin's computer
+        #  "p8_18_10_17_a000_ms" and "p9_19_03_14_a001_ms" (cell 613):
+        """
+         File "/home/julien/these_inmed/hne_project/hippocampal-network-emergence/src/transient_classifier.py", line 1863, in generate_movies_from_metadata
+    neuropil_mask[1 - mask_source_profile] = 1
+IndexError: index 1 is out of bounds for axis 0 with size 1
+        """
+        # get it again from Artem computer
+
         # Robin
         # ms_for_rnn_benchmarks = ["p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
         #                 "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
@@ -3990,9 +3993,8 @@ def train_model():
         #                 "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms"
         #                 "p41_19_04_30_a000_ms"]
         # mesocentre
-        # ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms",
-        #                          "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms", "p12_171110_a000_ms"]
-        cells_to_predict = dict()
+        # ms_for_rnn_benchmarks = ["p12_171110_a000_ms"]
+        # cells_to_predict = dict()
         # predicting all cells
         for ms in ms_for_rnn_benchmarks:
             cells_to_predict[ms] = None

@@ -10,7 +10,6 @@ import hdf5storage
 import matplotlib
 from sys import platform
 # import cv2
-from shapely import geometry
 from matplotlib.colors import LinearSegmentedColormap
 import scipy.stats as stats
 import time
@@ -36,8 +35,9 @@ import matplotlib.image as mpimg
 from random import randint
 import scipy.ndimage.morphology as morphology
 import os
-from PIL import ImageSequence, ImageDraw
+from PIL import ImageDraw
 import PIL
+from shapely import geometry
 # from PIL import ImageTk
 from itertools import cycle
 from matplotlib import animation
@@ -178,10 +178,10 @@ class ChooseSessionFrame(tk.Frame):
                         "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
                         "p7_19_03_05_a000_ms",
                         "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                        "p7_19_03_27_a002_ms", "p7_19_03_27_a003_ms"
+                        "p7_19_03_27_a002_ms",
                         "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
                         "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-                        "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms"
+                        "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
                         "p8_19_03_19_a000_ms",
                         "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
                         "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
@@ -199,7 +199,7 @@ class ChooseSessionFrame(tk.Frame):
                         "p13_19_03_11_a000_ms",
                         "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
                         "p16_18_11_01_a002_ms",
-                        "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms"
+                        "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
                         "p41_19_04_30_a000_ms",
                                  "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
 
@@ -977,7 +977,7 @@ class ManualOnsetFrame(tk.Frame):
                 # looking only in the top directory
                 break
         self.show_transient_classifier = False
-        self.transient_classifier_threshold = 0.05
+        self.transient_classifier_threshold = 0.5
         # key is int representing the cell number, and value will be an array of 2D with line representing the frame index
         # and the colums being a float reprenseing for each frame
         # the probability for the cell to be active for each class
@@ -1288,7 +1288,7 @@ class ManualOnsetFrame(tk.Frame):
         if self.robin_mac:
             self.fig = plt.figure(figsize=(8, 3))
         else:
-            self.fig = plt.figure(figsize=(10, 4))
+            self.fig = plt.figure(figsize=(20, 8))  # 10, 4
         self.fig.patch.set_facecolor('black')
         # self.plot_canvas = MyCanvas(self.fig, canvas_frame, self)
         self.plot_canvas = FigureCanvasTkAgg(self.fig, main_plot_frame)
@@ -1375,7 +1375,7 @@ class ManualOnsetFrame(tk.Frame):
             if not file_name.startswith("."):
                 self.michou_imgs.append(mpimg.imread(self.data_and_param.path_data + self.michou_path + file_name, 0))
 
-        self.n_michou_img = len(self.michou_img_file_names)
+        self.n_michou_img = len(self.michou_imgs)
         self.michou_img_to_display = -1
 
         # first key is the cell, value a dict
@@ -1580,11 +1580,13 @@ class ManualOnsetFrame(tk.Frame):
             # empty_label.pack(side=TOP)
             # from_=1, to=3
             # self.var_spin_box_threshold = StringVar(right_side_frame)
+            var = StringVar(transient_classifier_frame)
             self.spin_box_transient_classifier = Spinbox(transient_classifier_frame, values=list(np.arange(0.05, 1, 0.05)),
                                                          fg=self.color_text_gui_default, justify=CENTER,
-                                                         width=3,
+                                                         width=3, textvariable=var,
                                                          state="readonly")  # , textvariable=self.var_spin_box_threshold)
-            # self.var_spin_box_threshold.set(0.9)
+            var.set("0.5")
+            # self.var_spin_box_threshold.set(0.5)
             self.spin_box_transient_classifier["command"] = event_lambda(self.spin_box_transient_classifier_update)
             # self.spin_box_button.config(command=event_lambda(self.spin_box_update))
             self.spin_box_transient_classifier.pack(side=LEFT)
@@ -4150,13 +4152,14 @@ class ManualOnsetFrame(tk.Frame):
         cells_to_display.extend(intersect_cells)
         n_cells_to_display = len(cells_to_display)
         # now adding as many suplots as need, depending on how many overlap has the cell
-        n_columns = 3
+        # TODO: to adapt depending on the resolution and the size of the main figure
+        n_columns = 8
         width_ratios = [100 // n_columns] * n_columns
         n_lines = (((n_cells_to_display - 1) // n_columns) + 1) * 2
         height_ratios = [100 // n_lines] * n_lines
         grid_spec = gridspec.GridSpec(n_lines, n_columns, width_ratios=width_ratios,
                                       height_ratios=height_ratios,
-                                      figure=self.magnifier_fig)
+                                      figure=self.magnifier_fig, hspace=0.125, wspace=0.05)
 
         # building the subplots to displays the sources and transients
         ax_source_profile_by_cell = dict()
@@ -4796,6 +4799,7 @@ class ManualOnsetFrame(tk.Frame):
             if self.current_neuron in self.transient_prediction:
                 # TODO: work on the shape of predictions, should be (n_celles, n_class)
                 predictions = self.transient_prediction[self.current_neuron]
+                # print(f"predictions > 1: {predictions[predictions > 1]}")
                 if len(predictions.shape) == 1:
                     pass
                 if (len(predictions.shape) == 1) or predictions.shape[1] == 1:

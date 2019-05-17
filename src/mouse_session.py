@@ -1,4 +1,3 @@
-
 import matplotlib.cm as cm
 from scipy import signal
 # important to avoid a bug when using virtualenv
@@ -18,7 +17,7 @@ from pattern_discovery.graph.misc import welsh_powell
 # add the one containing the folder pattern_discovery
 import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.tools.misc import get_time_correlation_data
-from pattern_discovery.tools.misc import get_continous_time_periods
+from pattern_discovery.tools.misc import get_continous_time_periods, give_unique_id_to_each_transient_of_raster_dur
 from pattern_discovery.display.raster import plot_spikes_raster
 from pattern_discovery.display.misc import time_correlation_graph, plot_hist_distribution, plot_scatters
 from pattern_discovery.display.cells_map_module import CoordClass
@@ -35,6 +34,8 @@ from shapely.geometry import MultiPoint, LineString
 from ScanImageTiffReader import ScanImageTiffReader
 import hne_animation as hne_anim
 import math
+import PIL
+import pattern_discovery.display.misc as display_misc
 
 
 class MouseSession:
@@ -380,12 +381,12 @@ class MouseSession:
             self.z_score_traces[i, :] = (self.traces[i, :] - np.mean(self.traces[i, :])) / np.std(self.traces[i, :])
             if self.raw_traces is not None:
                 self.z_score_raw_traces[i, :] = (self.raw_traces[i, :] - np.mean(self.raw_traces[i, :])) \
-                                        / np.std(self.raw_traces[i, :])
+                                                / np.std(self.raw_traces[i, :])
                 self.z_score_smooth_traces[i, :] = (self.smooth_traces[i, :] - np.mean(self.smooth_traces[i, :])) \
-                                        / np.std(self.smooth_traces[i, :])
+                                                   / np.std(self.smooth_traces[i, :])
 
     def plot_psth_over_event_time_correlation_graph_style(self, event_str, time_around_events=10,
-                                                             ax_to_use=None, color_to_use=None,
+                                                          ax_to_use=None, color_to_use=None,
                                                           ax_to_use_total_events=None, color_to_use_total_events=None,
                                                           ax_to_use_total_spikes=None, color_to_use_total_spikes=None,
                                                           ax_to_use_for_scatter=None, color_to_use_for_scatter=None):
@@ -474,7 +475,7 @@ class MouseSession:
                 distribution_array[beg_index:beg_index + len_result] += neuron_spike_time
                 # distribution_array_2_d[neuron, :] = copy_of_neuron_distrib
             total_spikes = np.sum(distribution_array)
-            total_spikes_after = np.sum(distribution_array[time_around_events-1:])
+            total_spikes_after = np.sum(distribution_array[time_around_events - 1:])
             adding_this_neuron = total_spikes > 0
 
             # if np.sum(distribution_array[time_around_events - 2:]) < 2:
@@ -586,14 +587,14 @@ class MouseSession:
         #     colors.extend(["red"] * len(inter_neurons))
 
         plot_hist_distribution(distribution_data=ratio_spike_twitch_total_spikes,
-                                      description=f"{self.description}",
-                                      values_to_scatter=np.array(values_to_scatter),
-                                      labels=labels,
-                                      scatter_shapes=scatter_shapes,
-                                      colors=colors,
+                               description=f"{self.description}",
+                               values_to_scatter=np.array(values_to_scatter),
+                               labels=labels,
+                               scatter_shapes=scatter_shapes,
+                               colors=colors,
                                twice_more_bins=True,
-                                      xlabel=f"spikes in {event_str} vs total spikes (%)",
-                                      param=self.param,
+                               xlabel=f"spikes in {event_str} vs total spikes (%)",
+                               param=self.param,
                                ax_to_use=ax_to_use_total_spikes,
                                color_to_use=color_to_use_total_spikes)
 
@@ -631,14 +632,14 @@ class MouseSession:
         #     colors.extend(["red"] * len(inter_neurons))
 
         plot_hist_distribution(distribution_data=ratio_spike_twitch_total_twitches,
-                                description=f"{self.description}",
-                                      values_to_scatter=np.array(values_to_scatter),
-                                      labels=labels,
-                                      scatter_shapes=scatter_shapes,
-                                      colors=colors,
+                               description=f"{self.description}",
+                               values_to_scatter=np.array(values_to_scatter),
+                               labels=labels,
+                               scatter_shapes=scatter_shapes,
+                               colors=colors,
                                twice_more_bins=True,
-                                      xlabel=f"spikes in {event_str} vs total {event_str} (%)",
-                                      param=self.param,
+                               xlabel=f"spikes in {event_str} vs total {event_str} (%)",
+                               param=self.param,
                                ax_to_use=ax_to_use_total_events,
                                color_to_use=color_to_use_total_events)
         #
@@ -761,7 +762,6 @@ class MouseSession:
             self.movie_len_x = self.tiff_movie[0].shape[1]
             self.movie_len_y = self.tiff_movie[0].shape[0]
 
-
     def produce_roi_shift_animation_with_cell_assemblies(self):
         if (self.global_roi is None) or (self.x_shifts is None):
             return
@@ -777,7 +777,6 @@ class MouseSession:
         # self.coord_obj.compute_center_coord(cells_groups=self.cell_assemblies,
         #                                     cells_groups_colors=cells_groups_colors,
         #                                     dont_fill_cells_not_in_groups=True)
-
 
         animation = hne_anim.HNEAnimation(n_frames=12500, n_rows=3, n_cols=1)
         raw_movie_box = hne_anim.RawMovieBox(tiff_file_name=self.tif_movie_file_name, zoom_factor=2,
@@ -810,7 +809,7 @@ class MouseSession:
                                     file_name=f"test_raw_movie_{self.description}",
                                     save_formats=["tiff"],  # , "avi"
                                     frames_to_display=np.arange(4000, 4600))
-        #p10 2000 to 4000
+        # p10 2000 to 4000
 
     def produce_roi_shift_animation(self):
         if (self.global_roi is None) or (self.x_shifts is None):
@@ -824,30 +823,30 @@ class MouseSession:
         # roi = (roi - np.mean(roi)) / np.std(roi)
         # roi += np.abs(np.min(roi))
 
-        shifts = np.sqrt(self.x_shifts**2 + self.y_shifts**2)
+        shifts = np.sqrt(self.x_shifts ** 2 + self.y_shifts ** 2)
         # normalization
         # shifts = (shifts - np.mean(shifts)) / np.std(shifts)
         # shifts += np.abs(np.min(shifts))
         roi_box = hne_anim.PlotBox(width=178, height=80,  # raw_movie_box.width
-                                               values_array=roi,
-                                               n_frames_to_display=800)
+                                   values_array=roi,
+                                   n_frames_to_display=800)
         animation.add_box(row=0, col=0, box=roi_box)
         shift_box = hne_anim.PlotBox(width=178, height=80,
-                                    values_array=shifts, color_past_and_present="cornflowerblue",
-                                   color_future="white",
-                                   n_frames_to_display=800)
+                                     values_array=shifts, color_past_and_present="cornflowerblue",
+                                     color_future="white",
+                                     n_frames_to_display=800)
         animation.add_box(row=1, col=0, box=shift_box)
-        animation.produce_animation(path_results=self.param.path_results, file_name=f"test_raw_movie_{self.description}",
-                               save_formats=["tiff"],  # , "avi"
-                               frames_to_display=np.arange(200, 1600))
-        #P5: width 178, range: 501 to 2001
+        animation.produce_animation(path_results=self.param.path_results,
+                                    file_name=f"test_raw_movie_{self.description}",
+                                    save_formats=["tiff"],  # , "avi"
+                                    frames_to_display=np.arange(200, 1600))
+        # P5: width 178, range: 501 to 2001
         # P9: 0 3100
         # p9_19_03_22_a001: 2000 3400
         # p5 oriens: 2600 4000
         # p10 oriens: 8000 - 10500
         # P12_19_02_08_a000 (oriens): 200 1600
         # P12_17_11_10_a000: 3600 - 4800
-
 
     def produce_animation(self):
         # self.load_tiff_movie_in_memory()
@@ -858,12 +857,13 @@ class MouseSession:
         sum_spikes = tools_misc.get_activity_sum(raster=self.spike_struct.spike_nums_dur,
                                                  get_sum_spikes_as_percentage=True)
         activity_box = hne_anim.PlotBox(width=raw_movie_box.width, height=80,
-                                               values_array=sum_spikes,
-                                               n_frames_to_display=100)
+                                        values_array=sum_spikes,
+                                        n_frames_to_display=100)
         animation.add_box(row=1, col=0, box=activity_box)
-        animation.produce_animation(path_results=self.param.path_results, file_name=f"test_raw_movie_{self.description}",
-                               save_formats=["tiff"],  # , "avi"
-                               frames_to_display=np.arange(12400, 12499))
+        animation.produce_animation(path_results=self.param.path_results,
+                                    file_name=f"test_raw_movie_{self.description}",
+                                    save_formats=["tiff"],  # , "avi"
+                                    frames_to_display=np.arange(12400, 12499))
 
     def build_raw_traces_from_movie(self):
         if self.tiff_movie is None:
@@ -872,11 +872,12 @@ class MouseSession:
         raw_traces = np.zeros((self.coord_obj.n_cells, self.tiff_movie.shape[0]))
         for cell in np.arange(self.coord_obj.n_cells):
             mask = self.coord_obj.get_cell_mask(cell=cell,
-                                         dimensions=(self.tiff_movie.shape[1], self.tiff_movie.shape[2]))
+                                                dimensions=(self.tiff_movie.shape[1], self.tiff_movie.shape[2]))
             raw_traces[cell, :] = np.mean(self.tiff_movie[:, mask], axis=1)
         return raw_traces
 
-    def plot_time_correlation_graph_over_events(self, event_str, time_around_events=10, ax_to_use=None, color_to_use=None):
+    def plot_time_correlation_graph_over_events(self, event_str, time_around_events=10, ax_to_use=None,
+                                                color_to_use=None):
         if (self.shift_data_dict is None) or (self.spike_struct.spike_nums is None):
             return
         twitches_frames_periods = get_continous_time_periods(self.shift_data_dict[event_str].astype("int8"))
@@ -1095,7 +1096,7 @@ class MouseSession:
                 for period in periods:
                     # in ms
                     duration = int(((period[1] - period[0] + 1) / self.sampling_rate) * 1000)
-                    spike_nums_duration[cell, period[0]:period[1]+1] = duration
+                    spike_nums_duration[cell, period[0]:period[1] + 1] = duration
             duration_spikes = np.sum(spike_nums_duration[:, beg_time:twitch_time], axis=0)
             sum_spikes = np.sum(spike_nums_to_use[:, beg_time:twitch_time], axis=0)
 
@@ -1111,7 +1112,7 @@ class MouseSession:
                                                                 duration_spikes[i]
                 spike_sum_of_sum_non_norm_at_time_dict[time_spike] = \
                     spike_sum_of_sum_non_norm_at_time_dict.get(time_spike, 0) + \
-                                                            duration_spikes[i]
+                    duration_spikes[i]
                 if time_spike not in spikes_sums_at_time_dict:
                     spikes_sums_at_time_dict[time_spike] = []
                 if sum_spikes[i] > 0:
@@ -1327,7 +1328,7 @@ class MouseSession:
                np.array(median_values), np.array(low_values), np.array(high_values), np.array(std_values)
 
     def get_spikes_duration_values_around_twitches(self, sce_bool=None, time_around=100,
-                                          twitches_group=0, low_percentile=25, high_percentile=75):
+                                                   twitches_group=0, low_percentile=25, high_percentile=75):
         # UGLY CODE
         if self.spike_struct.spike_nums_dur is None:
             return
@@ -1385,7 +1386,7 @@ class MouseSession:
                            ax_to_use=None, put_mean_line_on_plt=False,
                            color_to_use=None,
                            with_other_ms=None,
-                           duration_option = False,
+                           duration_option=False,
                            save_formats="pdf"):
         """
         Not using groups anymore
@@ -1414,7 +1415,7 @@ class MouseSession:
         if duration_option:
             results = \
                 self.get_spikes_duration_values_around_twitches(sce_bool=sce_bool, time_around=time_around,
-                                                       twitches_group=twitches_group)
+                                                                twitches_group=twitches_group)
         else:
             results = \
                 self.get_spikes_values_around_twitches(sce_bool=sce_bool, time_around=time_around,
@@ -1441,7 +1442,7 @@ class MouseSession:
 
         title_option = self.twitches_group_title[twitches_group]
 
-        for mean_version in [True]: # False
+        for mean_version in [True]:  # False
             max_value = 0
             if ax_to_use is None:
                 fig, ax1 = plt.subplots(nrows=1, ncols=1,
@@ -1468,12 +1469,12 @@ class MouseSession:
                         if duration_option:
                             results = \
                                 ms.get_spikes_duration_values_around_twitches(sce_bool=sce_bool,
-                                                                                time_around=time_around,
-                                                                                twitches_group=twitches_group)
+                                                                              time_around=time_around,
+                                                                              twitches_group=twitches_group)
                         else:
                             results = \
                                 ms.get_spikes_values_around_twitches(sce_bool=ms.sce_bool, time_around=time_around,
-                                                                 twitches_group=twitches_group)
+                                                                     twitches_group=twitches_group)
 
                         if results is None:
                             continue
@@ -1517,8 +1518,8 @@ class MouseSession:
                        linestyles="dashed")
             if put_mean_line_on_plt:
                 plt.vlines(0, 0,
-                       np.max(mean_values), color="white", linewidth=2,
-                       linestyles="dashed")
+                           np.max(mean_values), color="white", linewidth=2,
+                           linestyles="dashed")
             # ax1.hlines(activity_threshold_percentage, -1 * time_around, time_around,
             #            color="white", linewidth=1,
             #            linestyles="dashed")
@@ -1566,7 +1567,7 @@ class MouseSession:
                                 f'{n_twitches}_twitches_{title_option}'
                                 f'_{extra_info}{self.param.time_str}.{save_format}',
                                 format=f"{save_format}",
-                        facecolor=fig.get_facecolor())
+                                facecolor=fig.get_facecolor())
 
                 plt.close()
 
@@ -1835,7 +1836,7 @@ class MouseSession:
                             extra_info = extra_info_by_cell[ax_index + first_cell]
                     ax.plot(x_times,
                             grouped_values[ax_index], color=color_to_use,
-                            lw=2, label=f"n° {ax_index+first_cell}{extra_info}")
+                            lw=2, label=f"n° {ax_index + first_cell}{extra_info}")
                     # ax.fill_between(x_times, grouped_mean_values[ax_index] - grouped_std_values[ax_index],
                     #                 grouped_mean_values[ax_index] + grouped_std_values[ax_index],
                     #                 alpha=0.5, facecolor="blue")
@@ -1932,7 +1933,7 @@ class MouseSession:
                     ax.set_facecolor("black")
 
                     ax.plot(x_times,
-                            grouped_mean_values[ax_index], color="blue", lw=2, label=f"cell {ax_index+first_cell}")
+                            grouped_mean_values[ax_index], color="blue", lw=2, label=f"cell {ax_index + first_cell}")
                     ax.fill_between(x_times, grouped_mean_values[ax_index] - grouped_std_values[ax_index],
                                     grouped_mean_values[ax_index] + grouped_std_values[ax_index],
                                     alpha=0.5, facecolor="blue")
@@ -2194,7 +2195,7 @@ class MouseSession:
                         duration = period[1] - period[0]
                         # spike_nums_dur[cell, period[0]:period[1] + 1] = np.max(traces_0_1[cell, period[0]:period[1] + 1])
                         spike_nums_dur[cell, period[0]:period[1] + 1] = traces_0_1[cell, period[0]:period[1] + 1]
-                                                                       # * duration
+                        # * duration
         # if use_duration:
         #     # ordering cells so all the one active are at the beginning
         #     index_free = 0
@@ -2419,14 +2420,13 @@ class MouseSession:
         for cell_assembly_index, cell_assembly in enumerate(self.cell_assemblies):
             color = cm.nipy_spectral(float(cell_assembly_index + 1) / (n_cell_assemblies + 1))
             cell_indices_to_color = []
-            new_cell_order[last_group_index:last_group_index+len(cell_assembly)] = \
+            new_cell_order[last_group_index:last_group_index + len(cell_assembly)] = \
                 np.array(cell_assembly).astype("uint16")
-            cell_indices_to_color = list(range(last_group_index, last_group_index+len(cell_assembly)))
+            cell_indices_to_color = list(range(last_group_index, last_group_index + len(cell_assembly)))
             cells_to_highlight.extend(cell_indices_to_color)
             cells_to_highlight_colors.extend([color] * len(cell_indices_to_color))
             last_group_index += len(cell_assembly)
             cells_in_assemblies.extend(list(cell_assembly))
-
 
         other_cells = np.setdiff1d(np.arange(n_cells), cells_in_assemblies)
         new_cell_order[last_group_index:] = other_cells
@@ -2475,7 +2475,8 @@ class MouseSession:
                            spikes_sum_to_use=shifts,
                            size_fig=(15, 5))
 
-    def plot_raster_with_periods(self, periods_dict, bonus_title="", with_cell_assemblies=True, only_cell_assemblies=False):
+    def plot_raster_with_periods(self, periods_dict, bonus_title="",
+                                 with_periods=True, with_cell_assemblies=True, only_cell_assemblies=False):
         if self.spike_struct.spike_nums_dur is None:
             return
 
@@ -2528,10 +2529,11 @@ class MouseSession:
         i = 0
         span_area_coords = []
         span_area_colors = []
-        if periods_dict is not None:
+
+        if with_periods and (periods_dict is not None):
             for name_period, period in periods_dict.items():
                 span_area_coords.append(get_continous_time_periods(period.astype("int8")))
-                span_area_colors.append(colors[i%len(colors)])
+                span_area_colors.append(colors[i % len(colors)])
                 print(f"Period {name_period} -> {colors[i]}")
                 i += 1
 
@@ -2588,22 +2590,22 @@ class MouseSession:
             f = np.load(os.path.join(self.param.path_data, data_path, 'F.npy'))
             self.suite2p_data["F"] = f
         if os.path.isfile(os.path.join(self.param.path_data, data_path, 'Fneu.npy')):
-            f_neu = np.load(os.path.join(self.param.path_data, data_path,  'Fneu.npy'))
+            f_neu = np.load(os.path.join(self.param.path_data, data_path, 'Fneu.npy'))
             self.suite2p_data["Fneu"] = f_neu
         if os.path.isfile(os.path.join(self.param.path_data, data_path, 'spks.npy')):
-            spks = np.load(os.path.join(self.param.path_data, data_path,  'spks.npy'))
+            spks = np.load(os.path.join(self.param.path_data, data_path, 'spks.npy'))
             self.suite2p_data["spks"] = spks
         # print(f"spks.shape {spks}")
-        stat = np.load(os.path.join(self.param.path_data, data_path,  'stat.npy'))
+        stat = np.load(os.path.join(self.param.path_data, data_path, 'stat.npy'))
         self.suite2p_data["stat"] = stat
         # print(f"len(stat) {len(stat)}")
         # stat = stat[0]
         if os.path.isfile(os.path.join(self.param.path_data, data_path, 'ops.npy')):
-            ops = np.load(os.path.join(self.param.path_data, data_path,  'ops.npy'))
+            ops = np.load(os.path.join(self.param.path_data, data_path, 'ops.npy'))
             ops = ops.item()
             self.suite2p_data["ops"] = ops
 
-        is_cell = np.load(os.path.join(self.param.path_data, data_path,  'iscell.npy'))
+        is_cell = np.load(os.path.join(self.param.path_data, data_path, 'iscell.npy'))
         self.suite2p_data["is_cell"] = is_cell
         # print(f"len(is_cell) {len(is_cell)}")
 
@@ -2691,7 +2693,6 @@ class MouseSession:
             bonus = " with coord"
         print(f"suite2p data loaded for {self.description}{bonus}")
 
-
     def plot_connectivity_maps_of_a_cell(self, cell_to_map, cell_descr, not_in=False,
                                          cell_color="red", links_cell_color="cornflowerblue"):
         if self.coord_obj is None:
@@ -2730,15 +2731,15 @@ class MouseSession:
         #                                     cells_groups_colors=cells_groups_colors)
         if not not_in:
             self.coord_obj.plot_cells_map(param=self.param,
-                                      data_id=self.description, show_polygons=False,
-                                      title_option=f"n_in_{cell_descr}_{cell_to_map}",
-                                      connections_dict=connections_dict_in,
-                                      with_cell_numbers=False,
-                                      cells_groups=cells_groups,
-                                      dont_fill_cells_not_in_groups=True,
-                                      cells_groups_colors=cells_groups_colors,
-                                      background_color="white", default_cells_color="black",
-                                      link_connect_color="black")
+                                          data_id=self.description, show_polygons=False,
+                                          title_option=f"n_in_{cell_descr}_{cell_to_map}",
+                                          connections_dict=connections_dict_in,
+                                          with_cell_numbers=False,
+                                          cells_groups=cells_groups,
+                                          dont_fill_cells_not_in_groups=True,
+                                          cells_groups_colors=cells_groups_colors,
+                                          background_color="white", default_cells_color="black",
+                                          link_connect_color="black")
 
         cells_groups_colors = [cell_color]
         cells_groups = [[cell_to_map]]
@@ -2902,16 +2903,16 @@ class MouseSession:
         cells_groups_alpha.append(1)
         cells_groups_edge_colors.append("white")
         fig = self.coord_obj.plot_cells_map(param=self.param,
-                                      data_id=self.description, show_polygons=False,
-                                      fill_polygons=False,
-                                      title_option="all cells", connections_dict=None,
-                                      cells_groups=cells_groups,
-                                      cells_groups_colors=cells_groups_colors,
-                                      cells_groups_edge_colors=cells_groups_edge_colors,
-                                      with_edge=True, cells_groups_alpha=cells_groups_alpha,
-                                      dont_fill_cells_not_in_groups=False,
-                                      with_cell_numbers=True, save_formats=["png"],
-                                      save_plot=save_plot, return_fig=return_fig)
+                                            data_id=self.description, show_polygons=False,
+                                            fill_polygons=False,
+                                            title_option="all cells", connections_dict=None,
+                                            cells_groups=cells_groups,
+                                            cells_groups_colors=cells_groups_colors,
+                                            cells_groups_edge_colors=cells_groups_edge_colors,
+                                            with_edge=True, cells_groups_alpha=cells_groups_alpha,
+                                            dont_fill_cells_not_in_groups=False,
+                                            with_cell_numbers=True, save_formats=["png"],
+                                            save_plot=save_plot, return_fig=return_fig)
         if return_fig:
             return fig
 
@@ -2987,7 +2988,6 @@ class MouseSession:
         self.abf_sampling_rate = sampling_rate
         self.threshold_piezo = threshold_piezo
 
-
         use_old_version = False
 
         if use_old_version:
@@ -3037,7 +3037,8 @@ class MouseSession:
                                 self.intermediate_behavourial_events_frames = npzfile[
                                     'intermediate_behavourial_events_frames']
                                 self.intermediate_behavourial_events_frames_periods = \
-                                    tools_misc.find_continuous_frames_period(self.intermediate_behavourial_events_frames)
+                                    tools_misc.find_continuous_frames_period(
+                                        self.intermediate_behavourial_events_frames)
                             if "noise_mvt_frames" in npzfile:
                                 self.noise_mvt_frames = npzfile['noise_mvt_frames']
                                 self.noise_mvt_frames_periods = \
@@ -3166,7 +3167,7 @@ class MouseSession:
                     down_sampling_hz = 50
                 else:
                     down_sampling_hz = 1000
-                sampling_step = int(self.abf_sampling_rate/down_sampling_hz)
+                sampling_step = int(self.abf_sampling_rate / down_sampling_hz)
                 # np.save(self.param.path_data + path_abf_data + self.description +
                 #         f"_abf_12500_channel_{current_channel}.npy",
                 #         mvt_data_without_abs[self.abf_frames])
@@ -3174,8 +3175,8 @@ class MouseSession:
                 # to do so we concatenate the time between frames
                 piezzo_shift = np.zeros(0)
                 for i in np.arange(0, 12500, 2500):
-                    last_abf_frame = self.abf_frames[i+2499]
-                    if (self.abf_frames[i+2499] == len(mvt_data_without_abs)):
+                    last_abf_frame = self.abf_frames[i + 2499]
+                    if (self.abf_frames[i + 2499] == len(mvt_data_without_abs)):
                         last_abf_frame -= 1
                     new_data = mvt_data_without_abs[np.arange(self.abf_frames[i],
                                                               last_abf_frame, sampling_step)]
@@ -3201,7 +3202,7 @@ class MouseSession:
 
         self.abf_loaded = True
         # manual selection deactivated
-        do_manual_selection = False # not npz_loaded
+        do_manual_selection = False  # not npz_loaded
         if not do_manual_selection:
             return
 
@@ -3322,7 +3323,7 @@ class MouseSession:
         # extending periods with first_derivative_period
         for mvt_period in mvt_periods:
             zero_times = \
-            np.where(first_derivative[mvt_period[0] - (self.abf_sampling_rate // 2):mvt_period[0] + 1] == 0)[0]
+                np.where(first_derivative[mvt_period[0] - (self.abf_sampling_rate // 2):mvt_period[0] + 1] == 0)[0]
             if len(zero_times) > 0:
                 zero_times += (mvt_period[0] - (self.abf_sampling_rate // 2))
                 # print(f"mvt_period[0]-zero_times[-1] {np.round(mvt_period[0]-zero_times[-1], 3)}")
@@ -3683,20 +3684,57 @@ class MouseSession:
         # raise Exception("JOJO")
 
     def load_raster_dur_from_predictions(self, prediction_threshold, variables_mapping, file_name=None,
-                                         path_name=None, prediction_key=None):
+                                         path_name=None, prediction_key=None, use_filtered_version=False):
         """
-
+        Loader raster_dur from either a prediction file using threshold at 0.5 to keep the predictions
+        or will load if available to a file with also prediction_key on it but with the name
+        predicted_raster_dur that would have been produce by this function in order to remove
+        potential false_transient
         :param prediction_threshold:
         :param variables_mapping:
         :param file_name:
         :param path_name: if given, will look for a file in this directory with key_prediction on it
         :param prediction_key:
+        :param use_filtered_version: if True, will filter the predicted raster_dur created base on predictions
+        in order to remove fake transients that could have been missed using co-activation and source transient profile
+        correlation. if use_filtered_version, path_name must be incicated
         :return:
         """
 
+        if self.tiff_movie is None:
+            self.load_tiff_movie_in_memory()
+            if self.tiff_movie is None:
+                raise Exception(f"{self.description}, load_raster_dur_from_predictions: movie could not be loaded")
+            self.normalize_movie()
+
         if (file_name is None) and (path_name is None):
-            print("load_raster_dur_from_predictions no file_name or path_name")
+            print(f"{self.description}: load_raster_dur_from_predictions no file_name or path_name")
             return
+
+        if use_filtered_version and (path_name is None):
+            print(f"{self.description} For using use_filtered_version you need to indicated a path_name")
+            return
+
+        filtered_version_loaded = False
+        if use_filtered_version:
+            # first we look for a saved version of a filtered version
+            data = None
+            # loading predictions
+            file_names = []
+            # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+            for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data,
+                                                                             path_name)):
+                file_names.extend(local_filenames)
+                break
+
+            if len(file_names) > 0:
+                for file_name in file_names:
+                    if (prediction_key in file_name) and ("filtered_predicted_raster_dur" in file_name):
+                        self.spike_struct.spike_nums_dur = np.load(os.path.join(self.param.path_data,
+                                                                path_name, file_name), allow_pickle=True)
+                        print(f"{self.description}: filtered_version_loaded")
+                        filtered_version_loaded = True
+                        break
 
         if path_name is not None:
             data = None
@@ -3710,9 +3748,10 @@ class MouseSession:
 
             if len(file_names) > 0:
                 for file_name in file_names:
-                    if prediction_key in file_name:
+                    if (prediction_key in file_name) and ("filtered_predicted_raster_dur" not in file_name) \
+                            and (file_name.endswith(".mat")):
                         data = hdf5storage.loadmat(os.path.join(self.param.path_data,
-                                                                     path_name, file_name))
+                                                                path_name, file_name))
             if data is None:
                 print(f"load_raster_dur_from_predictions no file_name with {prediction_key} found in "
                       f"{os.path.join(self.param.path_data, path_name)}")
@@ -3726,39 +3765,201 @@ class MouseSession:
         if "predictions" in variables_mapping:
             predictions = data[variables_mapping["predictions"]]
             self.rnn_transients_predictions = predictions
-            predicted_raster_dur_dict = np.zeros((len(predictions), len(predictions[0])), dtype="int8")
-            for cell in np.arange(len(predictions)):
-                pred = predictions[cell]
-                # predicted_raster_dur_dict[cell, pred >= predictions_threshold] = 1
-                if len(pred.shape) == 1:
-                    predicted_raster_dur_dict[cell, pred >= prediction_threshold] = 1
-                elif (len(pred.shape) == 2) and (pred.shape[1] == 1):
-                    pred = pred[:, 0]
-                    predicted_raster_dur_dict[cell, pred >= prediction_threshold] = 1
-                elif (len(pred.shape) == 2) and (pred.shape[1] == 3):
-                    # real transient, fake ones, other (neuropil, decay etc...)
-                    # keeping predictions about real transient when superior
-                    # to other prediction on the same frame
-                    max_pred_by_frame = np.max(pred, axis=1)
-                    real_transient_frames = (pred[:, 0] == max_pred_by_frame)
-                    predicted_raster_dur_dict[cell, real_transient_frames] = 1
-                elif pred.shape[1] == 2:
-                    # real transient, fake ones
-                    # keeping predictions about real transient superior to the threshold
-                    # and superior to other prediction on the same frame
-                    max_pred_by_frame = np.max(pred, axis=1)
-                    real_transient_frames = np.logical_and((pred[:, 0] >= prediction_threshold),
-                                                           (pred[:, 0] == max_pred_by_frame))
-                    predicted_raster_dur_dict[cell, real_transient_frames] = 1
-            self.spike_struct.spike_nums_dur = predicted_raster_dur_dict
-            self.spike_struct.n_cells = len(self.spike_struct.spike_nums_dur)
-            if self.spike_struct.labels is None:
-                self.spike_struct.labels = np.arange(len(self.spike_struct.spike_nums_dur))
-            if self.spike_struct.n_in_matrix is None:
-                self.spike_struct.n_in_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
-                self.spike_struct.n_out_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
+            if not filtered_version_loaded:
+                # then we produce the raster dur based on the predictions using threshold the prediction_threshold
+                predicted_raster_dur_dict = np.zeros((len(predictions), len(predictions[0])), dtype="int8")
+                for cell in np.arange(len(predictions)):
+                    pred = predictions[cell]
+                    # predicted_raster_dur_dict[cell, pred >= predictions_threshold] = 1
+                    if len(pred.shape) == 1:
+                        predicted_raster_dur_dict[cell, pred >= prediction_threshold] = 1
+                    elif (len(pred.shape) == 2) and (pred.shape[1] == 1):
+                        pred = pred[:, 0]
+                        predicted_raster_dur_dict[cell, pred >= prediction_threshold] = 1
+                    elif (len(pred.shape) == 2) and (pred.shape[1] == 3):
+                        # real transient, fake ones, other (neuropil, decay etc...)
+                        # keeping predictions about real transient when superior
+                        # to other prediction on the same frame
+                        max_pred_by_frame = np.max(pred, axis=1)
+                        real_transient_frames = (pred[:, 0] == max_pred_by_frame)
+                        predicted_raster_dur_dict[cell, real_transient_frames] = 1
+                    elif pred.shape[1] == 2:
+                        # real transient, fake ones
+                        # keeping predictions about real transient superior to the threshold
+                        # and superior to other prediction on the same frame
+                        max_pred_by_frame = np.max(pred, axis=1)
+                        real_transient_frames = np.logical_and((pred[:, 0] >= prediction_threshold),
+                                                               (pred[:, 0] == max_pred_by_frame))
+                        predicted_raster_dur_dict[cell, real_transient_frames] = 1
+                self.spike_struct.spike_nums_dur = predicted_raster_dur_dict
         else:
             raise Exception("load_raster_dur_from_predictions no predicions variable")
+
+        self.spike_struct.n_cells = len(self.spike_struct.spike_nums_dur)
+        if self.spike_struct.labels is None:
+            self.spike_struct.labels = np.arange(len(self.spike_struct.spike_nums_dur))
+        if self.spike_struct.n_in_matrix is None:
+            self.spike_struct.n_in_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
+            self.spike_struct.n_out_matrix = np.zeros((self.spike_struct.n_cells, self.spike_struct.n_cells))
+
+        if use_filtered_version and (not filtered_version_loaded):
+            if self.raw_traces is None:
+                self.raw_traces = self.build_raw_traces_from_movie()
+            # we need peak_nums and spike_nums
+            # it should be called again at the end of this function
+            # after filtering the spike_nums_dur
+            # usually done in mouse_session_loader
+            self.spike_struct.build_spike_nums_and_peak_nums()
+
+            n_cells = self.spike_struct.n_cells
+            n_frames = self.spike_struct.spike_nums_dur.shape[1]
+            spike_nums_dur_numbers = \
+                give_unique_id_to_each_transient_of_raster_dur(raster_dur=self.spike_struct.spike_nums_dur)
+
+            # then we create a filter version, to remove fake transient due to overlap that would have
+            # been wrongly classified and save the prediction
+            # we will modify directly self.spike_struct.spike_nums_dur
+
+            # we go cell by cell, identfy their overlapping cells, list the co-activated transient
+            # then calculate the source profile of the cells and the profile of each transient,
+            # and the correlation
+            # between the sources and transients
+            overlapping_cells = self.coord_obj.intersect_cells
+            source_profile_dict = dict()
+            n_co_active_transients_detected = 0
+            source_profile_corr_dict = dict()
+            # to plot distribution
+            n_fake_transients_by_cell = np.zeros(n_cells, dtype="int16")
+            # keep tuple of int to check if the co-active transient of those 2 cells have been verified already
+            pair_of_cells_already_checked_dict = dict()
+            for cell in np.arange(n_cells):
+                intersect_cells = overlapping_cells[cell]
+                # first we check if at least a cell has a transient in common with an overlapping cell
+                if len(intersect_cells) == 0:
+                    continue
+                cell_active_frames = np.where(self.spike_struct.spike_nums_dur[cell])[0]
+                # key: cells with co_active transients, and value is a list of tuple (onset, peak)
+                co_active_frames_dict = dict()
+                for intersect_cell in intersect_cells:
+                    intersect_cell_active_frames = np.where(self.spike_struct.spike_nums_dur[intersect_cell])[0]
+                    common_active_frames = np.intersect1d(cell_active_frames, intersect_cell_active_frames)
+                    if len(common_active_frames) == 0:
+                        continue
+                    binary_frames = np.zeros(n_frames, dtype="int8")
+                    binary_frames[common_active_frames] = 1
+                    # produce a list of tuple representing the onset and frames of each transient
+                    co_active_transients = get_continous_time_periods(binary_frames)
+                    if intersect_cell not in co_active_frames_dict:
+                        co_active_frames_dict[intersect_cell] = []
+                    co_active_frames_dict[intersect_cell].extend(co_active_transients)
+                    n_co_active_transients_detected += len(co_active_transients)
+
+                if len(co_active_frames_dict) == 0:
+                    # it means no co-active transients
+                    continue
+
+                # print(f"{cell} {len(co_active_frames_dict)}-> {co_active_frames_dict}")
+                co_active_cells = list(co_active_frames_dict.keys())
+                all_cells = list(co_active_cells)
+                all_cells.append(cell)
+                # main_source_profile = None
+                for cell_for_profile in all_cells:
+                    if cell_for_profile not in source_profile_dict:
+                        source_profile, minx, miny, mask_source_profile = \
+                            self.coord_obj.get_source_profile(tiff_movie=self.tiff_movie, traces=self.raw_traces,
+                                                              peak_nums=self.spike_struct.peak_nums,
+                                                              spike_nums=self.spike_struct.spike_nums,
+                                                              cell=cell_for_profile,
+                                                              pixels_around=1,
+                                                              bounds=None)
+                        xy_source = self.coord_obj.get_cell_new_coord_in_source(cell=cell_for_profile,
+                                                                                minx=minx, miny=miny)
+                        source_profile_dict[cell_for_profile] = [source_profile, minx, miny, mask_source_profile,
+                                                                 xy_source]
+
+                for co_active_cell, co_active_transients in co_active_frames_dict.items():
+                    if (cell, co_active_cell) not in pair_of_cells_already_checked_dict:
+                        # then if we loop starting with co_active_cell as cell, we will skip this loop
+                        pair_of_cells_already_checked_dict[(co_active_cell, cell)] = True
+                    else:
+                        continue
+
+                    # co_active_transients is a list of
+                    # tuple of int, reprensenting the frame of the onset and the frame of the peak
+
+                    for co_active_transient in co_active_transients:
+                        pearson_corr_cell = \
+                            self.coord_obj.corr_between_source_and_transient(cell=cell,
+                                                                             transient=co_active_transient,
+                                                                             source_profile_dict=source_profile_dict,
+                                                                             tiff_movie=self.tiff_movie,
+                                                                             traces=self.raw_traces,
+                                                                             source_profile_corr_dict=
+                                                                             source_profile_corr_dict,
+                                                                             pixels_around=1)
+
+                        pearson_corr_co_active_cell = \
+                            self.coord_obj.corr_between_source_and_transient(cell=co_active_cell,
+                                                              transient=co_active_transient,
+                                                              source_profile_dict=source_profile_dict,
+                                                              tiff_movie=self.tiff_movie,
+                                                              traces=self.raw_traces,
+                                                              source_profile_corr_dict=source_profile_corr_dict,
+                                                              pixels_around=1)
+                        # pearson_corr = np.round(pearson_corr, 2)
+
+                        # cell from which removing a transient
+                        cell_to_use = None
+                        if (pearson_corr_cell < 0.5) and (pearson_corr_co_active_cell > 0.5):
+                            # then we conclude that the transient in cell is Fake
+                            # we need to remove this transient for spike_nums_dur
+                            cell_to_use = cell
+                        elif (pearson_corr_cell > 0.5) and (pearson_corr_co_active_cell < 0.5):
+                            # then we conclude that the transient in co_active_cell is Fake
+                            cell_to_use = co_active_cell
+                        if cell_to_use is None:
+                            continue
+
+                        transient_ids = spike_nums_dur_numbers[cell_to_use,
+                                       co_active_transient[0]:co_active_transient[1]+1]
+                        transient_ids = np.unique(transient_ids)
+                        if len(transient_ids) > 2:
+                            print(f"transient_ids len {len(transient_ids)}")
+                        for transient_id in transient_ids:
+                            # in theory there should be only one id and -1 (id for non transient),
+                            # just in case we remove all the one returns by transient_ids except -1
+                            if transient_id == -1:
+                                continue
+                            frames_to_remove = np.where(spike_nums_dur_numbers[cell_to_use] == transient_ids)[0]
+                            self.spike_struct.spike_nums_dur[cell_to_use, frames_to_remove] = 0
+                            n_fake_transients_by_cell[cell_to_use] += 1
+
+            total_n_fake_transients = np.sum(n_fake_transients_by_cell)
+            print(f"{self.description}, n_co_active_transients_detected: "
+                  f"{n_co_active_transients_detected}, n_fake_transients {total_n_fake_transients}")
+
+            save_formats = "pdf"
+
+            display_misc.plot_hist_distribution(distribution_data=n_fake_transients_by_cell,
+                                                description=f"{self.description}_fake_transients_distribution_by_cell:",
+                                                param=self.param,
+                                                path_results=self.param.path_results,
+                                                tight_x_range=True,
+                                                twice_more_bins=True,
+                                                xlabel="N fake transients by cell", save_formats=save_formats)
+
+            file_name = f'{self.param.path_results}/{self.description}_stat_fake_transients_distribution_by_' \
+                f'cell_{self.param.time_str}.txt'
+
+            with open(file_name, "w", encoding='UTF-8') as file:
+                file.write(f"N fake transients by cell for {self.description}" + '\n')
+                file.write("" + '\n')
+
+                for cell in np.arange(n_cells):
+                    file.write(f"{cell}: {n_fake_transients_by_cell[cell]}\n")
+
+            file_name = f"{self.description}_filtered_predicted_raster_dur_{prediction_key}.npy"
+            np.save(os.path.join(self.param.path_data, path_name, file_name), self.spike_struct.spike_nums_dur)
 
     def load_richard_data(self, path_data):
         print(f"{self.description} loading_data")
@@ -3793,8 +3994,8 @@ class MouseSession:
                 # if 2 frames are spaced of less than 5 frames, then we consider the mice was still running in between
                 n_frames_to_fusion = 20
                 if (len(active_frames) > 0) and (frame - active_frames[-1] < n_frames_to_fusion):
-                    active_frames.extend(list(range(active_frames[-1]+1, frame)))
-                active_frames.extend(list(range(max(0, frame-5), frame+2)))
+                    active_frames.extend(list(range(active_frames[-1] + 1, frame)))
+                active_frames.extend(list(range(max(0, frame - 5), frame + 2)))
             print(f"len(active_frames) {len(active_frames)}")
             self.richard_dict["Active_Wake_Frames"] = np.unique(active_frames)
         else:
@@ -3810,18 +4011,18 @@ class MouseSession:
             wake_frames = np.where(Hypnogram_Frames == 1)[0]
             self.richard_dict["Wake_Frames"] = wake_frames
             self.richard_dict["Quiet_Wake_Frames"] = np.setdiff1d(wake_frames,
-                         self.richard_dict["Active_Wake_Frames"])
+                                                                  self.richard_dict["Active_Wake_Frames"])
             self.richard_dict["REMs_Frames"] = np.where(Hypnogram_Frames == 2)[0]
             self.richard_dict["NREMs_Frames"] = np.where(Hypnogram_Frames == 3)[0]
         else:
             self.richard_dict["Wake_Frames"] = np.arange(n_frames)
             self.richard_dict["Quiet_Wake_Frames"] = np.setdiff1d(np.arange(n_frames),
-                                                                self.richard_dict["Active_Wake_Frames"])
+                                                                  self.richard_dict["Active_Wake_Frames"])
 
     def load_raw_traces_from_npy(self, path):
         for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path):
             for file_name in local_filenames:
-                if (self.description.lower() in file_name.lower()) and ("raw_traces" in file_name.lower())\
+                if (self.description.lower() in file_name.lower()) and ("raw_traces" in file_name.lower()) \
                         and file_name.endswith(".npy"):
                     self.raw_traces = np.load(os.path.join(self.param.path_data, path, file_name))
                     print(f"{self.description} raw traces loaded from file npy")
@@ -3836,7 +4037,7 @@ class MouseSession:
             return
         np.save(os.path.join(self.param.path_data, path, f"{self.description}_raw_traces.npy".lower()),
                 self.raw_traces)
-        
+
     def load_data_from_period_selection_gui(self, variables_mapping, file_name_to_load=None, path_to_load=None):
         if self.shift_data_dict is not None:
             return
@@ -3860,7 +4061,7 @@ class MouseSession:
                 return
         else:
             shift_data_found = False
-            for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data,path_to_load)):
+            for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data, path_to_load)):
                 for file_name in local_filenames:
                     if (("mvt_categories" in file_name.lower()) or ("mvts_categories" in file_name.lower())) \
                             and file_name.endswith(".npz"):
@@ -3979,6 +4180,7 @@ class MouseSession:
 
         # if (self.spike_struct.spike_nums_dur is not None) or (self.spike_struct.spike_nums is not None):
         #     self.detect_n_in_n_out()
+
     def load_cells_to_remove_from_txt(self, file_name):
         cells_to_remove = []
         with open(self.param.path_data + file_name, "r", encoding='UTF-8') as file:

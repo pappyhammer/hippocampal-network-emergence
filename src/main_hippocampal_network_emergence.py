@@ -3597,7 +3597,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
                         "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
                         "p7_19_03_05_a000_ms",
                         "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                        "p7_19_03_27_a002_ms", "p7_19_03_27_a003_ms"
+                        "p7_19_03_27_a002_ms",
                         "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
                         "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
                         "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms"
@@ -3618,7 +3618,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
                         "p13_19_03_11_a000_ms",
                         "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
                         "p16_18_11_01_a002_ms",
-                        "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms"
+                        "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
                         "p41_19_04_30_a000_ms"]
     gadcre_ms= [ ]
     arnaud_ms = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
@@ -3769,11 +3769,11 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p14_18_10_23_a000_ms",
     #                   "p14_18_10_30_a001_ms"]
     # ms_str_to_load = ["richard_015_D74_P2_ms"]
-    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
-    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
+    # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p60_arnaud_ms"]
-    # ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p9_19_02_20_a000_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -3858,7 +3858,8 @@ def main():
     just_plot_twitch_ratio_activity = False
     just_fca_clustering_on_twitches_activity = False
     just_save_stat_about_mvt_for_each_ms = False
-    just_plot_cell_assemblies_on_map = False
+    just_plot_cell_assemblies_on_map = True
+    just_plot_all_cells_on_map = False
     just_plot_all_cell_assemblies_proportion_on_shift_categories = False
 
     just_do_stat_on_event_detection_parameters = False
@@ -3869,7 +3870,6 @@ def main():
     just_plot_traces_raster = False
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
-    just_plot_all_cells_on_map = False
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
     just_do_pca_on_raster = False
@@ -3897,8 +3897,8 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = True
-    use_hdbscan = True
+    do_clustering = False
+    use_hdbscan = False
     # to add in the file title
     clustering_bonus_descr = ""
     # if False, clustering will be done using kmean
@@ -3992,7 +3992,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(3, 7)
+    range_n_clusters_k_mean = np.arange(5, 9)
     # range_n_clusters_k_mean = np.array([4])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
@@ -4106,7 +4106,8 @@ def main():
             # frames_selected = ms.richard_dict["Active_Wake_Frames"]
             # frames_selected = frames_selected[frames_selected < ms.spike_struct.spike_nums_dur.shape[1]]
             # ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, frames_selected]
-            ms.plot_raster_with_periods(ms.shift_data_dict, with_cell_assemblies=True, only_cell_assemblies=True)
+            ms.plot_raster_with_periods(ms.shift_data_dict, with_periods=True,
+                                        with_cell_assemblies=True, only_cell_assemblies=True)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("The Lannisters always pay their debts")
             continue
