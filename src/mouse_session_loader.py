@@ -1581,10 +1581,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     # common action for all mouse sessions
     for ms in ms_str_to_ms_dict.values():
 
-        ms.load_suite2p_data(data_path=f"p{ms.age}/{ms.description.lower()}/suite2p/", with_coord=ms.use_suite_2p)
-
         # just load the file_name in memory not the all movie in memory
         ms.load_tif_movie(path=f"p{ms.age}/{ms.description.lower()}/")
+
+        ms.load_suite2p_data(data_path=f"p{ms.age}/{ms.description.lower()}/suite2p/", with_coord=ms.use_suite_2p)
+
         if load_traces:
             if ms.use_suite_2p:
                 raw_traces_loaded = ms.load_raw_traces_from_npy(path=f"p{ms.age}/{ms.description.lower()}/")

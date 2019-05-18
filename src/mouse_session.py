@@ -761,6 +761,7 @@ class MouseSession:
         else:
             self.movie_len_x = self.tiff_movie[0].shape[1]
             self.movie_len_y = self.tiff_movie[0].shape[0]
+        print(f"{self.description}: self.movie_len_x {self.movie_len_x}, self.movie_len_y {self.movie_len_y}")
 
     def produce_roi_shift_animation_with_cell_assemblies(self):
         if (self.global_roi is None) or (self.x_shifts is None):
@@ -2911,7 +2912,7 @@ class MouseSession:
                                             cells_groups_edge_colors=cells_groups_edge_colors,
                                             with_edge=True, cells_groups_alpha=cells_groups_alpha,
                                             dont_fill_cells_not_in_groups=False,
-                                            with_cell_numbers=True, save_formats=["png"],
+                                            with_cell_numbers=True, save_formats=["png", "pdf"],
                                             save_plot=save_plot, return_fig=return_fig)
         if return_fig:
             return fig
@@ -2935,10 +2936,11 @@ class MouseSession:
                                       data_id=self.description, show_polygons=False,
                                       fill_polygons=False,
                                       title_option="cell_assemblies", connections_dict=None,
+                                      with_edge=True,
                                       cells_groups=self.cell_assemblies,
                                       cells_groups_colors=cells_groups_colors,
                                       dont_fill_cells_not_in_groups=True,
-                                      with_cell_numbers=False, save_formats=save_formats)
+                                      with_cell_numbers=True, save_formats=save_formats)
 
     def set_low_activity_threshold(self, threshold, percentile_value):
         self.low_activity_threshold_by_percentile[percentile_value] = threshold
@@ -3701,12 +3703,6 @@ class MouseSession:
         :return:
         """
 
-        if self.tiff_movie is None:
-            self.load_tiff_movie_in_memory()
-            if self.tiff_movie is None:
-                raise Exception(f"{self.description}, load_raster_dur_from_predictions: movie could not be loaded")
-            self.normalize_movie()
-
         if (file_name is None) and (path_name is None):
             print(f"{self.description}: load_raster_dur_from_predictions no file_name or path_name")
             return
@@ -3762,6 +3758,14 @@ class MouseSession:
             except (FileNotFoundError, OSError) as e:
                 print(f"Load_raster_dur_from_predictions File not fount: {file_name}")
                 return
+
+
+        if (self.tiff_movie is None) and use_filtered_version and (not filtered_version_loaded):
+            self.load_tiff_movie_in_memory()
+            if self.tiff_movie is None:
+                raise Exception(f"{self.description}, load_raster_dur_from_predictions: movie could not be loaded")
+            self.normalize_movie()
+
         if "predictions" in variables_mapping:
             predictions = data[variables_mapping["predictions"]]
             self.rnn_transients_predictions = predictions
@@ -3830,6 +3834,7 @@ class MouseSession:
             source_profile_corr_dict = dict()
             # to plot distribution
             n_fake_transients_by_cell = np.zeros(n_cells, dtype="int16")
+            fake_transients_periods_by_cell_dict = dict()
             # keep tuple of int to check if the co-active transient of those 2 cells have been verified already
             pair_of_cells_already_checked_dict = dict()
             for cell in np.arange(n_cells):
@@ -3886,11 +3891,26 @@ class MouseSession:
 
                     # co_active_transients is a list of
                     # tuple of int, reprensenting the frame of the onset and the frame of the peak
-
                     for co_active_transient in co_active_transients:
+                        # we want to use the all transient of the cell to measure correlation
+                        # not just the part that is co-active
+                        transient_ids = spike_nums_dur_numbers[cell,
+                                        co_active_transient[0]:co_active_transient[1] + 1]
+                        transient_ids = np.unique(transient_ids)
+                        transient_id = transient_ids[transient_ids >= 0][0]
+                        frames_to_remove = np.where(spike_nums_dur_numbers[cell] == transient_id)[0]
+                        transient_cell = (frames_to_remove[0], frames_to_remove[-1])
+
+                        transient_ids = spike_nums_dur_numbers[co_active_cell,
+                                        co_active_transient[0]:co_active_transient[1] + 1]
+                        transient_ids = np.unique(transient_ids)
+                        transient_id = transient_ids[transient_ids >= 0][0]
+                        frames_to_remove = np.where(spike_nums_dur_numbers[co_active_cell] == transient_id)[0]
+                        transient_co_active_cell = (frames_to_remove[0], frames_to_remove[-1])
+
                         pearson_corr_cell = \
                             self.coord_obj.corr_between_source_and_transient(cell=cell,
-                                                                             transient=co_active_transient,
+                                                                             transient=transient_cell,
                                                                              source_profile_dict=source_profile_dict,
                                                                              tiff_movie=self.tiff_movie,
                                                                              traces=self.raw_traces,
@@ -3900,7 +3920,7 @@ class MouseSession:
 
                         pearson_corr_co_active_cell = \
                             self.coord_obj.corr_between_source_and_transient(cell=co_active_cell,
-                                                              transient=co_active_transient,
+                                                              transient=transient_co_active_cell,
                                                               source_profile_dict=source_profile_dict,
                                                               tiff_movie=self.tiff_movie,
                                                               traces=self.raw_traces,
@@ -3910,33 +3930,31 @@ class MouseSession:
 
                         # cell from which removing a transient
                         cell_to_use = None
-                        if (pearson_corr_cell < 0.5) and (pearson_corr_co_active_cell > 0.5):
+                        transient_to_remove = None
+                        if (pearson_corr_cell < 0.4) and (pearson_corr_co_active_cell > 0.6):
                             # then we conclude that the transient in cell is Fake
                             # we need to remove this transient for spike_nums_dur
                             cell_to_use = cell
-                        elif (pearson_corr_cell > 0.5) and (pearson_corr_co_active_cell < 0.5):
+                            transient_to_remove = transient_cell
+                        elif (pearson_corr_cell > 0.6) and (pearson_corr_co_active_cell < 0.4):
                             # then we conclude that the transient in co_active_cell is Fake
                             cell_to_use = co_active_cell
+                            transient_to_remove = transient_co_active_cell
                         if cell_to_use is None:
                             continue
-
-                        transient_ids = spike_nums_dur_numbers[cell_to_use,
-                                       co_active_transient[0]:co_active_transient[1]+1]
-                        transient_ids = np.unique(transient_ids)
-                        if len(transient_ids) > 2:
-                            print(f"transient_ids len {len(transient_ids)}")
-                        for transient_id in transient_ids:
-                            # in theory there should be only one id and -1 (id for non transient),
-                            # just in case we remove all the one returns by transient_ids except -1
-                            if transient_id == -1:
-                                continue
-                            frames_to_remove = np.where(spike_nums_dur_numbers[cell_to_use] == transient_ids)[0]
-                            self.spike_struct.spike_nums_dur[cell_to_use, frames_to_remove] = 0
-                            n_fake_transients_by_cell[cell_to_use] += 1
+                        # removing the transient
+                        self.spike_struct.spike_nums_dur[cell_to_use,
+                        transient_to_remove[0]:transient_to_remove[1]+1] = 0
+                        n_fake_transients_by_cell[cell_to_use] += 1
+                        if cell_to_use not in fake_transients_periods_by_cell_dict:
+                            fake_transients_periods_by_cell_dict[cell_to_use] = []
+                        fake_transients_periods_by_cell_dict[cell_to_use].append(transient_to_remove)
 
             total_n_fake_transients = np.sum(n_fake_transients_by_cell)
+            total_n_transients = np.sum(self.spike_struct.spike_nums)
             print(f"{self.description}, n_co_active_transients_detected: "
-                  f"{n_co_active_transients_detected}, n_fake_transients {total_n_fake_transients}")
+                  f"{n_co_active_transients_detected}, n_fake_transients {total_n_fake_transients}, "
+                  f"total_n_transients {total_n_transients}")
 
             save_formats = "pdf"
 
@@ -3954,9 +3972,19 @@ class MouseSession:
             with open(file_name, "w", encoding='UTF-8') as file:
                 file.write(f"N fake transients by cell for {self.description}" + '\n')
                 file.write("" + '\n')
+                file.write(f"n_co_active_transients_detected: "
+                  f"{n_co_active_transients_detected}, n_fake_transients {total_n_fake_transients}, "
+                  f"total_n_transients {total_n_transients}")
+
+                file.write("" + '\n')
 
                 for cell in np.arange(n_cells):
-                    file.write(f"{cell}: {n_fake_transients_by_cell[cell]}\n")
+                    file.write(f"{cell}: {n_fake_transients_by_cell[cell]}")
+                    if cell in fake_transients_periods_by_cell_dict:
+                        file.write(': ')
+                        for period in fake_transients_periods_by_cell_dict[cell]:
+                            file.write(f"{period}, ")
+                    file.write('\n')
 
             file_name = f"{self.description}_filtered_predicted_raster_dur_{prediction_key}.npy"
             np.save(os.path.join(self.param.path_data, path_name, file_name), self.spike_struct.spike_nums_dur)

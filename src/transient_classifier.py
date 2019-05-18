@@ -1860,6 +1860,9 @@ class MoviePatchGeneratorMaskedVersions(MoviePatchGenerator):
                     source_profile_frames_masked = np.copy(source_profile_frames)
                     source_profile_frames_masked[:, mask_source_profile] = 0
                     if self.with_neuropil_mask:
+                        # print(f"source_profile_frames.shape {source_profile_frames.shape}, "
+                        #       f"mask_source_profile.shape {mask_source_profile.shape}, "
+                        #       f"neuropil_mask.shape {(1 - mask_source_profile).shape}")
                         neuropil_mask[1 - mask_source_profile] = 1
 
                     # doing augmentation if the function exists
@@ -2394,11 +2397,18 @@ def load_movie(ms):
 
 
 def scale_polygon_to_source(poly_gon, minx, miny):
-    coords = list(poly_gon.exterior.coords)
+    if isinstance(poly_gon, geometry.LineString):
+        coords = list(poly_gon.coords)
+    else:
+        coords = list(poly_gon.exterior.coords)
     scaled_coords = []
     for coord in coords:
         scaled_coords.append((coord[0] - minx, coord[1] - miny))
-    return geometry.Polygon(scaled_coords)
+
+    if isinstance(poly_gon, geometry.LineString):
+        return geometry.LineString(scaled_coords)
+    else:
+        return geometry.Polygon(scaled_coords)
 
 
 def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
@@ -2416,7 +2426,8 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
     The mask consist on a binary array of with 0 for all pixels in the cell, 1 otherwise
     :return:
     """
-    len_frame_x = ms.movie_len_x
+    # given the opposite value, seem to fix the issue at the border
+    len_frame_x = ms.movie_len_y
     len_frame_y = ms.movie_len_x
 
     # determining the size of the square surrounding the cell so it includes all overlapping cells around
@@ -2472,8 +2483,13 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
         fill_value = 0
         if get_only_polygon_contour:
             fill_value = None
-        ImageDraw.Draw(img).polygon(list(scaled_poly_gon.exterior.coords), outline=0,
-                                    fill=fill_value)
+        if isinstance(scaled_poly_gon, geometry.LineString):
+            ImageDraw.Draw(img).polygon(list(scaled_poly_gon.coords), outline=0,
+                                        fill=fill_value)
+        else:
+            ImageDraw.Draw(img).polygon(list(scaled_poly_gon.exterior.coords), outline=0,
+                                        fill=fill_value)
+
         mask_dict[cell_to_display] = np.array(img)
 
     if with_all_masks:
@@ -3927,8 +3943,7 @@ def train_model():
         # ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms",
         #  "p12_171110_a000_ms",
         #  "p13_18_10_29_a001_ms", "artificial_ms_1"]
-        create_tiffs_for_data_generator(ms_to_use=["p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
-                                 "p9_19_03_22_a001_ms", "p13_19_03_11_a000_ms","p12_171110_a000_ms", "p9_19_02_20_a000_ms"],
+        create_tiffs_for_data_generator(ms_to_use=["p10_19_02_21_a003_ms", "p9_19_02_20_a002_ms"],
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
     go_predict_from_movie = True
@@ -3963,10 +3978,17 @@ def train_model():
         # cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33])}
 
         # Julien
-        ms_for_rnn_benchmarks = ["p9_19_03_22_a000_ms",
-                                 "p9_19_03_22_a001_ms", "p13_19_03_11_a000_ms",
-                                 "p12_171110_a000_ms", "p9_19_02_20_a000_ms"]
-        # "p9_19_02_20_a000_ms" -> issue with cell_ccontour on Robin's computer
+        ms_for_rnn_benchmarks = ["p9_19_02_20_a002_ms", "p9_19_02_20_a000_ms",
+                                 "p10_19_02_21_a003_ms", "p9_19_03_14_a001_ms"]
+        # ms_for_rnn_benchmarks = ["p10_19_02_21_a003_ms"]
+        # p10_19_02_21_a003_ms -> cell 314
+        # p9_19_02_20_a000_ms
+        """
+        Cell 58
+         File "/home/julien/these_inmed/hne_project/hippocampal-network-emergence/src/transient_classifier.py", line 2397, in scale_polygon_to_source
+            coords = list(poly_gon.exterior.coords)
+AttributeError: 'LineString' object has no attribute 'exterior'
+        """
         #  "p8_18_10_17_a000_ms" and "p9_19_03_14_a001_ms" (cell 613):
         """
          File "/home/julien/these_inmed/hne_project/hippocampal-network-emergence/src/transient_classifier.py", line 1863, in generate_movies_from_metadata
@@ -3983,8 +4005,8 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         #                 "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
         #                 "p9_19_03_22_a001_ms"]
         # Artem
-        # ms_for_rnn_benchmarks = ["p10_17_11_16_a003_ms", "p10_19_02_22_a002_ms",
-        #                 "p10_19_02_22_a003_ms", "p10_19_02_22_a005_ms",
+        # ms_for_rnn_benchmarks = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+        #                 "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
         #                 "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms", "p11_17_11_24_a001_ms",
         #                 "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms", "p12_17_11_10_a002_ms",
         #                 "p13_18_10_29_a000_ms", "p13_19_03_11_a000_ms", "p14_18_10_23_a000_ms",
@@ -3996,8 +4018,12 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # ms_for_rnn_benchmarks = ["p12_171110_a000_ms"]
         # cells_to_predict = dict()
         # predicting all cells
+
         for ms in ms_for_rnn_benchmarks:
             cells_to_predict[ms] = None
+        cells_p9_19_03_14_a001_ms = np.arange(834)
+        cells_p9_19_03_14_a001_ms = np.setdiff1d(cells_p9_19_03_14_a001_ms, np.array([613]))
+        cells_to_predict["p9_19_03_14_a001_ms"] = cells_p9_19_03_14_a001_ms
 
         # ms_for_rnn_benchmarks = ["p8_18_10_24_a006_ms"]
         # cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33])}

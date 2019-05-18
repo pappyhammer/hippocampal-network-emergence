@@ -5,11 +5,8 @@ import matplotlib
 import matplotlib.cm as cm
 import scipy.io as sio
 import scipy.stats as scipy_stats
-import matplotlib.gridspec as gridspec
 import seaborn as sns
 from bisect import bisect
-from scipy.signal import find_peaks
-from scipy import signal
 # important to avoid a bug when using virtualenv
 # matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -30,12 +27,10 @@ from pattern_discovery.seq_solver.markov_way import find_sequences_in_ordered_sp
 from pattern_discovery.seq_solver.markov_way import save_on_file_seq_detection_results
 import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.tools.misc import get_time_correlation_data
-from pattern_discovery.tools.misc import get_continous_time_periods
-from pattern_discovery.tools.misc import find_continuous_frames_period
+from pattern_discovery.tools.misc import get_continous_time_periods, give_unique_id_to_each_transient_of_raster_dur
 from pattern_discovery.display.raster import plot_spikes_raster
 from pattern_discovery.display.misc import time_correlation_graph
 import pattern_discovery.display.misc as display_misc
-from pattern_discovery.display.cells_map_module import CoordClass
 from pattern_discovery.tools.sce_detection import get_sce_detection_threshold, detect_sce_with_sliding_window, \
     get_low_activity_events_detection_threshold, detect_sce_potatoes_style
 from sortedcontainers import SortedList, SortedDict
@@ -49,7 +44,6 @@ import time
 from scipy import stats
 from mouse_session import MouseSession
 from hne_parameters import HNEParameters
-from hne_spike_structure import HNESpikeStructure
 from mouse_session_loader import load_mouse_sessions
 from lexi_mouse_session_loader import load_lexi_mouse_sessions
 import networkx as nxfrom
@@ -2166,17 +2160,21 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
 
 def box_plot_data_by_age(data_dict, title, filename,
                          y_label, param, colors,
-                               path_results=None,
+                         path_results=None, y_lim=None,
                          x_label=None, with_scatters=True,
                          scatter_size=20,
+                         n_sessions_dict=None,
                          background_color="black",
                          labels_color="white", save_formats="pdf"):
     """
 
     :param data_dict:
+    :param n_sessions_dict: should be the same keys as data_dict, value is an int reprenseing the number of sessions
+    that gave those data (N), a n will be display representing the number of poins in the boxplots if n != N
     :param title:
     :param filename:
     :param y_label:
+    :param y_lim: tuple of int,
     :param param: Contains a field name colors used to color the boxplot
     :param save_formats:
     :return:
@@ -2192,7 +2190,16 @@ def box_plot_data_by_age(data_dict, title, filename,
     data_list = []
     for age, data in data_dict.items():
         data_list.append(data)
-        labels.append(age)
+        label = age
+        if n_sessions_dict is None:
+            label += f"\n(n={len(data)})"
+        else:
+            n_sessions = n_sessions_dict[age]
+            if n_sessions != len(data):
+                label += f"\n(N={n_sessions}, n={len(data)})"
+            else:
+                label += f"\n(N={n_sessions})"
+        labels.append(label)
 
     bplot = plt.boxplot(data_list, patch_artist=colorfull,
                         labels=labels, sym='', zorder=30)  # whis=[5, 95], sym='+'
@@ -2206,7 +2213,6 @@ def box_plot_data_by_age(data_dict, title, filename,
 
     for element in ['means', 'medians']:
         plt.setp(bplot[element], color=background_color)
-
 
     if colorfull:
         if colors is None:
@@ -2238,13 +2244,15 @@ def box_plot_data_by_age(data_dict, title, filename,
     plt.title(title)
 
     ax1.set_ylabel(f"{y_label}", fontsize=30, labelpad=20)
+    if y_lim is not None:
+        ax1.set_ylim(y_lim[0], y_lim[1])
     if x_label is not None:
         ax1.set_xlabel(x_label, fontsize=30, labelpad=20)
     ax1.xaxis.label.set_color(labels_color)
     ax1.yaxis.label.set_color(labels_color)
 
     ax1.yaxis.set_tick_params(labelsize=20)
-    ax1.xaxis.set_tick_params(labelsize=20)
+    ax1.xaxis.set_tick_params(labelsize=15)
     ax1.tick_params(axis='y', colors=labels_color)
     ax1.tick_params(axis='x', colors=labels_color)
     xticks = np.arange(1, len(data_dict) + 1)
@@ -3148,7 +3156,7 @@ def get_threshold_sum_activity_for_time_periods(raster, time_periods, perc_thres
 
 def get_thresholds_cell_transient_post_twitches(raster, time_periods_bool, perc_threshold=95, n_surrogate=1000):
     """
-    Take a raster and a list of periods (tuple of int), and will shuffle the data (rolling) n times and each time
+    Take a raster and an array of bool, and will shuffle the data (rolling) n times and each time
     will measure how many transient of each cell will be during this time period and return the percentile value of the distribution of all periods
     over the 1000 shuffling for each cell
     :param raster: should be onsets
@@ -3176,7 +3184,7 @@ def get_thresholds_cell_transient_post_twitches(raster, time_periods_bool, perc_
 
 def select_cells_that_fire_during_time_periods(raster, time_periods_bool, description="", perc_threshold=95, n_surrogate=1000):
     """
-    Take a raster and a list of tuple representing periods.
+    Take a raster and a boolean array reprensenting periods.
     :param raster: represents the onsets
     :param time_periods:
     :param description: a string representing the data analysed
@@ -3199,55 +3207,150 @@ def select_cells_that_fire_during_time_periods(raster, time_periods_bool, descri
     return significant_cells
 
 
-def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_key, param, perc_threshold=95, n_surrogate=1000,
+def plot_nb_transients_in_mvt_vs_nb_total_transients(ms_to_analyse, param, save_formats="pdf"):
+    # key is p_age, and value a list of the % of cell in that period of time
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+
+    results_by_age_dict = dict()
+    n_sessions_dict = dict()
+    # one point by cell
+    results_by_age_with_all_cells_dict = dict()
+    for ms in ms_to_analyse:
+        if ms.spike_struct.spike_nums is None:
+            continue
+        if "p" + str(ms.age) not in results_by_age_dict:
+            results_by_age_dict["p" + str(ms.age)] = []
+            results_by_age_with_all_cells_dict["p" + str(ms.age)] = []
+            n_sessions_dict["p" + str(ms.age)] = 0
+        n_sessions_dict["p" + str(ms.age)] += 1
+        n_transients_total = 0
+        n_transients_during_mvt_total = 0
+        list_ratio = []
+        n_frames = ms.spike_struct.spike_nums.shape[1]
+        n_cells = ms.spike_struct.spike_nums.shape[0]
+        shift_bool = np.zeros(n_frames, dtype="bool")
+        # creating the boolean array, True means the mouse is moving
+        shift_keys_to_loop = ["shift_twitch", "shift_long", "shift_unclassified"]
+        for shift_key in shift_keys_to_loop:
+            shift_bool_tmp = ms.shift_data_dict[shift_key]
+            if shift_key == "shift_twitch":
+                extension_frames_after = 15
+                extension_frames_before = 1
+            else:
+                extension_frames_after = 0
+                extension_frames_before = 0
+            # we extend each period, implementation is not the fastest and more elegant way
+            true_frames = np.where(shift_bool_tmp)[0]
+            for frame in true_frames:
+                first_frame = max(0, frame - extension_frames_before)
+                last_frame = min(n_frames - 1, frame + extension_frames_after)
+                shift_bool[first_frame:last_frame + 1] = True
+
+        spike_nums_dur_numbers = give_unique_id_to_each_transient_of_raster_dur(ms.spike_struct.spike_nums)
+        for cell in np.arange(n_cells):
+            # -1 to not take into consideraiton the number attributed to empty frames
+            n_transients_in_cell = len(np.unique(spike_nums_dur_numbers[cell])) - 1
+            n_transients_total += n_transients_in_cell
+            n_transients_in_cell_and_during_mvt = len(np.unique(spike_nums_dur_numbers[cell, shift_bool])) - 1
+            n_transients_during_mvt_total += n_transients_in_cell_and_during_mvt
+            if n_transients_in_cell > 0:
+                list_ratio.append((n_transients_in_cell_and_during_mvt / n_transients_in_cell) * 100)
+        print(f"n_transients_during_mvt_total {n_transients_during_mvt_total}, n_transients_total {n_transients_total}")
+        ratio_ms = (n_transients_during_mvt_total / n_transients_total) * 100
+        results_by_age_dict["p" + str(ms.age)].append(ratio_ms)
+        results_by_age_with_all_cells_dict["p" + str(ms.age)].extend(list_ratio)
+
+    box_plot_data_by_age(data_dict=results_by_age_dict, title="",
+                         filename=f"ratio_transients_in_mvt_by_age",
+                         y_label=f"Transients associated to mvt (%)",
+                         colors=colors, with_scatters=True,
+                         n_sessions_dict=n_sessions_dict,
+                         path_results=param.path_results, scatter_size=40,
+                         param=param, save_formats=save_formats)
+    box_plot_data_by_age(data_dict=results_by_age_with_all_cells_dict, title="",
+                         filename=f"ratio_transients_in_mvt_by_age_one_value_by_cell",
+                         y_label=f"Transients associated to mvt (%)",
+                         colors=colors, with_scatters=True,
+                         n_sessions_dict=n_sessions_dict,
+                         path_results=param.path_results, scatter_size=40,
+                         param=param, save_formats=save_formats)
+
+
+def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, perc_threshold=95, n_surrogate=1000,
                                              save_formats="pdf"):
     # key is p_age, and value a list of the % of cell in that period of time
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
               '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
 
-    results_dict = dict()
+    n_shift_keys = len(shift_keys)
 
-    for ms in ms_to_analyse:
-        if ms.spike_struct.spike_nums is None:
-            continue
-        if ("p" + str(ms.age)) not in results_dict:
-            results_dict[("p" + str(ms.age))] = []
+    for step in np.arange(n_shift_keys+2):
+        results_dict = dict()
 
-        n_frames = ms.spike_struct.spike_nums.shape[1]
-        n_cells = ms.spike_struct.spike_nums.shape[0]
-        shift_bool = ms.shift_data_dict[shift_key]
-        if shift_key == "shift_twitch":
-            extension_frames_after = 15
-            extension_frames_before = 1
-        else:
-            extension_frames_after = 0
-            extension_frames_before = 0
-        # we extend each period, implementation is not the fastest and more elegant way
-        true_frames = np.where(shift_bool)[0]
-        for frame in true_frames:
-            first_frame = max(0, frame - extension_frames_before)
-            last_frame = min(n_frames - 1, frame + extension_frames_after)
-            shift_bool[first_frame:last_frame + 1] = True
+        shift_key_descr = None
+        for ms in ms_to_analyse:
+            if ms.spike_struct.spike_nums is None:
+                continue
+            if ("p" + str(ms.age)) not in results_dict:
+                results_dict[("p" + str(ms.age))] = []
 
-        # shift_time_periods = get_continous_time_periods(shift_bool.astype("int8"))
+            n_frames = ms.spike_struct.spike_nums.shape[1]
+            n_cells = ms.spike_struct.spike_nums.shape[0]
+            shift_bool = np.zeros(n_frames, dtype="bool")
 
-        significant_cells = select_cells_that_fire_during_time_periods(raster=ms.spike_struct.spike_nums,
-                                                                       time_periods_bool=shift_bool,
-                                                                       description=f"{ms.description}_{shift_key}",
-                                                                       perc_threshold=perc_threshold,
-                                                                       n_surrogate=n_surrogate)
+            if step < n_shift_keys:
+                shift_keys_to_loop = [shift_keys[step]]
+                shift_key_descr = shift_keys[step]
+            else:
+                if step == n_shift_keys:
+                    shift_keys_to_loop = shift_keys
+                    shift_key_descr = "all_mvt"
+                else:
+                    shift_keys_to_loop = shift_keys
+                    shift_key_descr = "still"
 
-        print(f"{ms.description}: {shift_key} analysis")
-        print(f"{n_cells} cells")
-        print(f"{len(significant_cells)} significant cells")
-        ratio_significant_cells = (len(significant_cells) / n_cells) * 100
-        results_dict[("p" + str(ms.age))].append(ratio_significant_cells)
+            for shift_key in shift_keys_to_loop:
+                shift_bool_tmp = ms.shift_data_dict[shift_key]
+                if shift_key == "shift_twitch":
+                    extension_frames_after = 15
+                    extension_frames_before = 1
+                else:
+                    extension_frames_after = 0
+                    extension_frames_before = 0
+                # we extend each period, implementation is not the fastest and more elegant way
+                true_frames = np.where(shift_bool_tmp)[0]
+                for frame in true_frames:
+                    first_frame = max(0, frame - extension_frames_before)
+                    last_frame = min(n_frames - 1, frame + extension_frames_after)
+                    shift_bool[first_frame:last_frame + 1] = True
 
-    box_plot_data_by_age(data_dict=results_dict, title="", filename=f"cells_associated_to_{shift_key}",
-                             y_label=f"Cells associated to {shift_key} (%)", colors=colors, with_scatters=True,
-                             path_results=param.path_results, scatter_size=40,
-                             param=param, save_formats=save_formats)
+                # shift_time_periods = get_continous_time_periods(shift_bool.astype("int8"))
+
+            if shift_key_descr == "still":
+                # then we revert the all_mvt result
+                shift_bool = np.invert(shift_bool)
+
+            significant_cells = \
+                select_cells_that_fire_during_time_periods(raster=ms.spike_struct.spike_nums,
+                                                           time_periods_bool=shift_bool,
+                                                           description=f"{ms.description}_{shift_key_descr}",
+                                                           perc_threshold=perc_threshold,
+                                                           n_surrogate=n_surrogate)
+
+            print(f"{ms.description}: {shift_key_descr} analysis")
+            print(f"{n_cells} cells")
+            print(f"{len(significant_cells)} significant cells")
+            ratio_significant_cells = (len(significant_cells) / n_cells) * 100
+            results_dict[("p" + str(ms.age))].append(ratio_significant_cells)
+        # in case no ms would have been analysed
+        if shift_key_descr is not None:
+            box_plot_data_by_age(data_dict=results_dict, title="", filename=f"cells_associated_to_{shift_key_descr}",
+                                 y_label=f"Cells associated to {shift_key_descr} (%)", colors=colors, with_scatters=True,
+                                 path_results=param.path_results, scatter_size=40,
+                                 param=param, save_formats=save_formats)
 
 def select_significant_time_periods(raster, time_periods, description="", perc_threshold=95, n_surrogate=1000):
     """
@@ -3742,7 +3845,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     ms_str_to_load = ["p8_18_10_17_a001_ms"]
 
     # session with mouvements periods (twitch, long mvt etc...) available
-    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
                       "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
                       "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
                       "p7_19_03_27_a002_ms",
@@ -3769,11 +3872,13 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p14_18_10_23_a000_ms",
     #                   "p14_18_10_30_a001_ms"]
     # ms_str_to_load = ["richard_015_D74_P2_ms"]
-    ms_str_to_load = ["p5_19_03_25_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p60_arnaud_ms"]
     # ms_str_to_load = ["p9_19_02_20_a000_ms"]
+    # ms_str_to_load = ["p10_19_02_21_a002_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -3848,6 +3953,7 @@ def main():
 
     just_plot_all_basic_stats = False
     just_plot_all_sum_spikes_dur = False
+    # number of cells active in each type of movement event (normalized by number of cells and length of movement)
     just_plot_movement_activity = False
     just_plot_psth_over_event_time_correlation_graph_style = False
     do_plot_psth_twitches = False
@@ -3858,9 +3964,10 @@ def main():
     just_plot_twitch_ratio_activity = False
     just_fca_clustering_on_twitches_activity = False
     just_save_stat_about_mvt_for_each_ms = False
-    just_plot_cell_assemblies_on_map = True
+    just_plot_cell_assemblies_on_map = False
     just_plot_all_cells_on_map = False
     just_plot_all_cell_assemblies_proportion_on_shift_categories = False
+    just_plot_nb_transients_in_mvt_vs_nb_total_transients = True
 
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
@@ -3992,8 +4099,8 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(5, 9)
-    # range_n_clusters_k_mean = np.array([4])
+    # range_n_clusters_k_mean = np.arange(5, 9)
+    range_n_clusters_k_mean = np.array([7])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
 
@@ -4047,10 +4154,16 @@ def main():
         raise Exception("just_do_stat_significant_time_period")
 
     if just_plot_cells_that_fire_during_time_periods:
-        # shift_long, shift_twitch
-        plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_key="shift_long", param=param,
+        # take a list of periods, and will determine whichh cells are specific of each
+        # and then all and then none (still)
+        plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys=["shift_twitch", "shift_long",
+                                                                           "shift_unclassified"], param=param,
                                                       perc_threshold=95, n_surrogate=1000)
         raise Exception("just_plot_cells_that_fire_during_time_periods")
+
+    if just_plot_nb_transients_in_mvt_vs_nb_total_transients:
+        plot_nb_transients_in_mvt_vs_nb_total_transients(ms_to_analyse, param, save_formats="pdf")
+        raise Exception("just_plot_nb_transients_in_mvt_vs_nb_total_transients")
 
     if just_plot_twitch_ratio_activity:
         plot_twitch_ratio_activity(ms_to_analyse, time_around=20, param=param, save_formats="pdf")
@@ -4404,7 +4517,7 @@ def main():
             continue
 
         if just_plot_cell_assemblies_on_map:
-            ms.plot_cell_assemblies_on_map(save_formats=["pdf"])
+            ms.plot_cell_assemblies_on_map(save_formats=["pdf", "png"])
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_plot_cell_assemblies_on_map exception")
             continue
