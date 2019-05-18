@@ -2159,10 +2159,12 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
 
 
 def box_plot_data_by_age(data_dict, title, filename,
-                         y_label, param, colors,
+                         y_label, param, colors=None,
                          path_results=None, y_lim=None,
                          x_label=None, with_scatters=True,
+                         scatters_with_same_colors=None,
                          scatter_size=20,
+                         scatter_alpha=0.5,
                          n_sessions_dict=None,
                          background_color="black",
                          labels_color="white", save_formats="pdf"):
@@ -2175,6 +2177,8 @@ def box_plot_data_by_age(data_dict, title, filename,
     :param filename:
     :param y_label:
     :param y_lim: tuple of int,
+    :param scatters_with_same_colors: scatter that have the same index in the data_dict,, will be colors
+    with the same colors, using the list of colors given by scatters_with_same_colors
     :param param: Contains a field name colors used to color the boxplot
     :param save_formats:
     :return:
@@ -2182,10 +2186,15 @@ def box_plot_data_by_age(data_dict, title, filename,
     fig, ax1 = plt.subplots(nrows=1, ncols=1,
                             gridspec_kw={'height_ratios': [1]},
                             figsize=(12, 12))
+    colorfull = (colors is not None)
+
+    median_color = background_color if colorfull else labels_color
+
     ax1.set_facecolor(background_color)
+
     fig.patch.set_facecolor(background_color)
 
-    colorfull = True
+
     labels = []
     data_list = []
     for age, data in data_dict.items():
@@ -2212,7 +2221,7 @@ def box_plot_data_by_age(data_dict, title, filename,
         plt.setp(bplot[element], color="white")
 
     for element in ['means', 'medians']:
-        plt.setp(bplot[element], color=background_color)
+        plt.setp(bplot[element], color=median_color)
 
     if colorfull:
         if colors is None:
@@ -2233,9 +2242,15 @@ def box_plot_data_by_age(data_dict, title, filename,
             x_pos = [1 + data_index + ((np.random.random_sample() - 0.5) * 0.5) for x in np.arange(len(data))]
             y_pos = data
             font_size = 3
+            colors_scatters = []
+            if scatters_with_same_colors is not None:
+                while len(colors_scatters) < len(y_pos):
+                    colors_scatters.extend(scatters_with_same_colors)
+            else:
+                colors[data_index]
             ax1.scatter(x_pos, y_pos,
-                       color=colors[data_index],
-                       alpha=0.5,
+                       color=colors_scatters[:len(y_pos)],
+                       alpha=scatter_alpha,
                        marker="o",
                        edgecolors=background_color,
                        s=scatter_size, zorder=1)
@@ -3022,13 +3037,104 @@ def plot_all_cell_assemblies_proportion_on_shift_categories(ms_to_analyse,
     # (from 0 to 100)
     proportion_by_age_dict = dict()
 
+    shift_keys = ["shift_twitch", "shift_long", "shift_unclassified"]
+
     n_ms = 0
     for ms in ms_to_analyse:
         if ms.shift_data_dict is None:
             continue
+        if ms.spike_struct.spike_nums is None:
+            continue
+        if ms.cell_assemblies is None:
+            continue
 
         if ("p" + str(ms.age)) not in proportion_by_age_dict:
             proportion_by_age_dict[("p" + str(ms.age))] = dict()
+
+        n_shift_keys = len(shift_keys)
+        # key is shift_key_descr, value a. For this ms
+        assembly_ratio_by_shift = dict()
+        n_assemblies = len(ms.cell_assemblies)
+
+        # n_sessions_dict = dict()
+        # # we add the string definition the session, so we can have the count of the animals
+        # # and not just session by age
+        # n_sessions_dict[("p" + str(ms.age))] = set()
+
+        # we ass 2 step in order to add all mvt and also still
+        for step in np.arange(n_shift_keys + 2):
+            results_dict = dict()
+            n_frames = ms.spike_struct.spike_nums.shape[1]
+            n_cells = ms.spike_struct.spike_nums.shape[0]
+            shift_bool = np.zeros(n_frames, dtype="bool")
+
+            if step < n_shift_keys:
+                shift_keys_to_loop = [shift_keys[step]]
+                shift_key_descr = shift_keys[step]
+            else:
+                if step == n_shift_keys:
+                    shift_keys_to_loop = shift_keys
+                    shift_key_descr = "all_mvt"
+                else:
+                    shift_keys_to_loop = shift_keys
+                    shift_key_descr = "still"
+
+            for shift_key in shift_keys_to_loop:
+                shift_bool_tmp = ms.shift_data_dict[shift_key]
+                if shift_key == "shift_twitch":
+                    extension_frames_after = 15
+                    extension_frames_before = 1
+                else:
+                    extension_frames_after = 0
+                    extension_frames_before = 0
+                if (extension_frames_after + extension_frames_before) == 0:
+                    shift_bool[shift_bool_tmp] = True
+                else:
+                    # we extend each period, implementation is not the fastest and more elegant way
+                    true_frames = np.where(shift_bool_tmp)[0]
+                    for frame in true_frames:
+                        first_frame = max(0, frame - extension_frames_before)
+                        last_frame = min(n_frames - 1, frame + extension_frames_after)
+                        shift_bool[first_frame:last_frame + 1] = True
+
+            if shift_key_descr == "still":
+                # then we revert the all_mvt result
+                shift_bool = np.invert(shift_bool)
+
+            # now for each assemblie, we measure the percentage of reptition in which it is
+            assemblies_ratio = []
+            for assembly_index in np.arange(n_assemblies):
+                # times tuple in which the assembly is active (as single cell_assembly)
+                periods = ms.sce_times_in_single_cell_assemblies[assembly_index]
+                n_rep_assembly_total = len(periods)
+                n_rep_assembly_in_shift = 0
+                for period in periods:
+                    if shift_key_descr == "still":
+                        # for still, all the frames in SCE must be in still
+                        in_the_shift = np.all(shift_bool[period[0:period[1]+1]])
+                    else:
+                        in_the_shift = np.any(shift_bool[period[0:period[1]+1]])
+                    if in_the_shift:
+                        n_rep_assembly_in_shift += 1
+                assemblies_ratio.append((n_rep_assembly_in_shift / n_rep_assembly_total) * 100)
+            assembly_ratio_by_shift[shift_key_descr] = assemblies_ratio
+
+        # we display a box_plot reprensenting for this session the cell assemblies distribution
+        # for each category of shift
+        colors_scatter = []
+        for cell_assembly_index in np.arange(n_assemblies):
+            colors_scatter.append(cm.nipy_spectral(float(cell_assembly_index + 1) / (n_assemblies + 1)))
+        box_plot_data_by_age(data_dict=assembly_ratio_by_shift, title="",
+                             filename=f"{ms.description}_assemblies_in_shift_category",
+                             y_label=f"Cell assemblies activation (%)",
+                             colors=None, with_scatters=True,
+                             scatter_alpha=1,
+                             scatters_with_same_colors=colors_scatter,
+                             path_results=param.path_results, scatter_size=240,
+                             param=param, save_formats=save_formats)
+
+            # shift_time_periods = get_continous_time_periods(shift_bool.astype("int8"))
+
 
         n_ms += 1
 
@@ -3879,6 +3985,35 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p60_arnaud_ms"]
     # ms_str_to_load = ["p9_19_02_20_a000_ms"]
     # ms_str_to_load = ["p10_19_02_21_a002_ms"]
+    # for clustering
+    ms_str_to_load = ["p5_19_03_25_a000_ms",
+                        "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                        "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+                        "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+                        "p7_19_03_05_a000_ms",
+                        "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                        "p7_19_03_27_a002_ms",
+                        "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+                        "p8_18_10_17_a001_ms",
+                        "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms"
+                        "p8_19_03_19_a000_ms",
+                        "p9_18_09_27_a003_ms",
+                        "p9_19_02_20_a001_ms",
+                        "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                        "p9_19_03_22_a000_ms",
+                        "p9_19_03_22_a001_ms",
+                        "p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+                        "p10_19_02_21_a005_ms",
+                        "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+                        "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+                        "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+                        "p12_171110_a000_ms",
+                        "p13_18_10_29_a000_ms",  "p13_18_10_29_a001_ms",
+                        "p13_19_03_11_a000_ms",
+                        "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+                        "p16_18_11_01_a002_ms",
+                         "p19_19_04_08_a001_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -3966,8 +4101,8 @@ def main():
     just_save_stat_about_mvt_for_each_ms = False
     just_plot_cell_assemblies_on_map = False
     just_plot_all_cells_on_map = False
-    just_plot_all_cell_assemblies_proportion_on_shift_categories = False
-    just_plot_nb_transients_in_mvt_vs_nb_total_transients = True
+    just_plot_all_cell_assemblies_proportion_on_shift_categories = True
+    just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
 
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
@@ -4099,8 +4234,8 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    # range_n_clusters_k_mean = np.arange(5, 9)
-    range_n_clusters_k_mean = np.array([7])
+    range_n_clusters_k_mean = np.arange(2, 13)
+    # range_n_clusters_k_mean = np.array([7])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
 

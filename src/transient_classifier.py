@@ -3978,18 +3978,16 @@ def train_model():
         # cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33])}
 
         # Julien
-        ms_for_rnn_benchmarks = ["p9_19_02_20_a002_ms", "p9_19_02_20_a000_ms",
-                                 "p10_19_02_21_a003_ms", "p9_19_03_14_a001_ms"]
+        ms_for_rnn_benchmarks = ["p9_19_03_14_a001_ms"]
         # ms_for_rnn_benchmarks = ["p10_19_02_21_a003_ms"]
         # p10_19_02_21_a003_ms -> cell 314
-        # p9_19_02_20_a000_ms
         """
-        Cell 58
-         File "/home/julien/these_inmed/hne_project/hippocampal-network-emergence/src/transient_classifier.py", line 2397, in scale_polygon_to_source
-            coords = list(poly_gon.exterior.coords)
-AttributeError: 'LineString' object has no attribute 'exterior'
+          File "/home/julien/.local/lib/python3.6/site-packages/PIL/Image.py", line 2342, in _check_size
+    raise ValueError("Width and height must be >= 0")
+ValueError: Width and height must be >= 0
         """
-        #  "p8_18_10_17_a000_ms" and "p9_19_03_14_a001_ms" (cell 613):
+
+        #  "p8_18_10_17_a000_ms" and "p9_19_03_14_a001_ms" (cell 613 & 677):
         """
          File "/home/julien/these_inmed/hne_project/hippocampal-network-emergence/src/transient_classifier.py", line 1863, in generate_movies_from_metadata
     neuropil_mask[1 - mask_source_profile] = 1
@@ -4022,7 +4020,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         for ms in ms_for_rnn_benchmarks:
             cells_to_predict[ms] = None
         cells_p9_19_03_14_a001_ms = np.arange(834)
-        cells_p9_19_03_14_a001_ms = np.setdiff1d(cells_p9_19_03_14_a001_ms, np.array([613]))
+        cells_p9_19_03_14_a001_ms = np.setdiff1d(cells_p9_19_03_14_a001_ms, np.array([613, 677]))
         cells_to_predict["p9_19_03_14_a001_ms"] = cells_p9_19_03_14_a001_ms
 
         # ms_for_rnn_benchmarks = ["p8_18_10_24_a006_ms"]

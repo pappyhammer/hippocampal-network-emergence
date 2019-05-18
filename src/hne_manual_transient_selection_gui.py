@@ -1288,7 +1288,7 @@ class ManualOnsetFrame(tk.Frame):
         if self.robin_mac:
             self.fig = plt.figure(figsize=(8, 3))
         else:
-            self.fig = plt.figure(figsize=(20, 8))  # 10, 4
+            self.fig = plt.figure(figsize=(16, 8))  # 10, 4
         self.fig.patch.set_facecolor('black')
         # self.plot_canvas = MyCanvas(self.fig, canvas_frame, self)
         self.plot_canvas = FigureCanvasTkAgg(self.fig, main_plot_frame)
