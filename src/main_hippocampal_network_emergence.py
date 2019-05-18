@@ -56,6 +56,7 @@ from PIL import ImageSequence
 # import joypy
 import math
 import hdbscan
+from scipy.spatial.distance import jensenshannon
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -1181,8 +1182,89 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
                         y_label="Avg amplitude (DF/F) of transients by cell", colors=colors,
                          param=param, save_formats=save_formats)
 
-def plot_jsd_correlation():
-    pass
+
+def get_pair_wise_pearson_correlation_distribution(raster_dur):
+    """
+    Distribution of pair-wise pearson correlation of all cells
+    :param raster_dur:
+    :return:
+    """
+    n_cells = raster_dur.shape[0]
+
+    corr_distribution = []
+
+    for cell in np.arange(n_cells-1):
+        if np.sum(raster_dur[cell]) == 0:
+            continue
+        for cell_bis in np.arange(cell+1, n_cells):
+            if np.sum(raster_dur[cell_bis]) == 0:
+                continue
+            corr, p_value = scipy_stats.pearsonr(raster_dur[cell].astype(float),
+                                                 raster_dur[cell_bis].astype(float))
+            corr_distribution.append(corr)
+    return corr_distribution
+
+
+def plot_jsd_correlation(ms_to_analyse, param, n_surrogate=50, save_formats="pdf"):
+    print("plot_jsd_correlation")
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+
+    jsd_by_age = dict()
+    n_sessions_dict = dict()
+    for ms in ms_to_analyse:
+        if ms.spike_struct.spike_nums_dur is None:
+            continue
+        n_times = ms.spike_struct.spike_nums_dur.shape[1]
+        age_str = "p" + str(ms.age)
+        if age_str not in jsd_by_age:
+            jsd_by_age[age_str] = []
+            n_sessions_dict[age_str] = set()
+
+        start_time = time.time()
+        corr_ms_distribution = get_pair_wise_pearson_correlation_distribution(ms.spike_struct.spike_nums)
+
+        stop_time = time.time()
+        print(f"Time to get pearson pair-wise correlation for {ms.description}: "
+              f"{np.round(stop_time - start_time, 3)} s")
+
+        # we measure the pair-wise correlation for each surrogate (rolling the raster)
+        corr_surrogate_distribution = []
+        for i in np.arange(n_surrogate):
+            copy_raster = np.copy(ms.spike_struct.spike_nums_dur)
+            for n, neuron_spikes in enumerate(copy_raster):
+                # roll the data to a random displace number
+                copy_raster[n, :] = np.roll(neuron_spikes, np.random.randint(1, n_times))
+            corr = get_pair_wise_pearson_correlation_distribution(ms.spike_struct.spike_nums_dur)
+            corr_surrogate_distribution.extend(corr)
+
+        # then we want a probability vector for each distribution
+        # with 20 bins, meaning 0.05 by bin
+        n_bins = 20
+        hist_ms, bin_edges = np.histogram(corr_ms_distribution, bins=n_bins, range=(-1, 1))
+        probs_ms = hist_ms / float(hist_ms.sum())
+        hist_surrogate, bin_edges = np.histogram(corr_surrogate_distribution, bins=n_bins,
+                                                 range=(0, 1))
+        probs_surrogate = hist_surrogate / float(hist_surrogate.sum())
+
+        jsd = jensenshannon(probs_ms, probs_surrogate) # base=2
+        print(f"{ms.description}: jsd: {jsd}")
+        # print(f"probs_ms: {probs_ms}")
+        # print(f"probs_surrogate: {probs_surrogate}")
+        jsd_by_age[age_str].append(jsd)
+        # we remove the a00* at the end of description, to know if it's the same animal
+        n_sessions_dict[age_str].add(ms.description[:-4])
+
+    # to know how many different animal by age
+    for i, n_sessions_set in n_sessions_dict.items():
+        n_sessions_dict[i] = len(n_sessions_set)
+
+    box_plot_data_by_age(data_dict=jsd_by_age, title="",
+                         path_results=param.path_results, with_scatters=True,
+                         filename="JSD_by_age",
+                         y_label="average JSD", colors=colors,
+                         param=param, save_formats=save_formats)
 
 def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pdf"):
     path_results = os.path.join(param.path_results, "transient_frequency")
@@ -2201,7 +2283,8 @@ def box_plot_data_by_age(data_dict, title, filename,
         data_list.append(data)
         label = age
         if n_sessions_dict is None:
-            label += f"\n(n={len(data)})"
+            # label += f"\n(n={len(data)})"
+            pass
         else:
             n_sessions = n_sessions_dict[age]
             if n_sessions != len(data):
@@ -3138,6 +3221,73 @@ def plot_all_cell_assemblies_proportion_on_shift_categories(ms_to_analyse,
 
         n_ms += 1
 
+
+def plot_connectivity_graph(ms_to_analyse, param, save_formats="pdf"):
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    # + 11 diverting
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
+              '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+              '#74add1', '#4575b4', '#313695']
+    n_ms = 0
+    for ms in ms_to_analyse:
+        print(f"{ms.description}: detect_n_in_n_out")
+        ms.detect_n_in_n_out()
+        if ms.spike_struct.graph_out is not None:
+            n_ms += 1
+
+    # we plot one graph for each session
+    background_color = "black"
+    max_n_lines = 10
+    n_lines = n_ms if n_ms <= max_n_lines else max_n_lines
+    n_col = math.ceil(n_ms / n_lines)
+    # for histogram all events
+    fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                             gridspec_kw={'width_ratios': [1] * n_col,
+                                          'height_ratios': [1] * n_lines},
+                             figsize=(30, 25))
+    fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig.patch.set_facecolor(background_color)
+    axes = axes.flatten()
+
+    for ax_index, ax in enumerate(axes):
+        ax.set_facecolor(background_color)
+        axes[ax_index].set_facecolor(background_color)
+
+    real_ms_index = 0
+    last_age = None
+    n_ages_so_far = 0
+    for ms in ms_to_analyse:
+        if ms.spike_struct.graph_out is not None:
+            if last_age is None:
+                last_age = ms.age
+            else:
+                if ms.age != last_age:
+                    last_age = ms.age
+                    n_ages_so_far += 1
+            plot_graph_using_fa2(graph=ms.spike_struct.graph_out, file_name=f"{ms.description} graph out",
+                                 title=f"{ms.description}",
+                                 ax_to_use=axes[real_ms_index],
+                                 color=colors[n_ages_so_far % len(colors)],
+                                 param=param, iterations=15000, save_raster=False, with_labels=False,
+                                 save_formats="pdf", show_plot=False)
+            real_ms_index += 1
+    # ms.spike_struct.graph_out.add_edges_from(ms.spike_struct.graph_in.edges())
+    # plot_graph_using_fa2(graph=ms.spike_struct.graph_out, file_name=f"{ms.description} graph in-out",
+    #                      title=f"{ms.description} in-out",
+    #                      param=param, iterations=5000, save_raster=True, with_labels=False,
+    #                      save_formats="pdf", show_plot=False)
+
+    if isinstance(save_formats, str):
+
+        save_formats = [save_formats]
+
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/connectiviy_graph_by_age'
+                                     f'_{param.time_str}.{save_format}',
+                                     format=f"{save_format}",
+                                     facecolor=fig.get_facecolor())
+
 def plot_twitch_ratio_activity(ms_to_analyse, param, time_around=20, save_formats="pdf"):
     """
     For each session, look around twitches, and calculte a ratio definin if the sum of activity is greater
@@ -3798,7 +3948,8 @@ def lexi_loading_process(param, load_traces):
 
 
 def robin_loading_process(param, load_traces, load_abf=False):
-    available_ms_str = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+    # all avaialble session
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
                         "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
                         "p7_171012_a000_ms",
                         "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
@@ -3829,88 +3980,88 @@ def robin_loading_process(param, load_traces, load_abf=False):
                         "p16_18_11_01_a002_ms",
                         "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
                         "p41_19_04_30_a000_ms"]
-    gadcre_ms= [ ]
-    arnaud_ms = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
-    abf_corrupted = ["p8_18_10_17_a001_ms", "p9_18_09_27_a003_ms"]
-
-    ms_with_piezo = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms", "p7_18_02_08_a000_ms",
-                     "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms", "p8_18_02_09_a000_ms",
-                     "p8_18_02_09_a001_ms", "p8_18_10_17_a001_ms",
-                     "p8_18_10_24_a005_ms", "p9_18_09_27_a003_ms", "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms"]
-    ms_with_run = ["p13_18_10_29_a001_ms", "p13_18_10_29_a000_ms"]
-    run_ms_str = ["p12_17_11_10_a000_ms", "p12_17_11_10_a002_ms", "p13_18_10_29_a000_ms",
-                  "p13_18_10_29_a001_ms"]
-    ms_10000_sampling = ["p8_18_10_17_a001_ms", "p9_18_09_27_a003_ms"]
-
-    oriens_ms_str = ["p14_18_10_23_a001_ms"]
-
-    ms_str_to_load = ["p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                      "p8_18_10_24_a005_ms", "p8_18_10_17_a001_ms",
-                      "p8_18_10_17_a000_ms",  # new
-                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
-                      "p9_18_09_27_a003_ms",  # new
-                      "p10_17_11_16_a003_ms",
-                      "p11_17_11_24_a001_ms", "p11_17_11_24_a000_ms",
-                      "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
-                      "p13_18_10_29_a000_ms",  # new
-                      "p13_18_10_29_a001_ms",
-                      "p14_18_10_23_a000_ms",
-                      "p14_18_10_30_a001_ms",
-                      "p60_arnaud_ms"]
-    ms_with_cell_assemblies = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                               "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
-                               "p11_17_11_24_a000_ms"]
-    ms_new_from_Robin_2nd_dec = ["p12_171110_a000_ms", "p6_18_02_07_a002_ms"]
-    ms_str_to_load = available_ms_str
-    ms_str_to_load = ms_with_run
-    # ms_str_to_load = ["p60_a529_2015_02_25_v_arnaud_ms"]
-    ms_str_to_load = ["p7_18_02_08_a001_ms"]
-    ms_str_to_load = ["p10_17_11_16_a003_ms"]
-    ms_str_to_load = available_ms_str
-    ms_str_to_load = ["p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms"]
-    ms_str_to_load = ms_with_cell_assemblies
-    ms_str_to_load = ["p6_18_02_07_a001_ms", "p12_17_11_10_a002_ms"]
-    ms_str_to_load = ["p60_arnaud_ms"]
-    ms_str_to_load = available_ms_str
-    ms_str_to_load = ["p6_18_02_07_a002_ms"]
-    ms_str_to_load = ms_with_piezo
-    ms_str_to_load = ms_with_piezo
-    ms_str_to_load = ["p7_18_02_08_a000_ms"]
-    ms_str_to_load = ["p7_17_10_18_a002_ms"]
+    # gadcre_ms= [ ]
+    # arnaud_ms = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
+    # abf_corrupted = ["p8_18_10_17_a001_ms", "p9_18_09_27_a003_ms"]
+    #
+    # ms_with_piezo = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms", "p7_18_02_08_a000_ms",
+    #                  "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms", "p8_18_02_09_a000_ms",
+    #                  "p8_18_02_09_a001_ms", "p8_18_10_17_a001_ms",
+    #                  "p8_18_10_24_a005_ms", "p9_18_09_27_a003_ms", "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms"]
+    # ms_with_run = ["p13_18_10_29_a001_ms", "p13_18_10_29_a000_ms"]
+    # run_ms_str = ["p12_17_11_10_a000_ms", "p12_17_11_10_a002_ms", "p13_18_10_29_a000_ms",
+    #               "p13_18_10_29_a001_ms"]
+    # ms_10000_sampling = ["p8_18_10_17_a001_ms", "p9_18_09_27_a003_ms"]
+    #
+    # oriens_ms_str = ["p14_18_10_23_a001_ms"]
+    #
+    # ms_str_to_load = ["p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+    #                   "p8_18_10_24_a005_ms", "p8_18_10_17_a001_ms",
+    #                   "p8_18_10_17_a000_ms",  # new
+    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+    #                   "p9_18_09_27_a003_ms",  # new
+    #                   "p10_17_11_16_a003_ms",
+    #                   "p11_17_11_24_a001_ms", "p11_17_11_24_a000_ms",
+    #                   "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+    #                   "p13_18_10_29_a000_ms",  # new
+    #                   "p13_18_10_29_a001_ms",
+    #                   "p14_18_10_23_a000_ms",
+    #                   "p14_18_10_30_a001_ms",
+    #                   "p60_arnaud_ms"]
+    # ms_with_cell_assemblies = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
+    #                            "p11_17_11_24_a000_ms"]
+    # ms_new_from_Robin_2nd_dec = ["p12_171110_a000_ms", "p6_18_02_07_a002_ms"]
+    # ms_str_to_load = available_ms_str
+    # ms_str_to_load = ms_with_run
+    # # ms_str_to_load = ["p60_a529_2015_02_25_v_arnaud_ms"]
+    # ms_str_to_load = ["p7_18_02_08_a001_ms"]
+    # ms_str_to_load = ["p10_17_11_16_a003_ms"]
+    # ms_str_to_load = available_ms_str
+    # ms_str_to_load = ["p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms"]
+    # ms_str_to_load = ms_with_cell_assemblies
+    # ms_str_to_load = ["p6_18_02_07_a001_ms", "p12_17_11_10_a002_ms"]
+    # ms_str_to_load = ["p60_arnaud_ms"]
+    # ms_str_to_load = available_ms_str
+    # ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    # ms_str_to_load = ms_with_piezo
+    # ms_str_to_load = ms_with_piezo
+    # ms_str_to_load = ["p7_18_02_08_a000_ms"]
+    # ms_str_to_load = ["p7_17_10_18_a002_ms"]
+    # # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
+    # ms_str_to_load = ms_new_from_Robin_2nd_dec
+    # ms_str_to_load = ["p9_18_09_27_a003_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a001_ms"]
+    # ms_str_to_load = ["p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
-    ms_str_to_load = ms_new_from_Robin_2nd_dec
-    ms_str_to_load = ["p9_18_09_27_a003_ms"]
-    ms_str_to_load = ["p6_18_02_07_a001_ms"]
-    ms_str_to_load = ["p9_18_09_27_a003_ms"]
-    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
-    no_spike_nums = ["p6_18_02_07_a002_ms", "p12_171110_a000_ms"]
-    ms_str_to_load = ["p13_18_10_29_a000_ms",  # new
-                      "p13_18_10_29_a001_ms",
-                      "p14_18_10_23_a000_ms",
-                      "p14_18_10_30_a001_ms",
-                      "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
-    for_graph = ["p6_18_02_07_a001_ms",
-                 "p7_171012_a000_ms", "p7_18_02_08_a000_ms",
-                 "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-                 "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
-                 "p7_18_02_08_a003_ms",
-                 "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                 "p8_18_10_24_a005_ms", "p8_18_10_17_a001_ms",
-                 "p8_18_10_17_a000_ms",  # new
-                 "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
-                 "p9_18_09_27_a003_ms",  # new
-                 "p10_17_11_16_a003_ms",
-                 "p11_17_11_24_a001_ms", "p11_17_11_24_a000_ms",
-                 "p12_17_11_10_a002_ms",
-                 "p13_18_10_29_a000_ms",  # new
-                 "p13_18_10_29_a001_ms",
-                 "p14_18_10_23_a000_ms",
-                 "p14_18_10_30_a001_ms",
-                 "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
-    ms_str_to_load = for_graph
-    ms_str_to_load = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
-    ms_str_to_load = ["p6_18_02_07_a002_ms"]
-    ms_str_to_load = ["p6_18_02_07_a001_ms"]
+    # no_spike_nums = ["p6_18_02_07_a002_ms", "p12_171110_a000_ms"]
+    # ms_str_to_load = ["p13_18_10_29_a000_ms",  # new
+    #                   "p13_18_10_29_a001_ms",
+    #                   "p14_18_10_23_a000_ms",
+    #                   "p14_18_10_30_a001_ms",
+    #                   "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
+    # for_graph = ["p6_18_02_07_a001_ms",
+    #              "p7_171012_a000_ms", "p7_18_02_08_a000_ms",
+    #              "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+    #              "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+    #              "p7_18_02_08_a003_ms",
+    #              "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+    #              "p8_18_10_24_a005_ms", "p8_18_10_17_a001_ms",
+    #              "p8_18_10_17_a000_ms",  # new
+    #              "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+    #              "p9_18_09_27_a003_ms",  # new
+    #              "p10_17_11_16_a003_ms",
+    #              "p11_17_11_24_a001_ms", "p11_17_11_24_a000_ms",
+    #              "p12_17_11_10_a002_ms",
+    #              "p13_18_10_29_a000_ms",  # new
+    #              "p13_18_10_29_a001_ms",
+    #              "p14_18_10_23_a000_ms",
+    #              "p14_18_10_30_a001_ms",
+    #              "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
+    # ms_str_to_load = for_graph
+    # ms_str_to_load = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a001_ms"]
     # ms_str_to_load = ["p7_18_02_08_a000_ms"]
     # ms_str_to_load = ["p12_171110_a000_ms"]
     # ms_str_to_load = ["p9_18_09_27_a003_ms"]
@@ -3943,25 +4094,26 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p9_19_02_20_a003_ms"]
     # ms_str_to_load = ["p7_19_03_05_a000_ms"]
     # 4 mice with nice abf + LFP
-    ms_str_to_load = ["p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p7_19_03_05_a000_ms", "p9_19_02_20_a003_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p7_19_03_05_a000_ms", "p9_19_02_20_a003_ms"]
 
-    ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p8_19_03_19_a000_ms"]
-    ms_str_to_load = ["p8_18_10_17_a001_ms"]
+    # ms_str_to_load = ["p8_18_10_17_a001_ms"]
 
     # session with mouvements periods (twitch, long mvt etc...) available
-    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                      "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
-                      "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                      "p7_19_03_27_a002_ms",
-                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
-                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
-    #   for test
-    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    #                   "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+    #                   "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+    #                   "p7_19_03_27_a002_ms",
+    #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+    #                   "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+    #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+    #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
+    # #   for test
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+    #                   "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p5_19_03_25_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
@@ -3985,35 +4137,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p60_arnaud_ms"]
     # ms_str_to_load = ["p9_19_02_20_a000_ms"]
     # ms_str_to_load = ["p10_19_02_21_a002_ms"]
-    # for clustering
-    ms_str_to_load = ["p5_19_03_25_a000_ms",
-                        "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-                        "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-                        "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-                        "p7_19_03_05_a000_ms",
-                        "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                        "p7_19_03_27_a002_ms",
-                        "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                        "p8_18_10_17_a001_ms",
-                        "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms"
-                        "p8_19_03_19_a000_ms",
-                        "p9_18_09_27_a003_ms",
-                        "p9_19_02_20_a001_ms",
-                        "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-                        "p9_19_03_22_a000_ms",
-                        "p9_19_03_22_a001_ms",
-                        "p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-                        "p10_19_02_21_a005_ms",
-                        "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
-                        "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
-                        "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
-                        "p12_171110_a000_ms",
-                        "p13_18_10_29_a000_ms",  "p13_18_10_29_a001_ms",
-                        "p13_19_03_11_a000_ms",
-                        "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
-                        "p16_18_11_01_a002_ms",
-                         "p19_19_04_08_a001_ms"]
-    ms_str_to_load = ["p5_19_03_25_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -4101,8 +4225,10 @@ def main():
     just_save_stat_about_mvt_for_each_ms = False
     just_plot_cell_assemblies_on_map = False
     just_plot_all_cells_on_map = False
-    just_plot_all_cell_assemblies_proportion_on_shift_categories = True
+    just_plot_all_cell_assemblies_proportion_on_shift_categories = False
     just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
+    just_plot_jsd_correlation = False
+    do_plot_graph = False
 
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
@@ -4119,6 +4245,7 @@ def main():
     just_produce_animation = False
     just_plot_ratio_spikes_for_shift = False
     just_save_sum_spikes_dur_in_npy_file = False
+    do_find_hubs = True
 
     # for events (sce) detection
     perc_threshold = 95
@@ -4130,8 +4257,6 @@ def main():
 
     do_plot_interneurons_connect_maps = False
     do_plot_connect_hist = False
-    do_plot_graph = False
-    do_find_hubs = False
     do_plot_connect_hist_for_all_ages = False
     do_time_graph_correlation = False
     do_time_graph_correlation_and_connect_best = False
@@ -4313,6 +4438,14 @@ def main():
                                                                 param=param, save_formats="pdf")
         raise Exception("just_plot_all_cell_assemblies_proportion_on_shift_categories")
 
+    if just_plot_jsd_correlation:
+        plot_jsd_correlation(ms_to_analyse, param, n_surrogate=50, save_formats="pdf")
+
+        raise Exception("just_plot_jsd_correlation")
+
+    if do_plot_graph:
+        plot_connectivity_graph(ms_to_analyse, param, save_formats="pdf")
+        raise Exception("do_plot_graph")
 
     ms_by_age = dict()
     for ms_index, ms in enumerate(ms_to_analyse):
@@ -4323,6 +4456,18 @@ def main():
         #          spike_nums=ms.spike_struct.spike_nums[:50, :5000],
         #          spike_nums_dur=ms.spike_struct.spike_nums_dur[:50, :5000])
         # raise Exception("ambre")
+
+        if do_find_hubs:
+            # for cell_to_map in [61, 73, 130, 138, 142]:
+            #     ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="", not_in=False,
+            #                                         cell_color="red", links_cell_color="cornflowerblue")
+            ms.detect_n_in_n_out()
+            if ms.spike_struct.graph_out is not None:
+                hubs = find_hubs(graph=ms.spike_struct.graph_out, ms=ms)
+                print(f"{ms.description} hubs: {hubs}")
+            # P13_18_10_29_a001 hubs: [61, 73, 130, 138, 142]
+            # P60_arnaud_a_529 hubs: [65, 102]
+            # P60_a529_2015_02_25 hubs: [2, 8, 88, 97, 109, 123, 127, 142]
 
         if just_save_sum_spikes_dur_in_npy_file:
             ms.save_sum_spikes_dur_in_npy_file()
@@ -4662,7 +4807,7 @@ def main():
 
         ms_by_age[ms.age].append(ms)
 
-        if do_plot_interneurons_connect_maps or do_plot_connect_hist or do_plot_graph or do_find_hubs:
+        if do_plot_interneurons_connect_maps or do_plot_connect_hist or do_find_hubs:
             ms.detect_n_in_n_out()
             # For p9_a003 good out connec: cell 8, 235, 201,  151, 17
             # for cell_to_map in [8, 235, 201, 151, 17]:
@@ -4733,25 +4878,6 @@ def main():
                     ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="hub_cell",
                                                         cell_color="red", links_cell_color="cornflowerblue")
 
-        if do_find_hubs:
-            for cell_to_map in [61, 73, 130, 138, 142]:
-                ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="", not_in=False,
-                                                    cell_color="red", links_cell_color="cornflowerblue")
-            # hubs = find_hubs(graph=ms.spike_struct.graph_out, ms=ms)
-            # print(f"{ms.description} hubs: {hubs}")
-            # P13_18_10_29_a001 hubs: [61, 73, 130, 138, 142]
-            # P60_arnaud_a_529 hubs: [65, 102]
-            # P60_a529_2015_02_25 hubs: [2, 8, 88, 97, 109, 123, 127, 142]
-        if do_plot_graph:
-            plot_graph_using_fa2(graph=ms.spike_struct.graph_out, file_name=f"{ms.description} graph out",
-                                 title=f"{ms.description}",
-                                 param=param, iterations=15000, save_raster=True, with_labels=False,
-                                 save_formats="pdf", show_plot=False)
-            # ms.spike_struct.graph_out.add_edges_from(ms.spike_struct.graph_in.edges())
-            # plot_graph_using_fa2(graph=ms.spike_struct.graph_out, file_name=f"{ms.description} graph in-out",
-            #                      title=f"{ms.description} in-out",
-            #                      param=param, iterations=5000, save_raster=True, with_labels=False,
-            #                      save_formats="pdf", show_plot=False)
         if do_plot_connect_hist:
             connec_func_stat([ms], data_descr=ms.description, param=param)
             # best_cell = -1

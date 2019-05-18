@@ -221,6 +221,8 @@ class HNESpikeStructure:
                 self.peak_nums[cell, peak] = 1
 
     def detect_n_in_n_out(self):
+        if self.spike_nums is None:
+            return
         # look neuron by neuron, at each spike and make a pair wise for each other neurons according to the spike
         # distribution around 500ms before and after. If the distribution is not uniform then we look where is the max
         # and we add it to n_out or n_in if before or after. If it is at the same time, then we don't add it.

@@ -4020,7 +4020,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         for ms in ms_for_rnn_benchmarks:
             cells_to_predict[ms] = None
         cells_p9_19_03_14_a001_ms = np.arange(834)
-        cells_p9_19_03_14_a001_ms = np.setdiff1d(cells_p9_19_03_14_a001_ms, np.array([613, 677]))
+        cells_p9_19_03_14_a001_ms = np.setdiff1d(cells_p9_19_03_14_a001_ms, np.array([613, 677, 748]))
         cells_to_predict["p9_19_03_14_a001_ms"] = cells_p9_19_03_14_a001_ms
 
         # ms_for_rnn_benchmarks = ["p8_18_10_24_a006_ms"]

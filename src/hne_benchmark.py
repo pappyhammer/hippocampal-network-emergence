@@ -248,7 +248,7 @@ class BenchmarkRasterDur:
             ax.xaxis.set_ticks_position('none')
             ax.xaxis.label.set_color(text_color)
             ax.tick_params(axis='x', colors=text_color)
-            ax.xaxis.set_tick_params(labelsize=3)
+            ax.xaxis.set_tick_params(labelsize=10)
             ax.yaxis.label.set_color(text_color)
             ax.tick_params(axis='y', colors=text_color)
             # ax.set_xticklabels([])
@@ -895,7 +895,9 @@ def load_data_dict(ms_to_benchmark, data_dict, predictions_to_load, version=None
         # data_dict["gt"]["gui_file"] = "p8_18_10_24_a005_GUI_Transiant MP.mat"
         # data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P8_18_10_24_a005.txt"
         # data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
+        data_dict["gt"]["cells"] = np.array([0, 1, 9, 10, 13, 15])
+        # JD, RD: np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])
+        # done by Michel: 0, 1, 9, 10, 13, 15
         data_dict["gt"]["trace_file_name"] = "p8_18_10_24_a005_Traces.mat"
         data_dict["gt"]["trace_var_name"] = "C_df"
 
@@ -906,6 +908,18 @@ def load_data_dict(ms_to_benchmark, data_dict, predictions_to_load, version=None
         data_dict["caiman"]["to_bin"] = True
         data_dict["caiman"]["trace_file_name"] = "p8_18_10_24_a005_Traces.mat"
         data_dict["caiman"]["trace_var_name"] = "C_df"
+
+        data_dict["RD"] = dict()
+        data_dict["RD"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["RD"]["gui_file"] = "p8_18_10_24_a005_GUI_transientsRD.mat"
+
+        data_dict["JD"] = dict()
+        data_dict["JD"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["JD"]["gui_file"] = "p8_18_10_24_a005_GUI_transientsJD.mat"
+
+        data_dict["MP"] = dict()
+        data_dict["MP"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["MP"]["gui_file"] = "p8_18_10_24_a005_GUI_Transiant MP.mat"
 
         # data_dict["suite2p_raw"] = dict()
         # data_dict["suite2p_raw"]["path"] = "p8/p8_18_10_24_a005/suite2p/"
@@ -944,8 +958,8 @@ def main_benchmark():
     # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
     # ms_to_benchmarks = ["p12_17_11_10_a000"]
     # ms_to_benchmarks = ["p7_17_10_12_a000"]
-    ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
-    # ms_to_benchmarks = ["p8_18_10_24_a005_ms"]
+    # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
+    ms_to_benchmarks = ["p8_18_10_24_a005_ms"]
     # ms_to_benchmark = "artificial_ms"
     # ms_to_benchmarks = ["p13_18_10_29_a001_ms"]
     # ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
@@ -964,8 +978,9 @@ def main_benchmark():
     boost_predictions = False
     predictions_threshold = 0.5
 
-    predictions_to_load = ["epoch_11", "meso_2", "meso_3", "meso_4", "meso_8", "meso_6", "meso_7", "meso_8", "meso_9",
-                           "meso_10", "meso_11", "meso_12", "meso_13", "meso_14"]
+    # predictions_to_load = ["epoch_11", "meso_2", "meso_3", "meso_4", "meso_8", "meso_6", "meso_7", "meso_8", "meso_9",
+    #                        "meso_10", "meso_11", "meso_12", "meso_13", "meso_14"]
+    predictions_to_load = ["meso_10", "meso_9"]
     for ms_to_benchmark in ms_to_benchmarks:
         print(f"ms_to_benchmark {ms_to_benchmark}")
         data_dict = dict()
@@ -1079,7 +1094,7 @@ def main_benchmark():
         if len(file_names) > 0:
             for file_name in file_names:
                 for prediction_key in predictions_to_load:
-                    if prediction_key in file_name:
+                    if (prediction_key in file_name) and ("filtered_predicted_raster_dur" not in file_name):
                         data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"],
                                                                              "predictions", file_name))
                         predicted_raster_dur = \
@@ -1151,6 +1166,14 @@ def main_benchmark():
             #         predicted_raster_dur_dict["rnn_boost"] = rnn_raster_dur
             #     else:
             #         predicted_raster_dur_dict[key] = rnn_raster_dur
+            elif "gui_file" in value:
+                data_file = hdf5storage.loadmat(
+                    os.path.join(path_data, value["path"], value["gui_file"]))
+                peak_nums = data_file['LocPeakMatrix_Python'].astype(int)
+                spike_nums = data_file['Bin100ms_spikedigital_Python'].astype(int)
+                predicted_raster_dur_dict[key] = build_spike_nums_dur(spike_nums, peak_nums)
+
+
             elif "prediction_threshold" in value: # ("rnn" in key) and
                 data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name"]))
                 predicted_raster_dur_dict[key] = \
