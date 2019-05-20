@@ -163,10 +163,13 @@ class HNESpikeStructure:
         if self.spike_nums_dur is None:
             return
 
-        if self.spike_nums_dur.shape[1] != 12500:
+        if (self.spike_nums_dur.shape[1] != 12500) and (self.spike_nums_dur.shape[1] != 10000) :
             return
         mask_frames = np.zeros(self.spike_nums_dur.shape[1], dtype="bool")
-        for i in [2500, 7500, 10000]:
+        concatenation_times = [2500, 5000, 7500, 10000]
+        if self.spike_nums_dur.shape[1] == 10000:
+            concatenation_times = [2500, 5000, 7500]
+        for i in concatenation_times:
             mask_frames[i:i+5] = True
 
         if self.spike_nums is not None:

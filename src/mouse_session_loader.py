@@ -675,6 +675,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "p8_18_10_24_a006_ms" in ms_str_to_load:
         p8_18_10_24_a006_ms = MouseSession(age=8, session_id="18_10_24_a006", sampling_rate=10, param=param)
 
+        # oriens field, using Caiman
         p8_18_10_24_a006_ms.use_suite_2p = False
 
         if not p8_18_10_24_a006_ms.use_suite_2p:

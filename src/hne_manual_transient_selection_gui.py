@@ -44,7 +44,7 @@ from matplotlib import animation
 import matplotlib.gridspec as gridspec
 
 from cell_classifier import predict_cell_from_saved_model
-# from transient_classifier import predict_transient_from_saved_model
+from transient_classifier import predict_transient_from_saved_model
 from pattern_discovery.tools.misc import get_continous_time_periods
 
 import classification_stat
@@ -4860,7 +4860,7 @@ class ManualOnsetFrame(tk.Frame):
                     self.transient_prediction_periods[self.current_neuron][threshold_tc] = active_periods
                 else:
                     active_periods = self.transient_prediction_periods[self.current_neuron][threshold_tc]
-                    if (len(predictions.shape) > 0) and (predictions.shape[1] == 3):
+                    if (len(predictions.shape) > 1) and (predictions.shape[1] == 3):
                         # real transient, fake ones, other (neuropil, decay etc...)
                         # keeping predictions about real transient when superior
                         # to other prediction on the same frame
@@ -4907,7 +4907,9 @@ class ManualOnsetFrame(tk.Frame):
                         raster_dur = self.raster_dur_for_a_cell[self.current_neuron]
 
                     predicted_raster_dur = np.zeros(predictions.shape[0], dtype="int8")
-                    if predictions.shape[1] == 1:
+                    if len(predictions.shape) == 1:
+                        real_transient_frames = predictions >= threshold_tc
+                    elif predictions.shape[1] == 1:
                         real_transient_frames = predictions[:, 0] >= threshold_tc
                     elif predictions.shape[1] == 3:
                         # real transient, fake ones, other (neuropil, decay etc...)

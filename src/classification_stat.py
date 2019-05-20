@@ -191,11 +191,11 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, with_thresho
         else:
             transients_stat["ACC"] = 1
 
-        if (tp_frames + fp_frames) > 0:
+        if (tp_transients + fp_transients) > 0:
             transients_stat["PPV"] = tp_transients / (tp_transients + fp_transients)
         else:
             transients_stat["PPV"] = 1
-        if (tn_frames + fn_frames) > 0:
+        if (tn_transients + fn_transients) > 0:
             transients_stat["NPV"] = tn_transients / (tn_transients + fn_transients)
         else:
             transients_stat["NPV"] = 1

@@ -46,7 +46,7 @@ from mouse_session import MouseSession
 from hne_parameters import HNEParameters
 from mouse_session_loader import load_mouse_sessions
 from lexi_mouse_session_loader import load_lexi_mouse_sessions
-import networkx as nxfrom
+import networkx as nx
 from articifical_movie_patch_generator import produce_movie
 import articifical_movie_patch_generator as art_movie_gen
 from ScanImageTiffReader import ScanImageTiffReader
@@ -1192,7 +1192,8 @@ def get_pair_wise_pearson_correlation_distribution(raster_dur):
     n_cells = raster_dur.shape[0]
 
     corr_distribution = []
-
+    # count_high_p_value = 0
+    # total_count = 0
     for cell in np.arange(n_cells-1):
         if np.sum(raster_dur[cell]) == 0:
             continue
@@ -1201,7 +1202,12 @@ def get_pair_wise_pearson_correlation_distribution(raster_dur):
                 continue
             corr, p_value = scipy_stats.pearsonr(raster_dur[cell].astype(float),
                                                  raster_dur[cell_bis].astype(float))
+            # if p_value > 0.05:
+            #     count_high_p_value += 1
+            # total_count += 1
+            # if p_value < 0.05:
             corr_distribution.append(corr)
+    # print(f"total_count {total_count}, count_high_p_value {count_high_p_value}")
     return corr_distribution
 
 
@@ -1210,9 +1216,34 @@ def plot_jsd_correlation(ms_to_analyse, param, n_surrogate=50, save_formats="pdf
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
               '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+    just_plot_pearson_correlation_distribution = False
+
+    n_ms = 0
+    for ms in ms_to_analyse:
+        if ms.spike_struct.spike_nums_dur is None:
+            continue
+        n_ms += 1
+
+    background_color = "black"
+    max_n_lines = 5
+    n_lines = n_ms if n_ms <= max_n_lines else max_n_lines
+    n_col = math.ceil(n_ms / n_lines)
+    # for histogram all events
+    fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                             gridspec_kw={'width_ratios': [1] * n_col,
+                                          'height_ratios': [1] * n_lines},
+                             figsize=(30, 25))
+    fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig.patch.set_facecolor(background_color)
+    axes = axes.flatten()
+
+    for ax_index, ax in enumerate(axes):
+        ax.set_facecolor(background_color)
+        axes[ax_index].set_facecolor(background_color)
 
     jsd_by_age = dict()
     n_sessions_dict = dict()
+    n_ms_so_far = 0
     for ms in ms_to_analyse:
         if ms.spike_struct.spike_nums_dur is None:
             continue
@@ -1228,31 +1259,40 @@ def plot_jsd_correlation(ms_to_analyse, param, n_surrogate=50, save_formats="pdf
         stop_time = time.time()
         print(f"Time to get pearson pair-wise correlation for {ms.description}: "
               f"{np.round(stop_time - start_time, 3)} s")
+        if just_plot_pearson_correlation_distribution:
+            jsd_by_age[age_str].extend(corr_ms_distribution)
+        else:
+            # we measure the pair-wise correlation for each surrogate (rolling the raster)
+            # corr_surrogate_distribution = []
+            # for i in np.arange(n_surrogate):
+            #     copy_raster = np.copy(ms.spike_struct.spike_nums_dur)
+            #     for n, neuron_spikes in enumerate(copy_raster):
+            #         # roll the data to a random displace number
+            #         copy_raster[n, :] = np.roll(neuron_spikes, np.random.randint(1, n_times))
+            #     corr = get_pair_wise_pearson_correlation_distribution(ms.spike_struct.spike_nums_dur)
+            #     corr_surrogate_distribution.extend(corr)
 
-        # we measure the pair-wise correlation for each surrogate (rolling the raster)
-        corr_surrogate_distribution = []
-        for i in np.arange(n_surrogate):
-            copy_raster = np.copy(ms.spike_struct.spike_nums_dur)
-            for n, neuron_spikes in enumerate(copy_raster):
-                # roll the data to a random displace number
-                copy_raster[n, :] = np.roll(neuron_spikes, np.random.randint(1, n_times))
-            corr = get_pair_wise_pearson_correlation_distribution(ms.spike_struct.spike_nums_dur)
-            corr_surrogate_distribution.extend(corr)
+            # then we want a probability vector for each distribution
+            # with 20 bins, meaning 0.05 by bin
+            n_bins = 2000
+            # hist_ms, bin_edges = np.histogram(corr_ms_distribution, bins=n_bins, range=(-1, 1), density=True)
+            plot_hist_distribution(distribution_data=corr_ms_distribution, n_bins=n_bins,
+                                   description=f"{ms.description}_pair_wise_correlation",
+                                   legend_str=f"{ms.description}", tight_x_range=True,
+                                   ax_to_use=axes[n_ms_so_far],
+                                   color_to_use=colors[n_ms_so_far % len(colors)],
+                                   xlabel=f"Pair-wise correlation (pearson)",
+                                   param=param, density=True, use_log=True)
 
-        # then we want a probability vector for each distribution
-        # with 20 bins, meaning 0.05 by bin
-        n_bins = 20
-        hist_ms, bin_edges = np.histogram(corr_ms_distribution, bins=n_bins, range=(-1, 1))
-        probs_ms = hist_ms / float(hist_ms.sum())
-        hist_surrogate, bin_edges = np.histogram(corr_surrogate_distribution, bins=n_bins,
-                                                 range=(0, 1))
-        probs_surrogate = hist_surrogate / float(hist_surrogate.sum())
+            # probs_ms = hist_ms / float(hist_ms.sum())
+            # hist_surrogate, bin_edges = np.histogram(corr_surrogate_distribution, bins=n_bins,
+            #                                          range=(0, 1))
+            # probs_surrogate = hist_surrogate / float(hist_surrogate.sum())
 
-        jsd = jensenshannon(probs_ms, probs_surrogate) # base=2
-        print(f"{ms.description}: jsd: {jsd}")
-        # print(f"probs_ms: {probs_ms}")
-        # print(f"probs_surrogate: {probs_surrogate}")
-        jsd_by_age[age_str].append(jsd)
+            # jsd = jensenshannon(probs_ms, probs_surrogate, base=2) #
+            # print(f"{ms.description}: jsd: {jsd}")
+            # jsd_by_age[age_str].append(jsd)
+            n_ms_so_far += 1
         # we remove the a00* at the end of description, to know if it's the same animal
         n_sessions_dict[age_str].add(ms.description[:-4])
 
@@ -1260,11 +1300,31 @@ def plot_jsd_correlation(ms_to_analyse, param, n_surrogate=50, save_formats="pdf
     for i, n_sessions_set in n_sessions_dict.items():
         n_sessions_dict[i] = len(n_sessions_set)
 
-    box_plot_data_by_age(data_dict=jsd_by_age, title="",
-                         path_results=param.path_results, with_scatters=True,
-                         filename="JSD_by_age",
-                         y_label="average JSD", colors=colors,
-                         param=param, save_formats=save_formats)
+    if just_plot_pearson_correlation_distribution:
+        filename = "pair_wise_pearson_correlation"
+    else:
+        filename = "JSD_by_age"
+
+    if just_plot_pearson_correlation_distribution:
+        y_label = "pair-wise pearson correlation"
+    else:
+        y_label = "average JSD"
+
+    # box_plot_data_by_age(data_dict=jsd_by_age, title="",
+    #                      path_results=param.path_results, with_scatters=False,
+    #                      filename=filename, scatter_size = 40,
+    #                      y_label=y_label, colors=colors,
+    #                      param=param, save_formats=save_formats)
+    # we plot one distribution for each session with the ratio
+
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/pair_wise_correlation_pearson'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
 
 def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pdf"):
     path_results = os.path.join(param.path_results, "transient_frequency")
@@ -1481,10 +1541,11 @@ def plot_duration_spikes_by_age(mouse_sessions, ms_ages,
 
 
 def plot_hist_distribution(distribution_data, description, param, values_to_scatter=None,
+                           n_bins = None, use_log=False,
                            labels=None, scatter_shapes=None, colors=None, tight_x_range=False,
                            twice_more_bins=False, background_color="black", labels_color="white",
                            xlabel="", ylabel=None, path_results=None, save_formats="pdf",
-                           ax_to_use=None, color_to_use=None, legend_str=""):
+                           ax_to_use=None, color_to_use=None, legend_str="", density=False):
     """
     Plot a distribution in the form of an histogram, with option for adding some scatter values
     :param distribution_data:
@@ -1506,7 +1567,10 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
         hist_color = "blue"
     else:
         hist_color = color_to_use
-    edge_color = "white"
+    if (n_bins is not None) and (n_bins > 100):
+        edge_color = hist_color
+    else:
+        edge_color = "white"
     if tight_x_range:
         max_range = np.max(distribution)
         min_range = np.min(distribution)
@@ -1514,6 +1578,7 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
         max_range = 100
         min_range = 0
     weights = (np.ones_like(distribution) / (len(distribution))) * 100
+    # weights=None
 
     if ax_to_use is None:
         fig, ax1 = plt.subplots(nrows=1, ncols=1,
@@ -1523,13 +1588,16 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
         fig.patch.set_facecolor(background_color)
     else:
         ax1 = ax_to_use
-    bins = int(np.sqrt(len(distribution)))
-    if twice_more_bins:
-        bins *= 2
+    if n_bins is not None:
+        bins = n_bins
+    else:
+        bins = int(np.sqrt(len(distribution)))
+        if twice_more_bins:
+            bins *= 2
     hist_plt, edges_plt, patches_plt = ax1.hist(distribution, bins=bins, range=(min_range, max_range),
-                                                facecolor=hist_color,
+                                                facecolor=hist_color, log=use_log,
                                                 edgecolor=edge_color, label=f"{legend_str}",
-                                                weights=weights, log=False)
+                                                weights=weights, density=density)
     if values_to_scatter is not None:
         scatter_bins = np.ones(len(values_to_scatter), dtype="int16")
         scatter_bins *= -1
@@ -1583,10 +1651,10 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
     # ax1.xaxis.set_ticks_position('none')
 
     if ylabel is None:
-        ax1.set_ylabel("Distribution (%)", fontsize=30, labelpad=20)
+        ax1.set_ylabel("Distribution (%)", fontsize=20, labelpad=20)
     else:
-        ax1.set_ylabel(ylabel, fontsize=30, labelpad=20)
-    ax1.set_xlabel(xlabel, fontsize=30, labelpad=20)
+        ax1.set_ylabel(ylabel, fontsize=20, labelpad=20)
+    ax1.set_xlabel(xlabel, fontsize=20, labelpad=20)
 
     ax1.xaxis.label.set_color(labels_color)
     ax1.yaxis.label.set_color(labels_color)
@@ -2330,7 +2398,7 @@ def box_plot_data_by_age(data_dict, title, filename,
                 while len(colors_scatters) < len(y_pos):
                     colors_scatters.extend(scatters_with_same_colors)
             else:
-                colors[data_index]
+                colors_scatters = [colors[data_index]]
             ax1.scatter(x_pos, y_pos,
                        color=colors_scatters[:len(y_pos)],
                        alpha=scatter_alpha,
@@ -3479,8 +3547,8 @@ def plot_nb_transients_in_mvt_vs_nb_total_transients(ms_to_analyse, param, save_
         if "p" + str(ms.age) not in results_by_age_dict:
             results_by_age_dict["p" + str(ms.age)] = []
             results_by_age_with_all_cells_dict["p" + str(ms.age)] = []
-            n_sessions_dict["p" + str(ms.age)] = 0
-        n_sessions_dict["p" + str(ms.age)] += 1
+            n_sessions_dict["p" + str(ms.age)] = set()
+        n_sessions_dict["p" + str(ms.age)].add(ms.description[:-4])
         n_transients_total = 0
         n_transients_during_mvt_total = 0
         list_ratio = []
@@ -3513,22 +3581,26 @@ def plot_nb_transients_in_mvt_vs_nb_total_transients(ms_to_analyse, param, save_
             n_transients_during_mvt_total += n_transients_in_cell_and_during_mvt
             if n_transients_in_cell > 0:
                 list_ratio.append((n_transients_in_cell_and_during_mvt / n_transients_in_cell) * 100)
-        print(f"n_transients_during_mvt_total {n_transients_during_mvt_total}, n_transients_total {n_transients_total}")
+        print(f"{ms.description}: n_transients_during_mvt_total {n_transients_during_mvt_total}, "
+              f"n_transients_total {n_transients_total}")
         ratio_ms = (n_transients_during_mvt_total / n_transients_total) * 100
         results_by_age_dict["p" + str(ms.age)].append(ratio_ms)
         results_by_age_with_all_cells_dict["p" + str(ms.age)].extend(list_ratio)
+
+    for age, animals in n_sessions_dict.items():
+        n_sessions_dict[age] = len(animals)
 
     box_plot_data_by_age(data_dict=results_by_age_dict, title="",
                          filename=f"ratio_transients_in_mvt_by_age",
                          y_label=f"Transients associated to mvt (%)",
                          colors=colors, with_scatters=True,
                          n_sessions_dict=n_sessions_dict,
-                         path_results=param.path_results, scatter_size=40,
+                         path_results=param.path_results, scatter_size=200,
                          param=param, save_formats=save_formats)
     box_plot_data_by_age(data_dict=results_by_age_with_all_cells_dict, title="",
                          filename=f"ratio_transients_in_mvt_by_age_one_value_by_cell",
                          y_label=f"Transients associated to mvt (%)",
-                         colors=colors, with_scatters=True,
+                         colors=colors, with_scatters=False,
                          n_sessions_dict=n_sessions_dict,
                          path_results=param.path_results, scatter_size=40,
                          param=param, save_formats=save_formats)
@@ -3545,6 +3617,7 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
 
     for step in np.arange(n_shift_keys+2):
         results_dict = dict()
+        animals_dict = dict()
 
         shift_key_descr = None
         for ms in ms_to_analyse:
@@ -3552,7 +3625,8 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                 continue
             if ("p" + str(ms.age)) not in results_dict:
                 results_dict[("p" + str(ms.age))] = []
-
+                animals_dict["p" + str(ms.age)] = set()
+            animals_dict["p" + str(ms.age)].add(ms.description[:-4])
             n_frames = ms.spike_struct.spike_nums.shape[1]
             n_cells = ms.spike_struct.spike_nums.shape[0]
             shift_bool = np.zeros(n_frames, dtype="bool")
@@ -3603,9 +3677,13 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
             results_dict[("p" + str(ms.age))].append(ratio_significant_cells)
         # in case no ms would have been analysed
         if shift_key_descr is not None:
+            for age, animals in animals_dict.items():
+                animals_dict[age] = len(animals)
             box_plot_data_by_age(data_dict=results_dict, title="", filename=f"cells_associated_to_{shift_key_descr}",
-                                 y_label=f"Cells associated to {shift_key_descr} (%)", colors=colors, with_scatters=True,
-                                 path_results=param.path_results, scatter_size=40,
+                                 n_sessions_dict=animals_dict,
+                                 y_label=f"Cells associated to {shift_key_descr} (%)", colors=colors,
+                                 with_scatters=True,
+                                 path_results=param.path_results, scatter_size=200,
                                  param=param, save_formats=save_formats)
 
 def select_significant_time_periods(raster, time_periods, description="", perc_threshold=95, n_surrogate=1000):
@@ -4102,15 +4180,15 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p8_18_10_17_a001_ms"]
 
     # session with mouvements periods (twitch, long mvt etc...) available
-    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-    #                   "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
-    #                   "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-    #                   "p7_19_03_27_a002_ms",
-    #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-    #                   "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
-    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-    #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-    #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+                      "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                      "p7_19_03_27_a002_ms",
+                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
     # #   for test
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
     #                   "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
@@ -4131,13 +4209,43 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p14_18_10_30_a001_ms"]
     # ms_str_to_load = ["richard_015_D74_P2_ms"]
     # ms_str_to_load = ["p5_19_03_25_a000_ms"]
-    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p60_arnaud_ms"]
     # ms_str_to_load = ["p9_19_02_20_a000_ms"]
     # ms_str_to_load = ["p10_19_02_21_a002_ms"]
-    # ms_str_to_load = ["p5_19_03_25_a000_ms"]
+    # ms_str_to_load = ["p11_17_11_24_a000_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_171012_a000_ms",
+                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+                      "p7_19_03_05_a000_ms"]
+    ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                      "p7_19_03_27_a002_ms",
+                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+                      "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+                      "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
+                      "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
+                      "p9_19_03_22_a001_ms"]
+    ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+                      "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
+                      "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+                      "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+                      "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+                      "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+                      "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
+                      "p13_19_03_11_a000_ms",
+                      "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+                      "p16_18_11_01_a002_ms",
+                      "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
+                      "p41_19_04_30_a000_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -4227,7 +4335,7 @@ def main():
     just_plot_all_cells_on_map = False
     just_plot_all_cell_assemblies_proportion_on_shift_categories = False
     just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
-    just_plot_jsd_correlation = False
+    just_plot_jsd_correlation = True
     do_plot_graph = False
 
     just_do_stat_on_event_detection_parameters = False
@@ -4245,7 +4353,7 @@ def main():
     just_produce_animation = False
     just_plot_ratio_spikes_for_shift = False
     just_save_sum_spikes_dur_in_npy_file = False
-    do_find_hubs = True
+    do_find_hubs = False
 
     # for events (sce) detection
     perc_threshold = 95
@@ -4439,7 +4547,7 @@ def main():
         raise Exception("just_plot_all_cell_assemblies_proportion_on_shift_categories")
 
     if just_plot_jsd_correlation:
-        plot_jsd_correlation(ms_to_analyse, param, n_surrogate=50, save_formats="pdf")
+        plot_jsd_correlation(ms_to_analyse, param, n_surrogate=20, save_formats="pdf")
 
         raise Exception("just_plot_jsd_correlation")
 
@@ -4468,6 +4576,9 @@ def main():
             # P13_18_10_29_a001 hubs: [61, 73, 130, 138, 142]
             # P60_arnaud_a_529 hubs: [65, 102]
             # P60_a529_2015_02_25 hubs: [2, 8, 88, 97, 109, 123, 127, 142]
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("do_find_hubs")
+            continue
 
         if just_save_sum_spikes_dur_in_npy_file:
             ms.save_sum_spikes_dur_in_npy_file()

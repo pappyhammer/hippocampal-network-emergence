@@ -2806,13 +2806,32 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     raster_dur_by_cells_and_session = None
 
     if load_them_all:
-        ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p9_18_09_27_a003_ms", "p11_17_11_24_a000_ms",
-                     "p12_171110_a000_ms", "p13_18_10_29_a001_ms"]
-        cell_to_load_by_ms = {"p7_171012_a000_ms": np.arange(118), "p8_18_10_24_a005_ms": np.arange(22),
-                              "p9_18_09_27_a003_ms": np.arange(32),
-                              "p11_17_11_24_a000_ms": np.concatenate((np.arange(26), [29])),
-                              "p12_171110_a000_ms": np.arange(10),
-                              "p13_18_10_29_a001_ms": np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])}
+        ms_to_remove_from_test.append("artificial_ms_1")
+        ms_to_remove_from_validation.append("artificial_ms_1")
+        ms_to_remove_from_test.append("artificial_ms_2")
+        ms_to_remove_from_validation.append("artificial_ms_2")
+        # ms_to_remove_from_test.append("artificial_ms_3")
+        # ms_to_remove_from_validation.append("artificial_ms_3")
+        # "artificial_ms_3",
+        # "artificial_ms_3": np.array([0, 11, 27, 37, 48, 55, 65, 78, 87, 95, 103, 112, 117, 128, 136, 144],
+        ms_to_use = ["artificial_ms_1", "artificial_ms_2", "p7_171012_a000_ms",
+                     "p8_18_10_24_a006_ms",
+                     "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
+                     "p13_18_10_29_a001_ms"]
+        cell_to_load_by_ms = {"artificial_ms_1":
+                                  np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
+                              "artificial_ms_2":
+                                  np.array([0, 9, 18, 26, 34, 41, 46, 56, 62, 77, 88, 101, 116, 127, 140, 150]),
+                              "p7_171012_a000_ms": np.array([3, 8, 11, 12, 14, 17, 18, 24]),
+                              "p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
+                              "p11_17_11_24_a000_ms": np.array([17, 22, 24, 25, 29, 30, 33]),
+                              "p12_171110_a000_ms": np.array([0, 3, 6, 7, 12, 14, 15, 19]),
+                              "p13_18_10_29_a001_ms": np.array([0, 2, 5, 12, 13, 31, 42, 44, 48, 51])}
+
+        cells_segments_by_session, raster_dur_by_cells_and_session = \
+            add_segment_of_cells_for_training(param,
+                                              ms_to_use,
+                                              cell_to_load_by_ms)
     elif use_small_sample:
         # ms_to_use = ["p7_171012_a000_ms"]
         # cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([8])}
@@ -3769,6 +3788,9 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
           f"{np.round(stop_time - start_time, 3)} s")
 
     # now we want to average each prediction for a given frame
+    # actually instead of averaging, we take the max predictions
+    # the rational being that often if a transient arrive right at the end or the beginning
+    # it won't be recognized as True
     if (overlap_value > 0) or (augmentation_functions is not None):
         frames_predictions = dict()
         # print(f"predictions.shape {predictions.shape}, data_frame_indices.shape {data_frame_indices.shape}")
@@ -3792,7 +3814,8 @@ def predict_transient_from_model(ms, cell, model, overlap_value=0.8,
         predictions = np.zeros((n_frames, using_multi_class))
         for frame_index, class_dict in frames_predictions.items():
             for class_index, prediction_values in class_dict.items():
-                predictions[frame_index, class_index] = np.mean(prediction_values)
+                # max value
+                predictions[frame_index, class_index] = np.max(prediction_values)
     else:
         # to flatten all but last dimensions
         # predictions = predictions.reshape((-1, predictions.shape[-1]))
@@ -3943,10 +3966,11 @@ def train_model():
         # ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms",
         #  "p12_171110_a000_ms",
         #  "p13_18_10_29_a001_ms", "artificial_ms_1"]
-        create_tiffs_for_data_generator(ms_to_use=["p10_19_02_21_a003_ms", "p9_19_02_20_a002_ms"],
+        create_tiffs_for_data_generator(ms_to_use=["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+                                 "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms", "p12_171110_a000_ms"],
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
@@ -3957,28 +3981,29 @@ def train_model():
         ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
                                  "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms", "p12_171110_a000_ms"]
+        ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
         # ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
-        cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
-                            "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
-                            "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
-                            "p11_17_11_24_a000_ms": np.array([3, 45]),
-                            "p12_171110_a000_ms": np.array([9, 10]),
-                            "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
-        cells_to_predict = {"p11_17_11_24_a000_ms": np.arange(24)}  # np.array([2, 25])} # np.arange(117)
-        cells_to_predict = {"p41_19_04_30_a000_ms": None}
-        cells_to_predict = {"p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])}
-        cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33]), "p7_171012_a000_ms": np.arange(117),
-                            "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
-                            "p11_17_11_24_a000_ms": np.array([3, 45]),
-                            "p12_171110_a000_ms": np.array([9, 10]),
-                            "p13_18_10_29_a001_ms": np.array([77, 117])}
+        # cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
+        #                     "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
+        #                     "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
+        #                     "p11_17_11_24_a000_ms": np.array([3, 45]),
+        #                     "p12_171110_a000_ms": np.array([9, 10]),
+        #                     "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
+        # cells_to_predict = {"p11_17_11_24_a000_ms": np.arange(24)}  # np.array([2, 25])} # np.arange(117)
+        # cells_to_predict = {"p41_19_04_30_a000_ms": None}
+        # cells_to_predict = {"p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])}
+        # cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33]), "p7_171012_a000_ms": np.arange(117),
+        #                     "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
+        #                     "p11_17_11_24_a000_ms": np.array([3, 45]),
+        #                     "p12_171110_a000_ms": np.array([9, 10]),
+        #                     "p13_18_10_29_a001_ms": np.array([77, 117])}
         # cells_to_predict = {"p11_17_11_24_a000_ms": np.array([3, 45]),
         #                     "p12_171110_a000_ms": np.array([9, 10])}
-        # cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33])}
+        cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
 
         # Julien
-        ms_for_rnn_benchmarks = ["p9_19_03_14_a001_ms"]
+        # ms_for_rnn_benchmarks = ["p9_19_03_14_a001_ms"]
         # ms_for_rnn_benchmarks = ["p10_19_02_21_a003_ms"]
         # p10_19_02_21_a003_ms -> cell 314
         """
@@ -4017,16 +4042,16 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # cells_to_predict = dict()
         # predicting all cells
 
-        for ms in ms_for_rnn_benchmarks:
-            cells_to_predict[ms] = None
-        cells_p9_19_03_14_a001_ms = np.arange(834)
-        cells_p9_19_03_14_a001_ms = np.setdiff1d(cells_p9_19_03_14_a001_ms, np.array([613, 677, 748]))
-        cells_to_predict["p9_19_03_14_a001_ms"] = cells_p9_19_03_14_a001_ms
+        # for ms in ms_for_rnn_benchmarks:
+        #     cells_to_predict[ms] = None
+        # cells_p9_19_03_14_a001_ms = np.arange(834)
+        # cells_p9_19_03_14_a001_ms = np.setdiff1d(cells_p9_19_03_14_a001_ms, np.array([613, 677, 748]))
+        # cells_to_predict["p9_19_03_14_a001_ms"] = cells_p9_19_03_14_a001_ms
 
         # ms_for_rnn_benchmarks = ["p8_18_10_24_a006_ms"]
         # cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33])}
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
-        transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0,
+        transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0.5,
                                          use_data_augmentation=False, using_cnn_predictions=False,
                                          cells_to_predict=cells_to_predict, file_name_bonus_str="meso_v1_epoch_9",
                                          tiffs_for_transient_classifier_path = path_for_tiffs)
