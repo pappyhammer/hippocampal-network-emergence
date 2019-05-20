@@ -1035,6 +1035,7 @@ def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, dur
         if ax_index >= len(ms_to_analyse):
             continue
         ms = ms_to_analyse[ax_index]
+        print(f"{ms.description} plot_all_twitch_psth_in_one_figure")
         ms.plot_psth_twitches(line_mode=line_mode, ax_to_use=ax, put_mean_line_on_plt=line_mode,
                               color_to_use=colors[ax_index % len(colors)], duration_option=duration_option)
     bonus_file_name = ""
@@ -1279,7 +1280,7 @@ def plot_jsd_correlation(ms_to_analyse, param, n_surrogate=50, save_formats="pdf
             plot_hist_distribution(distribution_data=corr_ms_distribution, n_bins=n_bins,
                                    description=f"{ms.description}_pair_wise_correlation",
                                    legend_str=f"{ms.description}", tight_x_range=True,
-                                   ax_to_use=axes[n_ms_so_far],
+                                   ax_to_use=axes[n_ms_so_far], x_range=(-0.1, 1),
                                    color_to_use=colors[n_ms_so_far % len(colors)],
                                    xlabel=f"Pair-wise correlation (pearson)",
                                    param=param, density=True, use_log=True)
@@ -1541,7 +1542,7 @@ def plot_duration_spikes_by_age(mouse_sessions, ms_ages,
 
 
 def plot_hist_distribution(distribution_data, description, param, values_to_scatter=None,
-                           n_bins = None, use_log=False,
+                           n_bins = None, use_log=False, x_range=None,
                            labels=None, scatter_shapes=None, colors=None, tight_x_range=False,
                            twice_more_bins=False, background_color="black", labels_color="white",
                            xlabel="", ylabel=None, path_results=None, save_formats="pdf",
@@ -1571,7 +1572,10 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
         edge_color = hist_color
     else:
         edge_color = "white"
-    if tight_x_range:
+    if x_range is not None:
+        min_range = x_range[0]
+        max_range = x_range[1]
+    elif tight_x_range:
         max_range = np.max(distribution)
         min_range = np.min(distribution)
     else:
@@ -3419,6 +3423,7 @@ def plot_twitch_ratio_activity(ms_to_analyse, param, time_around=20, save_format
     for ms_index, ms in enumerate(ms_to_analyse):
         if ms.spike_struct.spike_nums_dur is None:
             continue
+        print(f"{ms.description} plot_twitch_ratio_activity")
 
         distribution_ratio = ratio_dict[ms.age][ms.description]
         distribution_ratio = np.array(distribution_ratio)
@@ -3427,12 +3432,17 @@ def plot_twitch_ratio_activity(ms_to_analyse, param, time_around=20, save_format
         # number of twitches with ratio sup or inf
         n_twitches_low_ratio = len(np.where(distribution_ratio < threshold)[0])
         n_twitches_high_ratio = len(np.where(distribution_ratio >= threshold)[0])
-        perc_sum_activity_after = str(np.round((n_twitches_high_ratio / n_twitches) * 100, 1))
+        if n_twitches > 0:
+            perc_sum_activity_after = str(np.round((n_twitches_high_ratio / n_twitches) * 100, 1))
+        else:
+            perc_sum_activity_after = 50
+        if len(distribution_ratio) == 0:
+            continue
         display_misc.plot_hist_distribution(distribution_data=distribution_ratio,
                                             description=f"{ms.description} \n {n_twitches} twitches: "
                                             f"{n_twitches_low_ratio} / {n_twitches_high_ratio} "
                                             f"({perc_sum_activity_after} %)",
-                                            param=param,
+                                            param=param, x_range=(0, 100),
                                             path_results=param.path_results,
                                             tight_x_range=True,
                                             twice_more_bins=True,
@@ -4209,43 +4219,43 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p14_18_10_30_a001_ms"]
     # ms_str_to_load = ["richard_015_D74_P2_ms"]
     # ms_str_to_load = ["p5_19_03_25_a000_ms"]
-    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p60_arnaud_ms"]
     # ms_str_to_load = ["p9_19_02_20_a000_ms"]
     # ms_str_to_load = ["p10_19_02_21_a002_ms"]
     # ms_str_to_load = ["p11_17_11_24_a000_ms"]
-    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                      "p7_171012_a000_ms",
-                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-                      "p7_19_03_05_a000_ms"]
-    ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                      "p7_19_03_27_a002_ms",
-                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                      "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
-                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
-                      "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
-                      "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
-                      "p9_19_03_22_a001_ms"]
-    ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-                      "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
-                      "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
-                      "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
-                      "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
-                      "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
-                      "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
-                      "p13_19_03_11_a000_ms",
-                      "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
-                      "p16_18_11_01_a002_ms",
-                      "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
-                      "p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+    #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    #                   "p7_171012_a000_ms",
+    #                   "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+    #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+    #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+    #                   "p7_19_03_05_a000_ms"]
+    # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+    #                   "p7_19_03_27_a002_ms",
+    #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+    #                   "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+    #                   "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+    #                   "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+    #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
+    #                   "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+    #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
+    #                   "p9_19_03_22_a001_ms"]
+    # ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+    #                   "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
+    #                   "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+    #                   "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+    #                   "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+    #                   "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+    #                   "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
+    #                   "p13_19_03_11_a000_ms",
+    #                   "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+    #                   "p16_18_11_01_a002_ms",
+    #                   "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
+    #                   "p41_19_04_30_a000_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -4328,14 +4338,14 @@ def main():
     just_plot_raster_with_periods = False
     just_do_stat_significant_time_period = False
     just_plot_cells_that_fire_during_time_periods = False
-    just_plot_twitch_ratio_activity = False
+    just_plot_twitch_ratio_activity = True
     just_fca_clustering_on_twitches_activity = False
     just_save_stat_about_mvt_for_each_ms = False
     just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = False
+    just_plot_all_cells_on_map = True
     just_plot_all_cell_assemblies_proportion_on_shift_categories = False
     just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
-    just_plot_jsd_correlation = True
+    just_plot_jsd_correlation = False
     do_plot_graph = False
 
     just_do_stat_on_event_detection_parameters = False
@@ -4557,6 +4567,24 @@ def main():
 
     ms_by_age = dict()
     for ms_index, ms in enumerate(ms_to_analyse):
+
+        # plot_spikes_raster(spike_nums=ms.spike_struct.spike_nums_dur, param=ms.param,
+        #                    spike_train_format=False,
+        #                    title=f"{ms.description}",
+        #                    file_name=f"{ms.description}_raster",
+        #                    y_ticks_labels=np.arange(ms.spike_struct.spike_nums_dur.shape[0]),
+        #                    y_ticks_labels_size=2,
+        #                    save_raster=True,
+        #                    show_raster=False,
+        #                    plot_with_amplitude=False,
+        #                    activity_threshold=ms.spike_struct.activity_threshold,
+        #                    # 500 ms window
+        #                    show_sum_spikes_as_percentage=False,
+        #                    span_area_only_on_raster=False,
+        #                    spike_shape='|',
+        #                    spike_shape_size=10,
+        #                    save_formats=["pdf", "png"])
+
         if do_pattern_search or do_clustering:
             break
         print(f"for: ms {ms.description}")

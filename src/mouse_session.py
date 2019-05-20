@@ -4056,7 +4056,7 @@ class MouseSession:
                     print(f"{self.description} raw traces loaded from file npy")
                     return True
             break
-
+        print(f"{self.description} raw traces not loaded")
         return False
 
     def save_raw_traces(self, path):

@@ -1494,12 +1494,14 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "richard_015_D74_P2_ms" in ms_str_to_load:
         # from 46517 to the end : all awake, no sleep, but no information about moving or not.
         richard_015_D74_P2_ms = MouseSession(age=60, session_id="richard_015_D74_P2", param=param)
-        richard_015_D74_P2_ms.activity_threshold = 19
-        variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
-        richard_015_D74_P2_ms.load_data_from_file(file_name_to_load=
-                                                  "richard_data/015/Cue/015_D74_P2/Spike_Times_Onset_to_Peak.mat",
-                                                  variables_mapping=variables_mapping)
-        richard_015_D74_P2_ms.load_richard_data(path_data="richard_data/015/Cue/015_D74_P2/")
+        richard_015_D74_P2_ms.use_suite_2p = True
+        if not richard_015_D74_P2_ms.use_suite_2p:
+            richard_015_D74_P2_ms.activity_threshold = 19
+            variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
+            richard_015_D74_P2_ms.load_data_from_file(file_name_to_load=
+                                                      "richard_data/015/Cue/015_D74_P2/Spike_Times_Onset_to_Peak.mat",
+                                                      variables_mapping=variables_mapping)
+            richard_015_D74_P2_ms.load_richard_data(path_data="richard_data/015/Cue/015_D74_P2/")
         ms_str_to_ms_dict["richard_015_D74_P2_ms"] = richard_015_D74_P2_ms
 
     if "richard_015_D89_P2_ms" in ms_str_to_load:
@@ -1548,12 +1550,14 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "richard_018_D28_P2_ms" in ms_str_to_load:
         richard_018_D28_P2_ms = MouseSession(age=60, session_id="richard_018_D28_P2", param=param)
-        richard_018_D28_P2_ms.activity_threshold = 22
-        variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
-        richard_018_D28_P2_ms.load_data_from_file(file_name_to_load=
-                                                  "richard_data/018/Nocue/018_D28_P2/Spike_Times_Onset_to_Peak.mat",
-                                                  variables_mapping=variables_mapping)
-        richard_018_D28_P2_ms.load_richard_data(path_data="richard_data/018/Nocue/018_D28_P2/")
+        use_suite_2p = False
+        if not use_suite_2p:
+            richard_018_D28_P2_ms.activity_threshold = 22
+            variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
+            richard_018_D28_P2_ms.load_data_from_file(file_name_to_load=
+                                                      "richard_data/018/Nocue/018_D28_P2/Spike_Times_Onset_to_Peak.mat",
+                                                      variables_mapping=variables_mapping)
+            richard_018_D28_P2_ms.load_richard_data(path_data="richard_data/018/Nocue/018_D28_P2/")
 
         ms_str_to_ms_dict["richard_018_D28_P2_ms"] = richard_018_D28_P2_ms
 
@@ -1570,12 +1574,15 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "richard_028_D2_P1_ms" in ms_str_to_load:
         richard_028_D2_P1_ms = MouseSession(age=60, session_id="richard_028_D2_P1", param=param)
-        richard_028_D2_P1_ms.activity_threshold = 30
-        variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
-        richard_028_D2_P1_ms.load_data_from_file(file_name_to_load=
-                                                 "richard_data/028/Nocue/028_D2_P1/Spike_Times_Onset_to_Peak.mat",
-                                                 variables_mapping=variables_mapping)
-        richard_028_D2_P1_ms.load_richard_data(path_data="richard_data/028/Nocue/028_D2_P1/")
+
+        richard_028_D2_P1_ms.use_suite_2p = True
+        if not richard_028_D2_P1_ms.use_suite_2p:
+            richard_028_D2_P1_ms.activity_threshold = 30
+            variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}
+            richard_028_D2_P1_ms.load_data_from_file(file_name_to_load=
+                                                     "richard_data/028/Nocue/028_D2_P1/Spike_Times_Onset_to_Peak.mat",
+                                                     variables_mapping=variables_mapping)
+            richard_028_D2_P1_ms.load_richard_data(path_data="richard_data/028/Nocue/028_D2_P1/")
 
         ms_str_to_ms_dict["richard_028_D2_P1_ms"] = richard_028_D2_P1_ms
 
