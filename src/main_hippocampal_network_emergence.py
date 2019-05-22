@@ -4256,7 +4256,8 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p16_18_11_01_a002_ms",
     #                   "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
     #                   "p41_19_04_30_a000_ms"]
-
+    ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
+    ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
@@ -4338,15 +4339,16 @@ def main():
     just_plot_raster_with_periods = False
     just_do_stat_significant_time_period = False
     just_plot_cells_that_fire_during_time_periods = False
-    just_plot_twitch_ratio_activity = True
+    just_plot_twitch_ratio_activity = False
     just_fca_clustering_on_twitches_activity = False
     just_save_stat_about_mvt_for_each_ms = False
-    just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = True
+    just_plot_cell_assemblies_on_map = True
+    just_plot_all_cells_on_map = False
     just_plot_all_cell_assemblies_proportion_on_shift_categories = False
     just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
     just_plot_jsd_correlation = False
     do_plot_graph = False
+    just_plot_cell_assemblies_clusters = False
 
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
@@ -4477,7 +4479,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 13)
+    range_n_clusters_k_mean = np.arange(5, 6)
     # range_n_clusters_k_mean = np.array([7])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
@@ -4757,7 +4759,6 @@ def main():
                 raise Exception("koko")
             continue
 
-
         if just_generate_artificial_movie_from_rasterdur:
             param_movie = art_movie_gen.DataForMs(path_data=param.path_data, path_results=param.path_results,
                                                   time_str=param.time_str,
@@ -4801,6 +4802,7 @@ def main():
         # tuple of times
         SCE_times = sce_detection_result[1]
 
+        cellsinpeak = sce_detection_result[2]
         # print(f"SCE_times {SCE_times}")
         sce_times_numbers = sce_detection_result[3]
         sce_times_bool = sce_detection_result[0]
@@ -4810,6 +4812,14 @@ def main():
         ms.SCE_times = SCE_times
 
         print(f"n_cells {ms.spike_struct.n_cells}, n_sces {len(ms.SCE_times)}")
+
+        if just_plot_cell_assemblies_clusters:
+            # use data from txt file that should be loaded
+            # don't compute the clusters, just display them
+            ms.plot_cell_assemblies_clusters(cellsinpeak=cellsinpeak)
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_plot_cell_assemblies_clusters")
+            continue
 
         if just_plot_raster:
             span_area_coords = []

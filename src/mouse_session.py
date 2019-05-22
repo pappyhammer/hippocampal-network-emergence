@@ -21,6 +21,7 @@ from pattern_discovery.tools.misc import get_continous_time_periods, give_unique
 from pattern_discovery.display.raster import plot_spikes_raster
 from pattern_discovery.display.misc import time_correlation_graph, plot_hist_distribution, plot_scatters
 from pattern_discovery.display.cells_map_module import CoordClass
+from pattern_discovery.clustering.kmean_version.k_mean_clustering import CellAssembliesStruct
 from sortedcontainers import SortedDict
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
@@ -36,6 +37,7 @@ import hne_animation as hne_anim
 import math
 import PIL
 import pattern_discovery.display.misc as display_misc
+import itertools
 
 
 class MouseSession:
@@ -2588,25 +2590,25 @@ class MouseSession:
 
         self.suite2p_data = dict()
         if os.path.isfile(os.path.join(self.param.path_data, data_path, 'F.npy')):
-            f = np.load(os.path.join(self.param.path_data, data_path, 'F.npy'))
+            f = np.load(os.path.join(self.param.path_data, data_path, 'F.npy'), allow_pickle=True)
             self.suite2p_data["F"] = f
         if os.path.isfile(os.path.join(self.param.path_data, data_path, 'Fneu.npy')):
-            f_neu = np.load(os.path.join(self.param.path_data, data_path, 'Fneu.npy'))
+            f_neu = np.load(os.path.join(self.param.path_data, data_path, 'Fneu.npy'), allow_pickle=True)
             self.suite2p_data["Fneu"] = f_neu
         if os.path.isfile(os.path.join(self.param.path_data, data_path, 'spks.npy')):
-            spks = np.load(os.path.join(self.param.path_data, data_path, 'spks.npy'))
+            spks = np.load(os.path.join(self.param.path_data, data_path, 'spks.npy'), allow_pickle=True)
             self.suite2p_data["spks"] = spks
         # print(f"spks.shape {spks}")
-        stat = np.load(os.path.join(self.param.path_data, data_path, 'stat.npy'))
+        stat = np.load(os.path.join(self.param.path_data, data_path, 'stat.npy'), allow_pickle=True)
         self.suite2p_data["stat"] = stat
         # print(f"len(stat) {len(stat)}")
         # stat = stat[0]
         if os.path.isfile(os.path.join(self.param.path_data, data_path, 'ops.npy')):
-            ops = np.load(os.path.join(self.param.path_data, data_path, 'ops.npy'))
+            ops = np.load(os.path.join(self.param.path_data, data_path, 'ops.npy'), allow_pickle=True)
             ops = ops.item()
             self.suite2p_data["ops"] = ops
 
-        is_cell = np.load(os.path.join(self.param.path_data, data_path, 'iscell.npy'))
+        is_cell = np.load(os.path.join(self.param.path_data, data_path, 'iscell.npy'), allow_pickle=True)
         self.suite2p_data["is_cell"] = is_cell
         # print(f"len(is_cell) {len(is_cell)}")
 
@@ -2926,7 +2928,12 @@ class MouseSession:
         for i in np.arange(n_assemblies):
             # print(f"cm.nipy_spectral(float(i + 1) / (n_assemblies + 1)) "
             #       f"{cm.nipy_spectral(float(i + 1) / (n_assemblies + 1))}")
-            cells_groups_colors.append(cm.nipy_spectral(float(i + 1) / (n_assemblies + 1)))
+            color = cm.nipy_spectral(float(i + 1) / (n_assemblies + 1))
+            if i == 0:
+                color = (100/255, 215/255, 247/255, 1) # #64D7F7"
+            else:
+                color = (213/255, 38/255, 215/255, 1) # #D526D7
+            cells_groups_colors.append(color)
         # print(f"cells_groups_colors {cells_groups_colors}")
         # self.coord_obj.compute_center_coord(cells_groups=self.cell_assemblies,
         #                                     cells_groups_colors=cells_groups_colors,
@@ -2940,7 +2947,7 @@ class MouseSession:
                                       cells_groups=self.cell_assemblies,
                                       cells_groups_colors=cells_groups_colors,
                                       dont_fill_cells_not_in_groups=True,
-                                      with_cell_numbers=True, save_formats=save_formats)
+                                      with_cell_numbers=False, save_formats=save_formats)
 
     def set_low_activity_threshold(self, threshold, percentile_value):
         self.low_activity_threshold_by_percentile[percentile_value] = threshold
@@ -2962,6 +2969,73 @@ class MouseSession:
         # np.save(os.path.join(self.param.path_results, f"{self.description}_sum_activity.npy"),
         #         np.sum(self.spike_struct.spike_nums_dur, axis=0))
         print(f"{self.description}: sum of spike_nums_dur saved")
+
+    def plot_cell_assemblies_clusters(self, cellsinpeak):
+        """
+        :param cellsinpeak: binary 2d array, is a cell in a SCE, cells are lines.
+        :return:
+        """
+        # TODO: doesn't work, TO FINISH
+        if (self.cell_assemblies is None) or (self.SCE_times is None):
+            return
+
+        # list of list of int representing cell indices
+        # initiated when loading_cell_assemblies
+        # self.cell_assemblies = None
+        # # dict with key a int representing the cell_assembly cluster and and value a list of tuple representing first
+        # # and last index including of the SCE
+        # self.sce_times_in_single_cell_assemblies = None
+        # # list of tuple of int
+        # self.sce_times_in_multiple_cell_assemblies = None
+        # # list of tuple of int (gather data from sce_times_in_single_cell_assemblies and
+        # # sce_times_in_multiple_cell_assemblies)
+        # self.sce_times_in_cell_assemblies = None
+        n_cells = self.spike_struct.n_cells
+        cas = CellAssembliesStruct(data_id=self.description,
+                                   sce_clusters_labels=None,
+                                   cellsinpeak=cellsinpeak,
+                                   sce_clusters_id=None, n_clusters=None,
+                                   cluster_with_best_silhouette_score=None,
+                                   param=self.param, neurons_labels=np.arange(n_cells),
+                                   sliding_window_duration=1,
+                                   n_surrogate_k_mean=None, SCE_times=self.SCE_times)
+        cas.activity_threshold=self.activity_threshold
+        # novel order to display cells organized by cell assembly cluster, last cells being the one without cell assembly
+        cells_in_ca_indices = np.array(list(itertools.chain.from_iterable(self.cell_assemblies)))
+        cas.cells_indices = cells_in_ca_indices
+        n_cells_in_cell_assemblies_clusters = [len(n) for n in self.cell_assemblies]
+        cas.n_cells_in_cell_assemblies_clusters = n_cells_in_cell_assemblies_clusters
+        cas.n_cells_not_in_cell_assemblies = n_cells - np.sum(n_cells_in_cell_assemblies_clusters)
+        # value to one represent the cells spikes without assembly, then number 2 represent the cell assembly 0, etc...
+        cellsinpeak_ordered = np.zeros(cellsinpeak.shape, dtype="int8")
+        cellsinpeak_ordered[:len(cells_in_ca_indices)] = cellsinpeak[cells_in_ca_indices, :]
+        # now we want the last ones
+        all_cells = np.arange(n_cells)
+        left_cells_indices = np.setdiff1d(all_cells, cells_in_ca_indices)
+        cellsinpeak_ordered[len(cells_in_ca_indices):] = cellsinpeak[left_cells_indices, :]
+        cas.cellsinpeak_ordered = cellsinpeak_ordered
+
+        self.n_cells_in_multiple_cell_assembly_sce_cl = None
+        # give the number of sce in the no-assembly-sce, single-assembly and multiple-assembly groups respectively
+        n_sces = len(self.SCE_times)
+        cas.n_sce_in_assembly = np.zeros(3, dtype="uint16")
+        cas.n_sce_in_assembly[0] = n_sces - len(self.sce_times_in_cell_assemblies)
+        cas.n_sce_in_assembly[1] = len(self.sce_times_in_single_cell_assemblies)
+        cas.n_sce_in_assembly[2] = len(self.sce_times_in_multiple_cell_assemblies)
+        # contains the nb of sces in sce single cell assembly cluster
+        cas.n_cells_in_single_cell_assembly_sce_cl = []
+        # TO COMPLETE
+        # contains the nb of sces in sce multiple cell assembly cluster
+        cas.n_cells_in_multiple_cell_assembly_sce_cl = []
+        # TO COMPLETE
+        cas.plot_cell_assemblies(data_descr=self.description, spike_nums=self.spike_struct.spike_nums_dur,
+                                 SCE_times=self.SCE_times, activity_threshold=self.activity_threshold,
+                                 with_cells_in_cluster_seq_sorted=False,
+                                 sce_times_bool=self.sce_bool,
+                                 display_only_cell_assemblies_on_raster=False,
+                                 save_formats=["pdf", "png"])
+
+
 
     def load_abf_file(self, path_abf_data=None, abf_file_name=None, threshold_piezo=None,
                       frames_channel=0, piezo_channel=None, run_channel=None, lfp_channel=None, threshold_ratio=2,

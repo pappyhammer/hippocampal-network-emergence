@@ -117,8 +117,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p5_19_03_25_a001_ms = MouseSession(age=5, session_id="19_03_25_a001",
                                            sampling_rate=8, param=param)
         p5_19_03_25_a001_ms.use_suite_2p = True
-        # for threshold prediction at 0.5
-        # p5_19_03_25_a001_ms.activity_threshold =
+        # calculated with 95th percentile on raster dur
+        p5_19_03_25_a001_ms.activity_threshold = 13
 
         # prediction based on rnn trained on 50 cells, BO,
         # variables_mapping = {"predictions": "predictions"}
@@ -781,8 +781,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         p9_18_09_27_a003_ms.use_suite_2p = True
 
-        # calculated with 99th percentile on raster dur
-        # p9_18_09_27_a003_ms.activity_threshold =
+        # calculated with 95th percentile on raster dur
+        p9_18_09_27_a003_ms.activity_threshold = 13
         # p9_18_09_27_a003_ms.set_low_activity_threshold(threshold=, percentile_value=1)
 
         if not p9_18_09_27_a003_ms.use_suite_2p:
