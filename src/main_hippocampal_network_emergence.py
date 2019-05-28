@@ -22,6 +22,7 @@ import pyabf
 # then show all, then select the interpreter and lick on the more right icon to display a list of folder and
 # add the one containing the folder pattern_discovery
 from pattern_discovery.seq_solver.markov_way import MarkovParameters
+from pattern_discovery.seq_solver.seq_with_pca import find_seq_with_pca
 from pattern_discovery.seq_solver.markov_way import find_significant_patterns
 from pattern_discovery.seq_solver.markov_way import find_sequences_in_ordered_spike_nums
 from pattern_discovery.seq_solver.markov_way import save_on_file_seq_detection_results
@@ -4257,7 +4258,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
     #                   "p41_19_04_30_a000_ms"]
     ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
-    ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
@@ -4316,7 +4317,7 @@ def main():
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
 
-    load_traces = False
+    load_traces = True
 
     if for_lexi:
         ms_str_to_ms_dict = lexi_loading_process(param=param, load_traces=load_traces)
@@ -4342,13 +4343,14 @@ def main():
     just_plot_twitch_ratio_activity = False
     just_fca_clustering_on_twitches_activity = False
     just_save_stat_about_mvt_for_each_ms = False
-    just_plot_cell_assemblies_on_map = True
+    just_plot_cell_assemblies_on_map = False
     just_plot_all_cells_on_map = False
     just_plot_all_cell_assemblies_proportion_on_shift_categories = False
     just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
     just_plot_jsd_correlation = False
     do_plot_graph = False
     just_plot_cell_assemblies_clusters = False
+    just_find_seq_with_pca = True
 
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
@@ -4608,6 +4610,13 @@ def main():
             # P60_a529_2015_02_25 hubs: [2, 8, 88, 97, 109, 123, 127, 142]
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("do_find_hubs")
+            continue
+
+        if just_find_seq_with_pca:
+            find_seq_with_pca(ms.raw_traces, path_results=param.path_results,
+                              file_name=f"{ms.description}_seq_with_pca")
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_find_seq_with_pca")
             continue
 
         if just_save_sum_spikes_dur_in_npy_file:
