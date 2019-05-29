@@ -33,7 +33,7 @@ from pattern_discovery.display.raster import plot_spikes_raster
 from pattern_discovery.display.misc import time_correlation_graph
 import pattern_discovery.display.misc as display_misc
 from pattern_discovery.tools.sce_detection import get_sce_detection_threshold, detect_sce_with_sliding_window, \
-    get_low_activity_events_detection_threshold, detect_sce_potatoes_style
+    detect_sce_on_traces
 from sortedcontainers import SortedList, SortedDict
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import compute_and_plot_clusters_raster_kmean_version
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import give_stat_one_sce
@@ -4004,9 +4004,9 @@ def elephant_cad(ms, param, save_formats="pdf"):
     for ca_index, cell_assembly in enumerate(assembly_bin):
         cell_new_order.extend(cell_assembly['neurons'])
         n_cells_in_ca = len(cell_assembly['neurons'])
-        cells_to_highlight.append(np.arange(cell_index_so_far, cell_index_so_far+n_cells_in_ca))
+        cells_to_highlight.extend(np.arange(cell_index_so_far, cell_index_so_far+n_cells_in_ca))
         cell_index_so_far += n_cells_in_ca
-        cells_to_highlight_colors.append(colors[ca_index%len(colors)])
+        cells_to_highlight_colors.extend([colors[ca_index%len(colors)]]*n_cells_in_ca)
 
     cell_new_order.extend(list(np.setdiff1d(all_cells, cell_new_order)))
     cell_new_order = np.array(cell_new_order)
@@ -4025,7 +4025,7 @@ def elephant_cad(ms, param, save_formats="pdf"):
                        cells_to_highlight_colors=cells_to_highlight_colors,
                        span_area_only_on_raster=False,
                        spike_shape='o',
-                       spike_shape_size=0.5,
+                       spike_shape_size=0.05,
                        save_formats=["pdf", "png"])
 
 def fca_clustering_on_twitches_activity(ms, param, save_formats="pdf"):
@@ -4341,7 +4341,10 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
     #                   "p41_19_04_30_a000_ms"]
     ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
-    ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
+    ms_str_to_load = ["p8_18_10_24_a005_ms"]
+    ms_str_to_load = ["p19_19_04_08_a001_ms"]
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
@@ -4434,7 +4437,7 @@ def main():
     do_plot_graph = False
     just_plot_cell_assemblies_clusters = False
     just_find_seq_with_pca = False
-    just_test_elephant_cad = True
+    just_test_elephant_cad = False
 
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
@@ -4471,6 +4474,7 @@ def main():
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
     do_clustering = False
+    do_detect_sce_on_traces = False
     use_hdbscan = False
     # to add in the file title
     clustering_bonus_descr = ""
@@ -4565,18 +4569,18 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(5, 6)
+    range_n_clusters_k_mean = np.arange(2, 10)
     # range_n_clusters_k_mean = np.array([7])
     n_surrogate_k_mean = 20
-    keep_only_the_best_kmean_cluster = False
+    keep_only_the_best_kmean_cluster = True
 
     # ##########################################################################################
     # ################################ PATTERNS SEARCH #########################################
     # ##########################################################################################
-    do_pattern_search = False
+    do_pattern_search = True
     keep_the_longest_seq = False
     split_pattern_search = False
-    use_only_uniformity_method = False
+    use_only_uniformity_method = True
     use_loss_score_to_keep_the_best_from_tree = False
     use_sce_times_for_pattern_search = False
     use_ordered_spike_nums_for_surrogate = True
@@ -4585,8 +4589,8 @@ def main():
     # TODO: error_rate that change with the number of element in the sequence
     param.error_rate = 0.25  # 0.25 0.1
     param.max_branches = 10
-    param.time_inter_seq = 30  # 30 3
-    param.min_duration_intra_seq = 1
+    param.time_inter_seq = 10  # 30 3
+    param.min_duration_intra_seq = 3 # 1
     param.min_len_seq = 4  # 5
     param.min_rep_nb = 4 # 3
 
@@ -5807,27 +5811,45 @@ def main():
                            spike_shape="|",
                            spike_shape_size=1,
                            save_formats="pdf")
+        if do_detect_sce_on_traces:
+            cellsinpeak, sce_loc = detect_sce_on_traces(ms.raw_traces, use_speed=False,
+                                                        speed_threshold=None, sce_n_cells_threshold=5,
+                                                        sce_min_distance=4, use_median_norm=True,
+                                                        use_bleaching_correction=False,
+                                                        use_savitzky_golay_filt=True)
+            sce_times_bool = np.zeros(spike_nums_to_use.shape[1], dtype="bool")
+            sce_times_bool[sce_loc] = True
+            SCE_times = get_continous_time_periods(sce_times_bool)
+            sce_times_numbers = np.ones(spike_nums_to_use.shape[1], dtype="int16")
+            sce_times_numbers *= -1
+            for period_index, period in enumerate(SCE_times):
+                # if period[0] == period[1]:
+                #     print("both periods are equals")
+                sce_times_numbers[period[0]:period[1]+1] = period_index
+            ms.sce_bool = sce_times_bool
+            ms.sce_times_numbers = sce_times_numbers
+            ms.SCE_times = SCE_times
+        else:
+            # TODO: detect_sce_with_sliding_window with spike_trains
+            sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use[:5000],
+                                                                  window_duration=sliding_window_duration,
+                                                                  perc_threshold=perc_threshold,
+                                                                  activity_threshold=activity_threshold,
+                                                                  debug_mode=False,
+                                                                  no_redundancy=no_redundancy,
+                                                                  keep_only_the_peak=False)
+            # sce_detection_result = detect_sce_potatoes_style(spike_nums=spike_nums_to_use, perc_threshold=95,
+            #                                                  debug_mode=True, keep_only_the_peak=False)
 
-        # TODO: detect_sce_with_sliding_window with spike_trains
-        sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use,
-                                                              window_duration=sliding_window_duration,
-                                                              perc_threshold=perc_threshold,
-                                                              activity_threshold=activity_threshold,
-                                                              debug_mode=False,
-                                                              no_redundancy=no_redundancy,
-                                                              keep_only_the_peak=False)
-        # sce_detection_result = detect_sce_potatoes_style(spike_nums=spike_nums_to_use, perc_threshold=95,
-        #                                                  debug_mode=True, keep_only_the_peak=False)
-
-        print(f"sce_with_sliding_window detected")
-        cellsinpeak = sce_detection_result[2]
-        SCE_times = sce_detection_result[1]
-        sce_times_bool = sce_detection_result[0]
-        sce_times_numbers = sce_detection_result[3]
-        # useful for plotting twitches
-        ms.sce_bool = sce_times_bool
-        ms.sce_times_numbers = sce_times_numbers
-        ms.SCE_times = SCE_times
+            print(f"sce_with_sliding_window detected")
+            cellsinpeak = sce_detection_result[2]
+            SCE_times = sce_detection_result[1]
+            sce_times_bool = sce_detection_result[0]
+            sce_times_numbers = sce_detection_result[3]
+            # useful for plotting twitches
+            ms.sce_bool = sce_times_bool
+            ms.sce_times_numbers = sce_times_numbers
+            ms.SCE_times = SCE_times
 
         print(f"Nb SCE: {cellsinpeak.shape}")
         # print(f"Nb spikes by SCE: {np.sum(cellsinpeak, axis=0)}")
@@ -6025,7 +6047,7 @@ def main():
 
             else:
                 print("Start of use_new_pattern_package")
-                find_significant_patterns(spike_nums=spike_nums_to_use, param=param,
+                find_significant_patterns(spike_nums=spike_nums_to_use[:5000], param=param,
                                           activity_threshold=activity_threshold,
                                           sliding_window_duration=sliding_window_duration,
                                           n_surrogate=n_surrogate_for_pattern_search,
@@ -6038,7 +6060,7 @@ def main():
                                           use_loss_score_to_keep_the_best_from_tree,
                                           spike_shape="|",
                                           spike_shape_size=5,
-                                          keep_the_longest_seq=keep_the_longest_seq)
+                                          keep_the_longest_seq=keep_the_longest_seq, ms=ms)
 
     return
 

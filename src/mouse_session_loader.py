@@ -1405,7 +1405,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "p19_19_04_08_a001_ms" in ms_str_to_load:
         p19_19_04_08_a001_ms = MouseSession(age=19, session_id="19_04_08_a001", sampling_rate=8, param=param)
-
+        p19_19_04_08_a001_ms.activity_threshold = 18
         p19_19_04_08_a001_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p19_19_04_08_a001_ms"] = p19_19_04_08_a001_ms
