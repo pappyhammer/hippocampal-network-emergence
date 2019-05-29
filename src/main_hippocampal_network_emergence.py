@@ -58,6 +58,10 @@ from PIL import ImageSequence
 import math
 import hdbscan
 from scipy.spatial.distance import jensenshannon
+import neo
+import elephant.conversion as elephant_conv
+import quantities as pq
+import elephant.cell_assembly_detection as cad
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -3945,6 +3949,85 @@ def stat_significant_time_period(ms_to_analyse, shift_key, perc_threshold=95, n_
         ms.plot_raster_with_periods(new_periods_dict, bonus_title="_significant",
                                     with_cell_assemblies=False)
 
+
+def elephant_cad(ms, param, save_formats="pdf"):
+    if ms.spike_struct.spike_nums is None:
+        print(f"elephant_cad {ms.description} ms.spike_struct.spike_nums should not be None")
+
+    # first we create a spike_trains in the neo format
+    spike_trains = []
+    n_cells, n_times = ms.spike_struct.spike_nums.shape
+    for cell in np.arange(n_cells):
+        cell_spike_nums = ms.spike_struct.spike_nums[cell]
+        spike_frames = np.where(cell_spike_nums)[0]
+        # convert frames in s
+        spike_frames = spike_frames / ms.sampling_rate
+        neo_spike_train = neo.SpikeTrain(times=spike_frames, units='s',
+                       t_stop=n_times / ms.sampling_rate)
+        spike_trains.append(neo_spike_train)
+
+    binsize = 300*pq.ms
+    spike_trains_binned = elephant_conv.BinnedSpikeTrain(spike_trains, binsize=binsize)
+    assembly_bin = cad.cell_assembly_detection(data=spike_trains_binned, maxlag=4)
+    print(f"assembly_bin {assembly_bin}")
+
+    """
+    assembly_bin
+    contains the assemblies detected for the binsize chosen each assembly is a dictionary with attributes: 
+    ‘neurons’ : vector of units taking part to the assembly
+
+    (unit order correspond to the agglomeration order)
+    
+    ‘lag’ : vector of time lags lag[z] is the activation delay between
+    neurons[1] and neurons[z+1]
+    
+    ‘pvalue’ : vector of pvalues. pvalue[z] is the p-value of the
+    statistical test between performed adding neurons[z+1] to the neurons[1:z]
+    
+    ‘times’ : assembly activation time. It reports how many times the
+    complete assembly activates in that bin. time always refers to the activation of the first listed assembly element 
+    (neurons[1]), that doesn’t necessarily corresponds to the first unit firing. 
+    The format is identified by the variable bool_times_format.
+    
+    ‘signature’ : array of two entries (z,c). The first is the number of
+    neurons participating in the assembly (size), the second is number of assembly occurrences.
+    """
+
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+    cells_to_highlight_colors = []
+    cells_to_highlight = []
+    cell_new_order = []
+    all_cells = np.arange(n_cells)
+    cell_index_so_far = 0
+    for ca_index, cell_assembly in enumerate(assembly_bin):
+        cell_new_order.extend(cell_assembly['neurons'])
+        n_cells_in_ca = len(cell_assembly['neurons'])
+        cells_to_highlight.append(np.arange(cell_index_so_far, cell_index_so_far+n_cells_in_ca))
+        cell_index_so_far += n_cells_in_ca
+        cells_to_highlight_colors.append(colors[ca_index%len(colors)])
+
+    cell_new_order.extend(list(np.setdiff1d(all_cells, cell_new_order)))
+    cell_new_order = np.array(cell_new_order)
+    plot_spikes_raster(spike_nums=ms.spike_struct.spike_nums[cell_new_order],
+                       param=ms.param,
+                       spike_train_format=False,
+                       title=f"{ms.description}",
+                       file_name=f"{ms.description}_raster_with_elephant_cad",
+                       y_ticks_labels=np.arange(n_cells),
+                       y_ticks_labels_size=2,
+                       save_raster=True,
+                       show_raster=False,
+                       plot_with_amplitude=False,
+                       show_sum_spikes_as_percentage=False,
+                       cells_to_highlight=cells_to_highlight,
+                       cells_to_highlight_colors=cells_to_highlight_colors,
+                       span_area_only_on_raster=False,
+                       spike_shape='o',
+                       spike_shape_size=0.5,
+                       save_formats=["pdf", "png"])
+
 def fca_clustering_on_twitches_activity(ms, param, save_formats="pdf"):
     if ms.spike_struct.spike_nums_dur is None:
         return
@@ -4350,7 +4433,8 @@ def main():
     just_plot_jsd_correlation = False
     do_plot_graph = False
     just_plot_cell_assemblies_clusters = False
-    just_find_seq_with_pca = True
+    just_find_seq_with_pca = False
+    just_test_elephant_cad = True
 
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
@@ -4618,7 +4702,11 @@ def main():
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_find_seq_with_pca")
             continue
-
+        if just_test_elephant_cad:
+            elephant_cad(ms, param)
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_test_elephant_cad")
+            continue
         if just_save_sum_spikes_dur_in_npy_file:
             ms.save_sum_spikes_dur_in_npy_file()
             if ms_index == len(ms_to_analyse) - 1:
