@@ -1410,6 +1410,28 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["p19_19_04_08_a001_ms"] = p19_19_04_08_a001_ms
 
+    if "p21_19_04_10_a000_ms" in ms_str_to_load:
+        p21_19_04_10_a000_ms = MouseSession(age=21, session_id="19_04_10_a000", sampling_rate=8, param=param)
+        p21_19_04_10_a000_ms.use_suite_2p = True
+
+        ms_str_to_ms_dict["p21_19_04_10_a000_ms"] = p21_19_04_10_a000_ms
+
+    if "p21_19_04_10_a001_ms" in ms_str_to_load:
+        p21_19_04_10_a001_ms = MouseSession(age=21, session_id="19_04_10_a001", sampling_rate=8, param=param)
+        p21_19_04_10_a001_ms.use_suite_2p = True
+
+    if "p21_19_04_10_a000_j3_ms" in ms_str_to_load:
+        p21_19_04_10_a000_j3_ms = MouseSession(age=21, session_id="19_04_10_a000_j3", sampling_rate=8, param=param)
+        p21_19_04_10_a000_j3_ms.use_suite_2p = True
+
+        ms_str_to_ms_dict["p21_19_04_10_a000_J3_ms"] = p21_19_04_10_a000_j3_ms
+
+    if "p21_19_04_10_a001_j3_ms" in ms_str_to_load:
+        p21_19_04_10_a001_j3_ms = MouseSession(age=21, session_id="19_04_10_a001_j3", sampling_rate=8, param=param)
+        p21_19_04_10_a001_j3_ms.use_suite_2p = True
+
+        ms_str_to_ms_dict["p21_19_04_10_a001_j3_ms"] = p21_19_04_10_a001_j3_ms
+
     # arnaud_ms = MouseSession(age=24, session_id="arnaud", nb_ms_by_frame=50, param=param)
     # arnaud_ms.activity_threshold = 13
     # arnaud_ms.set_inter_neurons([])
@@ -1422,7 +1444,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p41_19_04_30_a000_ms.use_suite_2p = True
 
         # for threshold prediction at 0.5
-        # p41_19_04_30_a000_ms.activity_threshold =
+        p41_19_04_30_a000_ms.activity_threshold = 8
 
         # prediction based on rnn on GT epoch 11, no trans, no overlap
         # variables_mapping = {"predictions": "predictions"}
@@ -1575,7 +1597,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "richard_028_D2_P1_ms" in ms_str_to_load:
         richard_028_D2_P1_ms = MouseSession(age=60, session_id="richard_028_D2_P1", param=param)
 
-        richard_028_D2_P1_ms.use_suite_2p = True
+        richard_028_D2_P1_ms.use_suite_2p = False
         if not richard_028_D2_P1_ms.use_suite_2p:
             richard_028_D2_P1_ms.activity_threshold = 30
             variables_mapping = {"spike_nums_dur": "Spike_Times_Onset_to_Peak"}

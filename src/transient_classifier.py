@@ -3966,11 +3966,11 @@ def train_model():
         # ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms",
         #  "p12_171110_a000_ms",
         #  "p13_18_10_29_a001_ms", "artificial_ms_1"]
-        create_tiffs_for_data_generator(ms_to_use=["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-                                 "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms", "p12_171110_a000_ms"],
+        create_tiffs_for_data_generator(ms_to_use=["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+                          "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"],
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
@@ -3982,6 +3982,8 @@ def train_model():
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
                                  "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms", "p12_171110_a000_ms"]
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
+        ms_for_rnn_benchmarks = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+                                 "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
         # ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         # cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
@@ -4000,7 +4002,7 @@ def train_model():
         #                     "p13_18_10_29_a001_ms": np.array([77, 117])}
         # cells_to_predict = {"p11_17_11_24_a000_ms": np.array([3, 45]),
         #                     "p12_171110_a000_ms": np.array([9, 10])}
-        cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
+        # cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
 
         # Julien
         # ms_for_rnn_benchmarks = ["p9_19_03_14_a001_ms"]
@@ -4039,11 +4041,11 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         #                 "p41_19_04_30_a000_ms"]
         # mesocentre
         # ms_for_rnn_benchmarks = ["p12_171110_a000_ms"]
-        # cells_to_predict = dict()
+        cells_to_predict = dict()
         # predicting all cells
 
-        # for ms in ms_for_rnn_benchmarks:
-        #     cells_to_predict[ms] = None
+        for ms in ms_for_rnn_benchmarks:
+            cells_to_predict[ms] = None
         # cells_p9_19_03_14_a001_ms = np.arange(834)
         # cells_p9_19_03_14_a001_ms = np.setdiff1d(cells_p9_19_03_14_a001_ms, np.array([613, 677, 748]))
         # cells_to_predict["p9_19_03_14_a001_ms"] = cells_p9_19_03_14_a001_ms

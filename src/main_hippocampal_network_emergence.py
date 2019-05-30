@@ -4342,9 +4342,16 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p41_19_04_30_a000_ms"]
     ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
-    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     ms_str_to_load = ["p8_18_10_24_a005_ms"]
-    ms_str_to_load = ["p19_19_04_08_a001_ms"]
+    # ms_str_to_load = ["p19_19_04_08_a001_ms"]
+    # ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["richard_028_D1_P1_ms"]
+    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
+    ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+                      "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
+    # ms_str_to_load = ["p19_19_04_08_a001_ms"]
+    # ms_str_to_load = ["richard_028_D2_P1_ms"]
+
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
@@ -4460,7 +4467,7 @@ def main():
     perc_threshold = 95
     use_max_of_each_surrogate = False
     n_surrogate_activity_threshold = 1000
-    use_raster_dur = True
+    use_raster_dur = False
     no_redundancy = False
     determine_low_activity_by_variation = False
 
@@ -4580,7 +4587,7 @@ def main():
     do_pattern_search = True
     keep_the_longest_seq = False
     split_pattern_search = False
-    use_only_uniformity_method = True
+    use_only_uniformity_method = False
     use_loss_score_to_keep_the_best_from_tree = False
     use_sce_times_for_pattern_search = False
     use_ordered_spike_nums_for_surrogate = True
@@ -4589,10 +4596,10 @@ def main():
     # TODO: error_rate that change with the number of element in the sequence
     param.error_rate = 0.25  # 0.25 0.1
     param.max_branches = 10
-    param.time_inter_seq = 10  # 30 3
-    param.min_duration_intra_seq = 3 # 1
+    param.time_inter_seq = 4  # 30 3
+    param.min_duration_intra_seq = 1 # 1
     param.min_len_seq = 4  # 5
-    param.min_rep_nb = 4 # 3
+    param.min_rep_nb = 5 # 3
 
     debug_mode = False
 
