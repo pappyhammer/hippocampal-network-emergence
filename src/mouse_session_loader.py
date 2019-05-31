@@ -1420,6 +1420,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p21_19_04_10_a001_ms = MouseSession(age=21, session_id="19_04_10_a001", sampling_rate=8, param=param)
         p21_19_04_10_a001_ms.use_suite_2p = True
 
+        ms_str_to_ms_dict["p21_19_04_10_a001_ms"] = p21_19_04_10_a001_ms
+
     if "p21_19_04_10_a000_j3_ms" in ms_str_to_load:
         p21_19_04_10_a000_j3_ms = MouseSession(age=21, session_id="19_04_10_a000_j3", sampling_rate=8, param=param)
         p21_19_04_10_a000_j3_ms.use_suite_2p = True

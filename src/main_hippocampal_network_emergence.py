@@ -24,6 +24,7 @@ import pyabf
 from pattern_discovery.seq_solver.markov_way import MarkovParameters
 from pattern_discovery.seq_solver.seq_with_pca import find_seq_with_pca
 from pattern_discovery.seq_solver.markov_way import find_significant_patterns
+from pattern_discovery.seq_solver.seq_finder_using_graph import find_sequences_using_graph_main
 from pattern_discovery.seq_solver.markov_way import find_sequences_in_ordered_spike_nums
 from pattern_discovery.seq_solver.markov_way import save_on_file_seq_detection_results
 import pattern_discovery.tools.misc as tools_misc
@@ -4340,17 +4341,18 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p16_18_11_01_a002_ms",
     #                   "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
     #                   "p41_19_04_30_a000_ms"]
-    ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
-    ms_str_to_load = ["p8_18_10_24_a005_ms"]
+    # ms_str_to_load = ["p8_18_10_24_a005_ms"]
     # ms_str_to_load = ["p19_19_04_08_a001_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["richard_028_D1_P1_ms"]
     ms_str_to_load = ["p60_a529_2015_02_25_ms"]
-    ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
-                      "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
+    # ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+    #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
     # ms_str_to_load = ["p19_19_04_08_a001_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
+    # ms_str_to_load = ["p21_19_04_10_a000_ms"]
 
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -4444,6 +4446,7 @@ def main():
     do_plot_graph = False
     just_plot_cell_assemblies_clusters = False
     just_find_seq_with_pca = False
+    just_find_seq_using_graph = True
     just_test_elephant_cad = False
 
     just_do_stat_on_event_detection_parameters = False
@@ -4584,7 +4587,7 @@ def main():
     # ##########################################################################################
     # ################################ PATTERNS SEARCH #########################################
     # ##########################################################################################
-    do_pattern_search = True
+    do_pattern_search = False
     keep_the_longest_seq = False
     split_pattern_search = False
     use_only_uniformity_method = False
@@ -4706,7 +4709,14 @@ def main():
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("do_find_hubs")
             continue
-
+        if just_find_seq_using_graph:
+            find_sequences_using_graph_main(ms.spike_struct.spike_nums, param, min_time_bw_2_spikes=1,
+                                       max_time_bw_2_spikes=10, max_connex_by_cell=5, min_nb_of_rep=3,
+                                       debug_mode=False, descr=ms.description,
+                                            n_surrogates=0)
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_find_seq_using_graph")
+            continue
         if just_find_seq_with_pca:
             find_seq_with_pca(ms.raw_traces, path_results=param.path_results,
                               file_name=f"{ms.description}_seq_with_pca")

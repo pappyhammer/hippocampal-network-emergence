@@ -171,36 +171,37 @@ class ChooseSessionFrame(tk.Frame):
 
         self.available_ms_str = ["artificial_ms",
                                  "p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-                        "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                        "p7_171012_a000_ms",
-                        "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-                        "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-                        "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-                        "p7_19_03_05_a000_ms",
-                        "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                        "p7_19_03_27_a002_ms",
-                        "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                        "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-                        "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-                        "p8_19_03_19_a000_ms",
-                        "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
-                        "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-                        "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
-                        "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-                        "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
-                        "p9_19_03_22_a001_ms",
-                        "p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-                        "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
-                        "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
-                        "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
-                        "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
-                        "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
-                        "p13_18_10_29_a000_ms",  "p13_18_10_29_a001_ms",
-                        "p13_19_03_11_a000_ms",
-                        "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
-                        "p16_18_11_01_a002_ms",
-                        "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
-                        "p41_19_04_30_a000_ms",
+                                 "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                                 "p7_171012_a000_ms",
+                                 "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                                 "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+                                 "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+                                 "p7_19_03_05_a000_ms",
+                                 "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                                 "p7_19_03_27_a002_ms",
+                                 "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+                                 "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+                                 "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+                                 "p8_19_03_19_a000_ms",
+                                 "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+                                 "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+                                 "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
+                                 "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                                 "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
+                                 "p9_19_03_22_a001_ms",
+                                 "p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+                                 "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
+                                 "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+                                 "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+                                 "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+                                 "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+                                 "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
+                                 "p13_19_03_11_a000_ms",
+                                 "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+                                 "p16_18_11_01_a002_ms",
+                                 "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
+                                 "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+                                 "p41_19_04_30_a000_ms",
                                  "richard_015_D74_P2_ms", "richard_028_D2_P1_ms",
                                  "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
 
@@ -680,7 +681,7 @@ def do_traces_smoothing(traces):
     # smoothing the trace
     windows = ['hanning', 'hamming', 'bartlett', 'blackman']
     i_w = 1
-    window_length = 7 # 11
+    window_length = 7  # 11
     for i in np.arange(traces.shape[0]):
         smooth_signal = smooth_convolve(x=traces[i], window_len=window_length,
                                         window=windows[i_w])
@@ -786,11 +787,11 @@ class ManualOnsetFrame(tk.Frame):
 
         # ------------ colors  -----------------
         # TODO: put option for different color set (skins), use http://colorbrewer2.org
-        self.color_onset = "#225ea8" # "darkblue" #"darkgoldenrod" #"dimgrey"
-        self.color_trace = "#ffffcc" # "white"
+        self.color_onset = "#225ea8"  # "darkblue" #"darkgoldenrod" #"dimgrey"
+        self.color_trace = "#ffffcc"  # "white"
         self.color_early_born = "darkgreen"
-        self.color_peak = "#41b6c4" # "blue"
-        self.color_edge_peak = "#a1dab4" # "white"
+        self.color_peak = "#41b6c4"  # "blue"
+        self.color_edge_peak = "#a1dab4"  # "white"
         self.color_peak_under_threshold = "red"
         self.color_threshold_line = "red"  # "cornflowerblue"
         self.color_mark_to_remove = "white"
@@ -1119,7 +1120,6 @@ class ManualOnsetFrame(tk.Frame):
         sep = ttk.Separator(left_side_frame)
         sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
 
-
         self.add_onset_button = Button(left_side_frame)
         self.add_onset_button["text"] = ' + ONSET OFF '
         self.add_onset_button["fg"] = 'red'
@@ -1192,7 +1192,7 @@ class ManualOnsetFrame(tk.Frame):
 
                 self.to_agree_label = Label(left_side_frame)
                 self.to_agree_label["text"] = f"{self.numbers_of_onset_to_agree()}/" \
-                                              f"{self.numbers_of_peak_to_agree()}"
+                    f"{self.numbers_of_peak_to_agree()}"
                 self.to_agree_label.pack(side=TOP)
 
                 # empty_label = Label(left_side_frame)
@@ -1209,7 +1209,7 @@ class ManualOnsetFrame(tk.Frame):
         else:
             self.to_agree_label = None
 
-        if ((self.transient_classifier_weights_file is not None) and (self.transient_classifier_json_file is not None))\
+        if ((self.transient_classifier_weights_file is not None) and (self.transient_classifier_json_file is not None)) \
                 or (self.data_and_param.ms.rnn_transients_predictions is not None):
             sep = ttk.Separator(left_side_frame)
             sep.pack(side=TOP, fill=BOTH, padx=0, pady=10)
@@ -1221,7 +1221,7 @@ class ManualOnsetFrame(tk.Frame):
             empty_label.pack(side=LEFT, expand=YES, fill=BOTH)
 
             self.pred_value_1_entry_widget = Entry(pred_values_frame, fg=self.color_text_gui_default, justify=CENTER,
-                                             width=3)
+                                                   width=3)
             self.pred_value_1_entry_widget.insert(0, f"{self.uncertain_prediction_values[0]}")
             self.pred_value_1_entry_widget.pack(side=LEFT)
             empty_label = Label(pred_values_frame)
@@ -1260,10 +1260,9 @@ class ManualOnsetFrame(tk.Frame):
             self.predictions_list_box.pack()
 
             self.update_transient_prediction_periods_to_check()
-            
+
             # attach listbox to scrollbar
             scrollbar.config(command=self.predictions_list_box.yview)
-
 
         empty_label = Label(left_side_frame)
         empty_label["text"] = ""
@@ -1575,14 +1574,15 @@ class ManualOnsetFrame(tk.Frame):
                                                               offvalue=0, fg=self.color_threshold_line)
             self.transient_classifier_check_box["command"] = event_lambda(self.transient_classifier_check_box_action)
             self.transient_classifier_check_box.pack(side=LEFT)
-            
+
             # empty_label = Label(right_side_frame)
             # empty_label["text"] = " " * 1
             # empty_label.pack(side=TOP)
             # from_=1, to=3
             # self.var_spin_box_threshold = StringVar(right_side_frame)
             var = StringVar(transient_classifier_frame)
-            self.spin_box_transient_classifier = Spinbox(transient_classifier_frame, values=list(np.arange(0.05, 1, 0.05)),
+            self.spin_box_transient_classifier = Spinbox(transient_classifier_frame,
+                                                         values=list(np.arange(0.05, 1, 0.05)),
                                                          fg=self.color_text_gui_default, justify=CENTER,
                                                          width=3, textvariable=var,
                                                          state="readonly")  # , textvariable=self.var_spin_box_threshold)
@@ -1678,7 +1678,6 @@ class ManualOnsetFrame(tk.Frame):
         self.threshold_check_box["command"] = event_lambda(self.threshold_check_box_action)
         self.threshold_check_box.pack(side=LEFT)
 
-
         # from_=1, to=3
         # self.var_spin_box_threshold = StringVar(right_side_frame)
         self.spin_box_threshold = Spinbox(threshold_frame, values=list(np.arange(0.1, 5, 0.1)),
@@ -1762,8 +1761,8 @@ class ManualOnsetFrame(tk.Frame):
             scrollbar.pack(side=RIGHT, fill=Y)
 
             self.checked_predictions_list_box = Listbox(predictions_list_frame, bd=0, selectmode=BROWSE,
-                                                height=10, highlightbackground="red",
-                                                font=("Arial", 10), yscrollcommand=scrollbar.set)
+                                                        height=10, highlightbackground="red",
+                                                        font=("Arial", 10), yscrollcommand=scrollbar.set)
             # default height is 10
             self.checked_predictions_list_box.bind("<Double-Button-1>", self.checked_predictions_list_box_double_click)
             self.checked_predictions_list_box.bind('<<ListboxSelect>>', self.checked_predictions_list_box_click)
@@ -2252,12 +2251,12 @@ class ManualOnsetFrame(tk.Frame):
             # number of frames before and after the middle of the transient
             n_frames_around = 100
             for period in active_periods:
-                max_pred = np.max(predictions[period[0]:period[1]+1, 0])
+                max_pred = np.max(predictions[period[0]:period[1] + 1, 0])
                 if max_pred <= self.uncertain_prediction_values[1]:
                     middle = int((period[0] + period[1]) / 2)
                     first_frame = max(0, middle - n_frames_around)
-                    #last frame included
-                    last_frame = min(self.nb_times, middle + n_frames_around) 
+                    # last frame included
+                    last_frame = min(self.nb_times, middle + n_frames_around)
                     self.transient_prediction_periods_to_check.append((cell, first_frame, last_frame,
                                                                        np.round(max_pred, 2), middle))
                     # print(f"{cell}: {period}: len(np.arange(first_frame, last_frame)) "
@@ -3788,13 +3787,13 @@ class ManualOnsetFrame(tk.Frame):
             if len(underscores_pos) < 4:
                 continue
             # the last 4 indicates how to get cell number and frames
-            middle_frame = int(file_name[underscores_pos[-1]+1:-4])
-            last_frame = int(file_name[underscores_pos[-2]+1:underscores_pos[-1]])
-            first_frame = int(file_name[underscores_pos[-3]+1:underscores_pos[-2]])
-            cell = int(file_name[underscores_pos[-4]+1:underscores_pos[-3]])
+            middle_frame = int(file_name[underscores_pos[-1] + 1:-4])
+            last_frame = int(file_name[underscores_pos[-2] + 1:underscores_pos[-1]])
+            first_frame = int(file_name[underscores_pos[-3] + 1:underscores_pos[-2]])
+            cell = int(file_name[underscores_pos[-4] + 1:underscores_pos[-3]])
             self.update_transient_prediction_periods_to_check()
             predictions = self.transient_prediction[cell]
-            max_pred = np.max(predictions[max(0, middle_frame-2):min(middle_frame+2, len(predictions)+1), 0])
+            max_pred = np.max(predictions[max(0, middle_frame - 2):min(middle_frame + 2, len(predictions) + 1), 0])
             max_pred = np.round(max_pred, 2)
             new_pred_period = (cell, first_frame, last_frame, max_pred, middle_frame)
             raster_dur = np.load(os.path.join(path_for_files, file_name))
@@ -3808,10 +3807,10 @@ class ManualOnsetFrame(tk.Frame):
 
             for period in periods:
                 if period[0] > 0:
-                    self.onset_times[cell, first_frame+period[0]] = 1
-                    self.spike_nums[cell, first_frame+period[0]] = 1
-                if first_frame+period[1] != (last_frame-1):
-                    self.peak_nums[cell, first_frame+period[1]] = 1
+                    self.onset_times[cell, first_frame + period[0]] = 1
+                    self.spike_nums[cell, first_frame + period[0]] = 1
+                if first_frame + period[1] != (last_frame - 1):
+                    self.peak_nums[cell, first_frame + period[1]] = 1
 
             self.transient_prediction_periods_checked.append(new_pred_period)
             # then we change the foreground of the predictions_list_boxs
@@ -3820,7 +3819,6 @@ class ManualOnsetFrame(tk.Frame):
                     index_predictions_list_box = self.transient_prediction_periods_to_check.index(new_pred_period)
                     self.predictions_list_box.itemconfig(index_predictions_list_box,
                                                          bg=self.color_bg_predicted_transient_list_box)
-
 
         self.update_checked_predictions_list_box()
         self.update_after_onset_change()
@@ -3859,10 +3857,10 @@ class ManualOnsetFrame(tk.Frame):
                     continue
                 peaks_after = peaks_index[peaks_after]
                 peak_after = peaks_after[0]
-                raster_dur[onset_index:peak_after+1] = 1
+                raster_dur[onset_index:peak_after + 1] = 1
             raster_dur = raster_dur[period[1]:period[2]]
             np.save(file=os.path.join(dir_name, file_name), arr=raster_dur)
-    
+
     def save_as_spike_nums(self):
         initialdir = "/"
         if self.save_path is not None:
@@ -4485,7 +4483,7 @@ class ManualOnsetFrame(tk.Frame):
         self.cell_contour_movie = None
         self.movie_frames = cycle((frame_tiff, frame_index + self.first_frame_movie)
                                   for frame_index, frame_tiff in
-                                  enumerate(self.tiff_movie[self.first_frame_movie:self.last_frame_movie+1]))
+                                  enumerate(self.tiff_movie[self.first_frame_movie:self.last_frame_movie + 1]))
 
         self.update_plot_map_img()
 
@@ -4809,8 +4807,8 @@ class ManualOnsetFrame(tk.Frame):
                     predictions_color = "dimgrey"
                 if len(predictions.shape) == 1:
                     self.axe_plot.plot(np.arange(self.nb_times_traces),
-                                           predictions / 2,
-                                           color=predictions_color, zorder=20)
+                                       predictions / 2,
+                                       color=predictions_color, zorder=20)
                 else:
                     for index_pred in np.arange(predictions.shape[1]):
                         self.axe_plot.plot(np.arange(self.nb_times_traces),
@@ -4881,7 +4879,7 @@ class ManualOnsetFrame(tk.Frame):
 
                 for i_ap, active_period in enumerate(active_periods):
                     period = np.arange(active_period[0], active_period[1] + 1)
-                    min_traces = np.min(self.traces[self.current_neuron, period]) # - 0.1
+                    min_traces = np.min(self.traces[self.current_neuron, period])  # - 0.1
                     y2 = np.repeat(min_traces, len(period))
                     self.axe_plot.fill_between(x=period, y1=self.traces[self.current_neuron, period], y2=y2,
                                                color=self.classifier_filling_color)
@@ -5434,6 +5432,7 @@ def merge_close_values(raster, raster_to_fill, cell, merging_threshold):
         raster_to_fill[cell, new_peak_index] = 1
         # raster[cell, new_peak_index] = 1
 
+
 def fusion_gui_selection(path_data):
     rep_fusion = "for_fusion"
     file_names = []
@@ -5559,7 +5558,7 @@ def fusion_gui_selection(path_data):
 
     cells_fusioned = np.unique(cells_fusioned)
     if merge_close_ones:
-        for n in np.arange(n_ground_truther-1):
+        for n in np.arange(n_ground_truther - 1):
             for cell in cells_fusioned:
                 merge_close_values(raster=to_agree_peak_nums, raster_to_fill=peak_nums,
                                    cell=cell, merging_threshold=merging_threshold)

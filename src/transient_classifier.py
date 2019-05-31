@@ -3966,8 +3966,7 @@ def train_model():
         # ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms",
         #  "p12_171110_a000_ms",
         #  "p13_18_10_29_a001_ms", "artificial_ms_1"]
-        create_tiffs_for_data_generator(ms_to_use=["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
-                          "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"],
+        create_tiffs_for_data_generator(ms_to_use=["p21_19_04_10_a001_ms"],
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
     go_predict_from_movie = True
@@ -3982,7 +3981,7 @@ def train_model():
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
                                  "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms", "p12_171110_a000_ms"]
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
-        ms_for_rnn_benchmarks = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+        ms_for_rnn_benchmarks = ["p21_19_04_10_a001_ms",
                                  "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
         # ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
