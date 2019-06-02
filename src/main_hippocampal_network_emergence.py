@@ -4181,9 +4181,6 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p14_18_10_23_a000_ms",
     #                   "p14_18_10_30_a001_ms",
     #                   "p60_arnaud_ms"]
-    # ms_with_cell_assemblies = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-    #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
-    #                            "p11_17_11_24_a000_ms"]
     # ms_new_from_Robin_2nd_dec = ["p12_171110_a000_ms", "p6_18_02_07_a002_ms"]
     # ms_str_to_load = available_ms_str
     # ms_str_to_load = ms_with_run
@@ -4329,31 +4326,33 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
     #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
     #                   "p9_19_03_22_a001_ms"]
-    # ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-    #                   "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
-    #                   "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
-    #                   "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
-    #                   "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
-    #                   "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
-    #                   "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
-    #                   "p13_19_03_11_a000_ms",
-    #                   "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
-    #                   "p16_18_11_01_a002_ms",
-    #                   "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
-    #                   "p41_19_04_30_a000_ms"]
+    ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+                      "p10_19_02_21_a005_ms",
+                      "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+                      "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+                      "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+                      "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+                      "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
+                      "p13_19_03_11_a000_ms",
+                      "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+                      "p16_18_11_01_a002_ms",
+                      "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
+                      "p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
     # ms_str_to_load = ["p19_19_04_08_a001_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["richard_028_D1_P1_ms"]
-    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
+    # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
     # ms_str_to_load = ["p19_19_04_08_a001_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms"]
-
+    # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
+    #                            "p11_17_11_24_a000_ms"]
     # loading data
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
@@ -4400,7 +4399,7 @@ def main():
 
     just_compute_significant_seq_stat = False
     if just_compute_significant_seq_stat:
-        compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v4/", param=param,
+        compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v6/", param=param,
                                            save_formats=["pdf"],
                                            color_option="manual", cmap_name="Reds")
         return
@@ -4713,7 +4712,7 @@ def main():
             find_sequences_using_graph_main(ms.spike_struct.spike_nums, param, min_time_bw_2_spikes=1,
                                        max_time_bw_2_spikes=10, max_connex_by_cell=5, min_nb_of_rep=3,
                                        debug_mode=False, descr=ms.description,
-                                            n_surrogates=0)
+                                            n_surrogates=20)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_find_seq_using_graph")
             continue
