@@ -1,0 +1,3 @@
+from deep_age_predictor import deep_age_predictor_main
+
+deep_age_predictor_main()
