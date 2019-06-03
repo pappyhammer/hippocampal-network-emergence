@@ -327,8 +327,9 @@ def load_data_for_generator(param, split_values,
     use_small_sample = True
     if use_small_sample:
         ms_to_use = ["p5_19_03_25_a000_ms", "p6_18_02_07_a001_ms", "p7_171012_a000_ms", "p7_19_03_05_a000_ms",
-                     "p8_18_02_09_a000_ms", "p9_17_12_06_a001_ms", "p9_19_02_20_a001_ms", "p12_17_11_10_a002_ms",
-                     "p14_18_10_23_a000_ms", "p19_19_04_08_a000_ms"]
+                     "p8_18_02_09_a000_ms", "p9_17_12_06_a001_ms", "p9_19_02_20_a001_ms", "p10_19_02_21_a002_ms",
+                     "p11_17_11_24_a001_ms", "p12_17_11_10_a002_ms", "p13_18_10_29_a000_ms",
+                     "p14_18_10_23_a000_ms", "p16_18_11_01_a002_ms", "p19_19_04_08_a000_ms", "p21_19_04_10_a000_ms"]
     else:
         raise Exception("NOT TODAY")
 
@@ -389,6 +390,30 @@ def load_data_for_generator(param, split_values,
                     break
 
     return train_data, valid_data, test_data, ages
+
+
+def build_dense_layer(input_shape, n_classes, dropout_value=-1, dropout_rate=0.5):
+    img_input = layers.Input(shape=input_shape)
+    x = layers.Flatten(name='flatten')(img_input)
+    x = layers.Dense(128, activation='relu', name='fc1')(x)
+    # x = layers.Dropout(dropout_rate)(x)
+    x = BatchNormalization()(x)
+    x = layers.Dense(256, activation='relu', name='fc2')(x)
+    # x = layers.Dropout(dropout_rate)(x)
+    x = BatchNormalization()(x)
+    x = layers.Dense(512, activation='relu', name='fc3')(x)
+    # x = layers.Dropout(dropout_rate)(x)
+    x = BatchNormalization()(x)
+
+    if n_classes == 1:
+        # try to guess the right answer
+        x = layers.Dense(n_classes, activation='linear', name='predictions')(x)
+    else:
+        x = layers.Dense(n_classes, activation='softmax', name='predictions')(x)
+
+    # Create model.
+    model = Model(inputs=img_input, outputs=x, name='dense_layer')
+    return model
 
 
 def build_vgg_16_model(input_shape, n_classes, dropout_value=-1):
@@ -573,16 +598,17 @@ def deep_age_predictor_main():
 
     ######## PARAMS ######
     n_gpus = 1
-    n_epochs = 50
+    n_epochs = 10
+    use_multi_class = True
     # multiplying by the number of gpus used as batches will be distributed to each GPU
     batch_size = 8 * n_gpus
     dropout_value = 0.5
-    n_augmentations_to_perform = 20
+    n_augmentations_to_perform = 10
     pixels_around = 0
     with_augmentation_for_training_data = True
     buffer = 1
     # between training, validation  and test data
-    split_values = [0.6, 0.3, 0.1]
+    split_values = [0.6, 0.2, 0.2]
     optimizer_choice = "RMSprop"
 
     with_learning_rate_reduction = True
@@ -593,9 +619,9 @@ def deep_age_predictor_main():
     with_shuffling = True
     seed_value = 42  # use None to not use seed
     workers = 10
-    window_len = 1000
+    window_len = 2500
     n_cells = 400
-    overlap_value=0.5
+    overlap_value= 0.5
 
     train_data_list, valid_data_list, test_data_list, \
     ages = \
@@ -614,7 +640,6 @@ def deep_age_predictor_main():
     age_index_mapping = dict()
     for age_index, age in enumerate(np.unique(ages)):
         age_index_mapping[age] = age_index
-    use_multi_class = False
     if use_multi_class:
         n_classes = n_ages
     else:
@@ -660,7 +685,8 @@ def deep_age_predictor_main():
 
     # start_time = time.time()
     if n_gpus == 1:
-        model = build_vgg_16_model(input_shape=input_shape, n_classes=n_classes)
+        # model = build_vgg_16_model(input_shape=input_shape, n_classes=n_classes)
+        model = build_dense_layer(input_shape=input_shape, n_classes=n_classes)
         parallel_model = model
     else:
         with tf.device('/cpu:0'):

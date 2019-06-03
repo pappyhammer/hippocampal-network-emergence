@@ -2086,6 +2086,7 @@ def correlate_global_roi_and_shift(path_data, param):
 
 def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap_gradient", cmap_name="Reds",
                                        scale_scatter=False, use_different_shapes_for_stat=False,
+                                       min_len_seq_to_display=4,
                                        save_formats="pdf"):
     """
 
@@ -2098,8 +2099,9 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
     :param save_formats:
     :return:
     """
-    n_categories = 4
-    marker_cat = ["*", "d", "o", "s"]
+    # no more categories
+    # n_categories = 4
+    # marker_cat = ["*", "d", "o", "s"]
     # categories that should be displayed
     banned_categories = []
     file_names = []
@@ -2119,7 +2121,7 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
     ages_groups = dict()
     # will allow to group age by groups, for each age, we give a string value which is going to be a key for another
     # dict
-    age_tuples = [(6, 7), (8, 10), (11, 14), (60,)]
+    age_tuples = [(5,), (6, 7), (8, 10), (11, 12), (13, 14), (15, 21), (41,), (60, )]
     manual_colors = dict()
     manual_colors["6-7"] = "white"
     # manual_colors["8-10"] = "navajowhite"
@@ -2143,11 +2145,12 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
 
     for file_name in file_names:
         file_name_original = file_name
+        file_name = file_name.lower()
         if not file_name.startswith("p"):
-            if not file_name.startswith("significant_sorting_results"):
+            if not file_name.startswith("significant_sorting_results_"):
                 continue
             # p_index = len("significant_sorting_results")+1
-            file_name = file_name[len("significant_sorting_results"):]
+            file_name = file_name[len("significant_sorting_results_"):]
         index_ = file_name.find("_")
         if index_ < 1:
             continue
@@ -2157,8 +2160,8 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
         # print(f"age {age}")
         if age not in data_dict:
             data_dict[age] = dict()
-            for cat in np.arange(1, 1 + n_categories):
-                data_dict[age][cat] = dict()
+            # for cat in np.arange(1, 1 + n_categories):
+            #     data_dict[age][cat] = dict()
 
         with open(files_path + file_name_original, "r", encoding='UTF-8') as file:
             for nb_line, line in enumerate(file):
@@ -2170,26 +2173,34 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
                 repetitions = []
                 for rep in repetitions_str:
                     repetitions.append(int(rep))
+                n_total_rep = np.sum(repetitions)
+                if seq_n_cells not in data_dict[age]:
+                    data_dict[age][seq_n_cells] = dict()
+                data_dict[age][seq_n_cells][n_total_rep] = 1
                 # we remove the ' [' on the first position
-                categories_str = line_list[1][2:].split(",")
-                categories = []
-                for cat in categories_str:
-                    categories.append(int(cat))
-
-                for index, cat in enumerate(categories):
-                    if seq_n_cells not in data_dict[age][cat]:
-                        data_dict[age][cat][seq_n_cells] = dict()
-
-                    rep = repetitions[index]
-                    if rep not in data_dict[age][cat][seq_n_cells]:
-                        data_dict[age][cat][seq_n_cells][rep] = 0
-                    data_dict[age][cat][seq_n_cells][rep] += 1
+                # no more categories
+                # categories_str = line_list[1][2:].split(",")
+                # categories = []
+                # for cat in categories_str:
+                #     categories.append(int(cat))
+                #
+                # for index, cat in enumerate(categories):
+                #     if seq_n_cells not in data_dict[age][cat]:
+                #         data_dict[age][cat][seq_n_cells] = dict()
+                #
+                #     rep = repetitions[index]
+                #     if rep not in data_dict[age][cat][seq_n_cells]:
+                #         data_dict[age][cat][seq_n_cells][rep] = 0
+                #     data_dict[age][cat][seq_n_cells][rep] += 1
                 # print(f"{seq_n_cells} cells: {repetitions} {categories}")
 
     fig, ax1 = plt.subplots(nrows=1, ncols=1,
                             gridspec_kw={'height_ratios': [1]},
                             figsize=(15, 15))
-    ax1.set_facecolor("black")
+    background_color = "black"
+    labels_color = "white"
+    ax1.set_facecolor(background_color)
+    fig.patch.set_facecolor(background_color)
 
     n_jitter = 10
     jitter_range_x = 0.4
@@ -2210,58 +2221,58 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
     #  dict 2: key is rep, and value is np.array of n*n dimension, bool
     grid_dict = dict()
     for age in ages_key_order:
-        cat_dict = data_dict[age]
-        for cat, len_dict in cat_dict.items():
-            if cat in banned_categories:
+        len_dict = data_dict[age]
+        for len_seq, rep_dict in len_dict.items():
+            if len_seq < min_len_seq_to_display:
                 continue
-            for len_seq, rep_dict in len_dict.items():
-                if len_seq not in grid_dict:
-                    grid_dict[len_seq] = dict()
-                min_len = np.min((len_seq, min_len))
-                max_len = np.max((len_seq, max_len))
-                for rep, n_seq in rep_dict.items():
-                    if rep not in grid_dict[len_seq]:
-                        grid_dict[len_seq][rep] = np.ones(len_grid[0] * len_grid[1], dtype="bool")
-                    max_rep = np.max((max_rep, rep))
-                    min_rep = np.min((min_rep, rep))
-                    grid = grid_dict[len_seq][rep]
-                    free_spots = np.where(grid)[0]
-                    if len(free_spots) == 0:
-                        print("error no more free spots")
-                        return
-                    np.random.shuffle(free_spots)
-                    spot = free_spots[0]
-                    grid[spot] = False
-                    grid_pos_y = int(spot / len_grid[1])
-                    grid_pos_x = spot % len_grid[1]
-                    x_pos = len_seq - 0.4 + (grid_pos_x * (0.8 / (len_grid[1] - 1)))
-                    y_pos = rep - 0.35 + (grid_pos_y * (0.7 / (len_grid[0] - 1)))
-                    n_seq_normalized = np.round((n_seq / nb_ms_by_age[age]), 1)
-                    if n_seq_normalized % 1 == 0:
-                        n_seq_normalized = int(n_seq_normalized)
-                    if color_option == "use_cmap_random":
-                        color = plt.get_cmap(cmap_name)(float(age_index + 1) / (len(ages_key_order) + 1))
-                    elif color_option == "use_cmap_gradient":
-                        color = plt.get_cmap(cmap_name)(float(age_index + 1) / (len(ages_key_order) + 1))
-                    elif color_option == "manual":
-                        color = manual_colors[age]
-                    else:
-                        color = param.colors[age_index % (len(param.colors))]
-                    scatter_size = 50 + 1.2 * x_pos + 1.2 * y_pos
-                    if scale_scatter:
-                        scatter_size = 15 + 5 * np.sqrt(n_seq_normalized)
-                    marker_to_use = "o"
-                    if use_different_shapes_for_stat:
-                        marker_to_use = param.markers[cat - 1]
-                    ax1.scatter(x_pos,
-                                y_pos,
-                                color=color,
-                                marker=marker_to_use,
-                                s=scatter_size, alpha=1, edgecolors='none')
-                    ax1.text(x=x_pos, y=y_pos,
-                             s=f"{n_seq_normalized}", color="black", zorder=22,
-                             ha='center', va="center", fontsize=0.9, fontweight='bold')
-                    i_jitter += 1
+            if len_seq not in grid_dict:
+                grid_dict[len_seq] = dict()
+            min_len = np.min((len_seq, min_len))
+            max_len = np.max((len_seq, max_len))
+            for rep, n_seq in rep_dict.items():
+                if rep not in grid_dict[len_seq]:
+                    grid_dict[len_seq][rep] = np.ones(len_grid[0] * len_grid[1], dtype="bool")
+                max_rep = np.max((max_rep, rep))
+                min_rep = np.min((min_rep, rep))
+                grid = grid_dict[len_seq][rep]
+                free_spots = np.where(grid)[0]
+                if len(free_spots) == 0:
+                    print("error no more free spots")
+                    return
+                np.random.shuffle(free_spots)
+                spot = free_spots[0]
+                grid[spot] = False
+                grid_pos_y = int(spot / len_grid[1])
+                grid_pos_x = spot % len_grid[1]
+                x_pos = len_seq - 0.4 + (grid_pos_x * (0.8 / (len_grid[1] - 1)))
+                y_pos = rep - 0.35 + (grid_pos_y * (0.7 / (len_grid[0] - 1)))
+                n_seq_normalized = np.round((n_seq / nb_ms_by_age[age]), 1)
+                if n_seq_normalized % 1 == 0:
+                    n_seq_normalized = int(n_seq_normalized)
+                if color_option == "use_cmap_random":
+                    color = plt.get_cmap(cmap_name)(float(age_index + 1) / (len(ages_key_order) + 1))
+                elif color_option == "use_cmap_gradient":
+                    color = plt.get_cmap(cmap_name)(float(age_index + 1) / (len(ages_key_order) + 1))
+                elif color_option == "manual":
+                    color = manual_colors[age]
+                else:
+                    color = param.colors[age_index % (len(param.colors))]
+                # scatter_size = 50 + 1.2 * x_pos + 1.2 * y_pos
+                scatter_size = 100
+                # if scale_scatter:
+                #     scatter_size = 15 + 5 * np.sqrt(n_seq_normalized)
+                marker_to_use = "o"
+                # if use_different_shapes_for_stat:
+                #     marker_to_use = param.markers[cat - 1]
+                ax1.scatter(x_pos,
+                            y_pos,
+                            color=color,
+                            marker=marker_to_use,
+                            s=scatter_size, alpha=1, edgecolors='none')
+                # ax1.text(x=x_pos, y=y_pos,
+                #          s=f"{n_seq_normalized}", color="black", zorder=22,
+                #          ha='center', va="center", fontsize=0.9, fontweight='bold')
+                i_jitter += 1
         age_index += 1
     with_grid = False
     if with_grid:
@@ -2289,20 +2300,24 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
         legend_elements.append(Patch(facecolor=color,
                                      edgecolor='black', label=f'p{age}'))
         age_index += 1
-    if use_different_shapes_for_stat:
-        for cat in np.arange(1, n_categories + 1):
-            if cat in banned_categories:
-                continue
-            legend_elements.append(Line2D([0], [0], marker=param.markers[cat - 1], color="w", lw=0, label="*" * cat,
-                                          markerfacecolor='black', markersize=15))
+    # if use_different_shapes_for_stat:
+    #     for cat in np.arange(1, n_categories + 1):
+    #         if cat in banned_categories:
+    #             continue
+    #         legend_elements.append(Line2D([0], [0], marker=param.markers[cat - 1], color="w", lw=0, label="*" * cat,
+    #                                       markerfacecolor='black', markersize=15))
 
     ax1.legend(handles=legend_elements)
 
     # plt.title(title)
     ax1.set_ylabel(f"Repetition (#)", fontsize=20)
     ax1.set_xlabel("Cells (#)", fontsize=20)
-    ax1.set_ylim(min_rep - 0.5, max_rep + 1)
-    ax1.set_xlim(min_len - 0.5, max_len + 0.5)
+    ax1.set_ylim(min_rep - 2, max_rep + 2)
+    ax1.set_xlim(min_len - 2, max_len + 2)
+    ax1.xaxis.label.set_color(labels_color)
+    ax1.yaxis.label.set_color(labels_color)
+    ax1.tick_params(axis='y', colors=labels_color)
+    ax1.tick_params(axis='x', colors=labels_color)
     # xticks = np.arange(0, len(data_dict))
     # ax1.set_xticks(xticks)
     # # sce clusters labels
@@ -2313,7 +2328,8 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
     for save_format in save_formats:
         fig.savefig(f'{param.path_results}/scatter_significant_seq'
                     f'_{param.time_str}.{save_format}',
-                    format=f"{save_format}")
+                    format=f"{save_format}",
+                facecolor=fig.get_facecolor())
 
     plt.close()
 
@@ -4308,13 +4324,13 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p9_19_02_20_a000_ms"]
     # ms_str_to_load = ["p10_19_02_21_a002_ms"]
     # ms_str_to_load = ["p11_17_11_24_a000_ms"]
-    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-    #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-    #                   "p7_171012_a000_ms",
-    #                   "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-    #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-    #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-    #                   "p7_19_03_05_a000_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_171012_a000_ms",
+                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+                      "p7_19_03_05_a000_ms"]
     # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
     #                   "p7_19_03_27_a002_ms",
     #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
@@ -4326,30 +4342,30 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
     #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
     #                   "p9_19_03_22_a001_ms"]
-    ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-                      "p10_19_02_21_a005_ms",
-                      "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
-                      "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
-                      "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
-                      "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
-                      "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
-                      "p13_19_03_11_a000_ms",
-                      "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
-                      "p16_18_11_01_a002_ms",
-                      "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
-                      "p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+    #                   "p10_19_02_21_a005_ms",
+    #                   "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+    #                   "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+    #                   "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+    #                   "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+    #                   "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
+    #                   "p13_19_03_11_a000_ms",
+    #                   "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+    #                   "p16_18_11_01_a002_ms",
+    #                   "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
+    #                   "p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
     # ms_str_to_load = ["p19_19_04_08_a001_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["richard_028_D1_P1_ms"]
-    # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
+    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
     # ms_str_to_load = ["p19_19_04_08_a001_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
-    # ms_str_to_load = ["p21_19_04_10_a000_ms"]
+    ms_str_to_load = ["p21_19_04_10_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
@@ -4401,7 +4417,8 @@ def main():
     if just_compute_significant_seq_stat:
         compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v6/", param=param,
                                            save_formats=["pdf"],
-                                           color_option="manual", cmap_name="Reds")
+                                           color_option="use_cmap_gradient", cmap_name="Reds")
+        # color_option="manual"
         return
 
     just_correlate_global_roi_and_shift = False
@@ -4445,11 +4462,12 @@ def main():
     do_plot_graph = False
     just_plot_cell_assemblies_clusters = False
     just_find_seq_with_pca = False
-    just_find_seq_using_graph = True
+    just_find_seq_using_graph = False
     just_test_elephant_cad = False
 
-    just_do_stat_on_event_detection_parameters = False
     just_plot_raster = False
+    just_do_stat_on_event_detection_parameters = False
+    just_plot_raster_with_sce = False
     # periods such as twitch etc...
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     just_plot_raster_with_cells_assemblies_and_shifts = False
@@ -4694,6 +4712,30 @@ def main():
         #          spike_nums_dur=ms.spike_struct.spike_nums_dur[:50, :5000])
         # raise Exception("ambre")
 
+        if just_plot_raster:
+            # spike_shape = '|' if use_raster_dur else 'o'
+            spike_shape = 'o'
+            if ms.spike_struct.spike_nums is None:
+                continue
+            n_cells = len(ms.spike_struct.spike_nums)
+            plot_spikes_raster(spike_nums=ms.spike_struct.spike_nums, param=ms.param,
+                               spike_train_format=False,
+                               title=f"{ms.description}",
+                               file_name=f"{ms.description}_raster",
+                               y_ticks_labels=np.arange(n_cells),
+                               y_ticks_labels_size=2,
+                               save_raster=True,
+                               show_raster=False,
+                               plot_with_amplitude=False,
+                               show_sum_spikes_as_percentage=True,
+                               span_area_only_on_raster=False,
+                               spike_shape=spike_shape,
+                               spike_shape_size=0.5,
+                               save_formats=["pdf", "png"])
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("fifi")
+            continue
+
         if do_find_hubs:
             # for cell_to_map in [61, 73, 130, 138, 142]:
             #     ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="", not_in=False,
@@ -4712,7 +4754,7 @@ def main():
             find_sequences_using_graph_main(ms.spike_struct.spike_nums, param, min_time_bw_2_spikes=1,
                                        max_time_bw_2_spikes=10, max_connex_by_cell=5, min_nb_of_rep=3,
                                        debug_mode=False, descr=ms.description,
-                                            n_surrogates=20)
+                                            n_surrogates=100)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_find_seq_using_graph")
             continue
@@ -4938,7 +4980,7 @@ def main():
                 raise Exception("just_plot_cell_assemblies_clusters")
             continue
 
-        if just_plot_raster:
+        if just_plot_raster_with_sce:
             span_area_coords = []
             span_area_colors = []
             span_area_coords.append(ms.SCE_times)
