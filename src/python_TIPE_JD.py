@@ -149,7 +149,7 @@ def load_data():
     spike_nums_dur = np.load('D:/Robin/data_hne/data/p41/p41_19_04_30_a000/predictions/P41_19_04_30_a000_filtered_predicted_raster_dur_meso_v1_epoch_9.npy')
     #spike_nums_dur = loaded_data["spike_nums_dur"]
     # n_cells, n_frames = spike_nums_dur.shape
-    spike_nums_dur = spike_nums_dur[:200, :7500]
+    # spike_nums_dur = spike_nums_dur[:50, :1000]
 
     return spike_nums_dur
 
@@ -226,7 +226,7 @@ def main():
     # number of neurons
     n_neurons = spike_nums.shape[0]
     # we fix the length of an epoch, knowing than 1 frame is equal to 100 ms approximately
-    len_epoch = 100
+    len_epoch = 250
     # then computing the number of epoch in our raster
     n_epochs = n_frames // len_epoch
     # to make things easy for now, the number of frames should be divisible by the length of epochs
@@ -279,28 +279,30 @@ def main():
     print(f"N clusters hdbscan: {labels.max()+1}")
     #print(f"labels: {labels}")
     print(f"With no clusters hdbscan: {len(np.where(labels == -1)[0])}")
-
+    n_clusters = 0
     if labels.max()+1 > 0:
         n_clusters = labels.max() + 1
 
     if n_clusters > 0:
         n_epoch_by_cluster = [len(np.where(labels == x)[0]) for x in np.arange(n_clusters)]
-
-    print(f"Number of epochs by clusters hdbscan: {' '.join(map(str, n_epoch_by_cluster))}")
+        print(f"Number of epochs by clusters hdbscan: {' '.join(map(str, n_epoch_by_cluster))}")
 
     spotdis_order = np.copy(spotdis_values)
-    spotdis_order = spotdis_order[np.argsort(labels), :]
-    spotdis_order = spotdis_order[:, np.argsort(labels)]
+    labels_indices_sorted = np.argsort(labels)
+    spotdis_order = spotdis_order[labels_indices_sorted, :]
+    spotdis_order = spotdis_order[:, labels_indices_sorted]
 
     # Generate figure: dissimilarity matrice ordered by cluster
     svm = sns.heatmap(spotdis_order)
+    svm.set_yticklabels(labels_indices_sorted)
+    svm.set_xticklabels(labels_indices_sorted)
     fig = svm.get_figure()
     # plt.show()
     save_formats = ["pdf"]
     if isinstance(save_formats, str):
         save_formats = [save_formats]
 
-    path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000"
+    path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000/spotdis_win_length_250"
     for save_format in save_formats:
         fig.savefig(f'{path_results}/heatmap_hdbscan_clustering_order'
                     f'.{save_format}',
@@ -328,7 +330,7 @@ def main():
     )
     fig = svm.get_figure()
 
-    path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000"
+    path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000/spotdis_win_length_250"
     for save_format in save_formats:
         fig.savefig(f'{path_results}/tsne_cluster'
                     f'.{save_format}',
@@ -353,7 +355,7 @@ def main():
     )
     fig = svm.get_figure()
 
-    path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000"
+    path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000/spotdis_win_length_250"
     for save_format in save_formats:
         fig.savefig(f'{path_results}/tsne_colors_from_previous_hdbscan_clustering'
                     f'.{save_format}',
@@ -388,7 +390,7 @@ def main():
     # plt.show()
     fig = svm.get_figure()
 
-    path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000"
+    path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000/spotdis_win_length_250"
     for save_format in save_formats:
         fig.savefig(f'{path_results}/tsne_colors_from_post_tsne_clustering'
                     f'.{save_format}',
