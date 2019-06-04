@@ -1218,7 +1218,40 @@ def get_pair_wise_pearson_correlation_distribution(raster_dur):
     return corr_distribution
 
 
-def plot_jsd_correlation(ms_to_analyse, param, n_surrogate=50, save_formats="pdf"):
+def get_pair_wise_wasserstein_distance_distribution(raster_dur):
+    """
+       Distribution of pair-wise Wasserstein distance of all cells
+       :param raster_dur:
+       :return:
+       """
+    n_cells = raster_dur.shape[0]
+
+    corr_distribution = []
+    # count_high_p_value = 0
+    # total_count = 0
+    for cell in np.arange(n_cells - 1):
+        if np.sum(raster_dur[cell]) == 0:
+            continue
+        for cell_bis in np.arange(cell + 1, n_cells):
+            if np.sum(raster_dur[cell_bis]) == 0:
+                continue
+            if np.sum(raster_dur[cell]) == 0 or np.sum(raster_dur[cell_bis]) == 0:
+                continue
+            first_cell_raster = raster_dur[cell] / np.sum(raster_dur[cell])
+            first_cell_bis_raster = raster_dur[cell_bis] / np.sum(raster_dur[cell_bis])
+            n_frames = raster_dur.shape[1]
+            wass_dist = scipy_stats.wasserstein_distance(np.arange(n_frames), np.arange(n_frames),
+                                                         u_weights=first_cell_raster, v_weights=first_cell_bis_raster)
+            # if p_value > 0.05:
+            #     count_high_p_value += 1
+            # total_count += 1
+            # if p_value < 0.05:
+            corr_distribution.append(wass_dist)
+    # print(f"total_count {total_count}, count_high_p_value {count_high_p_value}")
+    return corr_distribution
+
+
+def plot_jsd_correlation(ms_to_analyse, param, wasserstein_distance=True, n_surrogate=50, save_formats="pdf"):
     print("plot_jsd_correlation")
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
@@ -1242,27 +1275,42 @@ def plot_jsd_correlation(ms_to_analyse, param, n_surrogate=50, save_formats="pdf
                              figsize=(30, 25))
     fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
     fig.patch.set_facecolor(background_color)
-    axes = axes.flatten()
+    if n_lines + n_col == 2:
+        axes = [axes]
+    else:
+        axes = axes.flatten()
 
     for ax_index, ax in enumerate(axes):
         ax.set_facecolor(background_color)
         axes[ax_index].set_facecolor(background_color)
 
     jsd_by_age = dict()
+    distrib_by_ms = dict()
     n_sessions_dict = dict()
+    max_value_distribution = 0
+    min_value_distribution = None
     n_ms_so_far = 0
     for ms in ms_to_analyse:
         if ms.spike_struct.spike_nums_dur is None:
             continue
-        n_times = ms.spike_struct.spike_nums_dur.shape[1]
+        # ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:50, :12500]
+        n_times = ms.spike_struct.spike_nums.shape[1]
         age_str = "p" + str(ms.age)
         if age_str not in jsd_by_age:
             jsd_by_age[age_str] = []
             n_sessions_dict[age_str] = set()
+        if ms.description not in distrib_by_ms:
+            distrib_by_ms[ms.description] = []
 
         start_time = time.time()
-        corr_ms_distribution = get_pair_wise_pearson_correlation_distribution(ms.spike_struct.spike_nums)
-
+        if wasserstein_distance is False:
+            corr_ms_distribution = get_pair_wise_pearson_correlation_distribution(ms.spike_struct.spike_nums)
+        if wasserstein_distance is True:
+            corr_ms_distribution = get_pair_wise_wasserstein_distance_distribution(ms.spike_struct.spike_nums_dur)
+        distrib_by_ms[ms.description].append(corr_ms_distribution)
+        max_value_distribution = max(np.max(corr_ms_distribution), max_value_distribution)
+        min_value_distribution = np.min(corr_ms_distribution) if min_value_distribution is None \
+            else min(np.min(corr_ms_distribution), min_value_distribution)
         stop_time = time.time()
         print(f"Time to get pearson pair-wise correlation for {ms.description}: "
               f"{np.round(stop_time - start_time, 3)} s")
@@ -1281,15 +1329,15 @@ def plot_jsd_correlation(ms_to_analyse, param, n_surrogate=50, save_formats="pdf
 
             # then we want a probability vector for each distribution
             # with 20 bins, meaning 0.05 by bin
-            n_bins = 2000
-            # hist_ms, bin_edges = np.histogram(corr_ms_distribution, bins=n_bins, range=(-1, 1), density=True)
-            plot_hist_distribution(distribution_data=corr_ms_distribution, n_bins=n_bins,
-                                   description=f"{ms.description}_pair_wise_correlation",
-                                   legend_str=f"{ms.description}", tight_x_range=True,
-                                   ax_to_use=axes[n_ms_so_far], x_range=(-0.1, 1),
-                                   color_to_use=colors[n_ms_so_far % len(colors)],
-                                   xlabel=f"Pair-wise correlation (pearson)",
-                                   param=param, density=True, use_log=True)
+            # n_bins = 2000
+            # # hist_ms, bin_edges = np.histogram(corr_ms_distribution, bins=n_bins, range=(-1, 1), density=True)
+            # plot_hist_distribution(distribution_data=corr_ms_distribution, n_bins=n_bins,
+            #                        description=f"{ms.description}_pair_wise_correlation",
+            #                        legend_str=f"{ms.description}", tight_x_range=True,
+            #                        ax_to_use=axes[n_ms_so_far],
+            #                        color_to_use=colors[n_ms_so_far % len(colors)],
+            #                        xlabel=f"Pair-wise correlation (pearson)",
+            #                        param=param, density=True, use_log=True)
 
             # probs_ms = hist_ms / float(hist_ms.sum())
             # hist_surrogate, bin_edges = np.histogram(corr_surrogate_distribution, bins=n_bins,
@@ -1303,19 +1351,34 @@ def plot_jsd_correlation(ms_to_analyse, param, n_surrogate=50, save_formats="pdf
         # we remove the a00* at the end of description, to know if it's the same animal
         n_sessions_dict[age_str].add(ms.description[:-4])
 
+    n_ms_so_far = 0
+    xlabel = "Pair-wise emd distance" if wasserstein_distance else "Pair-wise correlation (pearson)"
+    file_name = "Pair-wise_emd_distance" if wasserstein_distance else "Pair-wise_correlation_pearson"
+    for ms_description, ms_distribution in distrib_by_ms.items():
+        n_bins = 2000
+        # hist_ms, bin_edges = np.histogram(corr_ms_distribution, bins=n_bins, range=(-1, 1), density=True)
+        plot_hist_distribution(distribution_data=ms_distribution,
+                               description=f"{ms_description}_pair_wise_correlation",
+                               legend_str=f"{ms_description}", tight_x_range=True,
+                               ax_to_use=axes[n_ms_so_far], twice_more_bins=True,
+                               x_range=(min_value_distribution, max_value_distribution),
+                               color_to_use=colors[n_ms_so_far % len(colors)],
+                               xlabel=xlabel,
+                               param=param, density=True, use_log=True)
+        n_ms_so_far += 1
     # to know how many different animal by age
     for i, n_sessions_set in n_sessions_dict.items():
         n_sessions_dict[i] = len(n_sessions_set)
 
-    if just_plot_pearson_correlation_distribution:
-        filename = "pair_wise_pearson_correlation"
-    else:
-        filename = "JSD_by_age"
-
-    if just_plot_pearson_correlation_distribution:
-        y_label = "pair-wise pearson correlation"
-    else:
-        y_label = "average JSD"
+    # if just_plot_pearson_correlation_distribution:
+    #     filename = "pair_wise_pearson_correlation"
+    # else:
+    #     filename = "JSD_by_age"
+    #
+    # if just_plot_pearson_correlation_distribution:
+    #     y_label = "pair-wise pearson correlation"
+    # else:
+    #     y_label = "average JSD"
 
     # box_plot_data_by_age(data_dict=jsd_by_age, title="",
     #                      path_results=param.path_results, with_scatters=False,
@@ -1328,7 +1391,7 @@ def plot_jsd_correlation(ms_to_analyse, param, n_surrogate=50, save_formats="pdf
         save_formats = [save_formats]
 
     for save_format in save_formats:
-        fig.savefig(f'{param.path_results}/pair_wise_correlation_pearson'
+        fig.savefig(f'{param.path_results}/{file_name}'
                     f'_{param.time_str}.{save_format}',
                     format=f"{save_format}",
                     facecolor=fig.get_facecolor())
@@ -4324,13 +4387,13 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p9_19_02_20_a000_ms"]
     # ms_str_to_load = ["p10_19_02_21_a002_ms"]
     # ms_str_to_load = ["p11_17_11_24_a000_ms"]
-    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                      "p7_171012_a000_ms",
-                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-                      "p7_19_03_05_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+    #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    #                   "p7_171012_a000_ms",
+    #                   "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+    #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+    #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+    #                   "p7_19_03_05_a000_ms"]
     # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
     #                   "p7_19_03_27_a002_ms",
     #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
@@ -4360,16 +4423,18 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p19_19_04_08_a001_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["richard_028_D1_P1_ms"]
-    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
+    # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
     # ms_str_to_load = ["p19_19_04_08_a001_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
-    ms_str_to_load = ["p21_19_04_10_a000_ms"]
+    # ms_str_to_load = ["p21_19_04_10_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
     # loading data
+    ms_str_to_load = ["p41_19_04_30_a000_ms"]
+
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
 
@@ -4428,7 +4493,7 @@ def main():
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
 
-    load_traces = True
+    load_traces = False
 
     if for_lexi:
         ms_str_to_ms_dict = lexi_loading_process(param=param, load_traces=load_traces)
@@ -4448,7 +4513,7 @@ def main():
     just_plot_psth_over_event_time_correlation_graph_style = False
     do_plot_psth_twitches = False
     just_plot_all_time_correlation_graph_over_events = False
-    just_plot_raster_with_periods = False
+    just_plot_raster_with_periods = True
     just_do_stat_significant_time_period = False
     just_plot_cells_that_fire_during_time_periods = False
     just_plot_twitch_ratio_activity = False
@@ -4799,8 +4864,8 @@ def main():
             # frames_selected = ms.richard_dict["Active_Wake_Frames"]
             # frames_selected = frames_selected[frames_selected < ms.spike_struct.spike_nums_dur.shape[1]]
             # ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, frames_selected]
-            ms.plot_raster_with_periods(ms.shift_data_dict, with_periods=True,
-                                        with_cell_assemblies=True, only_cell_assemblies=True)
+            ms.plot_raster_with_periods(ms.shift_data_dict, with_periods=False,
+                                        with_cell_assemblies=False, only_cell_assemblies=False)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("The Lannisters always pay their debts")
             continue
