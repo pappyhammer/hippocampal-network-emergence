@@ -52,7 +52,7 @@ class DataForMs(p_disc_tools_param.Parameters):
 class RasterData:
 
     def __init__(self, ms, first_frame,
-                 window_len, n_augmentations_to_perform=0):
+                 window_len, predict_animal_weight, n_augmentations_to_perform=0):
         self.ms = ms
         self.first_frame = first_frame
         self.window_len = window_len
@@ -65,13 +65,17 @@ class RasterData:
         self.data_augmentation_fct_list = []
         # used if a movie_data has been copied
         self.data_augmentation_fct = None
+        self.predict_animal_weight = predict_animal_weight
 
         self.n_available_augmentation_fct = n_augmentations_to_perform
         for n in range(self.n_available_augmentation_fct):
             self.data_augmentation_fct_list.append(lambda raster: np.random.shuffle(raster))
 
     def get_labels(self):
-        return self.ms.age
+        if self.predict_animal_weight:
+            return self.ms.weight
+        else:
+            return self.ms.age
 
     def __eq__(self, other):
         if self.ms.description != other.ms.description:
@@ -82,7 +86,7 @@ class RasterData:
 
     def copy(self):
         raster_copy = RasterData(ms=self.ms, first_frame=self.first_frame,
-                                 window_len=self.window_len)
+                                 window_len=self.window_len, predict_animal_weight=self.predict_animal_weight)
 
         raster_copy.data_augmentation_fct = self.data_augmentation_fct
         return raster_copy
@@ -121,6 +125,146 @@ def swish(x):
     """
     return K.sigmoid(x) * x
     # return Lambda(lambda a: K.sigmoid(a) * a)(x)
+
+
+def box_plot_data_by_age(data_dict, title, filename,
+                         y_label, param, colors=None,
+                         path_results=None, y_lim=None,
+                         x_label=None, with_scatters=True,
+                         scatters_with_same_colors=None,
+                         scatter_size=20,
+                         scatter_alpha=0.5,
+                         n_sessions_dict=None,
+                         background_color="black",
+                         labels_color="white", save_formats="pdf"):
+    """
+
+    :param data_dict:
+    :param n_sessions_dict: should be the same keys as data_dict, value is an int reprenseing the number of sessions
+    that gave those data (N), a n will be display representing the number of poins in the boxplots if n != N
+    :param title:
+    :param filename:
+    :param y_label:
+    :param y_lim: tuple of int,
+    :param scatters_with_same_colors: scatter that have the same index in the data_dict,, will be colors
+    with the same colors, using the list of colors given by scatters_with_same_colors
+    :param param: Contains a field name colors used to color the boxplot
+    :param save_formats:
+    :return:
+    """
+    fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                            gridspec_kw={'height_ratios': [1]},
+                            figsize=(12, 12))
+    colorfull = (colors is not None)
+
+    median_color = background_color if colorfull else labels_color
+
+    ax1.set_facecolor(background_color)
+
+    fig.patch.set_facecolor(background_color)
+
+    labels = []
+    data_list = []
+    for age, data in data_dict.items():
+        data_list.append(data)
+        label = age
+        if n_sessions_dict is None:
+            # label += f"\n(n={len(data)})"
+            pass
+        else:
+            n_sessions = n_sessions_dict[age]
+            if n_sessions != len(data):
+                label += f"\n(N={n_sessions}, n={len(data)})"
+            else:
+                label += f"\n(N={n_sessions})"
+        labels.append(label)
+
+    bplot = plt.boxplot(data_list, patch_artist=colorfull,
+                        labels=labels, sym='', zorder=30)  # whis=[5, 95], sym='+'
+    # color=["b", "cornflowerblue"],
+    # fill with colors
+
+    # edge_color="silver"
+
+    for element in ['boxes', 'whiskers', 'fliers', 'caps']:
+        plt.setp(bplot[element], color="white")
+
+    for element in ['means', 'medians']:
+        plt.setp(bplot[element], color=median_color)
+
+    if colorfull:
+        if colors is None:
+            colors = param.colors[:len(data_dict)]
+        else:
+            while len(colors) < len(data_dict):
+                colors.extend(colors)
+            colors = colors[:len(data_dict)]
+        for patch, color in zip(bplot['boxes'], colors):
+            patch.set_facecolor(color)
+            r, g, b, a = patch.get_facecolor()
+            # for transparency purpose
+            patch.set_facecolor((r, g, b, 0.8))
+
+    if with_scatters:
+        for data_index, data in enumerate(data_list):
+            # Adding jitter
+            x_pos = [1 + data_index + ((np.random.random_sample() - 0.5) * 0.5) for x in np.arange(len(data))]
+            y_pos = data
+            font_size = 3
+            colors_scatters = []
+            if scatters_with_same_colors is not None:
+                while len(colors_scatters) < len(y_pos):
+                    colors_scatters.extend(scatters_with_same_colors)
+            else:
+                colors_scatters = [colors[data_index]]
+            ax1.scatter(x_pos, y_pos,
+                        color=colors_scatters[:len(y_pos)],
+                        alpha=scatter_alpha,
+                        marker="o",
+                        edgecolors=background_color,
+                        s=scatter_size, zorder=1)
+
+    # plt.xlim(0, 100)
+    plt.title(title)
+
+    ax1.set_ylabel(f"{y_label}", fontsize=30, labelpad=20)
+    if y_lim is not None:
+        ax1.set_ylim(y_lim[0], y_lim[1])
+    if x_label is not None:
+        ax1.set_xlabel(x_label, fontsize=30, labelpad=20)
+    ax1.xaxis.label.set_color(labels_color)
+    ax1.yaxis.label.set_color(labels_color)
+
+    ax1.yaxis.set_tick_params(labelsize=20)
+    ax1.xaxis.set_tick_params(labelsize=10)
+    ax1.tick_params(axis='y', colors=labels_color)
+    ax1.tick_params(axis='x', colors=labels_color)
+    xticks = np.arange(1, len(data_dict) + 1)
+    ax1.set_xticks(xticks)
+    # removing the ticks but not the labels
+    ax1.xaxis.set_ticks_position('none')
+    # sce clusters labels
+    ax1.set_xticklabels(labels)
+
+    # padding between ticks label and  label axis
+    # ax1.tick_params(axis='both', which='major', pad=15)
+    fig.tight_layout()
+    # adjust the space between axis and the edge of the figure
+    # https://matplotlib.org/faq/howto_faq.html#move-the-edge-of-an-axes-to-make-room-for-tick-labels
+    # fig.subplots_adjust(left=0.2)
+
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+
+    if path_results is None:
+        path_results = param.path_results
+    for save_format in save_formats:
+        fig.savefig(f'{path_results}/{filename}'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+
+    plt.close()
 
 
 class DataGenerator(keras.utils.Sequence):
@@ -263,11 +407,13 @@ class ClassicRasterGenerator(RasterGenerator):
     would be the whole patch with all pixels given
     """
 
-    def __init__(self, window_len, n_cells, n_classes, use_raster_dur=True,
-                                                                 age_index_mapping=None):
+    def __init__(self, window_len, n_cells,
+                 n_classes, use_raster_dur=True, age_index_mapping=None,
+                 predict_animal_weight=False):
         super().__init__(window_len=window_len, n_cells=n_cells, n_classes=n_classes)
         self.use_raster_dur = use_raster_dur
         self.age_index_mapping = age_index_mapping
+        self.predict_animal_weight = predict_animal_weight
 
     def generate_raster_from_metadata(self, raster_data_list, with_labels=True):
         # print(f"Start generate_raster_from_metadata")
@@ -276,18 +422,23 @@ class ClassicRasterGenerator(RasterGenerator):
         data = np.zeros((batch_size, self.n_cells, self.window_len, 1))
         if with_labels:
             if self.n_classes <= 1:
-                labels = np.zeros(batch_size, dtype="uint8")
+                if self.predict_animal_weight:
+                    labels = np.zeros(batch_size)
+                else:
+                    labels = np.zeros(batch_size, dtype="uint8")
             else:
                 labels = np.zeros((batch_size, self.n_classes), dtype="uint8")
         # Generate data
         for index_batch, raster_data in enumerate(raster_data_list):
             ms = raster_data.ms
             first_frame = raster_data.first_frame
+
             augmentation_fct = raster_data.data_augmentation_fct
             if self.use_raster_dur:
                 spike_nums_to_use = ms.spike_struct.spike_nums_dur
             else:
                 spike_nums_to_use = ms.spike_struct.spike_nums
+
             raster = spike_nums_to_use[np.arange(self.n_cells),
                      first_frame:first_frame + self.window_len]
 
@@ -301,7 +452,10 @@ class ClassicRasterGenerator(RasterGenerator):
             raster = raster.reshape((raster.shape[0], raster.shape[1], 1))
             data[index_batch] = raster
             if self.n_classes == 1:
-                labels[index_batch] = ms.age
+                if self.predict_animal_weight:
+                    labels[index_batch] = ms.weight
+                else:
+                    labels[index_batch] = ms.age
             else:
                 ms_labels = np.zeros(self.n_classes)
                 ms_labels[self.age_index_mapping[ms.age]] = 1
@@ -316,18 +470,58 @@ class ClassicRasterGenerator(RasterGenerator):
         return f"{self.n_inputs} inputs. Raster"
 
 
+def load_data_for_prediction(ms, window_len, overlap_value, predict_animal_weight,
+                             n_augmentations_to_perform=0):
+    raster = ms.spike_struct.spike_nums_dur
+    n_frames = raster.shape[1]
+    raster_data_list = []
+    frames_step = int(np.ceil(window_len * (1 - overlap_value)))
+    indices_frames = np.arange(0, raster.shape[1], frames_step)
+
+    for i, frame_index in enumerate(indices_frames):
+        break_it = False
+        if (frame_index + window_len) == n_frames:
+            break_it = True
+        elif (frame_index + window_len) > n_frames:
+            # in case the number of frames is not divisible by sliding_window_len
+            break
+
+        raster_data = RasterData(ms=ms, first_frame=frame_index,
+                                 window_len=window_len,
+                                 n_augmentations_to_perform=n_augmentations_to_perform,
+                                 predict_animal_weight=predict_animal_weight)
+
+        raster_data_list.append(raster_data)
+
+        # we will do as many transformation as indicated in raster_data.n_augmentations_to_perform
+        if raster_data.n_augmentations_to_perform == 0:
+            continue
+        for t in np.arange(raster_data.n_augmentations_to_perform):
+            if t >= raster_data.n_available_augmentation_fct:
+                break
+            new_raster = raster_data.copy()
+            new_raster.data_augmentation_fct = raster_data.pick_a_transformation_fct()
+            raster_data_list.append(new_raster)
+
+        if break_it:
+            break
+
+    return raster_data_list
+
+
 def load_data_for_generator(param, split_values,
-                                window_len,
-                                overlap_value,
-                                n_augmentations_to_perform,
-                                with_shuffling=False,
-                                seed_value=None):
+                            window_len,
+                            overlap_value,
+                            n_augmentations_to_perform,
+                            predict_animal_weight,
+                            with_shuffling=False,
+                            seed_value=None):
     print("load_data_for_generator")
 
     use_small_sample = True
     if use_small_sample:
-        ms_to_use = ["p5_19_03_25_a000_ms", "p6_18_02_07_a001_ms", "p7_171012_a000_ms", "p7_19_03_05_a000_ms",
-                     "p8_18_02_09_a000_ms", "p9_17_12_06_a001_ms", "p9_19_02_20_a001_ms", "p10_19_02_21_a002_ms",
+        ms_to_use = ["p5_19_03_25_a000_ms", "p6_18_02_07_a001_ms", "p7_18_02_08_a000_ms", "p7_19_03_05_a000_ms",
+                     "p8_18_10_17_a001_ms", "p9_17_12_06_a001_ms", "p9_19_02_20_a001_ms", "p10_19_02_21_a002_ms",
                      "p11_17_11_24_a001_ms", "p12_17_11_10_a002_ms", "p13_18_10_29_a000_ms",
                      "p14_18_10_23_a000_ms", "p16_18_11_01_a002_ms", "p19_19_04_08_a000_ms", "p21_19_04_10_a000_ms"]
     else:
@@ -384,7 +578,8 @@ def load_data_for_generator(param, split_values,
 
                 raster_data = RasterData(ms=ms, first_frame=frame_index,
                                          window_len=window_len,
-                                         n_augmentations_to_perform=n_augmentations_to_perform)
+                                         n_augmentations_to_perform=n_augmentations_to_perform,
+                                         predict_animal_weight=predict_animal_weight)
                 data_list_to_fill.append(raster_data)
                 if break_it:
                     break
@@ -392,18 +587,26 @@ def load_data_for_generator(param, split_values,
     return train_data, valid_data, test_data, ages
 
 
-def build_dense_layer(input_shape, n_classes, dropout_value=-1, dropout_rate=0.5):
+def build_dense_layer(input_shape, n_classes, dropout_value=-1, dropout_rate=0.4):
     img_input = layers.Input(shape=input_shape)
     x = layers.Flatten(name='flatten')(img_input)
-    x = layers.Dense(128, activation='relu', name='fc1')(x)
+    x = layers.Dense(128, name='fc1')(x)
     # x = layers.Dropout(dropout_rate)(x)
     x = BatchNormalization()(x)
-    x = layers.Dense(256, activation='relu', name='fc2')(x)
+    x = layers.Activation("relu")(x)
+    x = layers.Dense(256, name='fc2')(x)
     # x = layers.Dropout(dropout_rate)(x)
+    # x = BatchNormalization()(x)
     x = BatchNormalization()(x)
-    x = layers.Dense(512, activation='relu', name='fc3')(x)
+    x = layers.Activation("relu")(x)
+    x = layers.Dense(512, name='fc3')(x)  # 512
     # x = layers.Dropout(dropout_rate)(x)
+    # x = BatchNormalization()(x)
     x = BatchNormalization()(x)
+    x = layers.Activation("relu")(x)
+    x = layers.Dense(1024, name='fc4')(x)
+    x = BatchNormalization()(x)
+    x = layers.Activation("relu")(x)
 
     if n_classes == 1:
         # try to guess the right answer
@@ -512,6 +715,7 @@ def build_vgg_16_model(input_shape, n_classes, dropout_value=-1):
     model = Model(inputs=img_input, outputs=x, name='vgg16')
     return model
 
+
 def smooth_curve(points, factor=0.8):
     smoothed_points = []
     for point in points:
@@ -521,6 +725,7 @@ def smooth_curve(points, factor=0.8):
         else:
             smoothed_points.append(point)
     return smoothed_points
+
 
 def plot_training_and_validation_values(history, key_name, result_path, param):
     history_dict = history.history
@@ -547,6 +752,122 @@ def plot_training_and_validation_values(history, key_name, result_path, param):
                     format=f"{save_format}")
 
     plt.close()
+
+
+def predict_age(ms_to_use, param, predict_animal_weight=False):
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    # + 11 diverting
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
+              '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+              '#74add1', '#4575b4', '#313695']
+
+    ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
+                                            param=param,
+                                            load_traces=False, load_abf=False,
+                                            for_transient_classifier=True)
+
+    # TODO find window_len from model and do sliding_window
+    # save result in a boxplot for each sessoion
+
+    # loading model
+    path_to_tc_model = param.path_data + "deep_age_predictor_model/"
+    json_file = None
+    weights_file = None
+    # checking if the path exists
+    if os.path.isdir(path_to_tc_model):
+        # then we look for the json file (representing the model architecture) and the weights file
+        # we will assume there is only one file of each in this directory
+        # look for filenames in the first directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(path_to_tc_model):
+            for file_name in local_filenames:
+                if file_name.endswith(".json"):
+                    json_file = path_to_tc_model + file_name
+                if "weights" in file_name:
+                    weights_file = path_to_tc_model + file_name
+            # looking only in the top directory
+            break
+    if (json_file is None) or (weights_file is None):
+        raise Exception("model could not be loaded")
+
+    start_time = time.time()
+    # Model reconstruction from JSON file
+    with open(json_file, 'r') as f:
+        model = model_from_json(f.read())
+
+    # Load weights into the new model
+    model.load_weights(weights_file)
+    stop_time = time.time()
+    print(f"Time for loading model: "
+          f"{np.round(stop_time - start_time, 3)} s")
+    ages = []
+    for ms_str in ms_to_use:
+        ms = ms_str_to_ms_dict[ms_str]
+        ages.append(ms.age)
+
+    n_ages = len(np.unique(ages))
+
+    # will associate each age to an index, useful if use_mutli_class is True
+    age_index_mapping = dict()
+    for age_index, age in enumerate(np.unique(ages)):
+        age_index_mapping[age] = age_index
+
+    results_dict_by_age = {}
+
+    for ms_str in ms_to_use:
+        ms = ms_str_to_ms_dict[ms_str]
+
+        n_cells = model.layers[0].output_shape[1]
+        window_len = model.layers[0].output_shape[2]
+        print(f"n_cells {n_cells}, window_len {window_len}")
+
+        # Determining how many classes were used
+        if len(model.layers[-1].output_shape) == 2:
+            n_classes = 1
+        else:
+            n_classes = model.layers[-1].output_shape[2]
+
+        raster_generator = ClassicRasterGenerator(window_len=window_len,
+                                                  n_cells=n_cells, n_classes=n_classes,
+                                                  age_index_mapping=age_index_mapping,
+                                                  predict_animal_weight=predict_animal_weight)
+        raster_data_list = load_data_for_prediction(ms=ms, window_len=window_len,
+                                                    predict_animal_weight=predict_animal_weight,
+                                                    overlap_value=0, n_augmentations_to_perform=15)
+
+        raster_data_dict, raster_labels = \
+            raster_generator.generate_raster_from_metadata(raster_data_list=raster_data_list)
+        predictions = model.predict(raster_data_dict)
+        for index, prediction in enumerate(predictions):
+            if n_classes == 1:
+                label_key = str(raster_labels[index])
+                if predict_animal_weight:
+                    label_key = f"p{ms.age}-" + label_key
+                if label_key not in results_dict_by_age:
+                    results_dict_by_age[label_key] = []
+
+                prediction = list(prediction)
+                results_dict_by_age[label_key].extend(prediction)
+
+                    # results_dict_by_age[str(raster_labels[index])].append(prediction)
+                print(f"label: {raster_labels[index]}, "
+                      f"prediction {prediction}")
+            else:
+                print(f"label: {' '.join(map(str, raster_labels[index]))}, "
+                      f"prediction {' '.join(map(str, np.round(prediction, 2)))}")
+    if predict_animal_weight:
+        filename = f"weight_predictor"
+        y_label = f"Predicted weight (g)"
+    else:
+        filename = f"age_predictor"
+        y_label = f"Predicted age"
+    # print(f"len(results_dict_by_age) {len(results_dict_by_age)}")
+    box_plot_data_by_age(data_dict=results_dict_by_age, title="",
+                         filename=filename,
+                         y_label=y_label,
+                         colors=colors, with_scatters=True,
+                         path_results=param.path_results, scatter_size=200,
+                         param=param, save_formats="pdf")
 
 
 def deep_age_predictor_main():
@@ -596,10 +917,28 @@ def deep_age_predictor_main():
 
     param = DataForMs(path_data=path_data, result_path=result_path, time_str=time_str)
 
+    predict_animal_weight = True
+
+    go_predict_age = True
+    if go_predict_age:
+        # ms_trained = ["p5_19_03_25_a000_ms", "p6_18_02_07_a001_ms", "p7_18_02_08_a000_ms", "p7_19_03_05_a000_ms",
+        #              "p8_18_10_17_a001_ms", "p9_17_12_06_a001_ms", "p9_19_02_20_a001_ms", "p10_19_02_21_a002_ms",
+        #              "p11_17_11_24_a001_ms", "p12_17_11_10_a002_ms", "p13_18_10_29_a000_ms",
+        #              "p14_18_10_23_a000_ms", "p16_18_11_01_a002_ms", "p19_19_04_08_a000_ms", "p21_19_04_10_a000_ms"]
+
+        ms_for_benchmarks = ["p5_19_03_25_a001_ms", "p6_18_02_07_a002_ms", "p7_19_03_27_a000_ms",
+                             "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms", "p9_19_02_20_a000_ms",
+                             "p10_19_02_21_a005_ms", "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
+                             "p14_18_10_30_a001_ms", "p19_19_04_08_a001_ms",
+                             "p21_19_04_10_a001_ms", "p41_19_04_30_a000_ms"] # "p13_18_10_29_a001_ms"
+
+        predict_age(ms_to_use=ms_for_benchmarks, param=param, predict_animal_weight=predict_animal_weight)
+        return
+
     ######## PARAMS ######
     n_gpus = 1
-    n_epochs = 10
-    use_multi_class = True
+    n_epochs = 20
+    use_multi_class = False
     # multiplying by the number of gpus used as batches will be distributed to each GPU
     batch_size = 8 * n_gpus
     dropout_value = 0.5
@@ -608,7 +947,7 @@ def deep_age_predictor_main():
     with_augmentation_for_training_data = True
     buffer = 1
     # between training, validation  and test data
-    split_values = [0.6, 0.2, 0.2]
+    split_values = [0.7, 0.2, 0.1]
     optimizer_choice = "RMSprop"
 
     with_learning_rate_reduction = True
@@ -619,9 +958,9 @@ def deep_age_predictor_main():
     with_shuffling = True
     seed_value = 42  # use None to not use seed
     workers = 10
-    window_len = 2500
+    window_len = 1250
     n_cells = 400
-    overlap_value= 0.5
+    overlap_value = 0.9
 
     train_data_list, valid_data_list, test_data_list, \
     ages = \
@@ -631,7 +970,8 @@ def deep_age_predictor_main():
                                 overlap_value=overlap_value,
                                 with_shuffling=with_shuffling,
                                 n_augmentations_to_perform=n_augmentations_to_perform,
-                                seed_value=seed_value)
+                                seed_value=seed_value,
+                                predict_animal_weight=predict_animal_weight)
     print(f"len(test_data_list) {len(test_data_list)}")
 
     n_ages = len(np.unique(ages))
@@ -640,6 +980,11 @@ def deep_age_predictor_main():
     age_index_mapping = dict()
     for age_index, age in enumerate(np.unique(ages)):
         age_index_mapping[age] = age_index
+
+    # multi_class for animal weight
+    if predict_animal_weight:
+        use_multi_class = False
+
     if use_multi_class:
         n_classes = n_ages
     else:
@@ -653,18 +998,21 @@ def deep_age_predictor_main():
 
     raster_patch_generator_for_training = ClassicRasterGenerator(window_len=window_len,
                                                                  n_cells=n_cells, n_classes=n_classes,
-                                                                 age_index_mapping=age_index_mapping)
+                                                                 age_index_mapping=age_index_mapping,
+                                                                 predict_animal_weight=predict_animal_weight)
     raster_patch_generator_for_validation = ClassicRasterGenerator(window_len=window_len,
                                                                    n_cells=n_cells, n_classes=n_classes,
-                                                                 age_index_mapping=age_index_mapping)
+                                                                   age_index_mapping=age_index_mapping,
+                                                                   predict_animal_weight=predict_animal_weight)
     raster_patch_generator_for_test = ClassicRasterGenerator(window_len=window_len,
                                                              n_cells=n_cells, n_classes=n_classes,
-                                                                 age_index_mapping=age_index_mapping)
+                                                             age_index_mapping=age_index_mapping,
+                                                             predict_animal_weight=predict_animal_weight)
 
     params_generator = {
         'batch_size': batch_size,
         'window_len': window_len,
-        'n_cells' : n_cells,
+        'n_cells': n_cells,
         'is_shuffle': True}
     # Generators
     start_time = time.time()
@@ -693,11 +1041,13 @@ def deep_age_predictor_main():
             model = build_vgg_16_model(input_shape=input_shape, n_classes=n_classes)
         parallel_model = multi_gpu_model(model, gpus=n_gpus)
 
-
     print(model.summary())
+    data_predicted_descr = "age"
+    if predict_animal_weight:
+        data_predicted_descr = "weight"
     # Save the model architecture
     with open(
-            f'{param.path_results}/age_predictor_model_architecture_{model_descr}_'
+            f'{param.path_results}/{data_predicted_descr}_predictor_model_architecture_{model_descr}_'
             f'{param.time_str}.json',
             'w') as f:
         f.write(model.to_json())
@@ -745,7 +1095,10 @@ def deep_age_predictor_main():
     # not very useful to save best only if we use EarlyStopping
     if with_model_check_point:
         end_file_path = f"_{param.time_str}.h5"
-        file_path = param.path_results + "/age_predictor_weights_{epoch:02d}" + end_file_path
+        if predict_animal_weight:
+            file_path = param.path_results + "/weight_predictor_weights_{epoch:02d}" + end_file_path
+        else:
+            file_path = param.path_results + "/age_predictor_weights_{epoch:02d}" + end_file_path
         # callbacks_list.append(ModelCheckpoint(filepath=file_path, monitor="val_acc", save_best_only="True",
         #                                       save_weights_only="True", mode="max"))
         # https://github.com/TextpertAi/alt-model-checkpoint
