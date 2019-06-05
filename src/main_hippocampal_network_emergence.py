@@ -1057,7 +1057,7 @@ def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, dur
     plt.close()
 
 
-def plot_all_basic_stats(ms_to_analyse, param, save_formats="pdf"):
+def plot_all_basic_stats(ms_to_analyse, param, use_animal_weight=False, save_formats="pdf"):
     # from: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8
     colors = ['#ffffd9', '#edf8b1', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']
     # orange ones: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8#type=sequential&scheme=YlOrBr&n=9
@@ -1069,10 +1069,11 @@ def plot_all_basic_stats(ms_to_analyse, param, save_formats="pdf"):
     colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
               '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
 
-    plot_transient_durations(ms_to_analyse, param, colors=colors, save_formats=save_formats)
-    plot_transient_frequency(ms_to_analyse, param, colors=colors, save_formats=save_formats)
-    plot_transient_amplitude(ms_to_analyse, param, colors=colors, save_formats=save_formats)
-    plot_transient_durations_normalized_by_amplitude(ms_to_analyse, param, colors=colors, save_formats=save_formats)
+    # plot_transient_durations(ms_to_analyse, param, colors=colors, save_formats=save_formats)
+    plot_transient_frequency(ms_to_analyse, param, colors=colors, save_formats=save_formats,
+                             use_animal_weight=use_animal_weight)
+    # plot_transient_amplitude(ms_to_analyse, param, colors=colors, save_formats=save_formats)
+    # plot_transient_durations_normalized_by_amplitude(ms_to_analyse, param, colors=colors, save_formats=save_formats)
 
 
 
@@ -1099,7 +1100,10 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
                                                    figsize=(30, 20))
     fig_tr_amplitude.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
     fig_tr_amplitude.patch.set_facecolor(background_color)
-    axes_tr_amplitude = axes_tr_amplitude.flatten()
+    if n_lines + n_col == 2:
+        axes_tr_amplitude = axes_tr_amplitude
+    else:
+        axes_tr_amplitude = axes_tr_amplitude.flatten()
 
     # figure for the psth
     fig_tr_amplitude_avg, axes_tr_amplitude_avg = plt.subplots(nrows=n_lines, ncols=n_col,
@@ -1299,15 +1303,15 @@ def plot_jsd_correlation(ms_to_analyse, param, wasserstein_distance=True, n_surr
         if age_str not in jsd_by_age:
             jsd_by_age[age_str] = []
             n_sessions_dict[age_str] = set()
-        if ms.description not in distrib_by_ms:
-            distrib_by_ms[ms.description] = []
+        # if ms.description not in distrib_by_ms:
+        #     distrib_by_ms[ms.description] = []
 
         start_time = time.time()
         if wasserstein_distance is False:
             corr_ms_distribution = get_pair_wise_pearson_correlation_distribution(ms.spike_struct.spike_nums)
         if wasserstein_distance is True:
             corr_ms_distribution = get_pair_wise_wasserstein_distance_distribution(ms.spike_struct.spike_nums_dur)
-        distrib_by_ms[ms.description].append(corr_ms_distribution)
+        distrib_by_ms[ms.description] = corr_ms_distribution
         max_value_distribution = max(np.max(corr_ms_distribution), max_value_distribution)
         min_value_distribution = np.min(corr_ms_distribution) if min_value_distribution is None \
             else min(np.min(corr_ms_distribution), min_value_distribution)
@@ -1354,8 +1358,10 @@ def plot_jsd_correlation(ms_to_analyse, param, wasserstein_distance=True, n_surr
     n_ms_so_far = 0
     xlabel = "Pair-wise emd distance" if wasserstein_distance else "Pair-wise correlation (pearson)"
     file_name = "Pair-wise_emd_distance" if wasserstein_distance else "Pair-wise_correlation_pearson"
+
     for ms_description, ms_distribution in distrib_by_ms.items():
-        n_bins = 2000
+        # n_bins = min(50, int(np.sqrt(len(ms_distribution))))
+
         # hist_ms, bin_edges = np.histogram(corr_ms_distribution, bins=n_bins, range=(-1, 1), density=True)
         plot_hist_distribution(distribution_data=ms_distribution,
                                description=f"{ms_description}_pair_wise_correlation",
@@ -1363,12 +1369,13 @@ def plot_jsd_correlation(ms_to_analyse, param, wasserstein_distance=True, n_surr
                                ax_to_use=axes[n_ms_so_far], twice_more_bins=True,
                                x_range=(min_value_distribution, max_value_distribution),
                                color_to_use=colors[n_ms_so_far % len(colors)],
-                               xlabel=xlabel,
+                               xlabel=xlabel, # n_bins=n_bins,
                                param=param, density=True, use_log=True)
         n_ms_so_far += 1
+    print(f"end loop plot_hist_distribution")
     # to know how many different animal by age
-    for i, n_sessions_set in n_sessions_dict.items():
-        n_sessions_dict[i] = len(n_sessions_set)
+    # for i, n_sessions_set in n_sessions_dict.items():
+    #     n_sessions_dict[i] = len(n_sessions_set)
 
     # if just_plot_pearson_correlation_distribution:
     #     filename = "pair_wise_pearson_correlation"
@@ -1396,37 +1403,44 @@ def plot_jsd_correlation(ms_to_analyse, param, wasserstein_distance=True, n_surr
                     format=f"{save_format}",
                     facecolor=fig.get_facecolor())
 
-def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pdf"):
+
+def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pdf", use_animal_weight=False,
+                             with_hist_for_each=False):
     path_results = os.path.join(param.path_results, "transient_frequency")
     if not os.path.isdir(path_results):
         os.mkdir(path_results)
 
-    transient_frequency_by_age = dict()
+    transient_frequency_by_age = SortedDict()
 
     for ms in ms_to_analyse:
         if ms.spike_struct.spike_nums_dur is None:
             print(f"{ms.description} no spike_nums_dur")
             continue
 
-        age_str = "p" + str(ms.age)
+        # age_str = "p" + str(ms.age)
+        label_key = "p" + str(ms.age)
+        if use_animal_weight:
+            if ms.weight is None:
+                continue
+            label_key = str(ms.weight) + "-" +  label_key
         transient_frequency = []
         n_times = ms.spike_struct.spike_nums_dur.shape[1]
         for cell_raster in ms.spike_struct.spike_nums_dur:
             n_transients = len(get_continous_time_periods(cell_raster))
             transient_frequency.append(n_transients/(n_times/ms.sampling_rate))
-        if age_str not in transient_frequency_by_age:
-            transient_frequency_by_age[age_str] = []
-        transient_frequency_by_age[age_str].extend(transient_frequency)
-
-        plot_hist_distribution(distribution_data=transient_frequency,
-                               description=f"{ms.description}_hist_transients_frequency",
-                               param=param,
-                               path_results=path_results,
-                               tight_x_range=True,
-                               twice_more_bins=True,
-                               xlabel="Frequency of transients (Hz)", save_formats=save_formats)
+        if label_key not in transient_frequency_by_age:
+            transient_frequency_by_age[label_key] = []
+        transient_frequency_by_age[label_key].extend(transient_frequency)
+        if with_hist_for_each:
+            plot_hist_distribution(distribution_data=transient_frequency,
+                                   description=f"{ms.description}_hist_transients_frequency",
+                                   param=param,
+                                   path_results=path_results,
+                                   tight_x_range=True,
+                                   twice_more_bins=True,
+                                   xlabel="Frequency of transients (Hz)", save_formats=save_formats)
     box_plot_data_by_age(data_dict=transient_frequency_by_age, title="", filename="transients_frequency_by_age",
-                               path_results=path_results, with_scatters=True,
+                               path_results=path_results, with_scatters=False,
                         y_label="Frequency of transients (Hz)", colors=colors, param=param, save_formats=save_formats)
 
 
@@ -1637,10 +1651,7 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
         hist_color = "blue"
     else:
         hist_color = color_to_use
-    if (n_bins is not None) and (n_bins > 100):
-        edge_color = hist_color
-    else:
-        edge_color = "white"
+
     if x_range is not None:
         min_range = x_range[0]
         max_range = x_range[1]
@@ -1667,6 +1678,12 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
         bins = int(np.sqrt(len(distribution)))
         if twice_more_bins:
             bins *= 2
+
+    if bins > 100:
+        edge_color = hist_color
+    else:
+        edge_color = "white"
+
     hist_plt, edges_plt, patches_plt = ax1.hist(distribution, bins=bins, range=(min_range, max_range),
                                                 facecolor=hist_color, log=use_log,
                                                 edgecolor=edge_color, label=f"{legend_str}",
@@ -2406,6 +2423,8 @@ def box_plot_data_by_age(data_dict, title, filename,
                          scatter_alpha=0.5,
                          n_sessions_dict=None,
                          background_color="black",
+                         link_medians=True,
+                         color_link_medians="red",
                          labels_color="white", save_formats="pdf"):
     """
 
@@ -2436,8 +2455,10 @@ def box_plot_data_by_age(data_dict, title, filename,
 
     labels = []
     data_list = []
+    medians_values = []
     for age, data in data_dict.items():
         data_list.append(data)
+        medians_values.append(np.median(data))
         label = age
         if n_sessions_dict is None:
             # label += f"\n(n={len(data)})"
@@ -2494,6 +2515,8 @@ def box_plot_data_by_age(data_dict, title, filename,
                        marker="o",
                        edgecolors=background_color,
                        s=scatter_size, zorder=1)
+    if link_medians:
+        ax1.plot(np.arange(1, len(medians_values)+1), medians_values, zorder=36, color=color_link_medians, linewidth=2)
 
     # plt.xlim(0, 100)
     plt.title(title)
@@ -2507,7 +2530,7 @@ def box_plot_data_by_age(data_dict, title, filename,
     ax1.yaxis.label.set_color(labels_color)
 
     ax1.yaxis.set_tick_params(labelsize=20)
-    ax1.xaxis.set_tick_params(labelsize=15)
+    ax1.xaxis.set_tick_params(labelsize=5)
     ax1.tick_params(axis='y', colors=labels_color)
     ax1.tick_params(axis='x', colors=labels_color)
     xticks = np.arange(1, len(data_dict) + 1)
@@ -4211,7 +4234,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
                         "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
                         "p7_19_03_27_a002_ms",
                         "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                        "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+                        "p8_18_10_17_a000_ms",
                         "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms"
                         "p8_19_03_19_a000_ms",
                         "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
@@ -4221,7 +4244,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
                         "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
                         "p9_19_03_22_a001_ms",
                         "p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-                        "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
+                         "p10_19_02_21_a005_ms",
                         "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
                         "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
                         "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
@@ -4232,6 +4255,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
                         "p16_18_11_01_a002_ms",
                         "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
                         "p41_19_04_30_a000_ms"]
+    # "p10_19_02_21_a003_ms", "p8_18_10_17_a001_ms",
     # gadcre_ms= [ ]
     # arnaud_ms = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
     # abf_corrupted = ["p8_18_10_17_a001_ms", "p9_18_09_27_a003_ms"]
@@ -4351,15 +4375,15 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p8_18_10_17_a001_ms"]
 
     # session with mouvements periods (twitch, long mvt etc...) available
-    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                      "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
-                      "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                      "p7_19_03_27_a002_ms",
-                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
-                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    #                   "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+    #                   "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+    #                   "p7_19_03_27_a002_ms",
+    #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+    #                   "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+    #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+    #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
     # #   for test
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
     #                   "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
@@ -4387,36 +4411,36 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p9_19_02_20_a000_ms"]
     # ms_str_to_load = ["p10_19_02_21_a002_ms"]
     # ms_str_to_load = ["p11_17_11_24_a000_ms"]
-    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-    #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-    #                   "p7_171012_a000_ms",
-    #                   "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-    #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-    #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-    #                   "p7_19_03_05_a000_ms"]
-    # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-    #                   "p7_19_03_27_a002_ms",
-    #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-    #                   "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-    #                   "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
-    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
-    #                   "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-    #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
-    #                   "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-    #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
-    #                   "p9_19_03_22_a001_ms"]
-    # ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-    #                   "p10_19_02_21_a005_ms",
-    #                   "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
-    #                   "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
-    #                   "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
-    #                   "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
-    #                   "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
-    #                   "p13_19_03_11_a000_ms",
-    #                   "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
-    #                   "p16_18_11_01_a002_ms",
-    #                   "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
-    #                   "p41_19_04_30_a000_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_171012_a000_ms",
+                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+                      "p7_19_03_05_a000_ms"]
+    ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                      "p7_19_03_27_a002_ms",
+                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+                      "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+                      "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
+                      "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
+                      "p9_19_03_22_a001_ms"]
+    ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+                      "p10_19_02_21_a005_ms",
+                      "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+                      "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+                      "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+                      "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+                      "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
+                      "p13_19_03_11_a000_ms",
+                      "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+                      "p16_18_11_01_a002_ms",
+                      "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
+                      "p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
@@ -4433,7 +4457,22 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
     # loading data
-    ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p11_17_11_24_a000_ms", "p41_19_04_30_a000_ms"]
+    ms_with_weights = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a001_ms",
+                       "p6_18_02_07_a002_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+                       "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                       "p8_18_10_17_a001_ms", "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+                       "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+                       "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                       "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms", "p10_17_11_16_a003_ms",
+                       "p10_19_02_21_a002_ms", "p10_19_02_21_a005_ms",
+                       "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms", "p11_17_11_24_a000_ms",
+                       "p11_17_11_24_a001_ms", "p11_19_02_15_a000_ms", "p12_171110_a000_ms", "p12_17_11_10_a002_ms",
+                       "p13_18_10_29_a000_ms", "p14_18_10_23_a000_ms",
+                       "p14_18_10_30_a001_ms", "p16_18_11_01_a002_ms",
+                       "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms", "p21_19_04_10_a000_ms",
+                       "p21_19_04_10_a001_ms", "p41_19_04_30_a000_ms"]
+    ms_str_to_load = ms_with_weights
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
@@ -4506,14 +4545,14 @@ def main():
     #     return
     ms_to_analyse = available_ms
 
-    just_plot_all_basic_stats = False
+    just_plot_all_basic_stats = True
     just_plot_all_sum_spikes_dur = False
     # number of cells active in each type of movement event (normalized by number of cells and length of movement)
     just_plot_movement_activity = False
     just_plot_psth_over_event_time_correlation_graph_style = False
     do_plot_psth_twitches = False
     just_plot_all_time_correlation_graph_over_events = False
-    just_plot_raster_with_periods = True
+    just_plot_raster_with_periods = False
     just_do_stat_significant_time_period = False
     just_plot_cells_that_fire_during_time_periods = False
     just_plot_twitch_ratio_activity = False
@@ -4690,7 +4729,7 @@ def main():
 
     # ------------------------------ end param section ------------------------------
     if just_plot_all_basic_stats:
-        plot_all_basic_stats(ms_to_analyse, param)
+        plot_all_basic_stats(ms_to_analyse, param, use_animal_weight=True)
         raise Exception("just_plot_all_basic_stats")
 
     if just_plot_all_sum_spikes_dur:

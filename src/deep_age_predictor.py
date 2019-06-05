@@ -16,7 +16,9 @@ from keras.utils import get_custom_objects, multi_gpu_model
 from matplotlib import pyplot as plt
 import pattern_discovery.tools.param as p_disc_tools_param
 from datetime import datetime
+from sortedcontainers import SortedDict
 import time
+from pattern_discovery.display.raster import plot_spikes_raster
 from PIL import ImageSequence, ImageDraw
 import PIL
 from mouse_session_loader import load_mouse_sessions
@@ -134,6 +136,11 @@ def box_plot_data_by_age(data_dict, title, filename,
                          scatters_with_same_colors=None,
                          scatter_size=20,
                          scatter_alpha=0.5,
+                         special_scatters_coords=None,
+                         special_scatters_color=None,
+                         link_medians=True,
+                         color_link_medians="red",
+                         link_special_scatters = True,
                          n_sessions_dict=None,
                          background_color="black",
                          labels_color="white", save_formats="pdf"):
@@ -165,8 +172,12 @@ def box_plot_data_by_age(data_dict, title, filename,
 
     labels = []
     data_list = []
+    medians_values = []
+    special_scatters_x = []
+    special_scatters_y = []
     for age, data in data_dict.items():
         data_list.append(data)
+        medians_values.append(np.median(data))
         label = age
         if n_sessions_dict is None:
             # label += f"\n(n={len(data)})"
@@ -178,6 +189,10 @@ def box_plot_data_by_age(data_dict, title, filename,
             else:
                 label += f"\n(N={n_sessions})"
         labels.append(label)
+        if special_scatters_coords is not None:
+            n_scatters = len(special_scatters_coords[age])
+            special_scatters_x.extend([len(data_list)]*n_scatters)
+            special_scatters_y.extend(special_scatters_coords[age])
 
     bplot = plt.boxplot(data_list, patch_artist=colorfull,
                         labels=labels, sym='', zorder=30)  # whis=[5, 95], sym='+'
@@ -223,7 +238,17 @@ def box_plot_data_by_age(data_dict, title, filename,
                         marker="o",
                         edgecolors=background_color,
                         s=scatter_size, zorder=1)
-
+    if special_scatters_coords is not None:
+        ax1.scatter(special_scatters_x, special_scatters_y,
+                    color=special_scatters_color,
+                    alpha=1,
+                    marker="o",
+                    edgecolors=background_color,
+                    s=scatter_size/2, zorder=35)
+        if link_special_scatters:
+            ax1.plot(special_scatters_x, special_scatters_y, color=special_scatters_color, linewidth=2)
+    if link_medians:
+        ax1.plot(np.arange(1, len(medians_values)+1), medians_values, zorder=36, color=color_link_medians, linewidth=2)
     # plt.xlim(0, 100)
     plt.title(title)
 
@@ -236,7 +261,7 @@ def box_plot_data_by_age(data_dict, title, filename,
     ax1.yaxis.label.set_color(labels_color)
 
     ax1.yaxis.set_tick_params(labelsize=20)
-    ax1.xaxis.set_tick_params(labelsize=10)
+    ax1.xaxis.set_tick_params(labelsize=5)
     ax1.tick_params(axis='y', colors=labels_color)
     ax1.tick_params(axis='x', colors=labels_color)
     xticks = np.arange(1, len(data_dict) + 1)
@@ -791,6 +816,10 @@ def predict_age(ms_to_use, param, predict_animal_weight=False):
         raise Exception("model could not be loaded")
 
     start_time = time.time()
+    index_color= 0
+    color_dict_by_age = {}
+    color_dict_by_session = {}
+    label_value_dict = {}
     # Model reconstruction from JSON file
     with open(json_file, 'r') as f:
         model = model_from_json(f.read())
@@ -812,7 +841,7 @@ def predict_age(ms_to_use, param, predict_animal_weight=False):
     for age_index, age in enumerate(np.unique(ages)):
         age_index_mapping[age] = age_index
 
-    results_dict_by_age = {}
+    results_dict_by_age = SortedDict()
 
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
@@ -842,7 +871,13 @@ def predict_age(ms_to_use, param, predict_animal_weight=False):
             if n_classes == 1:
                 label_key = str(raster_labels[index])
                 if predict_animal_weight:
-                    label_key = f"p{ms.age}-" + label_key
+                    label_key = label_key + f"-p{ms.age}"
+                label_value_dict[label_key] = raster_labels[index]
+
+                if ms.age not in color_dict_by_age:
+                    color_dict_by_age[ms.age] = colors[index_color]
+                    index_color += 1
+                color_dict_by_session[label_key] = color_dict_by_age[ms.age]
                 if label_key not in results_dict_by_age:
                     results_dict_by_age[label_key] = []
 
@@ -862,13 +897,103 @@ def predict_age(ms_to_use, param, predict_animal_weight=False):
         filename = f"age_predictor"
         y_label = f"Predicted age"
     # print(f"len(results_dict_by_age) {len(results_dict_by_age)}")
+    colors_by_age = []
+    special_scatters_coords = {}
+    for key in results_dict_by_age.keys():
+        colors_by_age.append(color_dict_by_session[key])
+        special_scatters_coords[key] = [label_value_dict[key]]
+    special_scatters_color = "white"
     box_plot_data_by_age(data_dict=results_dict_by_age, title="",
                          filename=filename,
                          y_label=y_label,
-                         colors=colors, with_scatters=True,
+                         colors=colors_by_age, with_scatters=True,
                          path_results=param.path_results, scatter_size=200,
+                         special_scatters_coords=special_scatters_coords,
+                         special_scatters_color=special_scatters_color,
                          param=param, save_formats="pdf")
 
+def guessing_age_game(ms_to_use, param):
+    ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_to_use,
+                                            param=param,
+                                            load_traces=False, load_abf=False,
+                                            for_transient_classifier=True)
+    window_len = 1000
+    n_rasters = 0
+    n_cells = 400
+
+    for ms_str in ms_to_use:
+        ms = ms_str_to_ms_dict[ms_str]
+        raster = ms.spike_struct.spike_nums_dur
+        n_frames = raster.shape[1]
+        frames_step = window_len
+        indices_frames = np.arange(0, raster.shape[1], frames_step)
+
+        for i, frame_index in enumerate(indices_frames):
+            if (frame_index + window_len) > n_frames:
+                # in case the number of frames is not divisible by sliding_window_len
+                break
+            n_rasters += 1
+
+    rasters_ids = np.arange(n_rasters)
+    np.random.shuffle(rasters_ids)
+
+    raster_id_mapping = SortedDict()
+    list_rasters = []
+    raster_info = []
+
+    for ms_str in ms_to_use:
+        ms = ms_str_to_ms_dict[ms_str]
+
+        raster = ms.spike_struct.spike_nums_dur
+        n_frames = raster.shape[1]
+        raster_data_list = []
+        frames_step = window_len
+        indices_frames = np.arange(0, raster.shape[1], frames_step)
+
+        for i, frame_index in enumerate(indices_frames):
+            break_it = False
+            if (frame_index + window_len) == n_frames:
+                break_it = True
+            elif (frame_index + window_len) > n_frames:
+                # in case the number of frames is not divisible by sliding_window_len
+                break
+            raster_data = np.copy(raster[:n_cells, frame_index:frame_index + window_len])
+            np.random.shuffle(raster_data)
+            list_rasters.append(raster_data)
+            raster_info.append(ms.description + " " + str(frame_index)
+                               + " - " + str(frame_index + window_len-1) + " " +
+                               str(ms.weight))
+
+            if break_it:
+                break
+
+    shuffle_raster_indices = np.arange(len(list_rasters))
+    np.random.shuffle(shuffle_raster_indices)
+    for index_raster in shuffle_raster_indices:
+        raster = list_rasters[index_raster]
+        plot_spikes_raster(spike_nums=raster, param=param,
+                               spike_train_format=False,
+                               title="",
+                               file_name=f"raster_id_{rasters_ids[index_raster]}",
+                               y_ticks_labels=np.arange(n_cells),
+                               y_ticks_labels_size=2,
+                               save_raster=True,
+                               show_raster=False,
+                               plot_with_amplitude=False,
+                               show_sum_spikes_as_percentage=True,
+                               span_area_only_on_raster=False,
+                               spike_shape='o',
+                               spike_shape_size=0.5,
+                               without_activity_sum=True,
+                               save_formats=["png"],
+                               without_time_str_in_file_name=True)
+        raster_id_mapping[rasters_ids[index_raster]] = raster_info[index_raster]
+
+    file_name = f'{param.path_results}/raster_id_mapping.txt'
+    with open(file_name, "w", encoding='UTF-8') as file:
+        file.write(f"Rasters id -> ms & frames & weight" + '\n')
+        for raster_id, ms_info in raster_id_mapping.items():
+            file.write(f"{raster_id}: {ms_info}" + '\n')
 
 def deep_age_predictor_main():
     """
@@ -920,19 +1045,43 @@ def deep_age_predictor_main():
     predict_animal_weight = True
 
     go_predict_age = True
-    if go_predict_age:
+    generate_guessing_age_game = True
+    if go_predict_age or generate_guessing_age_game:
         # ms_trained = ["p5_19_03_25_a000_ms", "p6_18_02_07_a001_ms", "p7_18_02_08_a000_ms", "p7_19_03_05_a000_ms",
         #              "p8_18_10_17_a001_ms", "p9_17_12_06_a001_ms", "p9_19_02_20_a001_ms", "p10_19_02_21_a002_ms",
         #              "p11_17_11_24_a001_ms", "p12_17_11_10_a002_ms", "p13_18_10_29_a000_ms",
         #              "p14_18_10_23_a000_ms", "p16_18_11_01_a002_ms", "p19_19_04_08_a000_ms", "p21_19_04_10_a000_ms"]
 
+        # weight available
+        ms_with_weights = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a001_ms",
+                          "p6_18_02_07_a002_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+                          "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                          "p8_18_10_17_a001_ms", "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+                          "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+                          "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                          "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms", "p10_17_11_16_a003_ms",
+                          "p10_19_02_21_a002_ms",  "p10_19_02_21_a005_ms",
+                          "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms", "p11_17_11_24_a000_ms",
+                          "p11_17_11_24_a001_ms", "p11_19_02_15_a000_ms", "p12_171110_a000_ms", "p12_17_11_10_a002_ms",
+                          "p13_18_10_29_a000_ms",  "p14_18_10_23_a000_ms",
+                          "p14_18_10_30_a001_ms", "p16_18_11_01_a002_ms",
+                          "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms", "p21_19_04_10_a000_ms",
+                          "p21_19_04_10_a001_ms", "p41_19_04_30_a000_ms"]
+        # Less than 400 cells: "p13_18_10_29_a001_ms"
+        # fix prediction: "p8_18_10_17_a000_ms", "p10_19_02_21_a003_ms",
+
+        ms_without_weights = ["p7_171012_a000_ms", "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                              "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p13_19_03_11_a000_ms"]
         ms_for_benchmarks = ["p5_19_03_25_a001_ms", "p6_18_02_07_a002_ms", "p7_19_03_27_a000_ms",
                              "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms", "p9_19_02_20_a000_ms",
                              "p10_19_02_21_a005_ms", "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
                              "p14_18_10_30_a001_ms", "p19_19_04_08_a001_ms",
                              "p21_19_04_10_a001_ms", "p41_19_04_30_a000_ms"] # "p13_18_10_29_a001_ms"
-
-        predict_age(ms_to_use=ms_for_benchmarks, param=param, predict_animal_weight=predict_animal_weight)
+        ms_for_benchmarks = ms_with_weights
+        if generate_guessing_age_game:
+            guessing_age_game(ms_to_use=ms_for_benchmarks, param=param)
+        else:
+            predict_age(ms_to_use=ms_for_benchmarks, param=param, predict_animal_weight=predict_animal_weight)
         return
 
     ######## PARAMS ######
