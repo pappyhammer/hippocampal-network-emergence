@@ -99,7 +99,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "p5_19_03_25_a000_ms" in ms_str_to_load:
         p5_19_03_25_a000_ms = MouseSession(age=5, session_id="19_03_25_a000",
-                                           sampling_rate=8, param=param)
+                                           sampling_rate=8, param=param, weight=3.75)
         p5_19_03_25_a000_ms.use_suite_2p = True
         # for threshold prediction at 0.5
         # p5_19_03_25_a000_ms.activity_threshold = 12  # 1.6%
@@ -115,7 +115,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "p5_19_03_25_a001_ms" in ms_str_to_load:
         p5_19_03_25_a001_ms = MouseSession(age=5, session_id="19_03_25_a001",
-                                           sampling_rate=8, param=param)
+                                           sampling_rate=8, param=param, weight=3.75)
         p5_19_03_25_a001_ms.use_suite_2p = True
         # calculated with 95th percentile on raster dur
         p5_19_03_25_a001_ms.activity_threshold = 13
@@ -131,7 +131,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     # GAD CRE
     if "p5_19_03_20_a000_ms" in ms_str_to_load:
-        p5_19_03_20_a000_ms = MouseSession(age=5, session_id="19_03_20_a000", sampling_rate=8,param=param)
+        p5_19_03_20_a000_ms = MouseSession(age=5, session_id="19_03_20_a000", sampling_rate=8,
+                                           param=param, weight=3.9)
 
         variables_mapping = {"global_roi": "global_roi"}
         p5_19_03_20_a000_ms.load_data_from_file(file_name_to_load=
@@ -443,7 +444,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "p7_19_03_05_a000_ms" in ms_str_to_load:
         p7_19_03_05_a000_ms = MouseSession(age=7, session_id="19_03_05_a000",
-                                           sampling_rate=8, param=param)
+                                           sampling_rate=8, param=param, weight=7)
         p7_19_03_05_a000_ms.use_suite_2p = True
         # for threshold prediction at 0.5
         # p7_19_03_05_a000_ms.activity_threshold =
@@ -459,7 +460,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "p7_19_03_27_a000_ms" in ms_str_to_load:
         p7_19_03_27_a000_ms = MouseSession(age=7, session_id="19_03_27_a000",
-                                           sampling_rate=8, param=param)
+                                           sampling_rate=8, param=param, weight=4.85)
         p7_19_03_27_a000_ms.use_suite_2p = True
         # for threshold prediction at 0.5
         # p7_19_03_27_a000_ms.activity_threshold =
@@ -468,7 +469,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "p7_19_03_27_a001_ms" in ms_str_to_load:
         p7_19_03_27_a001_ms = MouseSession(age=7, session_id="19_03_27_a001",
-                                           sampling_rate=8, param=param)
+                                           sampling_rate=8, param=param, weight=4.85)
         p7_19_03_27_a001_ms.use_suite_2p = True
         # for threshold prediction at 0.5
         # p7_19_03_27_a000_ms.activity_threshold =
@@ -491,7 +492,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "p7_19_03_27_a002_ms" in ms_str_to_load:
         p7_19_03_27_a002_ms = MouseSession(age=7, session_id="19_03_27_a002",
-                                           sampling_rate=8, param=param)
+                                           sampling_rate=8, param=param, weight=4.85)
         p7_19_03_27_a002_ms.use_suite_2p = True
         # for threshold prediction at 0.5
         # p7_19_03_27_a002_ms.activity_threshold =
@@ -673,7 +674,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     # Oriens movie
     if "p8_18_10_24_a006_ms" in ms_str_to_load:
-        p8_18_10_24_a006_ms = MouseSession(age=8, session_id="18_10_24_a006", sampling_rate=10, param=param)
+        p8_18_10_24_a006_ms = MouseSession(age=8, session_id="18_10_24_a006",
+                                           sampling_rate=10, param=param, weight=6.4)
 
         # oriens field, using Caiman
         p8_18_10_24_a006_ms.use_suite_2p = False
@@ -710,7 +712,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["p8_18_10_24_a006_ms"] = p8_18_10_24_a006_ms
 
     if "p8_19_03_19_a000_ms" in ms_str_to_load:
-        p8_19_03_19_a000_ms = MouseSession(age=8, session_id="19_03_19_a000", sampling_rate=8, param=param)
+        p8_19_03_19_a000_ms = MouseSession(age=8, session_id="19_03_19_a000",
+                                           sampling_rate=8, param=param, weight=7.8)
 
         p8_19_03_19_a000_ms.use_suite_2p = True
 
@@ -830,7 +833,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "p9_19_02_20_a000_ms" in ms_str_to_load:
         p9_19_02_20_a000_ms = MouseSession(age=9, session_id="19_02_20_a000",
-                                           sampling_rate=8, param=param)
+                                           sampling_rate=8, param=param,
+                                           weight=5.2)
         p9_19_02_20_a000_ms.use_suite_2p = True
         # for threshold prediction at 0.5
         # p9_19_02_20_a000_ms.activity_threshold =
@@ -839,7 +843,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "p9_19_02_20_a001_ms" in ms_str_to_load:
         p9_19_02_20_a001_ms = MouseSession(age=9, session_id="19_02_20_a001",
-                                           sampling_rate=8, param=param)
+                                           sampling_rate=8, param=param,
+                                           weight=5.2)
 
         p9_19_02_20_a001_ms.use_suite_2p = True
 
@@ -849,7 +854,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["p9_19_02_20_a001_ms"] = p9_19_02_20_a001_ms
 
     if "p9_19_02_20_a002_ms" in ms_str_to_load:
-        p9_19_02_20_a002_ms = MouseSession(age=9, session_id="19_02_20_a002", sampling_rate=8, param=param)
+        p9_19_02_20_a002_ms = MouseSession(age=9, session_id="19_02_20_a002",
+                                           sampling_rate=8, param=param,
+                                           weight=5.2)
 
         p9_19_02_20_a002_ms.use_suite_2p = True
 
@@ -857,7 +864,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     if "p9_19_02_20_a003_ms" in ms_str_to_load:
         p9_19_02_20_a003_ms = MouseSession(age=9, session_id="19_02_20_a003",
-                                           sampling_rate=8, param=param)
+                                           sampling_rate=8, param=param,
+                                           weight=5.2)
 
         p9_19_02_20_a003_ms.use_suite_2p = True
 
@@ -874,28 +882,36 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["p9_19_02_20_a003_ms"] = p9_19_02_20_a003_ms
 
     if "p9_19_03_14_a000_ms" in ms_str_to_load:
-        p9_19_03_14_a000_ms = MouseSession(age=9, session_id="19_03_14_a000", sampling_rate=8, param=param)
+        p9_19_03_14_a000_ms = MouseSession(age=9, session_id="19_03_14_a000",
+                                           sampling_rate=8, param=param,
+                                           weight=5.75)
 
         p9_19_03_14_a000_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p9_19_03_14_a000_ms"] = p9_19_03_14_a000_ms
 
     if "p9_19_03_14_a001_ms" in ms_str_to_load:
-        p9_19_03_14_a001_ms = MouseSession(age=9, session_id="19_03_14_a001", sampling_rate=8, param=param)
+        p9_19_03_14_a001_ms = MouseSession(age=9, session_id="19_03_14_a001",
+                                           sampling_rate=8, param=param,
+                                           weight=5.75)
 
         p9_19_03_14_a001_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p9_19_03_14_a001_ms"] = p9_19_03_14_a001_ms
 
     if "p9_19_03_22_a000_ms" in ms_str_to_load:
-        p9_19_03_22_a000_ms = MouseSession(age=9, session_id="19_03_22_a000", sampling_rate=8, param=param)
+        p9_19_03_22_a000_ms = MouseSession(age=9, session_id="19_03_22_a000",
+                                           sampling_rate=8, param=param,
+                                           weight=7.1)
 
         p9_19_03_22_a000_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p9_19_03_22_a000_ms"] = p9_19_03_22_a000_ms
 
     if "p9_19_03_22_a001_ms" in ms_str_to_load:
-        p9_19_03_22_a001_ms = MouseSession(age=9, session_id="19_03_22_a001", sampling_rate=8, param=param)
+        p9_19_03_22_a001_ms = MouseSession(age=9, session_id="19_03_22_a001",
+                                           sampling_rate=8, param=param,
+                                           weight=7.1)
 
         p9_19_03_22_a001_ms.use_suite_2p = True
 
@@ -941,41 +957,52 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["p10_17_11_16_a003_ms"] = p10_17_11_16_a003_ms
 
     if "p10_19_02_21_a002_ms" in ms_str_to_load:
-        p10_19_02_21_a002_ms = MouseSession(age=10, session_id="19_02_21_a002", sampling_rate=8, param=param)
+        p10_19_02_21_a002_ms = MouseSession(age=10, session_id="19_02_21_a002",
+                                            sampling_rate=8, param=param,
+                                           weight=6.55)
 
         p10_19_02_21_a002_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p10_19_02_21_a002_ms"] = p10_19_02_21_a002_ms
     if "p10_19_02_21_a003_ms" in ms_str_to_load:
-        p10_19_02_21_a003_ms = MouseSession(age=10, session_id="19_02_21_a003", sampling_rate=8, param=param)
+        p10_19_02_21_a003_ms = MouseSession(age=10, session_id="19_02_21_a003",
+                                            sampling_rate=8, param=param,
+                                           weight=6.55)
 
         p10_19_02_21_a003_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p10_19_02_21_a003_ms"] = p10_19_02_21_a003_ms
 
     if "p10_19_02_21_a005_ms" in ms_str_to_load:
-        p10_19_02_21_a005_ms = MouseSession(age=10, session_id="19_02_21_a005", sampling_rate=8, param=param)
+        p10_19_02_21_a005_ms = MouseSession(age=10, session_id="19_02_21_a005",
+                                            sampling_rate=8, param=param,
+                                           weight=6.55)
 
         p10_19_02_21_a005_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p10_19_02_21_a005_ms"] = p10_19_02_21_a005_ms
 
     if "p10_19_03_08_a000_ms" in ms_str_to_load:
-        p10_19_03_08_a000_ms = MouseSession(age=10, session_id="19_03_08_a000", sampling_rate=8, param=param)
+        p10_19_03_08_a000_ms = MouseSession(age=10, session_id="19_03_08_a000",
+                                            sampling_rate=8, param=param,
+                                            weight=8.6)
 
         p10_19_03_08_a000_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p10_19_03_08_a000_ms"] = p10_19_03_08_a000_ms
 
     if "p10_19_03_08_a001_ms" in ms_str_to_load:
-        p10_19_03_08_a001_ms = MouseSession(age=10, session_id="19_03_08_a001", sampling_rate=8, param=param)
+        p10_19_03_08_a001_ms = MouseSession(age=10, session_id="19_03_08_a001",
+                                            sampling_rate=8, param=param,
+                                            weight=8.6)
 
         p10_19_03_08_a001_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p10_19_03_08_a001_ms"] = p10_19_03_08_a001_ms
 
     if "p11_17_11_24_a000_ms" in ms_str_to_load:
-        p11_17_11_24_a000_ms = MouseSession(age=11, session_id="17_11_24_a000", sampling_rate=10, param=param,
+        p11_17_11_24_a000_ms = MouseSession(age=11, session_id="17_11_24_a000",
+                                            sampling_rate=10, param=param,
                                             weight=6.7)
 
         p11_17_11_24_a000_ms.use_suite_2p = True
@@ -1061,21 +1088,26 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["p11_17_11_24_a001_ms"] = p11_17_11_24_a001_ms
 
     if "p11_19_02_15_a000_ms" in ms_str_to_load:
-        p11_19_02_15_a000_ms = MouseSession(age=11, session_id="19_02_15_a000", sampling_rate=8, param=param)
+        p11_19_02_15_a000_ms = MouseSession(age=11, session_id="19_02_15_a000",
+                                            sampling_rate=8, param=param,
+                                            weight=5.9)
 
         p11_19_02_15_a000_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p11_19_02_15_a000_ms"] = p11_19_02_15_a000_ms
 
     if "p11_19_02_22_a000_ms" in ms_str_to_load:
-        p11_19_02_22_a000_ms = MouseSession(age=11, session_id="19_02_22_a000", sampling_rate=8, param=param)
+        p11_19_02_22_a000_ms = MouseSession(age=11, session_id="19_02_22_a000",
+                                            sampling_rate=8, param=param,
+                                            weight=7.95)
 
         p11_19_02_22_a000_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p11_19_02_22_a000_ms"] = p11_19_02_22_a000_ms
 
     if "p12_171110_a000_ms" in ms_str_to_load:
-        p12_171110_a000_ms = MouseSession(age=12, session_id="17_11_10_a000", sampling_rate=10, param=param,
+        p12_171110_a000_ms = MouseSession(age=12, session_id="17_11_10_a000",
+                                          sampling_rate=10, param=param,
                                           weight=7)
 
         p12_171110_a000_ms.use_suite_2p = True
@@ -1152,7 +1184,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["p12_171110_a000_ms"] = p12_171110_a000_ms
 
     if "p12_17_11_10_a002_ms" in ms_str_to_load:
-        p12_17_11_10_a002_ms = MouseSession(age=12, session_id="17_11_10_a002", sampling_rate=10, param=param,
+        p12_17_11_10_a002_ms = MouseSession(age=12, session_id="17_11_10_a002",
+                                            sampling_rate=10, param=param,
                                             weight=7)
 
         p12_17_11_10_a002_ms.use_suite_2p = True
@@ -1185,14 +1218,17 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     # Gad cre
     if "p12_19_02_08_a000_ms" in ms_str_to_load:
-        p12_19_02_08_a000_ms = MouseSession(age=12, session_id="19_02_08_a000", sampling_rate=8, param=param)
+        p12_19_02_08_a000_ms = MouseSession(age=12, session_id="19_02_08_a000",
+                                            sampling_rate=8, param=param,
+                                            weight=7.55)
 
         p12_19_02_08_a000_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p12_19_02_08_a000_ms"] = p12_19_02_08_a000_ms
 
     if "p13_18_10_29_a000_ms" in ms_str_to_load:
-        p13_18_10_29_a000_ms = MouseSession(age=13, session_id="18_10_29_a000", sampling_rate=10, param=param,
+        p13_18_10_29_a000_ms = MouseSession(age=13, session_id="18_10_29_a000",
+                                            sampling_rate=10, param=param,
                                             weight=9.4)
 
         p13_18_10_29_a000_ms.use_suite_2p = True
@@ -1281,21 +1317,26 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
     # oriens
     if "p13_18_10_29_a002_ms" in ms_str_to_load:
-        p13_18_10_29_a002_ms = MouseSession(age=13, session_id="18_10_29_a002", sampling_rate=10, param=param)
+        p13_18_10_29_a002_ms = MouseSession(age=13, session_id="18_10_29_a002",
+                                            sampling_rate=10, param=param,
+                                            weight=9.4)
 
         p13_18_10_29_a002_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p13_18_10_29_a002_ms"] = p13_18_10_29_a002_ms
 
     if "p13_19_03_11_a000_ms" in ms_str_to_load:
-        p13_19_03_11_a000_ms = MouseSession(age=13, session_id="19_03_11_a000", sampling_rate=8, param=param)
+        p13_19_03_11_a000_ms = MouseSession(age=13, session_id="19_03_11_a000",
+                                            sampling_rate=8, param=param,
+                                            weight=None)
 
         p13_19_03_11_a000_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p13_19_03_11_a000_ms"] = p13_19_03_11_a000_ms
 
     if "p14_18_10_23_a000_ms" in ms_str_to_load:
-        p14_18_10_23_a000_ms = MouseSession(age=14, session_id="18_10_23_a000", sampling_rate=10, param=param,
+        p14_18_10_23_a000_ms = MouseSession(age=14, session_id="18_10_23_a000",
+                                            sampling_rate=10, param=param,
                                             weight=10.35)
         p14_18_10_23_a000_ms.use_suite_2p = True
         # calculated with 99th percentile on raster dur
@@ -1390,46 +1431,60 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["p14_18_10_30_a001_ms"] = p14_18_10_30_a001_ms
 
     if "p16_18_11_01_a002_ms" in ms_str_to_load:
-        p16_18_11_01_a002_ms = MouseSession(age=16, session_id="18_11_01_a002", sampling_rate=10, param=param)
+        p16_18_11_01_a002_ms = MouseSession(age=16, session_id="18_11_01_a002",
+                                            sampling_rate=10, param=param,
+                                            weight=8.9)
 
         p16_18_11_01_a002_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p16_18_11_01_a002_ms"] = p16_18_11_01_a002_ms
 
     if "p19_19_04_08_a000_ms" in ms_str_to_load:
-        p19_19_04_08_a000_ms = MouseSession(age=19, session_id="19_04_08_a000", sampling_rate=8, param=param)
+        p19_19_04_08_a000_ms = MouseSession(age=19, session_id="19_04_08_a000",
+                                            sampling_rate=8, param=param,
+                                            weight=11.7)
 
         p19_19_04_08_a000_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p19_19_04_08_a000_ms"] = p19_19_04_08_a000_ms
 
     if "p19_19_04_08_a001_ms" in ms_str_to_load:
-        p19_19_04_08_a001_ms = MouseSession(age=19, session_id="19_04_08_a001", sampling_rate=8, param=param)
+        p19_19_04_08_a001_ms = MouseSession(age=19, session_id="19_04_08_a001",
+                                            sampling_rate=8, param=param,
+                                            weight=11.7)
         p19_19_04_08_a001_ms.activity_threshold = 18
         p19_19_04_08_a001_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p19_19_04_08_a001_ms"] = p19_19_04_08_a001_ms
 
     if "p21_19_04_10_a000_ms" in ms_str_to_load:
-        p21_19_04_10_a000_ms = MouseSession(age=21, session_id="19_04_10_a000", sampling_rate=8, param=param)
+        p21_19_04_10_a000_ms = MouseSession(age=21, session_id="19_04_10_a000",
+                                            sampling_rate=8, param=param,
+                                            weight=13.4)
         p21_19_04_10_a000_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p21_19_04_10_a000_ms"] = p21_19_04_10_a000_ms
 
     if "p21_19_04_10_a001_ms" in ms_str_to_load:
-        p21_19_04_10_a001_ms = MouseSession(age=21, session_id="19_04_10_a001", sampling_rate=8, param=param)
+        p21_19_04_10_a001_ms = MouseSession(age=21, session_id="19_04_10_a001",
+                                            sampling_rate=8, param=param,
+                                            weight=13.4)
         p21_19_04_10_a001_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p21_19_04_10_a001_ms"] = p21_19_04_10_a001_ms
 
     if "p21_19_04_10_a000_j3_ms" in ms_str_to_load:
-        p21_19_04_10_a000_j3_ms = MouseSession(age=21, session_id="19_04_10_a000_j3", sampling_rate=8, param=param)
+        p21_19_04_10_a000_j3_ms = MouseSession(age=21, session_id="19_04_10_a000_j3",
+                                               sampling_rate=8, param=param,
+                                            weight=11.8)
         p21_19_04_10_a000_j3_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p21_19_04_10_a000_j3_ms"] = p21_19_04_10_a000_j3_ms
 
     if "p21_19_04_10_a001_j3_ms" in ms_str_to_load:
-        p21_19_04_10_a001_j3_ms = MouseSession(age=21, session_id="19_04_10_a001_j3", sampling_rate=8, param=param)
+        p21_19_04_10_a001_j3_ms = MouseSession(age=21, session_id="19_04_10_a001_j3",
+                                               sampling_rate=8, param=param,
+                                            weight=11.8)
         p21_19_04_10_a001_j3_ms.use_suite_2p = True
 
         ms_str_to_ms_dict["p21_19_04_10_a001_j3_ms"] = p21_19_04_10_a001_j3_ms
@@ -1441,7 +1496,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     # arnaud_ms.load_data_from_file(file_name_to_load="spikenumsarnaud.mat", variables_mapping=variables_mapping)
 
     if "p41_19_04_30_a000_ms" in ms_str_to_load:
-        p41_19_04_30_a000_ms = MouseSession(age=41, session_id="19_04_30_a000", sampling_rate=8, param=param)
+        p41_19_04_30_a000_ms = MouseSession(age=41, session_id="19_04_30_a000",
+                                            sampling_rate=8, param=param,
+                                            weight=25)
 
         p41_19_04_30_a000_ms.use_suite_2p = True
 

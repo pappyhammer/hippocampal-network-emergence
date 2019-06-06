@@ -28,7 +28,6 @@ from matplotlib.lines import Line2D
 from hne_spike_structure import HNESpikeStructure
 # from mvt_selection_gui import MvtSelectionGui
 from pattern_discovery.tools.signal import smooth_convolve
-import PIL
 from PIL import ImageSequence
 from sklearn.decomposition import PCA
 from shapely.geometry import MultiPoint, LineString
