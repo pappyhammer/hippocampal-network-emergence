@@ -5,6 +5,7 @@ import seaborn as sns
 import hdbscan
 from sklearn.manifold import TSNE as t_sne
 import pandas as pd
+import hdf5storage
 
 class Epoch:
     """
@@ -104,15 +105,23 @@ class Epoch:
                              color='black')
             plt.title("normalized")
             plt.show()
+
         # we could save the results as a np array to len n_frames
         # but to save memory we will just save the positive values
         # in one array we save the indices of the lags with positive corr (we could also keep a binary
         # array with 1 in time lags where a corr value is > 0 (might use less memory)
         # in another one we save the corr values as float value
-        # lags_indices = np.where(normalized_cross_correlation_array > 0)[0]
-        #cross_correlation_values = normalized_cross_correlation_array[normalized_cross_correlation_array > 0]
-        # self.neurons_pairs_cross_correlation[(neuron_1, neuron_2)] = [lags_indices, cross_correlation_values]
-        self.neurons_pairs_cross_correlation[(neuron_1, neuron_2)] = normalized_cross_correlation_array
+        lags_indices = np.where(normalized_cross_correlation_array > 0)[0]
+        cross_correlation_values = normalized_cross_correlation_array[normalized_cross_correlation_array > 0]
+        self.neurons_pairs_cross_correlation[(neuron_1, neuron_2)] = [lags_indices, cross_correlation_values]
+        # self.neurons_pairs_cross_correlation[(neuron_1, neuron_2)] = normalized_cross_correlation_array
+
+    def get_normalized_cross_correlation_array(self, cells_pair):
+        lags_indices, cross_correlation_values = self.neurons_pairs_cross_correlation[cells_pair]
+        n_lags = (self.n_frames * 2) + 1
+        normalized_cross_correlation_array = np.zeros(n_lags)
+        normalized_cross_correlation_array[lags_indices] = cross_correlation_values
+        return normalized_cross_correlation_array
 
     def __hash__(self):
         """
@@ -146,13 +155,18 @@ def load_data():
     #spike_nums = loaded_data["spike_nums"]
     # spike_nums is a binary 2D array containing the active period of neuron (a neuron is considered active from its
     # onset to its peak during a transient, thus when the value is 1 the neuron is active)
-    spike_nums_dur = np.load('D:/Robin/data_hne/data/p41/p41_19_04_30_a000/predictions/P41_19_04_30_a000_filtered_predicted_raster_dur_meso_v1_epoch_9.npy')
+    # spike_nums_dur = np.load('D:/Robin/data_hne/data/p41/p41_19_04_30_a000/predictions/P41_19_04_30_a000_filtered_predicted_raster_dur_meso_v1_epoch_9.npy')
+    file_name = '/home/julien/these_inmed/hne_project/data/p41/' \
+                'p41_19_04_30_a000/predictions/P41_19_04_30_a000_predictions_meso_v1_epoch_9.mat'
+    data = hdf5storage.loadmat(file_name)
+    predictions = data["predictions"]
+    predictions[predictions >= 0.5] = 1
+    spike_nums_dur = predictions
     #spike_nums_dur = loaded_data["spike_nums_dur"]
     # n_cells, n_frames = spike_nums_dur.shape
     # spike_nums_dur = spike_nums_dur[:50, :1000]
 
     return spike_nums_dur
-
 
 
 def compute_emd_for_a_pair_of_neurons_between_2_epochs(epoch_1, epoch_2, neurons_pair):
@@ -164,10 +178,12 @@ def compute_emd_for_a_pair_of_neurons_between_2_epochs(epoch_1, epoch_2, neurons
     :return:
     """
     # TODO: write the code.
-    return scistats.wasserstein_distance(epoch_1.neurons_pairs_cross_correlation[neurons_pair],
-                                         np.arange(len(epoch_2.neurons_pairs_cross_correlation[neurons_pair])),
-                                         u_weights=epoch_1.neurons_pairs_cross_correlation[neurons_pair],
-                                         v_weights=epoch_2.neurons_pairs_cross_correlation[neurons_pair])
+    epoch_1_cross_corr = epoch_1.get_normalized_cross_correlation_array(neurons_pair)
+    epoch_2_cross_corr = epoch_2.get_normalized_cross_correlation_array(neurons_pair)
+    return scistats.wasserstein_distance(np.arange(len(epoch_1_cross_corr)),
+                                         np.arange(len(epoch_2_cross_corr)),
+                                         u_weights=epoch_1_cross_corr,
+                                         v_weights=epoch_2_cross_corr)
 
 
 def compute_spotdis_between_2_epochs(epoch_1, epoch_2):
