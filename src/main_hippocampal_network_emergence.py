@@ -2,6 +2,7 @@ import pandas as pd
 # from scipy.io import loadmat
 from sklearn.cluster import KMeans
 import matplotlib
+import scipy.spatial.distance as sci_sp_dist
 import matplotlib.cm as cm
 import scipy.io as sio
 import scipy.stats as scipy_stats
@@ -1251,8 +1252,40 @@ def get_pair_wise_wasserstein_distance_distribution(raster_dur):
     return corr_distribution
 
 
-def plot_jsd_correlation(ms_to_analyse, param, wasserstein_distance=True, n_surrogate=50, save_formats="pdf"):
+def get_pair_wise_hamming_distance_distribution(raster_dur):
+    """
+          Distribution of pair-wise Hamming distance of all cells
+          :param raster_dur:
+          :return:
+          """
+    n_cells = raster_dur.shape[0]
+
+    corr_distribution = []
+    # count_high_p_value = 0
+    # total_count = 0
+    for cell in np.arange(n_cells - 1):
+        if np.sum(raster_dur[cell]) == 0:
+            continue
+        for cell_bis in np.arange(cell + 1, n_cells):
+            if np.sum(raster_dur[cell_bis]) == 0:
+                continue
+            if np.sum(raster_dur[cell]) == 0 or np.sum(raster_dur[cell_bis]) == 0:
+                continue
+            n_frames = raster_dur.shape[1]
+            hamm_dist = sci_sp_dist.hamming(raster_dur[cell], raster_dur[cell_bis])
+            # if p_value > 0.05:
+            #     count_high_p_value += 1
+            # total_count += 1
+            # if p_value < 0.05:
+            corr_distribution.append(hamm_dist)
+    # print(f"total_count {total_count}, count_high_p_value {count_high_p_value}")
+    return corr_distribution
+
+
+def plot_jsd_correlation(ms_to_analyse, param, metric, n_surrogate=50, save_formats="pdf"):
     print("plot_jsd_correlation")
+    if metric is None:
+        metric = "Pearson_correlation"
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
               '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
@@ -1299,15 +1332,18 @@ def plot_jsd_correlation(ms_to_analyse, param, wasserstein_distance=True, n_surr
         if age_str not in jsd_by_age:
             jsd_by_age[age_str] = []
             n_sessions_dict[age_str] = set()
-        if ms.description not in distrib_by_ms:
-            distrib_by_ms[ms.description] = []
+        # if ms.description not in distrib_by_ms:
+        #     distrib_by_ms[ms.description] = []
 
         start_time = time.time()
-        if wasserstein_distance is False:
+        if metric == "Pearson_correlation":
             corr_ms_distribution = get_pair_wise_pearson_correlation_distribution(ms.spike_struct.spike_nums)
-        if wasserstein_distance is True:
+        if metric == "Wasserstein_distance":
             corr_ms_distribution = get_pair_wise_wasserstein_distance_distribution(ms.spike_struct.spike_nums_dur)
-        distrib_by_ms[ms.description].append(corr_ms_distribution)
+        if metric == "Hamming_distance":
+            corr_ms_distribution = get_pair_wise_hamming_distance_distribution(ms.spike_struct.spike_nums_dur)
+
+        distrib_by_ms[ms.description] = corr_ms_distribution
         max_value_distribution = max(np.max(corr_ms_distribution), max_value_distribution)
         min_value_distribution = np.min(corr_ms_distribution) if min_value_distribution is None \
             else min(np.min(corr_ms_distribution), min_value_distribution)
@@ -4385,15 +4421,19 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p60_arnaud_ms"]
     # ms_str_to_load = ["p9_19_02_20_a000_ms"]
-    # ms_str_to_load = ["p10_19_02_21_a002_ms"]
+    # ms_str_to_load = ["p10_19_02_21_a002_ms"]p5
     # ms_str_to_load = ["p11_17_11_24_a000_ms"]
-    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-    #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-    #                   "p7_171012_a000_ms",
-    #                   "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-    #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-    #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-    #                   "p7_19_03_05_a000_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_171012_a000_ms",
+                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+                      "p7_19_03_05_a000_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_171012_a000_ms",
+                      "p7_17_10_18_a002_ms"]
     # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
     #                   "p7_19_03_27_a002_ms",
     #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
@@ -4513,7 +4553,7 @@ def main():
     just_plot_psth_over_event_time_correlation_graph_style = False
     do_plot_psth_twitches = False
     just_plot_all_time_correlation_graph_over_events = False
-    just_plot_raster_with_periods = True
+    just_plot_raster_with_periods = False
     just_do_stat_significant_time_period = False
     just_plot_cells_that_fire_during_time_periods = False
     just_plot_twitch_ratio_activity = False
@@ -4530,7 +4570,7 @@ def main():
     just_find_seq_using_graph = False
     just_test_elephant_cad = False
 
-    just_plot_raster = False
+    just_plot_raster = True
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster_with_sce = False
     # periods such as twitch etc...
@@ -4741,7 +4781,7 @@ def main():
         raise Exception("just_plot_all_cell_assemblies_proportion_on_shift_categories")
 
     if just_plot_jsd_correlation:
-        plot_jsd_correlation(ms_to_analyse, param, n_surrogate=20, save_formats="pdf")
+        plot_jsd_correlation(ms_to_analyse, param, "Hamming_distance", n_surrogate=20, save_formats=["png"])
 
         raise Exception("just_plot_jsd_correlation")
 
@@ -4792,7 +4832,7 @@ def main():
                                save_raster=True,
                                show_raster=False,
                                plot_with_amplitude=False,
-                               show_sum_spikes_as_percentage=True,
+                               show_sum_spikes_as_percentage=False,
                                span_area_only_on_raster=False,
                                spike_shape=spike_shape,
                                spike_shape_size=0.5,

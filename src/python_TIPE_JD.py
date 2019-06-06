@@ -209,9 +209,8 @@ def compute_spotdis_between_2_epochs(epoch_1, epoch_2):
         # In the paper, they assume, that for each pair of epochs k and m,
         # there is at least one pair of neurons in which both neurons fired in both epochs k and m
         spotdis_value = 1
-
-
     return spotdis_value
+
 
 def main():
     # loadind the raster
