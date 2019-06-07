@@ -101,6 +101,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p5_19_03_25_a000_ms = MouseSession(age=5, session_id="19_03_25_a000",
                                            sampling_rate=8, param=param, weight=3.75)
         p5_19_03_25_a000_ms.use_suite_2p = True
+        # p5_19_03_25_a000_ms.z_shift_periods = [(1666, 1728), (4111, 4192), (6723, 6850), (
+        #         8454, 8494), (8988, 9089)]
         # for threshold prediction at 0.5
         # p5_19_03_25_a000_ms.activity_threshold = 12  # 1.6%
 
@@ -119,7 +121,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p5_19_03_25_a001_ms.use_suite_2p = True
         # calculated with 95th percentile on raster dur
         p5_19_03_25_a001_ms.activity_threshold = 13
-
+        p5_19_03_25_a001_ms.z_shift_periods = [(295, 350),
+                                               (10252, 10308)]
         # prediction based on rnn trained on 50 cells, BO,
         # variables_mapping = {"predictions": "predictions"}
         # p5_19_03_25_a001_ms.load_raster_dur_from_predictions(
@@ -152,6 +155,24 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p6_18_02_07_a001_ms = MouseSession(age=6, session_id="18_02_07_a001", param=param,
                                            sampling_rate=10, weight=4.35)
         p6_18_02_07_a001_ms.use_suite_2p = True
+
+        # p6_18_02_07_a001_ms.z_shift_periods = [(456, 488),
+        #                                        (1555, 1624),
+        #                                        (2365, 2400),
+        #                                        (2695, 2780),
+        #                                        (2840, 2904),
+        #                                        (3119, 3275),
+        #                                        (4098, 4268),
+        #                                        (4791, 5000),
+        #                                        (5380, 5570),
+        #                                        (5644, 5822),
+        #                                        (6386, 6417),
+        #                                        (6428, 6481),
+        #                                        (6539, 6664),
+        #                                        (7138, 7416),
+        #                                        (7722, 7823),
+        #                                        (8692, 8799),
+        #                                        (8880, 9025)]
 
         # calculated with 99th percentile on raster dur
         # p6_18_02_07_a001_ms.activity_threshold = 15

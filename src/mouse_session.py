@@ -152,6 +152,9 @@ class MouseSession:
         # keys will be : Active_Wake_Frames, Quiet_Wake_Frames, REMs_Frames, NREMs_Frames
         self.richard_dict = None
 
+        # list of tuple of int representing first and last frame of a period of z-shift
+        self.z_shift_periods = []
+
         # used for time-correlation graph purpose
         self.time_lags_list = None
         self.correlation_list = None

@@ -4258,6 +4258,35 @@ def lexi_loading_process(param, load_traces):
     return ms_str_to_ms_dict
 
 
+def add_z_shifts_from_file(ms_str_to_ms_dict, param):
+    file_name = "Z_movement_movies_to_cut.txt"
+    ms_session = None
+    z_shifts = None
+    with open(os.path.join(param.path_data, file_name), "r", encoding='UTF-8') as file:
+        for nb_line, line in enumerate(file):
+            if len(line) < 4:
+                continue
+            if line[0].lower() == "p":
+                if ms_session is not None and z_shifts is not None:
+                    ms_str_to_ms_dict[ms_session].z_shift_periods = z_shifts
+                line = line.strip("\n")
+                line = line.strip(" ")
+                line = line.strip("*")
+                line = line.strip(" ")
+                ms_session = line.lower() + "_ms"
+                if ms_session not in ms_str_to_ms_dict:
+                    ms_session = None
+                    z_shifts = None
+                    # print(f"not in ms_str_to_ms_dict {ms_session}")
+                else:
+                    z_shifts = []
+            elif ms_session is not None:
+                split_values = line.split("-")
+                z_shifts.append((int(split_values[0]), int(split_values[1])))
+        if ms_session is not None and z_shifts is not None:
+            ms_str_to_ms_dict[ms_session].z_shift_periods = z_shifts
+
+
 def robin_loading_process(param, load_traces, load_abf=False):
     # all avaialble session
     ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
@@ -4492,30 +4521,51 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
     # ms_str_to_load = ["p19_19_04_08_a001_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
-    # ms_str_to_load = ["p21_19_04_10_a000_ms"]
+    ms_str_to_load = ["p21_19_04_10_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
     # loading data
-    # ms_str_to_load = ["p11_17_11_24_a000_ms", "p41_19_04_30_a000_ms"]
-    ms_with_weights = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a001_ms",
-                       "p6_18_02_07_a002_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
-                       "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                       "p8_18_10_17_a001_ms", "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
-                       "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-                       "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-                       "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms", "p10_17_11_16_a003_ms",
-                       "p10_19_02_21_a002_ms", "p10_19_02_21_a005_ms",
-                       "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms", "p11_17_11_24_a000_ms",
-                       "p11_17_11_24_a001_ms", "p11_19_02_15_a000_ms", "p12_171110_a000_ms", "p12_17_11_10_a002_ms",
-                       "p13_18_10_29_a000_ms", "p14_18_10_23_a000_ms",
-                       "p14_18_10_30_a001_ms", "p16_18_11_01_a002_ms",
-                       "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms", "p21_19_04_10_a000_ms",
-                       "p21_19_04_10_a001_ms", "p41_19_04_30_a000_ms"]
-    ms_str_to_load = ms_with_weights
+    # z_shifts_ms = ["p5_19_03_25_a000_ms",
+    #                "p5_19_03_25_a001_ms",
+    #                "p6_18_02_07_a001_ms",
+    #                "p6_18_02_07_a002_ms",
+    #                "p7_17_10_18_a001_ms",
+    #                "p7_17_10_18_a003_ms",
+    #                "p7_18_02_08_a000_ms",
+    #                "p7_19_03_05_a000_ms",
+    #                "p8_17_11_13_a003_ms",
+    #                "p8_18_02_09_a000_ms",
+    #                "p8_19_03_19_a000_ms",
+    #                "p9_17_12_06_a002_ms",
+    #                "p9_17_12_06_a003_ms",
+    #                "p9_18_09_27_a003_ms",
+    #                "p9_17_12_20_a000_ms",
+    #                "p10_17_11_16_a001_ms",
+    #                "p11_17_11_17_a000_ms",
+    #                "p16_18_11_01_a002_ms",
+    #                "p7_19_02_19_a000_ms",
+    #                "p10_19_03_04_a000_ms"]
+    # ms_with_weights = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a001_ms",
+    #                    "p6_18_02_07_a002_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+    #                    "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+    #                    "p8_18_10_17_a001_ms", "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+    #                    "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+    #                    "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+    #                    "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms", "p10_17_11_16_a003_ms",
+    #                    "p10_19_02_21_a002_ms", "p10_19_02_21_a005_ms",
+    #                    "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms", "p11_17_11_24_a000_ms",
+    #                    "p11_17_11_24_a001_ms", "p11_19_02_15_a000_ms", "p12_171110_a000_ms", "p12_17_11_10_a002_ms",
+    #                    "p13_18_10_29_a000_ms", "p14_18_10_23_a000_ms",
+    #                    "p14_18_10_30_a001_ms", "p16_18_11_01_a002_ms",
+    #                    "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms", "p21_19_04_10_a000_ms",
+    #                    "p21_19_04_10_a001_ms", "p41_19_04_30_a000_ms"]
+    # ms_str_to_load = z_shifts_ms
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
+
+    add_z_shifts_from_file(ms_str_to_ms_dict, param)
 
     return ms_str_to_ms_dict
 
@@ -4585,7 +4635,7 @@ def main():
     #     return
     ms_to_analyse = available_ms
 
-    just_plot_all_basic_stats = True
+    just_plot_all_basic_stats = False
     just_plot_all_sum_spikes_dur = False
     # number of cells active in each type of movement event (normalized by number of cells and length of movement)
     just_plot_movement_activity = False
@@ -4606,10 +4656,11 @@ def main():
     do_plot_graph = False
     just_plot_cell_assemblies_clusters = False
     just_find_seq_with_pca = False
-    just_find_seq_using_graph = False
+    just_find_seq_using_graph = True
     just_test_elephant_cad = False
 
-    just_plot_raster = True
+    just_plot_raster = False
+    just_plot_raster_with_z_shift_periods = False
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster_with_sce = False
     # periods such as twitch etc...
@@ -4879,7 +4930,35 @@ def main():
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("fifi")
             continue
-
+        if just_plot_raster_with_z_shift_periods:
+            # spike_shape = '|' if use_raster_dur else 'o'
+            spike_shape = 'o'
+            if ms.spike_struct.spike_nums is None:
+                continue
+            n_cells = len(ms.spike_struct.spike_nums)
+            span_area_coords = []
+            span_area_colors = []
+            span_area_coords.append(ms.z_shift_periods)
+            span_area_colors.append("red")
+            plot_spikes_raster(spike_nums=ms.spike_struct.spike_nums, param=ms.param,
+                               spike_train_format=False,
+                               title=f"{ms.description}",
+                               file_name=f"{ms.description}_raster",
+                               y_ticks_labels=np.arange(n_cells),
+                               y_ticks_labels_size=2,
+                               save_raster=True,
+                               show_raster=False,
+                               plot_with_amplitude=False,
+                               show_sum_spikes_as_percentage=False,
+                               span_area_only_on_raster=False,
+                               span_area_coords=span_area_coords,
+                               span_area_colors=span_area_colors,
+                               spike_shape=spike_shape,
+                               spike_shape_size=0.5,
+                               save_formats=["pdf", "png"])
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_plot_raster_with_z_shift_periods")
+            continue
         if do_find_hubs:
             # for cell_to_map in [61, 73, 130, 138, 142]:
             #     ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="", not_in=False,
@@ -4898,7 +4977,7 @@ def main():
             find_sequences_using_graph_main(ms.spike_struct.spike_nums, param, min_time_bw_2_spikes=1,
                                        max_time_bw_2_spikes=10, max_connex_by_cell=5, min_nb_of_rep=3,
                                        debug_mode=False, descr=ms.description,
-                                            n_surrogates=100)
+                                            n_surrogates=5)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_find_seq_using_graph")
             continue

@@ -678,6 +678,7 @@ def get_file_name_and_path(path_file):
 
 
 def do_traces_smoothing(traces):
+    # TODO: try butternot filter for a high band filter and then use signal.filtfilt for shifting the smooth signal.
     # smoothing the trace
     windows = ['hanning', 'hamming', 'bartlett', 'blackman']
     i_w = 1
