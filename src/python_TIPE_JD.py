@@ -6,6 +6,7 @@ import hdbscan
 from sklearn.manifold import TSNE as t_sne
 import pandas as pd
 import hdf5storage
+from numba import jit, prange
 
 class Epoch:
     """
@@ -49,8 +50,6 @@ class Epoch:
             for neuron_2 in np.arange(neuron_1+1, self.n_neurons):
                 self.compute_normalized_cross_correlation(neuron_1, neuron_2)
 
-
-
     def compute_normalized_cross_correlation(self, neuron_1, neuron_2):
         """
         compute for a pair of neurons the normalize cross_correlation with respect of lag
@@ -85,13 +84,13 @@ class Epoch:
         #     print(f"len neg {len(np.where(cross_correlation_array < 0)[0])}")
         # comment next line to show the correlation plot when the sum is > 0
         show_corr_bar_chart = False
-        if show_corr_bar_chart:
-            fig, ax = plt.subplots(nrows=1, ncols=1,
-                                   figsize=(8, 3))
-            rects1 = plt.bar(lags, cross_correlation_array,
-                             color='black')
-            plt.title("non normalized")
-            plt.show()
+        # if show_corr_bar_chart:
+        #     fig, ax = plt.subplots(nrows=1, ncols=1,
+        #                            figsize=(8, 3))
+        #     rects1 = plt.bar(lags, cross_correlation_array,
+        #                      color='black')
+        #     plt.title("non normalized cross-correlation")
+        #     plt.show()
         # normalization so that the sum of the values is equal to 1
         if np.sum(cross_correlation_array) > 0:
             normalized_cross_correlation_array = cross_correlation_array / np.sum(cross_correlation_array)
@@ -103,7 +102,7 @@ class Epoch:
                                    figsize=(8, 3))
             rects1 = plt.bar(lags, normalized_cross_correlation_array,
                              color='black')
-            plt.title("normalized")
+            plt.title(f"Normalized cross-correlation between neuron {neuron_1} and neuron {neuron_2} on epoch {self.id}")
             plt.show()
 
         # we could save the results as a np array to len n_frames
@@ -138,7 +137,7 @@ class Epoch:
         """
         return self.id == other.id
 
-def load_data():
+def load_data_raster():
     """
     Used to load data. The code has to be manually change so far to change the data loaded.
     :return: return a 2D binary array representing a raster. Axis 0 (lines) represents the neurons (cells) and axis 1
@@ -156,17 +155,101 @@ def load_data():
     # spike_nums is a binary 2D array containing the active period of neuron (a neuron is considered active from its
     # onset to its peak during a transient, thus when the value is 1 the neuron is active)
     # spike_nums_dur = np.load('D:/Robin/data_hne/data/p41/p41_19_04_30_a000/predictions/P41_19_04_30_a000_filtered_predicted_raster_dur_meso_v1_epoch_9.npy')
-    file_name = '/home/julien/these_inmed/hne_project/data/p41/' \
-                'p41_19_04_30_a000/predictions/P41_19_04_30_a000_predictions_meso_v1_epoch_9.mat'
+    file_name = 'D:/Robin/data_hne/data/p41/p41_19_04_30_a000/predictions/' \
+                'P41_19_04_30_a000_predictions_meso_v1_epoch_9.mat'
     data = hdf5storage.loadmat(file_name)
     predictions = data["predictions"]
     predictions[predictions >= 0.5] = 1
     spike_nums_dur = predictions
     #spike_nums_dur = loaded_data["spike_nums_dur"]
     # n_cells, n_frames = spike_nums_dur.shape
-    # spike_nums_dur = spike_nums_dur[:50, :1000]
+    spike_nums_dur = spike_nums_dur[:200, :10000]
 
     return spike_nums_dur
+
+
+def median_normalization(traces):
+    n_cells, n_frames = traces.shape
+    for i in range(n_cells):
+        traces[i, :] = traces[i, :] / np.median(traces[i, :])
+    return traces
+
+
+def load_data_traces(use_median_norm=True):
+    """
+    Used to load data. The code has to be manually change so far to change the data loaded.
+    :return: return a 2D binary array representing a raster. Axis 0 (lines) represents the neurons (cells) and axis 1
+    (columns) represent the frames (in our case sampling is approximatively 10Hz, so 100 ms by frame).
+    """
+
+    file_name = 'D:/Robin/data_hne/data/p12/p12_17_11_10_a000/' \
+                'p12_17_11_10_a000_raw_traces.npy'
+    raw_traces = np.load(file_name)
+    traces = np.copy(raw_traces)
+    if use_median_norm is True:
+        median_normalization(traces)
+    traces = traces[:5, :10000]  # TO TEST CODE
+    return traces
+
+
+@jit(nopython=True)
+def signature_emd(x, y):
+    """A fast implementation of the EMD on sparse 1D signatures like described in:
+    Grossberger, L., Battaglia, FP. and Vinck, M. (2018). Unsupervised clustering
+    of temporal patterns in high-dimensional neuronal ensembles using a novel
+    dissimilarity measure.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        List of occurrences / a histogram signature
+        Note: Needs to be non-empty and longer or equally long as y
+    y : numpy.ndarray
+        List of occurrences / a histogram signature
+        Notes: Needs to be non-empty and shorter or equally long as x
+
+    Returns
+    -------
+    Earth Mover's Distances between the two signatures / occurrence lists
+
+    """
+
+    Q = len(x)
+    R = len(y)
+
+    if Q == 0 or R == 0:
+        return np.nan
+
+    if Q < R:
+        raise AttributeError('First argument must be longer than or equally long as second.')
+
+    x.sort()
+    y.sort()
+
+    # Use integers as weights since they are less prome to precision issues when subtracting
+    w_x = R # = Q*R/Q
+    w_y = Q # = Q*R/R
+
+    emd = 0.
+    q = 0
+    r = 0
+
+    while q < Q:
+        if w_x <= w_y:
+            cost = w_x * abs(x[q] - y[r])
+            w_y -= w_x
+            w_x = R
+            q += 1
+        else:
+            cost = w_y * abs(x[q] - y[r])
+            w_x -= w_y
+            w_y = Q
+            r += 1
+
+        emd += cost
+
+    # Correct for the initial scaling to integer weights
+    return emd/(Q*R)
 
 
 def compute_emd_for_a_pair_of_neurons_between_2_epochs(epoch_1, epoch_2, neurons_pair):
@@ -180,10 +263,12 @@ def compute_emd_for_a_pair_of_neurons_between_2_epochs(epoch_1, epoch_2, neurons
     # TODO: write the code.
     epoch_1_cross_corr = epoch_1.get_normalized_cross_correlation_array(neurons_pair)
     epoch_2_cross_corr = epoch_2.get_normalized_cross_correlation_array(neurons_pair)
-    return scistats.wasserstein_distance(np.arange(len(epoch_1_cross_corr)),
-                                         np.arange(len(epoch_2_cross_corr)),
-                                         u_weights=epoch_1_cross_corr,
-                                         v_weights=epoch_2_cross_corr)
+    # return scistats.wasserstein_distance(np.arange(len(epoch_1_cross_corr)),
+    #                                      np.arange(len(epoch_2_cross_corr)),
+    #                                      u_weights=epoch_1_cross_corr,
+    #                                      v_weights=epoch_2_cross_corr)
+    emd_value = signature_emd(epoch_1_cross_corr, epoch_2_cross_corr)
+    return emd_value
 
 
 def compute_spotdis_between_2_epochs(epoch_1, epoch_2):
@@ -228,20 +313,36 @@ def compute_spotdis_between_2_epochs(epoch_1, epoch_2):
     return spotdis_value
 
 
-def main():
-    # loadind the raster
-    spike_nums = load_data()
-    # to check the shape of the data
-    print(f"spike_nums.shape {spike_nums.shape}")
-    # SPOTDis first step
-    # Construct the pairwise epoch-to-epoch SPOTDis measure on the matrix of cross-correlations among all neuron pairs
+def main(data_to_use):
+    print(f"Data used to run SPOTDist is {data_to_use}")
+    if data_to_use == "raster":
+        # loadind the raster
+        spike_nums = load_data_raster()
+        # to check the shape of the data
+        print(f"spike_nums shape is {spike_nums.shape}")
+        # SPOTDis first step
+        # Construct the pairwise epoch-to-epoch SPOTDis measure on the matrix of cross-correlations among all neuron pairs
+        # number of frames in our raster
+        n_frames = spike_nums.shape[1]
+        # number of neurons
+        n_neurons = spike_nums.shape[0]
+        data = spike_nums
 
-    # number of frames in our raster
-    n_frames = spike_nums.shape[1]
-    # number of neurons
-    n_neurons = spike_nums.shape[0]
+    if data_to_use == "traces":
+        # loadind the traces
+        traces = load_data_traces()
+        # to check the shape of the data
+        print(f"traces shape is {traces.shape}")
+        # SPOTDis first step
+        # Construct the pairwise epoch-to-epoch SPOTDis measure on the matrix of cross-correlations among all neuron pairs
+        # number of frames in our raster
+        n_frames = traces.shape[1]
+        # number of neurons
+        n_neurons = traces.shape[0]
+        data = traces
+
     # we fix the length of an epoch, knowing than 1 frame is equal to 100 ms approximately
-    len_epoch = 250
+    len_epoch = 100
     # then computing the number of epoch in our raster
     n_epochs = n_frames // len_epoch
     # to make things easy for now, the number of frames should be divisible by the length of epochs
@@ -255,7 +356,7 @@ def main():
     # epochs = np.zeros((n_epochs, n_neurons, len_epoch), dtype="int8")
     epochs = []
     for epoch_index, frame_index in enumerate(np.arange(0, n_frames, len_epoch)):
-        epoch = spike_nums[:, frame_index:frame_index+len_epoch]
+        epoch = data[:, frame_index:frame_index+len_epoch]
         epochs.append(Epoch(epoch=epoch, id_value=epoch_index))
         # epochs[epoch_index] = epoch
 
@@ -269,7 +370,7 @@ def main():
     # a 2d array that contains the spotdis value for each pair of epochs
     spotdis_values = np.zeros((n_epochs, n_epochs))
 
-    print(f"Computing of all spotdis value")
+    print(f"Computing all spotdis value")
     for epoch_1_index in np.arange(n_epochs - 1):
         for epoch_2_index in np.arange(epoch_1_index+1, n_epochs):
             epoch_1 = epochs[epoch_1_index]
@@ -317,7 +418,7 @@ def main():
     if isinstance(save_formats, str):
         save_formats = [save_formats]
 
-    path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000/spotdis_win_length_250"
+    path_results = "D:/Robin/data_hne/data/p12/p12_17_11_10_a000/test_spotdist_traces"
     for save_format in save_formats:
         fig.savefig(f'{path_results}/heatmap_hdbscan_clustering_order'
                     f'.{save_format}',
@@ -345,7 +446,7 @@ def main():
     )
     fig = svm.get_figure()
 
-    path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000/spotdis_win_length_250"
+    path_results = "D:/Robin/data_hne/data/p12/p12_17_11_10_a000/test_spotdist_traces"
     for save_format in save_formats:
         fig.savefig(f'{path_results}/tsne_cluster'
                     f'.{save_format}',
@@ -370,7 +471,7 @@ def main():
     )
     fig = svm.get_figure()
 
-    path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000/spotdis_win_length_250"
+    path_results = "D:/Robin/data_hne/data/p12/p12_17_11_10_a000/test_spotdist_traces"
     for save_format in save_formats:
         fig.savefig(f'{path_results}/tsne_colors_from_previous_hdbscan_clustering'
                     f'.{save_format}',
@@ -405,7 +506,7 @@ def main():
     # plt.show()
     fig = svm.get_figure()
 
-    path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000/spotdis_win_length_250"
+    path_results = "D:/Robin/data_hne/data/p12/p12_17_11_10_a000/test_spotdist_traces"
     for save_format in save_formats:
         fig.savefig(f'{path_results}/tsne_colors_from_post_tsne_clustering'
                     f'.{save_format}',
@@ -461,4 +562,5 @@ def dissimilarite_periode1(periode1,lag,duree):
 #Et on applique l'algo de clustering au résultat de cette fonction,
 # puis on change la valeur de periode1 pour vérifier?? ou une seule periode1 suffit? Ou ce n'est pas ça du tout?
 
-main()
+
+main("traces")
