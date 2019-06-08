@@ -3700,6 +3700,40 @@ def select_cells_that_fire_during_time_periods(raster, time_periods_bool, descri
 
     return significant_cells
 
+def plot_variance_according_to_sum_of_activity(ms_to_analyse, param, save_formats="pdf"):
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    # + 11 diverting
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
+              '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+              '#74add1', '#4575b4', '#313695']
+    results_by_age_dict = dict()
+    n_sessions_dict = dict()
+    # one point by cell
+    results_by_age_with_all_cells_dict = dict()
+    for ms in ms_to_analyse:
+        if ms.spike_struct.spike_nums_dur is None:
+            continue
+        if "p" + str(ms.age) not in results_by_age_dict:
+            results_by_age_dict["p" + str(ms.age)] = []
+            results_by_age_with_all_cells_dict["p" + str(ms.age)] = []
+            n_sessions_dict["p" + str(ms.age)] = set()
+        n_sessions_dict["p" + str(ms.age)].add(ms.description[:-4])
+        sum_activity = np.sum(ms.spike_struct.spike_nums_dur, axis=0)
+        # as percentage of cells
+        sum_activity = (sum_activity / ms.spike_struct.spike_nums_dur.shape[0]) * 100
+        results_by_age_dict["p" + str(ms.age)].append(np.var(sum_activity))
+
+    for age, animals in n_sessions_dict.items():
+        n_sessions_dict[age] = len(animals)
+
+    box_plot_data_by_age(data_dict=results_by_age_dict, title="",
+                         filename=f"variance_on_sum_activity_by_age",
+                         y_label=f"Variance",
+                         colors=colors, with_scatters=True,
+                         n_sessions_dict=n_sessions_dict,
+                         path_results=param.path_results, scatter_size=200,
+                         param=param, save_formats=save_formats)
 
 def plot_nb_transients_in_mvt_vs_nb_total_transients(ms_to_analyse, param, save_formats="pdf"):
     # key is p_age, and value a list of the % of cell in that period of time
@@ -4506,7 +4540,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
     #                   "p7_19_03_27_a002_ms",
     #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-    #                   "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+    #                   "p8_18_10_17_a001_ms",
     #                   "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
     #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
     #                   "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
@@ -4514,22 +4548,24 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
     #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
     #                   "p9_19_03_22_a001_ms"]
-    ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-                      "p10_19_02_21_a005_ms",
-                      "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
-                      "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
-                      "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
-                      "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
-                      "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
-                      "p13_19_03_11_a000_ms",
-                      "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
-                      "p16_18_11_01_a002_ms",
-                      "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
-                      "p41_19_04_30_a000_ms"]
+    # "p8_18_10_17_a000_ms", -> no prediction yet
+    # ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+    #                   "p10_19_02_21_a005_ms",
+    #                   "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+    #                   "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+    #                   "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+    #                   "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+    #                   "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
+    #                   "p13_19_03_11_a000_ms",
+    #                   "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+    #                   "p16_18_11_01_a002_ms",
+    #                   "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
+    #                   "p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
-    # ms_str_to_load = ["p19_19_04_08_a001_ms"]
+    # ms_str_to_load = ["p19_19_04_08_a000_ms"]
+    # ms_str_to_load = ["p9_19_02_20_a001_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["richard_028_D1_P1_ms"]
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
@@ -4537,7 +4573,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
     # ms_str_to_load = ["p19_19_04_08_a001_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
-    ms_str_to_load = ["p21_19_04_10_a000_ms"]
+    # ms_str_to_load = ["p21_19_04_10_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
@@ -4668,12 +4704,13 @@ def main():
     just_plot_all_cells_on_map = False
     just_plot_all_cell_assemblies_proportion_on_shift_categories = False
     just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
-    just_plot_jsd_correlation = True
+    just_plot_jsd_correlation = False
     do_plot_graph = False
     just_plot_cell_assemblies_clusters = False
     just_find_seq_with_pca = False
     just_find_seq_using_graph = False
     just_test_elephant_cad = False
+    just_plot_variance_according_to_sum_of_activity = True
 
     just_plot_raster = False
     just_plot_raster_with_z_shift_periods = False
@@ -4883,6 +4920,10 @@ def main():
         plot_twitch_ratio_activity(ms_to_analyse, time_around=20, param=param, save_formats="pdf")
         raise Exception("just_plot_twitch_ratio_activity")
 
+    if just_plot_variance_according_to_sum_of_activity:
+        plot_variance_according_to_sum_of_activity(ms_to_analyse, param, save_formats="pdf")
+        raise Exception("just_plot_variance_according_to_sum_of_activity")
+
     if just_save_stat_about_mvt_for_each_ms:
         save_stat_about_mvt_for_each_ms(ms_to_analyse, param=param)
         raise Exception("just_save_stat_about_mvt_for_each_ms")
@@ -4998,8 +5039,8 @@ def main():
         if just_find_seq_using_graph:
             find_sequences_using_graph_main(ms.spike_struct.spike_nums, param, min_time_bw_2_spikes=1,
                                        max_time_bw_2_spikes=10, max_connex_by_cell=5, min_nb_of_rep=3,
-                                       debug_mode=False, descr=ms.description,
-                                            n_surrogates=5)
+                                       debug_mode=False, descr=ms.description, ms=ms,
+                                            n_surrogates=5, raster_dur_version=False)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_find_seq_using_graph")
             continue
