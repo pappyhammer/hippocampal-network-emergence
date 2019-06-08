@@ -64,6 +64,8 @@ import neo
 import elephant.conversion as elephant_conv
 import quantities as pq
 import elephant.cell_assembly_detection as cad
+from SPOTDist_homemade import SPOT_Dist_JD_RD
+from SPOTDist_Battaglia import SPOT_Dist_Battaglia
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -1287,11 +1289,11 @@ def get_pair_wise_hamming_distance_distribution(raster_dur):
 
 
 def plot_jsd_correlation(ms_to_analyse, param, metric, n_surrogate=50, save_formats="pdf"):
-    print("plot_jsd_correlation")
+    print(f"Starting to plot distribution of pair-wise {metric}")
     possible_metrics = ["Pearson_correlation", "Wasserstein_distance", "Hamming_distance"]
     if metric not in possible_metrics:
         metric = "Pearson_correlation"
-        raise Exception ("This metric is not avalaible, keep going using Pearson correlation")
+        raise Exception("This metric is not avalaible, keep going using Pearson correlation")
     if metric is None:
         metric = "Pearson_correlation"
         raise Exception("Metric was not specified, keep going using Pearson correlation")
@@ -1357,7 +1359,7 @@ def plot_jsd_correlation(ms_to_analyse, param, metric, n_surrogate=50, save_form
         min_value_distribution = np.min(corr_ms_distribution) if min_value_distribution is None \
             else min(np.min(corr_ms_distribution), min_value_distribution)
         stop_time = time.time()
-        print(f"Time to get pearson pair-wise correlation for {ms.description}: "
+        print(f"Time to get pair-wise {metric} for {ms.description}: "
               f"{np.round(stop_time - start_time, 3)} s")
         if just_plot_pearson_correlation_distribution:
             jsd_by_age[age_str].extend(corr_ms_distribution)
@@ -4670,7 +4672,7 @@ def main():
     do_plot_graph = False
     just_plot_cell_assemblies_clusters = False
     just_find_seq_with_pca = False
-    just_find_seq_using_graph = True
+    just_find_seq_using_graph = False
     just_test_elephant_cad = False
 
     just_plot_raster = False
@@ -4705,6 +4707,12 @@ def main():
     do_plot_connect_hist_for_all_ages = False
     do_time_graph_correlation = False
     do_time_graph_correlation_and_connect_best = False
+
+    # ##########################################################################################
+    # #################################### SPOT DIST ###########################################
+    # ##########################################################################################
+    just_do_homemade_spot_dist = False
+    just_do_battaglia_spot_dist = False
 
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
@@ -4885,7 +4893,7 @@ def main():
         raise Exception("just_plot_all_cell_assemblies_proportion_on_shift_categories")
 
     if just_plot_jsd_correlation:
-        plot_jsd_correlation(ms_to_analyse, param, "Hamming_distance", n_surrogate=20, save_formats=["png"])
+        plot_jsd_correlation(ms_to_analyse, param, "Hamming_distance", n_surrogate=20, save_formats=["png", "pdf"])
 
         raise Exception("just_plot_jsd_correlation")
 
@@ -4995,6 +5003,11 @@ def main():
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_find_seq_using_graph")
             continue
+        if just_do_homemade_spot_dist:
+            # data_to_use="rasterdur" or "traces"
+            SPOT_Dist_JD_RD(ms, data_to_use="traces", len_epoch=100, use_raster=False, distance_metric="EMD_Battaglia")
+        if just_do_battaglia_spot_dist:
+            SPOT_Dist_Battaglia(ms, len_epoch=100, use_raster=False)
         if just_find_seq_with_pca:
             find_seq_with_pca(ms.raw_traces, path_results=param.path_results,
                               file_name=f"{ms.description}_seq_with_pca")

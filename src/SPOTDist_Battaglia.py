@@ -4,6 +4,7 @@ import hdf5storage
 import itertools
 import seaborn as sns
 import hdbscan
+import os
 
 
 @jit(nopython=True)
@@ -167,18 +168,14 @@ def xcorr_spotdis_cpu_(spike_times, ii_spike_times, epoch_index_pairs):
 
     return distances, percent_nan
 
-def load_data():
-    file_name = 'D:/Robin/data_hne/data/p41/p41_19_04_30_a000/predictions/' \
-                'P41_19_04_30_a000_predictions_meso_v1_epoch_9.mat'
-    data = hdf5storage.loadmat(file_name)
-    predictions = data["predictions"]
-    predictions[predictions >= 0.5] = 1
-    predictions[predictions < 0.5] = 0
-    spike_nums_dur = predictions.astype("int8")
-    # print(f"toto {spike_nums_dur}")
-    # spike_nums_dur = loaded_data["spike_nums_dur"]
-    # n_cells, n_frames = spike_nums_dur.shape
-    # spike_nums_dur = spike_nums_dur[:200, :10000]
+def load_data(ms):
+    """
+       Used to load data. The code has to be manually change so far to change the data loaded.
+       :return: return a 2D binary array representing a raster. Axis 0 (lines) represents the neurons (cells) and axis 1
+       (columns) represent the frames (in our case sampling is approximatively 10Hz, so 100 ms by frame).
+       """
+    spike_nums_dur = ms.spike_struct.spike_nums_dur
+    # spike_nums_dur = spike_nums_dur[:50, :10000] # TO TEST CODE
     return spike_nums_dur
 
 
@@ -198,19 +195,18 @@ def build_spike_nums_and_peak_nums(spike_nums_dur):
     return spike_nums, peak_nums
 
 
-def main():
-    rasterdur = True
-    spike_nums_dur = load_data()
+def SPOT_Dist_Battaglia(ms, len_epoch=100, use_raster=False):
+    spike_nums_dur = load_data(ms)
 
-    if rasterdur is True:
+    if use_raster is False:
         spike_times_matrix = spike_nums_dur
-    if rasterdur is False:
+        print(f"Data used to run Battaglia SPOTDist is spike_nums_dur")
+    if use_raster is True:
         spike_times_matrix = build_spike_nums_and_peak_nums(spike_nums_dur)[0]
+        print(f"Data used to run Battaglia SPOTDist is spike_nums")
 
     n_cells, n_frames = spike_times_matrix.shape
 
-    # we fix the length of an epoch, knowing than 1 frame is equal to 100 ms approximately
-    len_epoch = 250
     # then computing the number of epoch in our raster
     n_epochs = n_frames // len_epoch
     # to make things easy for now, the number of frames should be divisible by the length of epochs
@@ -241,7 +237,6 @@ def main():
     # print(f" matrix of start time in spike_times array for epoch i vs neuron j is {ii_spike_times[:, :, 0]}")
     # print(f" matrix of end time in spike_times array for epoch i vs neuron j is {ii_spike_times[:, :, 1]}")
 
-
     n_unique_pairs = (n_epochs * (n_epochs - 1)) / 2
     n_unique_pairs = int(n_unique_pairs)
     epoch_index_pairs = np.zeros((n_unique_pairs, 2), dtype="int16")
@@ -261,66 +256,28 @@ def main():
 
     print(f"percent of NaN is {percent_nan}")
 
-
     ax = sns.heatmap(distances)
     fig = ax.get_figure()
-    save_formats = ["pdf"]
+    save_formats = ["pdf", "png"]
     if isinstance(save_formats, str):
         save_formats = [save_formats]
 
-    path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000/spot_dist_src"
     for save_format in save_formats:
-        fig.savefig(f'{path_results}/spot_dist_matrix'
+        path_results = os.path.join(ms.param.path_results,
+                                    f"{ms.description}_Battaglia_SPOTDist_heatmap_win_{len_epoch}.{save_format}")
+        fig.savefig(f'{path_results}'
                     f'.{save_format}',
                     format=f"{save_format}",
                     facecolor=fig.get_facecolor())
 
+    np.save(os.path.join(ms.param.path_results, f"{ms.description}_Battaglia_SPOTDist_values_win_{len_epoch}.npy"),
+            distances)
+
+    np.save(os.path.join(ms.param.path_results, f"{ms.description}_Battaglia_SPOTDist_values_win_{len_epoch}.npy"),
+            percent_nan)
+
+    return distances, percent_nan
 
 
-    # ## DO HDBSCAN CLUSTERING ON DISSIMILARITY MATRIX (SPOTDIS VALUES) ##
-    #
-    # clusterer = hdbscan.HDBSCAN(algorithm='best', alpha=1.0, approx_min_span_tree=True,
-    #                             gen_min_span_tree=False, leaf_size=40,
-    #                             metric='precomputed', min_cluster_size=2, min_samples=None, p=None)
-    # # metric='precomputed' euclidean
-    # clusterer.fit(distances)
-    #
-    # labels = clusterer.labels_
-    # # print(f"labels.shape: {labels.shape}")
-    # print(f"N clusters hdbscan: {labels.max()+1}")
-    # # print(f"labels: {labels}")
-    # print(f"With no clusters hdbscan: {len(np.where(labels == -1)[0])}")
-    # n_clusters = 0
-    # if labels.max() + 1 > 0:
-    #     n_clusters = labels.max() + 1
-    #
-    # if n_clusters > 0:
-    #     n_epoch_by_cluster = [len(np.where(labels == x)[0]) for x in np.arange(n_clusters)]
-    #     print(f"Number of epochs by clusters hdbscan: {' '.join(map(str, n_epoch_by_cluster))}")
-    #
-    # distances_order = np.copy(distances)
-    # labels_indices_sorted = np.argsort(labels)
-    # distances_order = distances_order[labels_indices_sorted, :]
-    # distances_order = distances_order[:, labels_indices_sorted]
-    #
-    # # Generate figure: dissimilarity matrice ordered by cluster
-    # svm = sns.heatmap(distances_order)
-    # svm.set_yticklabels(labels_indices_sorted)
-    # svm.set_xticklabels(labels_indices_sorted)
-    # fig = svm.get_figure()
-    # # plt.show()
-    # save_formats = ["pdf"]
-    # if isinstance(save_formats, str):
-    #     save_formats = [save_formats]
-    #
-    # path_results = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000/spot_dist_src"
-    # for save_format in save_formats:
-    #     fig.savefig(f'{path_results}/hdbscan_order_distances'
-    #                 f'.{save_format}',
-    #                 format=f"{save_format}",
-    #                 facecolor=fig.get_facecolor())
-    # # plt.close()
-
-
-main()
+# SPOT_Dist_Battaglia(ms, len_epoch=100, use_raster=False)
 
