@@ -5,6 +5,7 @@ import itertools
 import seaborn as sns
 import hdbscan
 import os
+from pattern_discovery.tools.misc import get_continous_time_periods
 
 
 @jit(nopython=True)
