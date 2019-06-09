@@ -2534,7 +2534,6 @@ class MouseSession:
         i = 0
         span_area_coords = []
         span_area_colors = []
-
         if with_periods and (periods_dict is not None):
             for name_period, period in periods_dict.items():
                 span_area_coords.append(get_continous_time_periods(period.astype("int8")))
@@ -2842,7 +2841,29 @@ class MouseSession:
                                       cells_groups_colors=cells_groups_colors,
                                       with_cell_numbers=True)
 
-    def plot_all_cells_on_map(self, save_plot=True, return_fig=False):
+    def plot_all_cells_on_map_with_avg_on_bg(self, save_plot=True, return_fig=False):
+        if self.coord_obj is None:
+            return
+        # we want to color cells that overlap with different colors
+        n_cells = len(self.coord_obj.coord)
+
+        if self.tiff_movie is None:
+            self.load_tiff_movie_in_memory()
+        avg_cell_map_img = np.mean(self.tiff_movie, axis=0)
+        fig = self.coord_obj.plot_cells_map(param=self.param,
+                                            data_id=self.description, show_polygons=False,
+                                            fill_polygons=False,
+                                            dont_fill_cells_not_in_groups=True,
+                                            default_edge_color="red",
+                                            with_edge=True,
+                                            title_option="all cells", connections_dict=None,
+                                            img_on_background=avg_cell_map_img,
+                                            with_cell_numbers=False, save_formats=["png", "pdf"],
+                                            save_plot=save_plot, return_fig=return_fig)
+        if return_fig:
+            return fig
+
+    def plot_all_cells_on_map(self, save_plot=True, return_fig=False, with_avg_on_bg=False):
         if self.coord_obj is None:
             return
         # we want to color cells that overlap with different colors
@@ -2907,16 +2928,22 @@ class MouseSession:
         cells_groups_colors.append(isolated_cell_color)
         cells_groups_alpha.append(1)
         cells_groups_edge_colors.append("white")
+        avg_cell_map_img = None
+        if with_avg_on_bg:
+            if self.tiff_movie is None:
+                self.load_tiff_movie_in_memory()
+            avg_cell_map_img = np.mean(self.tiff_movie, axis=0)
         fig = self.coord_obj.plot_cells_map(param=self.param,
                                             data_id=self.description, show_polygons=False,
                                             fill_polygons=False,
                                             title_option="all cells", connections_dict=None,
                                             cells_groups=cells_groups,
+                                            img_on_background=avg_cell_map_img,
                                             cells_groups_colors=cells_groups_colors,
                                             cells_groups_edge_colors=cells_groups_edge_colors,
                                             with_edge=True, cells_groups_alpha=cells_groups_alpha,
                                             dont_fill_cells_not_in_groups=False,
-                                            with_cell_numbers=True, save_formats=["png", "pdf"],
+                                            with_cell_numbers=False, save_formats=["png", "pdf"],
                                             save_plot=save_plot, return_fig=return_fig)
         if return_fig:
             return fig

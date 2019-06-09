@@ -4369,6 +4369,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
                         "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
                         "p16_18_11_01_a002_ms",
                         "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
+                      "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
                         "p41_19_04_30_a000_ms"]
     # "p10_19_02_21_a003_ms", "p8_18_10_17_a001_ms",
     # gadcre_ms= [ ]
@@ -4526,13 +4527,13 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p9_19_02_20_a000_ms"]
     # ms_str_to_load = ["p10_19_02_21_a002_ms"]p5
     # ms_str_to_load = ["p11_17_11_24_a000_ms"]
-    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-    #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-    #                   "p7_171012_a000_ms",
-    #                   "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-    #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-    #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-    #                   "p7_19_03_05_a000_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_171012_a000_ms",
+                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+                      "p7_19_03_05_a000_ms"]
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
     #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
     #                   "p7_171012_a000_ms",
@@ -4571,7 +4572,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
-    # ms_str_to_load = ["p19_19_04_08_a001_ms"]
+    ms_str_to_load = ["p19_19_04_08_a000_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
@@ -4674,7 +4675,7 @@ def main():
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
 
-    load_traces = False
+    load_traces = True
 
     if for_lexi:
         ms_str_to_ms_dict = lexi_loading_process(param=param, load_traces=load_traces)
@@ -4702,6 +4703,7 @@ def main():
     just_save_stat_about_mvt_for_each_ms = False
     just_plot_cell_assemblies_on_map = False
     just_plot_all_cells_on_map = False
+    just_plot_all_cells_on_map_with_avg_on_bg = True
     just_plot_all_cell_assemblies_proportion_on_shift_categories = False
     just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
     just_plot_jsd_correlation = False
@@ -4710,7 +4712,7 @@ def main():
     just_find_seq_with_pca = False
     just_find_seq_using_graph = False
     just_test_elephant_cad = False
-    just_plot_variance_according_to_sum_of_activity = True
+    just_plot_variance_according_to_sum_of_activity = False
 
     just_plot_raster = False
     just_plot_raster_with_z_shift_periods = False
@@ -5037,10 +5039,30 @@ def main():
                 raise Exception("do_find_hubs")
             continue
         if just_find_seq_using_graph:
-            find_sequences_using_graph_main(ms.spike_struct.spike_nums, param, min_time_bw_2_spikes=1,
-                                       max_time_bw_2_spikes=10, max_connex_by_cell=5, min_nb_of_rep=3,
-                                       debug_mode=False, descr=ms.description, ms=ms,
-                                            n_surrogates=5, raster_dur_version=False)
+            span_area_coords = None
+            span_area_colors = None
+            with_mvt_periods = True
+            if with_mvt_periods:
+                colors = ["red", "green", "blue", "pink", "orange"]
+                i = 0
+                span_area_coords = []
+                span_area_colors = []
+                periods_dict = ms.shift_data_dict
+                if periods_dict is not None:
+                    for name_period, period in periods_dict.items():
+                        span_area_coords.append(get_continous_time_periods(period.astype("int8")))
+                        span_area_colors.append(colors[i % len(colors)])
+                        print(f"Period {name_period} -> {colors[i]}")
+                        i += 1
+                else:
+                    print(f"no shift_data_dict for {ms.description}")
+
+            find_sequences_using_graph_main(ms.spike_struct.spike_nums_dur, param, min_time_bw_2_spikes=1,
+                                            max_time_bw_2_spikes=10, max_connex_by_cell=5, min_nb_of_rep=3,
+                                            debug_mode=False, descr=ms.description, ms=ms,
+                                            n_surrogates=50, raster_dur_version=True,
+                                            span_area_coords=span_area_coords,
+                                            span_area_colors=span_area_colors)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_find_seq_using_graph")
             continue
@@ -5100,6 +5122,12 @@ def main():
             ms.plot_all_cells_on_map()
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_plot_all_cells_on_map exception")
+            continue
+
+        if just_plot_all_cells_on_map_with_avg_on_bg:
+            ms.plot_all_cells_on_map_with_avg_on_bg()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_plot_all_cells_on_map_with_avg_on_bg")
             continue
 
         if just_produce_animation:
