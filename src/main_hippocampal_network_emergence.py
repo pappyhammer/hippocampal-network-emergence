@@ -4359,7 +4359,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
                         "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
                         "p9_19_03_22_a001_ms",
                         "p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-                         "p10_19_02_21_a005_ms",
+                        "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
                         "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
                         "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
                         "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
@@ -4370,8 +4370,9 @@ def robin_loading_process(param, load_traces, load_abf=False):
                         "p16_18_11_01_a002_ms",
                         "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
                       "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+                      "p21_19_04_10_a000_j3_ms",
                         "p41_19_04_30_a000_ms"]
-    # "p10_19_02_21_a003_ms", "p8_18_10_17_a001_ms",
+    # , "p8_18_10_17_a001_ms",
     # gadcre_ms= [ ]
     # arnaud_ms = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
     # abf_corrupted = ["p8_18_10_17_a001_ms", "p9_18_09_27_a003_ms"]
@@ -4551,7 +4552,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p9_19_03_22_a001_ms"]
     # "p8_18_10_17_a000_ms", -> no prediction yet
     # ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-    #                   "p10_19_02_21_a005_ms",
+    #                   "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
     #                   "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
     #                   "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
     #                   "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
@@ -4572,7 +4573,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
-    ms_str_to_load = ["p19_19_04_08_a000_ms"]
+    ms_str_to_load = ["p7_19_03_27_a001_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
@@ -4612,7 +4613,8 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                    "p13_18_10_29_a000_ms", "p14_18_10_23_a000_ms",
     #                    "p14_18_10_30_a001_ms", "p16_18_11_01_a002_ms",
     #                    "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms", "p21_19_04_10_a000_ms",
-    #                    "p21_19_04_10_a001_ms", "p41_19_04_30_a000_ms"]
+    #                    "p21_19_04_10_a001_ms",
+    #                    "p21_19_04_10_a000_j3_ms", "p41_19_04_30_a000_ms"]
     # ms_str_to_load = z_shifts_ms
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -4703,14 +4705,14 @@ def main():
     just_save_stat_about_mvt_for_each_ms = False
     just_plot_cell_assemblies_on_map = False
     just_plot_all_cells_on_map = False
-    just_plot_all_cells_on_map_with_avg_on_bg = True
+    just_plot_all_cells_on_map_with_avg_on_bg = False
     just_plot_all_cell_assemblies_proportion_on_shift_categories = False
     just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
     just_plot_jsd_correlation = False
     do_plot_graph = False
     just_plot_cell_assemblies_clusters = False
     just_find_seq_with_pca = False
-    just_find_seq_using_graph = False
+    just_find_seq_using_graph = True
     just_test_elephant_cad = False
     just_plot_variance_according_to_sum_of_activity = False
 
@@ -5060,7 +5062,7 @@ def main():
             find_sequences_using_graph_main(ms.spike_struct.spike_nums_dur, param, min_time_bw_2_spikes=1,
                                             max_time_bw_2_spikes=10, max_connex_by_cell=5, min_nb_of_rep=3,
                                             debug_mode=False, descr=ms.description, ms=ms,
-                                            n_surrogates=50, raster_dur_version=True,
+                                            n_surrogates=0, raster_dur_version=True,
                                             span_area_coords=span_area_coords,
                                             span_area_colors=span_area_colors)
             if ms_index == len(ms_to_analyse) - 1:
