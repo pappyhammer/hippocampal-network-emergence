@@ -4349,7 +4349,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
                         "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
                         "p7_19_03_27_a002_ms",
                         "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                        "p8_18_10_17_a000_ms",
+                        "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
                         "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms"
                         "p8_19_03_19_a000_ms",
                         "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
@@ -4372,7 +4372,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
                       "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
                       "p21_19_04_10_a000_j3_ms",
                         "p41_19_04_30_a000_ms"]
-    # , "p8_18_10_17_a001_ms",
+    # ,
     # gadcre_ms= [ ]
     # arnaud_ms = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
     # abf_corrupted = ["p8_18_10_17_a001_ms", "p9_18_09_27_a003_ms"]
@@ -4528,20 +4528,17 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p9_19_02_20_a000_ms"]
     # ms_str_to_load = ["p10_19_02_21_a002_ms"]p5
     # ms_str_to_load = ["p11_17_11_24_a000_ms"]
-    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                      "p7_171012_a000_ms",
-                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-                      "p7_19_03_05_a000_ms"]
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
     #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
     #                   "p7_171012_a000_ms",
-    #                   "p7_17_10_18_a002_ms"]
+    #                   "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+    #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+    #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+    #                   "p7_19_03_05_a000_ms"]
     # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
     #                   "p7_19_03_27_a002_ms",
     #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+    #                     "p8_18_10_17_a000_ms",
     #                   "p8_18_10_17_a001_ms",
     #                   "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
     #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
@@ -4551,18 +4548,19 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
     #                   "p9_19_03_22_a001_ms"]
     # "p8_18_10_17_a000_ms", -> no prediction yet
-    # ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-    #                   "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
-    #                   "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
-    #                   "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
-    #                   "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
-    #                   "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
-    #                   "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
-    #                   "p13_19_03_11_a000_ms",
-    #                   "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
-    #                   "p16_18_11_01_a002_ms",
-    #                   "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
-    #                   "p41_19_04_30_a000_ms"]
+    ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+                      "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
+                      "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+                      "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+                      "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+                      "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+                      "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
+                      "p13_19_03_11_a000_ms",
+                      "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+                      "p16_18_11_01_a002_ms",
+                      "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
+                      "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+                      "p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
@@ -4573,7 +4571,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
-    ms_str_to_load = ["p7_19_03_27_a001_ms"]
+    # ms_str_to_load = ["p7_19_03_27_a001_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
@@ -5062,7 +5060,7 @@ def main():
             find_sequences_using_graph_main(ms.spike_struct.spike_nums_dur, param, min_time_bw_2_spikes=1,
                                             max_time_bw_2_spikes=10, max_connex_by_cell=5, min_nb_of_rep=3,
                                             debug_mode=False, descr=ms.description, ms=ms,
-                                            n_surrogates=0, raster_dur_version=True,
+                                            n_surrogates=50, raster_dur_version=True,
                                             span_area_coords=span_area_coords,
                                             span_area_colors=span_area_colors)
             if ms_index == len(ms_to_analyse) - 1:
