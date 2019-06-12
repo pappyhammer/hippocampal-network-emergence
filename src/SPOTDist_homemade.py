@@ -8,6 +8,8 @@ import os
 import pandas as pd
 import hdf5storage
 from numba import jit, prange
+import datetime
+import sys
 
 
 class Epoch:
@@ -85,7 +87,6 @@ class Epoch:
         # if len(np.where(cross_correlation_array < 0)[0]) > 0:
         #     print(f"len neg {len(np.where(cross_correlation_array < 0)[0])}")
         # comment next line to show the correlation plot when the sum is > 0
-        show_corr_bar_chart = False
         # if show_corr_bar_chart:
         #     fig, ax = plt.subplots(nrows=1, ncols=1,
         #                            figsize=(8, 3))
@@ -99,14 +100,32 @@ class Epoch:
         else:
             normalized_cross_correlation_array = cross_correlation_array
 
-        if show_corr_bar_chart:
-            fig, ax = plt.subplots(nrows=1, ncols=1,
-                                   figsize=(8, 3))
-            rects1 = plt.bar(lags, normalized_cross_correlation_array,
-                             color='black')
-            plt.title(f"Normalized cross-correlation between neuron {neuron_1} and neuron {neuron_2} on epoch {self.id}")
-            plt.show()
+        show_corr_bar_chart = False
+        save_corr_bar_chart = False
 
+        if self.id == 1 or self.id == 4:
+            if neuron_1 == 0 and neuron_2 == 1:
+                fig, ax = plt.subplots(nrows=1, ncols=1,
+                                   figsize=(8, 3))
+                rects1 = plt.bar(lags, normalized_cross_correlation_array,
+                             color='black')
+                plt.title(f"Normalized cross-correlation between neuron {neuron_1} and neuron {neuron_2} on epoch {self.id}")
+                if show_corr_bar_chart:
+                    plt.show()
+                if save_corr_bar_chart:
+                    path = "D:/Robin/data_hne/test_spot_dist_homemade/"
+                    today = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
+                    path_results = os.path.join(path, today)
+                    save_formats = ["pdf", "png"]
+                    if isinstance(save_formats, str):
+                        save_formats = [save_formats]
+                    for save_format in save_formats:
+                        path_results = path_results
+                        plt.savefig(f'{path_results}/corr_bar_chart_between neuron {neuron_1} and neuron {neuron_2} on epoch {self.id}'
+                                f'.{save_format}',
+                                format=f"{save_format}",
+                                facecolor=fig.get_facecolor())
+                plt.close()
         # we could save the results as a np array to len n_frames
         # but to save memory we will just save the positive values
         # in one array we save the indices of the lags with positive corr (we could also keep a binary
@@ -119,6 +138,7 @@ class Epoch:
 
     def get_normalized_cross_correlation_array(self, cells_pair):
         lags_indices, cross_correlation_values = self.neurons_pairs_cross_correlation[cells_pair]
+        # print(f"lag indicse is {lags_indices} and cross-corr value is {cross_correlation_values}")
         n_lags = (self.n_frames * 2) + 1
         normalized_cross_correlation_array = np.zeros(n_lags)
         normalized_cross_correlation_array[lags_indices] = cross_correlation_values
@@ -189,12 +209,12 @@ def load_data_traces(ms, use_median_norm=True):
     traces = np.copy(raw_traces)
     if use_median_norm is True:
         median_normalization(traces)
-    traces = traces[:100, :1000]  # TO TEST CODE
+    # traces = traces[:100, :12500]  # TO TEST CODE
     return traces
 
 
-@jit(nopython=True)
-def signature_emd(x, y):
+# @jit(nopython=True)
+def signature_emd_JD_RD(x, y):
     """A fast implementation of the EMD on sparse 1D signatures like described in:
     Grossberger, L., Battaglia, FP. and Vinck, M. (2018). Unsupervised clustering
     of temporal patterns in high-dimensional neuronal ensembles using a novel
@@ -203,54 +223,54 @@ def signature_emd(x, y):
     Parameters
     ----------
     x : numpy.ndarray
-        List of occurrences / a histogram signature
-        Note: Needs to be non-empty and longer or equally long as y
+        cross_correlogram on epoch1
+        Note: Needs to be non-empty and have the same or more positive correlation values than y
     y : numpy.ndarray
-        List of occurrences / a histogram signature
-        Notes: Needs to be non-empty and shorter or equally long as x
+        cross_correlogram on epoch2
+        Notes: Needs to be non-empty and have the same or less positive correlation values than x
 
     Returns
     -------
-    Earth Mover's Distances between the two signatures / occurrence lists
+    Earth Mover's Distances between the two distribution of cross-correlation
 
     """
 
-    Q = len(x)
-    R = len(y)
+    x = np.array(x).astype("float")
+    y = np.array(y).astype("float")
+
+    t1 = len(x)
+    t2 = len(y)
+
+    lags_x = np.where(x)[0]
+    lags_y = np.where(y)[0]
+    weights_x = x[lags_x]
+    weights_y = y[lags_y]
+
+    Q = len(lags_x)
+    R = len(lags_y)
+    # Q is always smaller than R
 
     if Q == 0 or R == 0:
         return np.nan
 
-    if Q < R:
-        raise AttributeError('First argument must be longer than or equally long as second.')
-
-    x.sort()
-    y.sort()
-
-    # Use integers as weights since they are less prome to precision issues when subtracting
-    w_x = R # = Q*R/Q
-    w_y = Q # = Q*R/R
-
-    emd = 0.
-    q = 0
-    r = 0
-
+    emd = 0  # EMD value
+    q = 0  # index in epoch1_cross_corr_values (lags and corr value)
+    r = 0  # index in epoch2_cross_corr_values (lags and corr value)
+    # print(f"weights_x {weights_x}, weights_y {weights_y}")
     while q < Q:
-        if w_x <= w_y:
-            cost = w_x * abs(x[q] - y[r])
-            w_y -= w_x
-            w_x = R
-            q += 1
-        else:
-            cost = w_y * abs(x[q] - y[r])
-            w_x -= w_y
-            w_y = Q
-            r += 1
+        # print(f"q {q}, r {r}")
+        flow = np.min((weights_x[q], weights_y[r]))
+        cost = flow * abs(lags_x[q] - lags_y[r])
+        emd = emd + cost
+        weights_x[q] = weights_x[q] - flow
+        weights_y[r] = weights_y[r] - flow
+        # print(f"while weights_x {weights_x}, weights_y {weights_y}")
+        if weights_x[q] < 0.000001:
+            q = q + 1
+        if weights_y[r] < 0.000001:
+            r = r + 1
 
-        emd += cost
-
-    # Correct for the initial scaling to integer weights
-    return emd/(Q*R)
+    return emd / (t1 + t2 + 1)
 
 
 def compute_emd_for_a_pair_of_neurons_between_2_epochs(distance_metric, epoch_1, epoch_2, neurons_pair):
@@ -261,7 +281,7 @@ def compute_emd_for_a_pair_of_neurons_between_2_epochs(distance_metric, epoch_1,
     :param neurons_pair: a tuple of in representing the two neurons pair
     :return: emd value is the generic name for the distance, not necessarily the emd value
     """
-
+    print_specific_emd_value = True
     epoch_1_cross_corr = epoch_1.get_normalized_cross_correlation_array(neurons_pair)
     epoch_2_cross_corr = epoch_2.get_normalized_cross_correlation_array(neurons_pair)
 
@@ -273,7 +293,17 @@ def compute_emd_for_a_pair_of_neurons_between_2_epochs(distance_metric, epoch_1,
         return emd_value
 
     if distance_metric == "EMD_Battaglia":
-        emd_value = signature_emd(epoch_1_cross_corr, epoch_2_cross_corr)
+        n_values_cross_corr_epoch1 = len(np.where(epoch_1_cross_corr)[0])
+        n_values_cross_corr_epoch2 = len(np.where(epoch_2_cross_corr)[0])
+        if n_values_cross_corr_epoch1 >= n_values_cross_corr_epoch2:
+            emd_value = signature_emd_JD_RD(epoch_1_cross_corr, epoch_2_cross_corr)
+        elif n_values_cross_corr_epoch1 < n_values_cross_corr_epoch2:
+            emd_value = signature_emd_JD_RD(epoch_2_cross_corr, epoch_1_cross_corr)
+        # if print_specific_emd_value is True and epoch_1.id == 1 and epoch_2.id == 4 and neurons_pair == (0, 1):
+            # print(f"EMD value for neuron pair {neurons_pair} "
+            #       f"between epoch {epoch_1.id} and epoch {epoch_2.id} is {emd_value}")
+            # print(f"spike 1 is at {np.where(epoch_1_cross_corr)}, spike 2 is at {np.where(epoch_2_cross_corr)}")
+            # raise Exception("toto")
         return emd_value
 
 
@@ -307,6 +337,7 @@ def compute_spotdis_between_2_epochs(distance_metric, epoch_1, epoch_2):
                                                                        epoch_2=epoch_2, neurons_pair=neurons_pair)
         total_count += 1
         emd_sum += emd_value
+
     # computing the average
     if total_count > 0:
         spotdis_value = emd_sum / total_count
@@ -333,7 +364,7 @@ def SPOT_Dist_JD_RD(ms, data_to_use, len_epoch=100, use_raster=False, distance_m
 
     print(f"Data used to run homemade SPOT_Dist is {data_to_use}")
 
-    possible_distance_metrics = ["EMD_Battaglia", "Wasserstein_distance"]
+    possible_distance_metrics = ["EMD_Battaglia", "Wasserstein distance"]
     if distance_metric not in possible_distance_metrics:
         distance_metric = "EMD_Battaglia"
         raise Exception("This metric is not avalaible, keep going using Pearson correlation")
@@ -342,11 +373,13 @@ def SPOT_Dist_JD_RD(ms, data_to_use, len_epoch=100, use_raster=False, distance_m
         raise Exception("Distance metric was not specified, keep going using EMD_Battaglia")
 
     if data_to_use == "rasterdur":
-        spike_nums_dur = load_data_rasterdur(ms)
+        # spike_nums_dur = load_data_rasterdur(ms)  # automatic way
+        spike_nums_dur = ms  # manual way
         if use_raster is True:
             print(f"Using raster with onsets only - Cleaning rasterdur")
             spike_nums = build_spike_nums_and_peak_nums(spike_nums_dur)[0]
             data = spike_nums
+            id_onset = "onsets_only"
 
         elif use_raster is False:
             # to check the shape of the data
@@ -356,6 +389,7 @@ def SPOT_Dist_JD_RD(ms, data_to_use, len_epoch=100, use_raster=False, distance_m
             # number of neurons
             n_neurons = spike_nums_dur.shape[0]
             data = spike_nums_dur
+            id_onset = "rasterdur"
 
     if data_to_use == "traces":
         use_raster = False
@@ -408,25 +442,27 @@ def SPOT_Dist_JD_RD(ms, data_to_use, len_epoch=100, use_raster=False, distance_m
     # print(f"total_count is equal to zero for {len(spotdis_values==0)} spotdis values")
     print(f"Computation of all spotdis values is done")
 
-    # Generate figure: dissimilarity matrice
-    svm = sns.heatmap(spotdis_values)
-    fig = svm.get_figure()
-    save_formats = ["pdf", "png"]
-    if isinstance(save_formats, str):
-        save_formats = [save_formats]
+    # ###COMMENT OF THIS PART TO TEST MANUALLY###
+    # # Generate figure: dissimilarity matrice
+    # svm = sns.heatmap(spotdis_values)
+    # fig = svm.get_figure()
+    # save_formats = ["pdf", "png"]
+    # if isinstance(save_formats, str):
+    #     save_formats = [save_formats]
+    #
+    # for save_format in save_formats:
+    #     path_results = os.path.join(ms.param.path_results,
+    #                                 f"{ms.description}_homemade_SPOTDist_heatmap_{data_to_use}_{id_onset}_"
+    #                                 f"win_{len_epoch}.{save_format}")
+    #     fig.savefig(f'{path_results}'
+    #                 f'.{save_format}',
+    #                 format=f"{save_format}",
+    #                 facecolor=fig.get_facecolor())
+    #
+    # np.save(os.path.join(ms.param.path_results, f"{ms.description}_homemade_SPOTDist_values_{data_to_use}_"
+    #                                             f"{id_onset}_win_{len_epoch}.npy"), spotdis_values)
 
-    for save_format in save_formats:
-        path_results = os.path.join(ms.param.path_results,
-                                    f"{ms.description}_homemade_SPOTDist_heatmap_{data_to_use}_win_{len_epoch}.{save_format}")
-        fig.savefig(f'{path_results}'
-                    f'.{save_format}',
-                    format=f"{save_format}",
-                    facecolor=fig.get_facecolor())
-
-    np.save(os.path.join(ms.param.path_results, f"{ms.description}_homemade_SPOTDist_values_{data_to_use}_win_{len_epoch}.npy"),
-            spotdis_values)
-
-    return spotdis_value
+    return spotdis_values
 
 
 # SPOT_Dist_JD_RD(ms, "traces", len_epoch=100, use_raster=False, distance_metric="EMD_Battaglia")
