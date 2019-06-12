@@ -201,6 +201,7 @@ class ChooseSessionFrame(tk.Frame):
                                  "p16_18_11_01_a002_ms",
                                  "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
                                  "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+                                 "p21_19_04_10_a000_j3_ms",
                                  "p41_19_04_30_a000_ms",
                                  "richard_015_D74_P2_ms", "richard_028_D2_P1_ms",
                                  "p60_arnaud_ms", "p60_a529_2015_02_25_ms"]

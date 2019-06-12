@@ -3966,7 +3966,7 @@ def train_model():
         # ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms",
         #  "p12_171110_a000_ms",
         #  "p13_18_10_29_a001_ms", "artificial_ms_1"]
-        create_tiffs_for_data_generator(ms_to_use=["p21_19_04_10_a000_j3_ms"],
+        create_tiffs_for_data_generator(ms_to_use=["p21_19_04_10_a001_ms"],
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
     go_predict_from_movie = True
@@ -4004,8 +4004,9 @@ def train_model():
 
         # Julien
         # ms_for_rnn_benchmarks = ["p9_19_03_14_a001_ms"]
-        # ms_for_rnn_benchmarks = ["p10_19_02_21_a003_ms"]
-        # p10_19_02_21_a003_ms -> cell 314
+        # ms_for_rnn_benchmarks = ["p8_18_10_17_a000_ms"]
+        ms_for_rnn_benchmarks = ["p21_19_04_10_a001_ms"]
+        # p10_19_02_21_a003_ms -> cell 314, 315, 355,373, 660, 722, 824 not predicted
         """
           File "/home/julien/.local/lib/python3.6/site-packages/PIL/Image.py", line 2342, in _check_size
     raise ValueError("Width and height must be >= 0")
@@ -4048,13 +4049,23 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # cells_p9_19_03_14_a001_ms = np.setdiff1d(cells_p9_19_03_14_a001_ms, np.array([613, 677, 748]))
         # cells_to_predict["p9_19_03_14_a001_ms"] = cells_p9_19_03_14_a001_ms
 
+        # cells_p10_19_02_21_a003_ms = np.arange(826)
+        # cells_p10_19_02_21_a003_ms = np.setdiff1d(cells_p10_19_02_21_a003_ms, np.array([314, 315, 355,
+        #                                                                                 373, 660, 722, 824]))
+        # cells_to_predict["p10_19_02_21_a003_ms"] = cells_p10_19_02_21_a003_ms
+
+        # cells_p8_18_10_17_a000_ms = np.arange(643)
+        # cells_p8_18_10_17_a000_ms = np.setdiff1d(cells_p8_18_10_17_a000_ms, np.array([538]))
+        # cells_to_predict["p8_18_10_17_a000_ms"] = cells_p8_18_10_17_a000_ms
+
+
         # ms_for_rnn_benchmarks = ["p8_18_10_24_a006_ms"]
         # cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33])}
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0.5,
                                          use_data_augmentation=False, using_cnn_predictions=False,
                                          cells_to_predict=cells_to_predict, file_name_bonus_str="meso_v1_epoch_9",
-                                         tiffs_for_transient_classifier_path = path_for_tiffs)
+                                         tiffs_for_transient_classifier_path=path_for_tiffs)
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])

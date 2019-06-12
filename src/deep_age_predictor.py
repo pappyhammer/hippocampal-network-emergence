@@ -498,6 +498,8 @@ class ClassicRasterGenerator(RasterGenerator):
 def load_data_for_prediction(ms, window_len, overlap_value, predict_animal_weight,
                              n_augmentations_to_perform=0):
     raster = ms.spike_struct.spike_nums_dur
+    if raster is None:
+        print(f"{ms.description}: raster is None")
     n_frames = raster.shape[1]
     raster_data_list = []
     frames_step = int(np.ceil(window_len * (1 - overlap_value)))
@@ -1045,7 +1047,7 @@ def deep_age_predictor_main():
     predict_animal_weight = True
 
     go_predict_age = True
-    generate_guessing_age_game = True
+    generate_guessing_age_game = False
     if go_predict_age or generate_guessing_age_game:
         # ms_trained = ["p5_19_03_25_a000_ms", "p6_18_02_07_a001_ms", "p7_18_02_08_a000_ms", "p7_19_03_05_a000_ms",
         #              "p8_18_10_17_a001_ms", "p9_17_12_06_a001_ms", "p9_19_02_20_a001_ms", "p10_19_02_21_a002_ms",
@@ -1056,11 +1058,12 @@ def deep_age_predictor_main():
         ms_with_weights = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a001_ms",
                           "p6_18_02_07_a002_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
                           "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                          "p8_18_10_17_a001_ms", "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
-                          "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+                          "p8_18_10_17_a000_ms","p8_18_10_17_a001_ms", "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+
+                           "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
                           "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
                           "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms", "p10_17_11_16_a003_ms",
-                          "p10_19_02_21_a002_ms",  "p10_19_02_21_a005_ms",
+                          "p10_19_02_21_a002_ms", "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
                           "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms", "p11_17_11_24_a000_ms",
                           "p11_17_11_24_a001_ms", "p11_19_02_15_a000_ms", "p12_171110_a000_ms", "p12_17_11_10_a002_ms",
                           "p13_18_10_29_a000_ms",  "p14_18_10_23_a000_ms",
@@ -1068,7 +1071,7 @@ def deep_age_predictor_main():
                           "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms", "p21_19_04_10_a000_ms",
                           "p21_19_04_10_a001_ms", "p41_19_04_30_a000_ms"]
         # Less than 400 cells: "p13_18_10_29_a001_ms"
-        # fix prediction: "p8_18_10_17_a000_ms", "p10_19_02_21_a003_ms",
+        # fix prediction: ,
 
         ms_without_weights = ["p7_171012_a000_ms", "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
                               "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p13_19_03_11_a000_ms"]
