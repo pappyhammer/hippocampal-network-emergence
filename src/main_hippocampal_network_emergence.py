@@ -2229,9 +2229,11 @@ def compute_stat_about_seq_with_slope(files_path, param,
     :param cmap_name:
     :return:
     """
-    plot_slopes_by_ages = False
+    plot_slopes_by_ages = True
     plot_seq_contour_map = False
-    plot_seq_with_rep_by_age = True
+    plot_seq_with_rep_by_age = False
+    plot_synchronies_on_raster = False
+    plot_3_kinds_of_slopes = True
 
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     # + 11 diverting
@@ -2290,8 +2292,9 @@ def compute_stat_about_seq_with_slope(files_path, param,
         with open(files_path + file_name_original, "r", encoding='UTF-8') as file:
             for nb_line, line in enumerate(file):
                 if "best_order" in line:
-                    # line_list = line.split(':')
-                    # cells_order = np.array(map(int, (line_list[0].split())))
+                    line_list = line.split(':')
+                    cells_best_order = np.array(list(map(int, (line_list[1].split()))))
+                    seq_dict[age][ms_description]["cells_best_order"] = cells_best_order
                     continue
                 elif "shortest_paths" in line:
                     continue
@@ -2317,6 +2320,8 @@ def compute_stat_about_seq_with_slope(files_path, param,
         for ms_description, dict_cells_seq in dict_ms.items():
             n_sessions_dict[str(age)] = n_sessions_dict.get(str(age), 0) + 1
             for cells_seq, dict_slope in dict_cells_seq.items():
+                if cells_seq == "cells_best_order":
+                    continue
                 for slope, values in dict_slope.items():
                     if (min_slope is None) or (slope < min_slope):
                         min_slope = slope
@@ -2332,10 +2337,11 @@ def compute_stat_about_seq_with_slope(files_path, param,
                              y_label=f"Seq slopes",
                              colors=brewer_colors, with_scatters=True,
                              n_sessions_dict=n_sessions_dict,
-                             path_results=param.path_results, scatter_size=150,
+                             path_results=param.path_results, scatter_size=50,
+                             with_y_jitter=0.5,
                              param=param, save_formats=save_formats)
 
-    if plot_seq_contour_map:
+    if plot_synchronies_on_raster or plot_seq_contour_map or plot_3_kinds_of_slopes:
         ms_str_to_load = []
         for age, dict_ms in seq_dict.items():
             for ms_description in dict_ms.keys():
@@ -2345,12 +2351,160 @@ def compute_stat_about_seq_with_slope(files_path, param,
         ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                                 load_traces=False, load_abf=False)
 
+    if plot_synchronies_on_raster:
         for age, dict_ms in seq_dict.items():
             for ms_description, dict_cells_seq in dict_ms.items():
-                for cells_seq in dict_cells_seq.keys():
-                    if ms_description.lower() + "_ms" not in ms_str_to_ms_dict:
+                if ms_description.lower() + "_ms" not in ms_str_to_ms_dict:
+                    continue
+                # dict that takes for a key a tuple of int representing 2 cells, and as value a list of tuple of 2 float
+                # representing the 2 extremities of a line between those 2 cells
+                lines_to_display = dict()
+                cells_to_highlight = []
+                cells_to_highlight_colors = []
+                cells_added_for_span = []
+                range_around_slope_in_frames = 0
+                ms = ms_str_to_ms_dict[ms_description.lower() + "_ms"]
+                raster_dur = ms.spike_struct.spike_nums_dur
+                n_frames = raster_dur.shape[1]
+                n_cells = raster_dur.shape[0]
+                cells_best_order = dict_cells_seq["cells_best_order"]
+                # print(f"n_cells {n_cells}, len(cells_best_order) "
+                #       f"{len(seq_dict[age][ms_description]['cells_best_order'])}")
+                frames_to_remove = np.ones(n_frames, dtype="bool")
+                for cells_seq, dict_slope in dict_cells_seq.items():
+                    if cells_seq == "cells_best_order":
                         continue
-                    ms = ms_str_to_ms_dict[ms_description.lower() + "_ms"]
+                    # print(f"cells_seq {cells_seq}")
+                    # first_cell = np.where(cells_best_order == cells_seq[0])[0][0]
+                    # last_cell = np.where(cells_best_order == cells_seq[-1])[0][0]
+                    first_cell = cells_seq[0]
+                    last_cell = cells_seq[-1]
+                    cells_pair_tuple = (first_cell, last_cell)
+                    for slope, values_list in dict_slope.items():
+                        if slope == 0:
+                            for values in values_list:
+                                if cells_pair_tuple not in lines_to_display:
+                                    lines_to_display[cells_pair_tuple] = []
+                                first_cell_spike_time = values[0]
+                                last_cell_spike_time = values[1]
+                                range_around = values[2]
+                                range_around_slope_in_frames = range_around
+                                lines_to_display[cells_pair_tuple].append((first_cell_spike_time, last_cell_spike_time))
+                                frames_to_remove[max(0, first_cell_spike_time-range_around):
+                                                 min(n_frames, first_cell_spike_time+range_around+1)] = False
+                                if cells_pair_tuple not in cells_added_for_span:
+                                    cells_to_highlight.extend(list(range(cells_pair_tuple[0],
+                                                                              cells_pair_tuple[1])))
+                                    cells_to_highlight_colors.extend([brewer_colors[len(cells_added_for_span)
+                                                                                        % len(brewer_colors)]] *
+                                                                          (cells_pair_tuple[1] - cells_pair_tuple[0]))
+                                    cells_added_for_span.append(cells_pair_tuple)
+                raster_dur[:, frames_to_remove] = 0
+                plot_spikes_raster(spike_nums=raster_dur[np.array(cells_best_order)], param=param,
+                                   spike_train_format=False,
+                                   file_name=f"{ms.description}_raster_dur_ordered_with_synchronies",
+                                   y_ticks_labels=cells_best_order,
+                                   save_raster=True,
+                                   show_raster=False,
+                                   show_sum_spikes_as_percentage=True,
+                                   plot_with_amplitude=False,
+                                   # span_cells_to_highlight=span_cells_to_highlight,
+                                   # span_cells_to_highlight_colors=span_cells_to_highlight_colors,
+                                   # span_area_coords=span_area_coords,
+                                   # span_area_colors=span_area_colors,
+                                   span_area_only_on_raster=False,
+                                   spike_shape='|',
+                                   spike_shape_size=0.1,
+                                   lines_to_display=lines_to_display,
+                                   lines_color="white",
+                                   lines_width=0.2,
+                                   lines_band=range_around_slope_in_frames,
+                                   lines_band_color="white",
+                                   save_formats="pdf")
+
+    if plot_3_kinds_of_slopes:
+        for age, dict_ms in seq_dict.items():
+            for ms_description, dict_cells_seq in dict_ms.items():
+                if ms_description.lower() + "_ms" not in ms_str_to_ms_dict:
+                    continue
+
+                # cells_to_highlight = []
+                # cells_to_highlight_colors = []
+                # cells_added_for_span = []
+                ms = ms_str_to_ms_dict[ms_description.lower() + "_ms"]
+                raster_dur = ms.spike_struct.spike_nums_dur
+                n_frames = raster_dur.shape[1]
+                n_cells = raster_dur.shape[0]
+                cells_best_order = dict_cells_seq["cells_best_order"]
+                for cells_seq, dict_slope in dict_cells_seq.items():
+                    if cells_seq == "cells_best_order":
+                        continue
+                    range_around_slope_in_frames = 0
+                    # dict that takes for a key a tuple of int representing 2 cells,
+                    # and as value a list of tuple of 2 float
+                    # representing the 2 extremities of a line between those 2 cells
+                    lines_to_display = dict()
+                    first_cell = cells_seq[0]
+                    last_cell = cells_seq[-1]
+                    cells_pair_tuple = (0, len(cells_seq)-1)
+                    # number of negatives, synchrone and positive slopes
+                    slopes_count = np.zeros(3, dtype="uint16")
+                    for slope, values_list in dict_slope.items():
+                        if slope < -1:
+                            slopes_count[0] = slopes_count[0] + len(values_list)
+                        elif slope > 1:
+                            slopes_count[2] = slopes_count[2] + len(values_list)
+                        else:
+                            slopes_count[1] = slopes_count[1] + len(values_list)
+
+                        for values in values_list:
+                            if cells_pair_tuple not in lines_to_display:
+                                lines_to_display[cells_pair_tuple] = []
+                            first_cell_spike_time = values[0]
+                            last_cell_spike_time = values[1]
+                            range_around = values[2]
+                            range_around_slope_in_frames = range_around
+                            lines_to_display[cells_pair_tuple].append((first_cell_spike_time, last_cell_spike_time))
+                    # print(f"{ms.description} {first_cell}-{last_cell}: {slopes_count} {range_around_slope_in_frames}")
+                    if np.all([x >= 3 for x in slopes_count]):
+                        plot_spikes_raster(spike_nums=raster_dur[np.array(cells_best_order)][first_cell:last_cell+1],
+                                           param=param,
+                                           size_fig=(10, 2),
+                                           spike_train_format=False,
+                                           file_name=f"{ms.description}_raster_dur_{first_cell}-{last_cell}",
+                                           y_ticks_labels=cells_best_order[first_cell:last_cell+1],
+                                           save_raster=True,
+                                           show_raster=False,
+                                           show_sum_spikes_as_percentage=True,
+                                           without_activity_sum=True,
+                                           plot_with_amplitude=False,
+                                           # cells_to_highlight=cells_to_highlight,
+                                           # cells_to_highlight_colors=cells_to_highlight_colors,
+                                           # span_cells_to_highlight=span_cells_to_highlight,
+                                           # span_cells_to_highlight_colors=span_cells_to_highlight_colors,
+                                           # span_area_coords=span_area_coords,
+                                           # span_area_colors=span_area_colors,
+                                           span_area_only_on_raster=False,
+                                           y_ticks_labels_size=1,
+                                           spike_shape='|',
+                                           spike_shape_size=0.1,
+                                           cell_spikes_color="red",
+                                           lines_to_display=lines_to_display,
+                                           lines_color="white",
+                                           lines_width=0.2,
+                                           lines_band=range_around_slope_in_frames,
+                                           lines_band_color="white",
+                                           save_formats="pdf")
+
+    if plot_seq_contour_map:
+        for age, dict_ms in seq_dict.items():
+            for ms_description, dict_cells_seq in dict_ms.items():
+                if ms_description.lower() + "_ms" not in ms_str_to_ms_dict:
+                    continue
+                ms = ms_str_to_ms_dict[ms_description.lower() + "_ms"]
+                for cells_seq in dict_cells_seq.keys():
+                    if cells_seq == "cells_best_order":
+                        continue
                     color = (100 / 255, 215 / 255, 247 / 255, 1)  # #64D7F7"
                     # color = (213 / 255, 38 / 255, 215 / 255, 1)  # #D526D7
                     cells_groups_colors = [color]
@@ -2365,7 +2519,7 @@ def compute_stat_about_seq_with_slope(files_path, param,
                         if at_least_one_intersect:
                             break
 
-                    data_id =  ms.description + f" {'_'.join(map(str, cells_seq))}"
+                    data_id = ms.description + f" {'_'.join(map(str, cells_seq))}"
                     if at_least_one_intersect:
                         data_id = "intersect_" + data_id
 
@@ -2441,6 +2595,8 @@ def compute_stat_about_seq_with_slope(files_path, param,
                     data_dict[age_str] = dict()
                 for ms_description, dict_cells_seq in dict_ms.items():
                     for cells_seq, dict_slope in dict_cells_seq.items():
+                        if cells_seq == "cells_best_order":
+                            continue
                         for slope, values in dict_slope.items():
                             # values is a list of list, each list represents a rep
                             if slope in slopes_in_group:
@@ -2758,7 +2914,9 @@ def box_plot_data_by_age(data_dict, title, filename,
                          background_color="black",
                          link_medians=True,
                          color_link_medians="red",
-                         labels_color="white", save_formats="pdf"):
+                         labels_color="white",
+                         with_y_jitter=None,
+                         save_formats="pdf"):
     """
 
     :param data_dict:
@@ -2834,7 +2992,11 @@ def box_plot_data_by_age(data_dict, title, filename,
         for data_index, data in enumerate(data_list):
             # Adding jitter
             x_pos = [1 + data_index + ((np.random.random_sample() - 0.5) * 0.5) for x in np.arange(len(data))]
-            y_pos = data
+
+            if with_y_jitter is not None:
+                y_pos = [value + (((np.random.random_sample() - 0.5) * 2) * with_y_jitter) for value in data]
+            else:
+                y_pos = data
             font_size = 3
             colors_scatters = []
             if scatters_with_same_colors is not None:
@@ -4811,37 +4973,37 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p11_17_11_24_a000_ms"]
     ## all the ms separated in 5 groups
 
-    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-    #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-    #                   "p7_171012_a000_ms",
-    #                   "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-    #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-    #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-    #                   "p7_19_03_05_a000_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_171012_a000_ms",
+                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+                      "p7_19_03_05_a000_ms"]
 
-    # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-    #                   "p7_19_03_27_a002_ms",
-    #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-    #                    "p8_18_10_17_a000_ms",
-    #                   "p8_18_10_17_a001_ms"]
-    #
-    # ms_str_to_load = ["p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
-    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
-    #                   "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-    #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
-    #                   "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-    #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
-    #                   "p9_19_03_22_a001_ms"]
+    ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                      "p7_19_03_27_a002_ms",
+                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+                       "p8_18_10_17_a000_ms",
+                      "p8_18_10_17_a001_ms"]
 
-    # ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-    #                   "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
-    #                   "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
-    #                   "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
-    #                   "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
-    #                   "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
-    #                   "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
-    #                   "p13_19_03_11_a000_ms"]
-    #
+    ms_str_to_load = ["p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+                      "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
+                      "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
+                      "p9_19_03_22_a001_ms"]
+    # #
+    ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+                      "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
+                      "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+                      "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+                      "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+                      "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+                      "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
+                      "p13_19_03_11_a000_ms"]
+    # #
     ms_str_to_load = ["p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
                       "p16_18_11_01_a002_ms",
                       "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
@@ -4858,7 +5020,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
-    # ms_str_to_load = ["p7_19_03_27_a001_ms"]
+    ms_str_to_load = ["p13_18_10_29_a001_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
@@ -4956,9 +5118,9 @@ def main():
         # color_option="manual"
         return
 
-    just_compute_significant_seq_stat = False
-    if just_compute_significant_seq_stat:
-        compute_stat_about_seq_with_slope(files_path=f"{path_data}/seq_slope/v1_75/", param=param,
+    just_compute_significant_seq_with_slope_stat = False
+    if just_compute_significant_seq_with_slope_stat:
+        compute_stat_about_seq_with_slope(files_path=f"{path_data}/seq_slope/v3_50/", param=param,
                                            save_formats=["pdf"],
                                            color_option="manual", cmap_name="Reds")
         # use_cmap_gradient
@@ -5357,8 +5519,8 @@ def main():
             find_sequences_using_graph_main(ms.spike_struct.spike_nums_dur, param, min_time_bw_2_spikes=1,
                                             max_time_bw_2_spikes=10, max_connex_by_cell=5, min_nb_of_rep=3,
                                             debug_mode=False, descr=ms.description, ms=ms,
-                                            error_rate=0.6,
-                                            n_surrogates=50, raster_dur_version=True,
+                                            error_rate=0.7,
+                                            n_surrogates=150, raster_dur_version=True,
                                             span_area_coords=span_area_coords,
                                             span_area_colors=span_area_colors)
             if ms_index == len(ms_to_analyse) - 1:
