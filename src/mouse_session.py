@@ -3215,6 +3215,9 @@ class MouseSession:
                 frames_data = frames_data[first_frame_index:]
                 threshold_value = 0.02
                 if self.abf_sampling_rate < 50000:
+                    # frames_data represent the content of the abf channel that contains the frames
+                    # the index stat at the first frame recorded, meaning the first value where the
+                    # value is < 0.01
                     mask_frames_data = np.ones(len(frames_data), dtype="bool")
                     # we need to detect the frames manually, but first removing data between movies
                     selection = np.where(frames_data >= threshold_value)[0]
@@ -3224,7 +3227,7 @@ class MouseSession:
                     to_keep_for_removing = np.where(pos == 1)[0] + 1
                     mask_selection[to_keep_for_removing] = True
                     selection = selection[mask_selection]
-                    # print(f"len(selection) {len(selection)}")
+                    # we remove the "selection" from the frames data
                     mask_frames_data[selection] = False
                     frames_data = frames_data[mask_frames_data]
                     # len_frames_data_in_s = np.round(len(frames_data) / self.abf_sampling_rate, 3)
@@ -3281,8 +3284,11 @@ class MouseSession:
                 piezzo_shift = np.zeros(0)
                 for i in np.arange(0, 12500, 2500):
                     last_abf_frame = self.abf_frames[i + 2499]
-                    if (self.abf_frames[i + 2499] == len(mvt_data_without_abs)):
+                    # mvt_data_without_abs represents the piezzo values without taking the absolute value
+                    if self.abf_frames[i + 2499] == len(mvt_data_without_abs):
                         last_abf_frame -= 1
+                    # sampling_step is produce according to a down_sampling_hz that changes
+                    # according to the channel (lfp, piezzo etc...)
                     new_data = mvt_data_without_abs[np.arange(self.abf_frames[i],
                                                               last_abf_frame, sampling_step)]
                     piezzo_shift = np.concatenate((piezzo_shift, new_data,

@@ -31,7 +31,7 @@ from pattern_discovery.seq_solver.markov_way import save_on_file_seq_detection_r
 import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.tools.misc import get_time_correlation_data
 from pattern_discovery.tools.misc import get_continous_time_periods, give_unique_id_to_each_transient_of_raster_dur
-from pattern_discovery.display.raster import plot_spikes_raster
+from pattern_discovery.display.raster import plot_spikes_raster, plot_with_imshow
 from pattern_discovery.display.misc import time_correlation_graph
 import pattern_discovery.display.misc as display_misc
 from pattern_discovery.tools.sce_detection import get_sce_detection_threshold, detect_sce_with_sliding_window, \
@@ -66,6 +66,7 @@ import quantities as pq
 import elephant.cell_assembly_detection as cad
 from SPOTDist_homemade import SPOT_Dist_JD_RD
 from SPOTDist_Battaglia import SPOT_Dist_Battaglia
+from pattern_discovery.tools.signal import gaussblur1D
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -2229,7 +2230,7 @@ def compute_stat_about_seq_with_slope(files_path, param,
     :param cmap_name:
     :return:
     """
-    plot_slopes_by_ages = True
+    plot_slopes_by_ages = False
     plot_seq_contour_map = False
     plot_seq_with_rep_by_age = False
     plot_synchronies_on_raster = False
@@ -2347,9 +2348,9 @@ def compute_stat_about_seq_with_slope(files_path, param,
             for ms_description in dict_ms.keys():
                 ms_str_to_load.append(ms_description.lower() + "_ms")
             # break
-
+        load_traces = plot_3_kinds_of_slopes
         ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
-                                                load_traces=False, load_abf=False)
+                                                load_traces=load_traces, load_abf=False)
 
     if plot_synchronies_on_raster:
         for age, dict_ms in seq_dict.items():
@@ -2466,28 +2467,120 @@ def compute_stat_about_seq_with_slope(files_path, param,
                             range_around_slope_in_frames = range_around
                             lines_to_display[cells_pair_tuple].append((first_cell_spike_time, last_cell_spike_time))
                     # print(f"{ms.description} {first_cell}-{last_cell}: {slopes_count} {range_around_slope_in_frames}")
-                    if np.all([x >= 3 for x in slopes_count]):
+                    # if np.all([x >= 3 for x in slopes_count]):
+                    if slopes_count[2] > 3:
+                        # we want a subplots
+                        fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1,
+                                                gridspec_kw={'height_ratios': [0.4, 0.4, 0.2], 'width_ratios': [1]},
+                                                figsize=(10, 6))
+                        background_color = "black"
+                        labels_color = "white"
+                        ax1.set_facecolor(background_color)
+                        fig.patch.set_facecolor(background_color)
+
+                        # colors for movement periods
+                        span_area_coords = None
+                        span_area_colors = None
+                        with_mvt_periods = True
+                        if with_mvt_periods:
+                            colors = ["red", "green", "blue", "pink", "orange"]
+                            i = 0
+                            span_area_coords = []
+                            span_area_colors = []
+                            periods_dict = ms.shift_data_dict
+                            if periods_dict is not None:
+                                print(f"{ms.description}:")
+                                for name_period, period in periods_dict.items():
+                                    span_area_coords.append(get_continous_time_periods(period.astype("int8")))
+                                    span_area_colors.append(colors[i % len(colors)])
+                                    print(f"  Period {name_period} -> {colors[i]}")
+                                    i += 1
+                            else:
+                                print(f"no shift_data_dict for {ms.description}")
+
+                        # one subplot for raw traces
+                        raw_traces = ms.raw_traces
+                        for i in np.arange(len(raw_traces)):
+                            raw_traces[i] = (raw_traces[i] - np.mean(raw_traces[i]) / np.std(raw_traces[i]))
+                            raw_traces[i] = norm01(raw_traces[i]) * 5
+
+                        plot_spikes_raster(spike_nums=raster_dur[np.array(cells_best_order)][first_cell:last_cell+1],
+                                           param=ms.param,
+                                           display_spike_nums=False,
+                                           axes_list=[ax1],
+                                           traces=raw_traces[np.array(cells_best_order)][first_cell:last_cell+1],
+                                           display_traces=True,
+                                           use_brewer_colors_for_traces=True,
+                                           spike_train_format=False,
+                                           file_name=f"{ms.description}_traces_{first_cell}-{last_cell}",
+                                           y_ticks_labels=cells_best_order[first_cell:last_cell+1],
+                                           y_ticks_labels_size=2,
+                                           save_raster=False,
+                                           show_raster=False,
+                                           span_area_coords=span_area_coords,
+                                           span_area_colors=span_area_colors,
+                                           alpha_span_area=0.3,
+                                           plot_with_amplitude=False,
+                                           # raster_face_color="white",
+                                           hide_x_labels=True,
+                                           without_activity_sum=True,
+                                           show_sum_spikes_as_percentage=True,
+                                           span_area_only_on_raster=False,
+                                           spike_shape='*',
+                                           spike_shape_size=1,
+                                           lines_to_display=lines_to_display,
+                                           lines_color="white",
+                                           lines_width=0.35,
+                                           lines_band=range_around_slope_in_frames,
+                                           lines_band_color="white",
+                                           save_formats="pdf")
+                        traces_for_imshow = raw_traces[np.array(cells_best_order)][first_cell:last_cell+1]
+                        with_arnaud_normalization = True
+                        if with_arnaud_normalization:
+                            for i in np.arange(len(traces_for_imshow)):
+                                traces_for_imshow[i] = gaussblur1D(traces_for_imshow[i],
+                                                                   traces_for_imshow.shape[1] / 2, 0)
+                                traces_for_imshow[i, :] = norm01(traces_for_imshow[i, :])
+                                traces_for_imshow[i, :] = traces_for_imshow[i, :] - np.median(traces_for_imshow[i, :])
+
+                        plot_with_imshow(raster=traces_for_imshow,
+                                         n_subplots=1, axes_list=[ax2],
+                                         hide_x_labels=True, vmin=0,
+                                         y_ticks_labels_size=2,
+                                         y_ticks_labels=cells_best_order[first_cell:last_cell + 1],
+                                         vmax=1, fig=fig, show_color_bar=False,
+                                         values_to_plot=None, cmap="hot",
+                                         lines_to_display=lines_to_display,
+                                         lines_color="white",
+                                         lines_width=0.2,
+                                         lines_band=range_around_slope_in_frames,
+                                         lines_band_color="white",
+                                         lines_band_alpha=0.8
+                                         )
+
                         plot_spikes_raster(spike_nums=raster_dur[np.array(cells_best_order)][first_cell:last_cell+1],
                                            param=param,
                                            size_fig=(10, 2),
+                                           axes_list=[ax3],
                                            spike_train_format=False,
                                            file_name=f"{ms.description}_raster_dur_{first_cell}-{last_cell}",
                                            y_ticks_labels=cells_best_order[first_cell:last_cell+1],
-                                           save_raster=True,
+                                           save_raster=False,
                                            show_raster=False,
                                            show_sum_spikes_as_percentage=True,
                                            without_activity_sum=True,
                                            plot_with_amplitude=False,
+                                           span_area_coords=span_area_coords,
+                                           span_area_colors=span_area_colors,
+                                           alpha_span_area=0.5,
                                            # cells_to_highlight=cells_to_highlight,
                                            # cells_to_highlight_colors=cells_to_highlight_colors,
                                            # span_cells_to_highlight=span_cells_to_highlight,
                                            # span_cells_to_highlight_colors=span_cells_to_highlight_colors,
-                                           # span_area_coords=span_area_coords,
-                                           # span_area_colors=span_area_colors,
                                            span_area_only_on_raster=False,
-                                           y_ticks_labels_size=1,
-                                           spike_shape='|',
-                                           spike_shape_size=0.1,
+                                           y_ticks_labels_size=2,
+                                           spike_shape='o',
+                                           spike_shape_size=0.8,
                                            cell_spikes_color="red",
                                            lines_to_display=lines_to_display,
                                            lines_color="white",
@@ -2495,6 +2588,16 @@ def compute_stat_about_seq_with_slope(files_path, param,
                                            lines_band=range_around_slope_in_frames,
                                            lines_band_color="white",
                                            save_formats="pdf")
+                        file_name = f"{ms.description}_raster_dur_{first_cell}-{last_cell}"
+                        if isinstance(save_formats, str):
+                            save_formats = [save_formats]
+                        for save_format in save_formats:
+                            fig.savefig(f'{param.path_results}/{file_name}'
+                                        f'_{param.time_str}.{save_format}',
+                                        format=f"{save_format}",
+                                        facecolor=fig.get_facecolor())
+
+                        plt.close()
 
     if plot_seq_contour_map:
         for age, dict_ms in seq_dict.items():
@@ -4980,13 +5083,13 @@ def robin_loading_process(param, load_traces, load_abf=False):
                       "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
                       "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
                       "p7_19_03_05_a000_ms"]
-
+    #
     ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
                       "p7_19_03_27_a002_ms",
                       "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
                        "p8_18_10_17_a000_ms",
                       "p8_18_10_17_a001_ms"]
-
+    #
     ms_str_to_load = ["p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
                       "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
                       "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
@@ -4994,7 +5097,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
                       "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
                       "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
                       "p9_19_03_22_a001_ms"]
-    # #
+    # # #
     ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
                       "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
                       "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
@@ -5003,7 +5106,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
                       "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
                       "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
                       "p13_19_03_11_a000_ms"]
-    # #
+    # # #
     ms_str_to_load = ["p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
                       "p16_18_11_01_a002_ms",
                       "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
@@ -5020,7 +5123,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
-    ms_str_to_load = ["p13_18_10_29_a001_ms"]
+    # ms_str_to_load = ["p13_18_10_29_a001_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
@@ -5120,7 +5223,7 @@ def main():
 
     just_compute_significant_seq_with_slope_stat = False
     if just_compute_significant_seq_with_slope_stat:
-        compute_stat_about_seq_with_slope(files_path=f"{path_data}/seq_slope/v3_50/", param=param,
+        compute_stat_about_seq_with_slope(files_path=f"{path_data}/seq_slope/v3_70/", param=param,
                                            save_formats=["pdf"],
                                            color_option="manual", cmap_name="Reds")
         # use_cmap_gradient
@@ -5532,7 +5635,7 @@ def main():
         if just_do_battaglia_spot_dist:
             SPOT_Dist_Battaglia(ms, len_epoch=100, use_raster=False)
         if just_find_seq_with_pca:
-            find_seq_with_pca(ms.raw_traces, path_results=param.path_results,
+            find_seq_with_pca(ms, ms.raw_traces, path_results=param.path_results,
                               file_name=f"{ms.description}_seq_with_pca")
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_find_seq_with_pca")
