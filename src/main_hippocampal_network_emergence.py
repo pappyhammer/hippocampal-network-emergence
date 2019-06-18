@@ -64,8 +64,7 @@ import neo
 import elephant.conversion as elephant_conv
 import quantities as pq
 import elephant.cell_assembly_detection as cad
-from SPOTDist_homemade import SPOT_Dist_JD_RD
-from SPOTDist_Battaglia import SPOT_Dist_Battaglia
+from spot_dist import spotdist_function
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -4573,7 +4572,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
     # ms_str_to_load = ["p7_19_03_27_a001_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
-    # ms_str_to_load = ["p21_19_04_10_a000_ms"]
+    # ms_str_to_load = ["p12_171110_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
@@ -4613,12 +4612,12 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                    "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms", "p21_19_04_10_a000_ms",
     #                    "p21_19_04_10_a001_ms",
     #                    "p21_19_04_10_a000_j3_ms", "p41_19_04_30_a000_ms"]
-    # ms_str_to_load = z_shifts_ms
+    ms_str_to_load = "p6_18_02_07_a001_ms"
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
 
-    add_z_shifts_from_file(ms_str_to_ms_dict, param)
+    # add_z_shifts_from_file(ms_str_to_ms_dict, param)
 
     return ms_str_to_ms_dict
 
@@ -4710,7 +4709,7 @@ def main():
     do_plot_graph = False
     just_plot_cell_assemblies_clusters = False
     just_find_seq_with_pca = False
-    just_find_seq_using_graph = True
+    just_find_seq_using_graph = False
     just_test_elephant_cad = False
     just_plot_variance_according_to_sum_of_activity = False
 
@@ -4750,8 +4749,7 @@ def main():
     # ##########################################################################################
     # #################################### SPOT DIST ###########################################
     # ##########################################################################################
-    just_do_homemade_spot_dist = False
-    just_do_battaglia_spot_dist = False
+    do_spotdist = True
 
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
@@ -5066,11 +5064,8 @@ def main():
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_find_seq_using_graph")
             continue
-        if just_do_homemade_spot_dist:
-            # data_to_use="rasterdur" or "traces"
-            SPOT_Dist_JD_RD(ms, data_to_use="traces", len_epoch=100, use_raster=False, distance_metric="EMD_Battaglia")
-        if just_do_battaglia_spot_dist:
-            SPOT_Dist_Battaglia(ms, len_epoch=100, use_raster=False)
+        if do_spotdist:
+            spotdist_function(ms, param)
         if just_find_seq_with_pca:
             find_seq_with_pca(ms.raw_traces, path_results=param.path_results,
                               file_name=f"{ms.description}_seq_with_pca")

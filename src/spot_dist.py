@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 from SPOTDist_Battaglia import SPOT_Dist_Battaglia
 import seaborn as sns
 from SPOTDist_homemade import SPOT_Dist_JD_RD
-# from HDBSCAN_spotdist import clustering_on_spotdis_results
 import hdbscan
 from sklearn.manifold import TSNE as t_sne
 import pandas as pd
@@ -12,6 +11,55 @@ import os
 import datetime
 import time
 import matplotlib.cm as cm
+import hdf5storage
+
+
+def load_data_rasterdur(ms):
+    """
+    Used to load data. The code has to be manually change so far to change the data loaded.
+    :return: return a 2D binary array representing a raster. Axis 0 (lines) represents the neurons (cells) and axis 1
+    (columns) represent the frames (in our case sampling is approximatively 10Hz, so 100 ms by frame).
+    """
+    spike_nums_dur = ms.spike_struct.spike_nums_dur
+    # spike_nums_dur = spike_nums_dur[:50, :10000] # TO TEST CODE
+    return spike_nums_dur
+
+
+def load_data_raster(ms):
+    """
+    Used to load data. The code has to be manually change so far to change the data loaded.
+    :return: return a 2D binary array representing a raster. Axis 0 (lines) represents the neurons (cells) and axis 1
+    (columns) represent the frames (in our case sampling is approximatively 10Hz, so 100 ms by frame).
+    """
+    spike_nums = ms.spike_struct.spike_nums
+    # spike_nums_dur = spike_nums_dur[:50, :10000] # TO TEST CODE
+    return spike_nums
+
+
+def median_normalization(traces):
+    n_cells, n_frames = traces.shape
+    for i in range(n_cells):
+        traces[i, :] = traces[i, :] / np.median(traces[i, :])
+    return traces
+
+
+def load_data_traces(ms, use_median_norm=True):
+    """
+    Used to load data. The code has to be manually change so far to change the data loaded.
+    :return: return a 2D binary array representing a raster. Axis 0 (lines) represents the neurons (cells) and axis 1
+    (columns) represent the frames (in our case sampling is approximatively 10Hz, so 100 ms by frame).
+    """
+    if ms.raw_traces is None:
+        raw_traces_loaded = ms.load_raw_traces_from_npy(path=f"p{ms.age}/{ms.description.lower()}/")
+        if not raw_traces_loaded:
+            ms.load_tiff_movie_in_memory()
+            ms.raw_traces = ms.build_raw_traces_from_movie()
+    raw_traces = ms.raw_traces
+    traces = np.copy(raw_traces)
+    if use_median_norm is True:
+        median_normalization(traces)
+    # traces = traces[:100, :12500]  # TO TEST CODE
+    return traces
 
 
 def generate_poisson_pattern(n_cells, len_epoch, min_isi, max_isi, min_spikes_cell, max_spikes_cell):
@@ -33,39 +81,53 @@ def generate_poisson_pattern(n_cells, len_epoch, min_isi, max_isi, min_spikes_ce
     return pattern
 
 
-def main():
-    # CHOOSE METHOD TO USE AND FEW PARAMETERS #
-    method_homemade = False
-    method_battaglia = True
+def spotdist_function(ms, param):
+
+    ###################################################################################################################
+    # CHOOSE METHOD TO USE #
+    method_homemade = False  # The one to use if want to run on traces be careful with risk of memory error
+    method_battaglia = True  # Run faster for raster_dur / raster but EMD is not normalized
+
+    # DECIDE ON WHICH DATA TO WORK
+    data_to_use = "raster_dur"
+    possible_data_to_use = ["raster_dur", "raster", "traces", "artificial_raster"]
+    if data_to_use not in possible_data_to_use:
+        data_to_use = "raster_dur"
+        raise Exception("Can not run SpotDist on this data, by default use of raster_dur")
+
+    # If you want to work on artificial data
     random_pattern_order = True
     known_pattern_order = False  # This option is obsolete, do not use
     use_one_shuffle_per_pattern = True
     do_general_shuffling_on_full_raster = False
     fuse_raster_with_noise = True
-    work_on_artificial_data = False
 
+    # SET SAVING PATH
+    path_results = param.path_results
+    time_str = param.time_str
 
-    # START
-    if method_homemade:
-        path = "D:/Robin/data_hne/test_spot_dist_homemade/"
-    if method_battaglia:
-        path = "D:/Robin/data_hne/test_spot_dist_src/"
-    today = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    path_results = os.path.join(path, today)
-    os.mkdir(f"{path_results}")
+    ###################################################################################################################
 
-    if work_on_artificial_data is True:
+    ################################
+    # IF WORK ON ARTIFICIAL DATA   #
+    ################################
+    if data_to_use == "artificial_raster":
         # DEFINE RASTER #
         n_cells = 50
         len_epoch = 100
         if random_pattern_order:
-            n_frames = 30000
+            n_epochs = 100  # Put something that 4 can divide
+            n_frames = len_epoch * n_epochs
         if known_pattern_order:
-            n_frames = 1200
+            n_epochs = 12  # Do not change, only 12 epochs are generated
+            n_frames = len_epoch * n_epochs
 
         art_raster_dur = np.zeros((n_cells, n_frames), dtype="int8")
+        art_raster_dur_noise = np.zeros((n_cells, n_frames), dtype="int8")
+        rand_art_raster_dur = np.zeros((n_cells, n_frames), dtype="int8")
         art_raster_dur_pattern_shuffle = np.zeros((n_cells, n_frames), dtype="int8")
         noise_matrix = np.zeros((n_cells, n_frames), dtype="int8")
+        rand_art_raster_dur_noise = np.zeros((n_cells, n_frames), dtype="int8")
 
         n_epochs = n_frames // len_epoch
         print(f"Epoch length is {len_epoch} frames, total number of epochs is {n_epochs}")
@@ -79,8 +141,7 @@ def main():
 
         # create pattern#1 = sequence in order
         pattern1 = np.zeros((n_cells, len_epoch))
-        pattern1[0, 0] = 1
-        for i in np.arange(0, n_cells):
+        for i in range(n_cells):
             pattern1[i, i] = 1
             pattern1[i, i+50] = 1
         # create pattern#1 shuffle = sequence in a shuffle order
@@ -153,14 +214,12 @@ def main():
             # CREATE ARTIFICIAL RASTER COMBINATION OF THESE ASSEMBLIES SEQUENCES PLUS NOISE
             # Half of the epochs are noise pattern, the other half if equally divided in patterns
             n_patterns = 2
-            n_epochs_noise = n_epochs / 2
-            n_epochs_noise = int(n_epochs_noise)
+            n_epochs_noise = n_epochs // 2
             n_epochs_pattern = n_epochs - n_epochs_noise
-            n_epochs_pattern = int(n_epochs_pattern)
-            n_epochs_pattern1 = n_epochs_pattern / n_patterns
-            n_epochs_pattern1 = int(n_epochs_pattern1)
-            n_epochs_pattern2 = n_epochs_pattern / n_patterns
-            n_epochs_pattern2 = int(n_epochs_pattern2)
+            # n_epochs_pattern = int(n_epochs_pattern)
+            n_epochs_pattern1 = n_epochs_pattern // n_patterns
+            n_epochs_pattern2 = n_epochs_pattern // n_patterns
+
             pattern_id = np.zeros(n_epochs)
             pattern_id[0:n_epochs_noise] = 0
             pattern_id[n_epochs_noise:(n_epochs_noise + n_epochs_pattern1)] = 1
@@ -170,20 +229,13 @@ def main():
             for i in range(n_epochs):
                 if pattern_id[i] == 0:
                     art_raster_dur[:, np.arange((i*len_epoch), (i*len_epoch)+len_epoch)] = generate_poisson_pattern(n_cells, len_epoch, 10, 50, 1, 2)
+                    art_raster_dur_pattern_shuffle[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = generate_poisson_pattern(n_cells, len_epoch, 10, 50, 1, 2)
                 if pattern_id[i] == 1:
                     art_raster_dur[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = pattern3
+                    art_raster_dur_pattern_shuffle[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = pattern3_shuffle
                 if pattern_id[i] == 2:
                     art_raster_dur[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = pattern4
-
-            if use_one_shuffle_per_pattern is True:
-                art_raster_dur_pattern_shuffle = np.zeros((n_cells, n_frames))
-                for i in range(n_epochs):
-                    if pattern_id[i] == 0:
-                        art_raster_dur_pattern_shuffle[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = generate_poisson_pattern(n_cells, len_epoch, 10, 50, 1, 2)
-                    if pattern_id[i] == 1:
-                        art_raster_dur_pattern_shuffle[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = pattern3_shuffle
-                    if pattern_id[i] == 2:
-                        art_raster_dur_pattern_shuffle[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = pattern4_shuffle
+                    art_raster_dur_pattern_shuffle[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = pattern4_shuffle
 
         if use_one_shuffle_per_pattern is False:
             rand_art_raster_dur = np.copy(art_raster_dur)
@@ -220,6 +272,7 @@ def main():
             rand_art_raster_dur_noise[np.where(noise_matrix == 1)] = 1
             rand_art_raster_dur = rand_art_raster_dur_noise
 
+        data = rand_art_raster_dur
 
         # PLOT ALL THESE RASTER #
         # noise-only pattern
@@ -288,24 +341,53 @@ def main():
                            path_results=path_results,
                            save_formats=["pdf", "png"])
 
-    if work_on_artificial_data is False:
-        #####################
-        # WORK ON REAL DATA #
-        #####################
-        data_path = "D:/Robin/data_hne/data/p41/p41_19_04_30_a000/predictions/" \
-                    "P41_19_04_30_a000_filtered_predicted_raster_dur_meso_v1_epoch_9.npy"
+    #################################
+    # WORK ON REAL DATA: RASTER_DUR #
+    #################################
+    if data_to_use == "raster_dur":
+        print(f"Loading raster_dur")
+        spike_nums_dur = load_data_rasterdur(ms)  # automatic way
+        # spike_nums_dur = spike_nums_dur[:20, :2500]  # TO TEST THE CODE
+        n_cells, n_frames = spike_nums_dur.shape
+        print(f"spike_nums_dur has {n_cells} cells and {n_frames} frames")
+        data = spike_nums_dur
 
-        rand_art_raster_dur = np.load(data_path)
-        len_epoch = 250
+    #############################
+    # WORK ON REAL DATA: RASTER #
+    #############################
+    if data_to_use == "raster":
+        print(f"Loading raster")
+        spike_nums = load_data_raster(ms)  # automatic way
+        # spike_nums = spike_nums[:20, :2500]  # TO TEST THE CODE
+        n_cells, n_frames = spike_nums.shape
+        print(f"spike_nums has {n_cells} cells and {n_frames} frames")
+        data = spike_nums
+
+    #############################
+    # WORK ON REAL DATA: TRACES #
+    #############################
+    if data_to_use == "traces":
+        print(f"Loading traces")
+        traces = load_data_traces(ms)  # automatic way
+        # traces = spike_nums[:20, :2500]  # TO TEST THE CODE
+        n_cells, n_frames = traces.shape
+        print(f"traces has {n_cells} cells and {n_frames} frames")
+        data = traces
 
     #####################
-    ##COMPUTE DISTANCES##
+    # COMPUTE DISTANCES #
     #####################
+    len_epoch = 250
+    n_epochs = n_frames // len_epoch
+    # to make things easy for now, the number of frames should be divisible by the length of epochs
+    if (n_frames % len_epoch) != 0:
+        raise Exception("number of frames {n_frames} not divisible by {len_epoch}")
     if method_battaglia:
-        distances = SPOT_Dist_Battaglia(rand_art_raster_dur, len_epoch=100, use_raster=False)[0]
+        method = "battaglia"
+        distances = SPOT_Dist_Battaglia(data, len_epoch=250)[0]
     if method_homemade:
-        distances = SPOT_Dist_JD_RD(rand_art_raster_dur, data_to_use="rasterdur", len_epoch=100, use_raster=False,
-                                    distance_metric="EMD_Battaglia")
+        method = "homemade"
+        distances = SPOT_Dist_JD_RD(data, len_epoch=250, distance_metric="EMD_Battaglia")
 
     # Plot Distance matrix
     # ax = sns.heatmap(distances, annot=True)
@@ -317,17 +399,18 @@ def main():
         save_formats = [save_formats]
 
     for save_format in save_formats:
-        path_results = path_results
-        fig.savefig(f'{path_results}/distances_matrix'
+        fig.savefig(f'{path_results}/{ms.description}_distances_matrix_{method}_SPOTDist_on_{data_to_use}_with_{len_epoch}_frame_epochs'
                     f'.{save_format}',
                     format=f"{save_format}",
                     facecolor=fig.get_facecolor())
     plt.close()
 
-
     ##################
     ### CLUSTERING ###
     ##################
+
+    # HDBSCAN is supposed to be be blind to Inf value, replace missing values by np.Inf for clustering
+    distances[np.where(np.isnan(distances))] = np.Inf
 
     # DO HDBSCAN ON DISTANCES MATRIX - CONSIDER PRECOMPUTED DISTANCES
     clusterer = hdbscan.HDBSCAN(algorithm='best', alpha=1.0, approx_min_span_tree=True,
@@ -356,7 +439,9 @@ def main():
     distances_order = distances_order[:, labels_indices_sorted]
 
     # Generate figure: dissimilarity matrice ordered by cluster
-    # svm = sns.heatmap(distances_order, annot=True)
+    # Replace Inf values by NaN for better visualization
+    distances_order[np.where(np.isinf(distances_order))] = np.nan
+    # svm = sns.heatmap(distances_order, annot=True)  # if you want the value
     svm = sns.heatmap(distances_order)
     svm.set_yticklabels(labels_indices_sorted)
     svm.set_xticklabels(labels_indices_sorted)
@@ -379,110 +464,132 @@ def main():
     for i in range(n_epochs):
         coords.append([[i*len_epoch, i*len_epoch + len_epoch]])
         color.append(cm.nipy_spectral(float(labels[i] + 2) / (len(np.unique(labels)) +2)))
+    if data_to_use == "artificial_raster":
+        plot_spikes_raster(spike_nums=art_raster_dur_noise, param=None,
+                           file_name=f"raster_with_patterns_colored",
+                           # y_ticks_labels=np.arange(n_cells),
+                           # y_ticks_labels_size=2,
+                           save_raster=True,
+                           show_raster=False,
+                           without_activity_sum=True,
+                           span_area_coords=coords,
+                           span_area_colors=color,
+                           path_results=path_results,
+                           save_formats=["pdf", "png"])
+    if data_to_use == "raster_dur" or data_to_use == "raster":
+        plot_spikes_raster(spike_nums=data, param=None,
+                           file_name=f"raster_with_patterns_colored",
+                           # y_ticks_labels=np.arange(n_cells),
+                           # y_ticks_labels_size=2,
+                           save_raster=True,
+                           show_raster=False,
+                           without_activity_sum=True,
+                           span_area_coords=coords,
+                           span_area_colors=color,
+                           path_results=path_results,
+                           save_formats=["pdf", "png"])
 
-    # Plot spikes raster with color bands on detected patterns
-    plot_spikes_raster(spike_nums=rand_art_raster_dur, param=None,
-                       file_name=f"raster_with_patterns_colored",
-                       # y_ticks_labels=np.arange(n_cells),
-                       # y_ticks_labels_size=2,
-                       save_raster=True,
-                       show_raster=False,
-                       without_activity_sum=True,
-                       span_area_coords=coords,
-                       span_area_colors=color,
-                       path_results=path_results,
-                       save_formats=["pdf", "png"])
 
-    ## DO T-SNE CLUSTERING ON DISTANCES VALUES - CONSIDER EUCLIDEAN DISTANCES ##
+    # IF NO NaN DO T-SNE CLUSTERING ON DISTANCES VALUES - EUCLIDEAN DISTANCES # todo: find a way to do t-SNE anyway
+    missing_values = np.isnan(distances)
+    inf_values = np.isinf(distances)
 
-    tsne = t_sne(n_components=2, verbose=1, perplexity=40, n_iter=300)
-    tsne_results = tsne.fit_transform(distances)
+    if (not np.any(missing_values)) and (not np.any(inf_values)):
+        do_tsne_clustering = True
+        print(f" do tsne clustering is {do_tsne_clustering}")
+    elif bool(np.any(missing_values)) or bool(np.any(inf_values)):
+        do_tsne_clustering = False
+        print(f" do tsne clustering is {do_tsne_clustering}")
 
-    # first figure: plot t-sne without color
-    df_subset = pd.DataFrame()
-    df_subset['tsne-2d-one'] = tsne_results[:, 0]
-    df_subset['tsne-2d-two'] = tsne_results[:, 1]
-    df_subset['color'] = labels
-    plt.figure(figsize=(16, 10))
-    svm = sns.scatterplot(
-        x="tsne-2d-one", y="tsne-2d-two",
-        data=df_subset,
-        legend="full",
-        alpha=1
-    )
-    fig = svm.get_figure()
+    if do_tsne_clustering is True:
+        tsne = t_sne(n_components=2, verbose=1, perplexity=40, n_iter=300)
+        tsne_results = tsne.fit_transform(distances)
 
-    path_results = path_results
-    for save_format in save_formats:
-        fig.savefig(f'{path_results}/tsne_cluster'
-                    f'.{save_format}',
-                    format=f"{save_format}",
-                    facecolor=fig.get_facecolor())
-    plt.close()
+        # first figure: plot t-sne without color
+        df_subset = pd.DataFrame()
+        df_subset['tsne-2d-one'] = tsne_results[:, 0]
+        df_subset['tsne-2d-two'] = tsne_results[:, 1]
+        df_subset['color'] = labels
+        plt.figure(figsize=(16, 10))
+        svm = sns.scatterplot(
+            x="tsne-2d-one", y="tsne-2d-two",
+            data=df_subset,
+            legend="full",
+            alpha=1
+        )
+        fig = svm.get_figure()
 
-    # second figure: plot t-sne with color from previous hdbscan result
-    df_subset = pd.DataFrame()
-    df_subset['tsne-2d-one'] = tsne_results[:, 0]
-    df_subset['tsne-2d-two'] = tsne_results[:, 1]
-    df_subset['color'] = labels
+        path_results = path_results
+        for save_format in save_formats:
+            fig.savefig(f'{path_results}/tsne_cluster'
+                        f'.{save_format}',
+                        format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
+        plt.close()
 
-    plt.figure(figsize=(16, 10))
-    svm = sns.scatterplot(
-        x="tsne-2d-one", y="tsne-2d-two",
-        hue="color",
-        palette=sns.color_palette("hls", len(np.unique(labels))),
-        data=df_subset,
-        legend="full",
-        alpha=1
-    )
-    fig = svm.get_figure()
+        # second figure: plot t-sne with color from previous hdbscan result
+        df_subset = pd.DataFrame()
+        df_subset['tsne-2d-one'] = tsne_results[:, 0]
+        df_subset['tsne-2d-two'] = tsne_results[:, 1]
+        df_subset['color'] = labels
 
-    path_results = path_results
-    for save_format in save_formats:
-        fig.savefig(f'{path_results}/tsne_colors_from_previous_hdbscan_clustering'
-                    f'.{save_format}',
-                    format=f"{save_format}",
-                    facecolor=fig.get_facecolor())
-    plt.close()
+        plt.figure(figsize=(16, 10))
+        svm = sns.scatterplot(
+            x="tsne-2d-one", y="tsne-2d-two",
+            hue="color",
+            palette=sns.color_palette("hls", len(np.unique(labels))),
+            data=df_subset,
+            legend="full",
+            alpha=1
+        )
+        fig = svm.get_figure()
 
-    # DO CLUSTERING ON T-SNE RESULTS TO COLOR THE T-SNE FIGURE ##
+        path_results = path_results
+        for save_format in save_formats:
+            fig.savefig(f'{path_results}/tsne_colors_from_previous_hdbscan_clustering'
+                        f'.{save_format}',
+                        format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
+        plt.close()
 
-    clusterer = hdbscan.HDBSCAN(algorithm='best', alpha=1.0, approx_min_span_tree=True,
-                                gen_min_span_tree=False, leaf_size=40,
-                                metric='euclidean', min_cluster_size=3, min_samples=None, p=None)
-    clusterer.fit(tsne_results)
-    labels_hdbscan_on_tsne = clusterer.labels_
-    print(f"N clusters hdbscan on t-sne results: {labels_hdbscan_on_tsne.max()+1}")
-    # print(f"labels: {labels_hdbscan_on_tsne}")
+        # DO CLUSTERING ON T-SNE RESULTS TO COLOR THE T-SNE FIGURE ##
 
-    df_subset = pd.DataFrame()
-    df_subset['tsne-2d-one'] = tsne_results[:, 0]
-    df_subset['tsne-2d-two'] = tsne_results[:, 1]
-    df_subset['color'] = labels_hdbscan_on_tsne
+        clusterer = hdbscan.HDBSCAN(algorithm='best', alpha=1.0, approx_min_span_tree=True,
+                                    gen_min_span_tree=False, leaf_size=40,
+                                    metric='euclidean', min_cluster_size=3, min_samples=None, p=None)
+        clusterer.fit(tsne_results)
+        labels_hdbscan_on_tsne = clusterer.labels_
+        print(f"N clusters hdbscan on t-sne results: {labels_hdbscan_on_tsne.max()+1}")
+        # print(f"labels: {labels_hdbscan_on_tsne}")
 
-    plt.figure(figsize=(16, 10))
-    svm = sns.scatterplot(
-        x="tsne-2d-one", y="tsne-2d-two",
-        hue="color",
-        palette=sns.color_palette("hls", len(np.unique(labels_hdbscan_on_tsne))),
-        data=df_subset,
-        legend="full",
-        alpha=1
-    )
-    # plt.show()
-    fig = svm.get_figure()
+        df_subset = pd.DataFrame()
+        df_subset['tsne-2d-one'] = tsne_results[:, 0]
+        df_subset['tsne-2d-two'] = tsne_results[:, 1]
+        df_subset['color'] = labels_hdbscan_on_tsne
 
-    path_results = path_results
-    for save_format in save_formats:
-        fig.savefig(f'{path_results}/tsne_colors_from_post_tsne_clustering'
-                    f'.{save_format}',
-                    format=f"{save_format}",
-                    facecolor=fig.get_facecolor())
-    plt.close()
+        plt.figure(figsize=(16, 10))
+        svm = sns.scatterplot(
+            x="tsne-2d-one", y="tsne-2d-two",
+            hue="color",
+            palette=sns.color_palette("hls", len(np.unique(labels_hdbscan_on_tsne))),
+            data=df_subset,
+            legend="full",
+            alpha=1
+        )
+        # plt.show()
+        fig = svm.get_figure()
 
-    # ##############################################
-    # ####### RETRIEVE GOOD ORDER OF RASTER ########
-    # ##############################################
+        path_results = path_results
+        for save_format in save_formats:
+            fig.savefig(f'{path_results}/tsne_colors_from_post_tsne_clustering'
+                        f'.{save_format}',
+                        format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
+        plt.close()
+
+    ###############################################
+    ######## RETRIEVE GOOD ORDER OF RASTER ########
+    ###############################################
 
     # Get the number of "true clusters" epochs with label = -1 are not in cluster
     if labels.max() + 1 > 0:
@@ -510,7 +617,7 @@ def main():
             start_epoch = epochs_in_cluster_i[j] * len_epoch
             end_epoch = epochs_in_cluster_i[j] * len_epoch + len_epoch
             # print(f" Epoch {j} of cluster {i} starts at {start_epoch} ends at {end_epoch}")
-            raster_cluster_i = raster_cluster_i + rand_art_raster_dur[:, start_epoch:end_epoch]
+            raster_cluster_i = raster_cluster_i + data[:, start_epoch:end_epoch]
         raster_cluster_i = np.true_divide(raster_cluster_i, n_epoch_in_cluster_i)
         patterns_raster[:, :, i] = raster_cluster_i
 
@@ -547,15 +654,7 @@ def main():
                            save_formats=["pdf", "png"])
 
 
-
-
-
-
-
-
-
-
-main()
+# spotdist_function(ms, param)
 
 
 

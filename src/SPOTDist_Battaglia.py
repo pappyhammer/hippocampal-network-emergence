@@ -169,49 +169,15 @@ def xcorr_spotdis_cpu_(spike_times, ii_spike_times, epoch_index_pairs):
 
     return distances, percent_nan
 
-def load_data(ms):
-    """
-       Used to load data. The code has to be manually change so far to change the data loaded.
-       :return: return a 2D binary array representing a raster. Axis 0 (lines) represents the neurons (cells) and axis 1
-       (columns) represent the frames (in our case sampling is approximatively 10Hz, so 100 ms by frame).
-       """
-    spike_nums_dur = ms.spike_struct.spike_nums_dur
-    # spike_nums_dur = spike_nums_dur[:50, :10000] # TO TEST CODE
-    return spike_nums_dur
 
-
-def build_spike_nums_and_peak_nums(spike_nums_dur):
-    n_cells, n_frames = spike_nums_dur.shape
-    spike_nums = np.zeros((n_cells, n_frames), dtype="int8")
-    peak_nums = np.zeros((n_cells, n_frames), dtype="int8")
-    for cell in np.arange(n_cells):
-        transient_periods = get_continous_time_periods(spike_nums_dur[cell])
-        for transient_period in transient_periods:
-            onset = transient_period[0]
-            peak = transient_period[1]
-            # if onset == peak:
-            #     print("onset == peak")
-            spike_nums[cell, onset] = 1
-            peak_nums[cell, peak] = 1
-    return spike_nums, peak_nums
-
-
-def SPOT_Dist_Battaglia(ms, len_epoch=100, use_raster=False):
-    # spike_nums_dur = load_data(ms)  # automatic in all sessions
-    spike_nums_dur = ms  # manual loading of data
-
-    if use_raster is False:
-        spike_times_matrix = spike_nums_dur
-        print(f"Data used to run Battaglia SPOTDist is spike_nums_dur")
-    if use_raster is True:
-        spike_times_matrix = build_spike_nums_and_peak_nums(spike_nums_dur)[0]
-        print(f"Data used to run Battaglia SPOTDist is spike_nums")
-
+def SPOT_Dist_Battaglia(data, len_epoch=100):
+    spike_times_matrix = data
     n_cells, n_frames = spike_times_matrix.shape
-    print(f"spike_times matrix shape is {spike_times_matrix.shape}")
+    # print(f"spike_times matrix shape is {spike_times_matrix.shape}")
 
     # then computing the number of epoch in our raster
     n_epochs = n_frames // len_epoch
+    print(f"Epoch lenght is {len_epoch} frames, total number of epochs is {n_epochs}")
     # to make things easy for now, the number of frames should be divisible by the length of epochs
     if (n_frames % len_epoch) != 0:
         raise Exception("number of frames {n_frames} not divisible by {len_epoch}")
@@ -223,7 +189,6 @@ def SPOT_Dist_Battaglia(ms, len_epoch=100, use_raster=False):
     spike_times = np.zeros(n_tot_spikes)
     ii_spike_times = np.zeros((n_epochs, n_cells, 2), dtype="int16")
 
-    # TODO : carefully check data reshaping before using this code
     print(f"Start reshaping the data")
     k = 0
     for i in range(n_cells):
@@ -258,31 +223,10 @@ def SPOT_Dist_Battaglia(ms, len_epoch=100, use_raster=False):
     distances = xcorr_spotdis_cpu_(spike_times, ii_spike_times, epoch_index_pairs)[0]
 
     np.fill_diagonal(distances, 0)
-    # distances[np.where(np.isnan(distances))] = - 1
 
     percent_nan = xcorr_spotdis_cpu_(spike_times, ii_spike_times, epoch_index_pairs)[1]
 
     print(f"percent of NaN is {percent_nan}")
-    # COMMENT TO USE IN MANUAL VERSION
-    # ax = sns.heatmap(distances)
-    # fig = ax.get_figure()
-    # save_formats = ["pdf", "png"]
-    # if isinstance(save_formats, str):
-    #     save_formats = [save_formats]
-    #
-    # for save_format in save_formats:
-    #     path_results = os.path.join(ms.param.path_results,
-    #                                 f"{ms.description}_Battaglia_SPOTDist_heatmap_win_{len_epoch}.{save_format}")
-    #     fig.savefig(f'{path_results}'
-    #                 f'.{save_format}',
-    #                 format=f"{save_format}",
-    #                 facecolor=fig.get_facecolor())
-    #
-    # np.save(os.path.join(ms.param.path_results, f"{ms.description}_Battaglia_SPOTDist_values_win_{len_epoch}.npy"),
-    #         distances)
-    #
-    # np.save(os.path.join(ms.param.path_results, f"{ms.description}_Battaglia_SPOTDist_values_win_{len_epoch}.npy"),
-    #         percent_nan)
 
     return distances, percent_nan
 
