@@ -1196,6 +1196,90 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
                          param=param, save_formats=save_formats)
 
 
+def cluster_using_grid(ms, param):
+    if ms.tiff_movie is None:
+        ms.load_tiff_movie_in_memory()
+
+    # in pixels
+    square_size = 160
+    if ms.tiff_movie.shape[1] < square_size or  ms.tiff_movie.shape[2] < square_size :
+        print(f"{ms.description} movie shape is too small {ms.tiff_movie.shape}")
+        return
+    tiff_movie = np.copy(ms.tiff_movie)
+    n_frames = tiff_movie.shape[0]
+    n_lines = 32
+    if square_size % n_lines != 0:
+        print(f"{square_size} should be divisible by {n_lines}")
+    box_size = square_size // n_lines
+    n_grids = n_lines * n_lines
+    grid_traces = np.zeros((n_lines, n_lines, n_frames))
+    remove_cells = True
+    # create option to remove cells from the movie
+    # before building grid traces
+    # putting to np.nan all pixels of a cell
+    if remove_cells:
+        mask_movie = np.zeros((tiff_movie.shape[1], tiff_movie.shape[2]), dtype="bool")
+        for cell in np.arange(ms.coord_obj.n_cells):
+            cell_mask = ms.coord_obj.get_cell_mask(cell, (square_size, square_size))
+            mask_movie[cell_mask] = True
+            tiff_movie[mask_movie] = np.nan
+    # traces = np.zeros((n_frames, n_lines*n_lines))
+    for x_box in np.arange(n_lines):
+        for y_box in np.arange(n_lines):
+            mask = np.zeros((tiff_movie.shape[1], tiff_movie.shape[2]), dtype="bool")
+            mask[y_box*box_size:(y_box+1)*box_size, x_box*box_size:(x_box+1)*box_size] = True
+            grid_traces[y_box, x_box, :] = np.nanmean(tiff_movie[:, mask], axis=1)
+            # print(f"{y_box} {x_box} np.sum(grid) {np.sum(grid_traces[y_box, x_box])}")
+            # normalizing the trace
+            # grid_traces[y_box, x_box] = (grid_traces[y_box, x_box] - np.mean(grid_traces[y_box, x_box])) / \
+            #                             np.std(grid_traces[y_box, x_box])
+
+    traces = np.reshape(grid_traces, (n_lines*n_lines, n_frames))
+    print(f"traces.shape {traces.shape}")
+
+    cellsinpeak, sce_loc = detect_sce_on_traces(traces, use_speed=False,
+                                                speed_threshold=None, sce_n_cells_threshold=5,
+                                                sce_min_distance=4, use_median_norm=True,
+                                                use_bleaching_correction=False,
+                                                use_savitzky_golay_filt=True)
+    sce_times_bool = np.zeros(n_frames, dtype="bool")
+    sce_times_bool[sce_loc] = True
+    SCE_times = get_continous_time_periods(sce_times_bool)
+    sce_times_numbers = np.ones(n_frames, dtype="int16")
+    sce_times_numbers *= -1
+    for period_index, period in enumerate(SCE_times):
+        # if period[0] == period[1]:
+        #     print("both periods are equals")
+        sce_times_numbers[period[0]:period[1] + 1] = period_index
+    ms.sce_bool = sce_times_bool
+    ms.sce_times_numbers = sce_times_numbers
+    ms.SCE_times = SCE_times
+
+    try_hdbscan(cells_in_sce=cellsinpeak, param=param, use_co_var=False,
+                data_descr=f"{ms.description}_covar_grid_on_traces")
+
+    # compute_and_plot_clusters_raster_kmean_version(labels=np.arange(n_grids),
+    #                                                activity_threshold=None,
+    #                                                range_n_clusters_k_mean=np.arange(3, 5),
+    #                                                n_surrogate_k_mean=20,
+    #                                                with_shuffling=False,
+    #                                                spike_nums_to_use=None,
+    #                                                cellsinpeak=cellsinpeak,
+    #                                                data_descr=f"{ms.description}_k_mean_on_traces_grid",
+    #                                                param=param,
+    #                                                sliding_window_duration=1,
+    #                                                SCE_times=SCE_times,
+    #                                                sce_times_numbers=sce_times_numbers,
+    #                                                sce_times_bool=sce_times_bool,
+    #                                                perc_threshold=95,
+    #                                                n_surrogate_activity_threshold=
+    #                                                100,
+    #                                                debug_mode=True,
+    #                                                fct_to_keep_best_silhouettes=np.median,
+    #                                                with_cells_in_cluster_seq_sorted=
+    #                                                False,
+    #                                                keep_only_the_best=False)
+
 def get_pair_wise_pearson_correlation_distribution(raster_dur):
     """
     Distribution of pair-wise pearson correlation of all cells
@@ -2344,6 +2428,7 @@ def compute_stat_about_seq_with_slope(files_path, param,
         ms_str_to_load = []
         for age, dict_ms in seq_dict.items():
             for ms_description in dict_ms.keys():
+                # if "p41_19_04_30_a000" == ms_description.lower():
                 ms_str_to_load.append(ms_description.lower() + "_ms")
             # break
         load_traces = plot_3_kinds_of_slopes
@@ -2426,11 +2511,46 @@ def compute_stat_about_seq_with_slope(files_path, param,
             for ms_description, dict_cells_seq in dict_ms.items():
                 if ms_description.lower() + "_ms" not in ms_str_to_ms_dict:
                     continue
+                ms = ms_str_to_ms_dict[ms_description.lower() + "_ms"]
+                # if ms.age < 13:
+                #     continue
+                # working on speed data
+                speed_array = None
+                if ms.speed_by_frame is not None:
+                    speed_array = norm01(ms.speed_by_frame) - 1.5
+                    binary_speed = np.zeros(len(ms.speed_by_frame), dtype="int8")
+                    binary_speed[ms.speed_by_frame > 0] = 1
+                    speed_periods = get_continous_time_periods(binary_speed)
+
+                # colors for movement periods
+                span_area_coords = None
+                span_area_colors = None
+                with_mvt_periods = True
+
+                if with_mvt_periods:
+                    colors = ["red", "green", "blue", "pink", "orange"]
+                    i = 0
+                    span_area_coords = []
+                    span_area_colors = []
+                    periods_dict = ms.shift_data_dict
+                    if periods_dict is not None:
+                        print(f"{ms.description}:")
+                        for name_period, period in periods_dict.items():
+                            span_area_coords.append(get_continous_time_periods(period.astype("int8")))
+                            span_area_colors.append(colors[i % len(colors)])
+                            print(f"  Period {name_period} -> {colors[i]}")
+                            i += 1
+                    elif ms.speed_by_frame is not None:
+                        span_area_coords = []
+                        span_area_colors = []
+                        span_area_coords.append(speed_periods)
+                        span_area_colors.append("cornflowerblue")
+                    else:
+                        print(f"no mvt info for {ms.description}")
 
                 # cells_to_highlight = []
                 # cells_to_highlight_colors = []
                 # cells_added_for_span = []
-                ms = ms_str_to_ms_dict[ms_description.lower() + "_ms"]
                 raster_dur = ms.spike_struct.spike_nums_dur
                 n_frames = raster_dur.shape[1]
                 n_cells = raster_dur.shape[0]
@@ -2468,44 +2588,83 @@ def compute_stat_about_seq_with_slope(files_path, param,
                     # if np.all([x >= 3 for x in slopes_count]):
                     if slopes_count[2] > 3:
                         # we want a subplots
-                        fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1,
-                                                gridspec_kw={'height_ratios': [0.4, 0.4, 0.2], 'width_ratios': [1]},
-                                                figsize=(10, 6))
+                        # fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(nrows=5, ncols=1,
+                        #                         gridspec_kw={'height_ratios': [0.3, 0.1, 0.1, 0.3, 0.2],
+                        #                                      'width_ratios': [1]},
+                        #                         figsize=(10, 6))
+                        fig = plt.figure(figsize=(10, 11)) # constrained_layout=True,
+                        gs = fig.add_gridspec(12, 3)
+                        ax_empty = fig.add_subplot(gs[:3, 0])
+                        ax_map = fig.add_subplot(gs[:3, 1])
+                        ax_empty_2 = fig.add_subplot(gs[:3, 2])
+
+                        ax_raw_traces = fig.add_subplot(gs[3:5, :])
+                        ax_sum_raw_traces = fig.add_subplot(gs[5, :])
+                        ax_sum_all_raw_traces = fig.add_subplot(gs[6, :])
+
+                        ax_im_show = fig.add_subplot(gs[7:9, :])
+
+                        ax_raster = fig.add_subplot(gs[9:11, :])
+                        ax_empty_3 = fig.add_subplot(gs[11, :])
                         background_color = "black"
                         labels_color = "white"
-                        ax1.set_facecolor(background_color)
+
+                        for ax in [ax_empty, ax_map, ax_empty_2, ax_raw_traces, ax_sum_raw_traces,
+                                   ax_sum_all_raw_traces,
+                                   ax_im_show, ax_raster, ax_empty_3]:
+                            ax.set_facecolor(background_color)
                         fig.patch.set_facecolor(background_color)
 
-                        # colors for movement periods
-                        span_area_coords = None
-                        span_area_colors = None
-                        with_mvt_periods = True
-                        if with_mvt_periods:
-                            colors = ["red", "green", "blue", "pink", "orange"]
-                            i = 0
-                            span_area_coords = []
-                            span_area_colors = []
-                            periods_dict = ms.shift_data_dict
-                            if periods_dict is not None:
-                                print(f"{ms.description}:")
-                                for name_period, period in periods_dict.items():
-                                    span_area_coords.append(get_continous_time_periods(period.astype("int8")))
-                                    span_area_colors.append(colors[i % len(colors)])
-                                    print(f"  Period {name_period} -> {colors[i]}")
-                                    i += 1
-                            else:
-                                print(f"no shift_data_dict for {ms.description}")
+                        # first we display the cells map
+                        # color = (213 / 255, 38 / 255, 215 / 255, 1)  # #D526D7
+                        color = (67 / 255, 162 / 255, 202 / 255, 1) # blue
+                        color = (33 / 255, 113 / 255, 181 / 255, 1)
+                        cells_groups_colors = [color]
+                        cells_to_color = [cells_seq]
+                        # check if at least a pair of cells intersect
+                        at_least_one_intersect = False
+                        for cell_index, cell_1 in enumerate(cells_seq[:-2]):
+                            for cell_2 in cells_seq[cell_index + 1:]:
+                                if cell_2 in ms.coord_obj.intersect_cells[cell_1]:
+                                    at_least_one_intersect = True
+                                    break
+                            if at_least_one_intersect:
+                                break
+
+                        data_id = ms.description + f" {'_'.join(map(str, cells_seq))}"
+                        if at_least_one_intersect:
+                            data_id = "intersect_" + data_id
+
+                        ms.coord_obj.plot_cells_map(param=param,
+                                                    ax_to_use=ax_map,
+                                                    data_id=data_id,
+                                                    show_polygons=False,
+                                                    fill_polygons=False,
+                                                    title_option="seq",
+                                                    connections_dict=None,
+                                                    with_edge=True,
+                                                    edge_line_width=0.2,
+                                                    default_edge_color="#c6dbef",
+                                                    cells_groups=cells_to_color,
+                                                    cells_groups_colors=cells_groups_colors,
+                                                    dont_fill_cells_not_in_groups=True,
+                                                    with_cell_numbers=True,
+                                                    cell_numbers_color="white",
+                                                    text_size=2,
+                                                    save_formats=save_formats)
 
                         # one subplot for raw traces
-                        raw_traces = ms.raw_traces
+                        raw_traces = np.copy(ms.raw_traces)
+                        raw_traces_01 = np.zeros(raw_traces.shape)
                         for i in np.arange(len(raw_traces)):
                             raw_traces[i] = (raw_traces[i] - np.mean(raw_traces[i]) / np.std(raw_traces[i]))
+                            raw_traces_01[i] = norm01(raw_traces[i])
                             raw_traces[i] = norm01(raw_traces[i]) * 5
 
                         plot_spikes_raster(spike_nums=raster_dur[np.array(cells_best_order)][first_cell:last_cell+1],
                                            param=ms.param,
                                            display_spike_nums=False,
-                                           axes_list=[ax1],
+                                           axes_list=[ax_raw_traces],
                                            traces=raw_traces[np.array(cells_best_order)][first_cell:last_cell+1],
                                            display_traces=True,
                                            use_brewer_colors_for_traces=True,
@@ -2526,40 +2685,80 @@ def compute_stat_about_seq_with_slope(files_path, param,
                                            span_area_only_on_raster=False,
                                            spike_shape='*',
                                            spike_shape_size=1,
-                                           lines_to_display=lines_to_display,
-                                           lines_color="white",
-                                           lines_width=0.35,
-                                           lines_band=range_around_slope_in_frames,
-                                           lines_band_color="white",
+                                           # lines_to_display=lines_to_display,
+                                           # lines_color="white",
+                                           # lines_width=0.35,
+                                           # lines_band=range_around_slope_in_frames,
+                                           # lines_band_color="white",
                                            save_formats="pdf")
-                        traces_for_imshow = raw_traces[np.array(cells_best_order)][first_cell:last_cell+1]
+                        # ploting sum of activity of the traces shown
+                        for traces_index, trace_to_use in enumerate([raw_traces_01[np.array(cells_best_order)]
+                                                           [first_cell:last_cell+1], raw_traces_01]):
+                            sum_traces = np.sum(trace_to_use,
+                                                axis=0)\
+                                         / len(trace_to_use)
+                            sum_traces *= 100
+                            if traces_index == 0:
+                                ax_to_use = ax_sum_raw_traces
+                            else:
+                                ax_to_use = ax_sum_all_raw_traces
+                            ax_to_use.set_facecolor(background_color)
+                            ax_to_use.fill_between(np.arange(n_frames), 0, sum_traces, facecolor="#c6dbef", zorder=10)
+                            if span_area_coords is not None:
+                                for index, span_area_coord in enumerate(span_area_coords):
+                                    for coord in span_area_coord:
+                                        if span_area_colors is not None:
+                                            color = span_area_colors[index]
+                                        else:
+                                            color = "lightgrey"
+                                        ax_to_use.axvspan(coord[0], coord[1], alpha=0.6, facecolor=color, zorder=8)
+                            ax_to_use.set_xlim(0, n_frames-1)
+                            ax_to_use.set_ylim(0, np.max(sum_traces))
+                            ax_to_use.get_xaxis().set_visible(False)
+                            # ax_to_use.get_xaxis().set_ticks([])
+                            ax_to_use.yaxis.label.set_color("white")
+                            # ax_to_use.xaxis.label.set_color("white")
+                            ax_to_use.tick_params(axis='y', colors="white")
+                            # ax_to_use.tick_params(axis='x', colors="white")
+                            ax_to_use.tick_params(axis='both', which='both', length=0)
+                            ax_to_use.yaxis.set_tick_params(labelsize=2)
+
+                        traces_for_imshow = np.copy(ms.raw_traces[np.array(cells_best_order)][first_cell:last_cell+1])
                         with_arnaud_normalization = True
                         if with_arnaud_normalization:
                             for i in np.arange(len(traces_for_imshow)):
-                                traces_for_imshow[i] = gaussblur1D(traces_for_imshow[i],
-                                                                   traces_for_imshow.shape[1] / 2, 0)
-                                traces_for_imshow[i, :] = norm01(traces_for_imshow[i, :])
-                                traces_for_imshow[i, :] = traces_for_imshow[i, :] - np.median(traces_for_imshow[i, :])
+                                traces_for_imshow[i] = traces_for_imshow[i] / np.median(traces_for_imshow[i])
+                                # traces_for_imshow[i] = gaussblur1D(traces_for_imshow[i],
+                                #                                    traces_for_imshow.shape[1] / 2, 0)
+                                # traces_for_imshow[i, :] = norm01(traces_for_imshow[i, :])
+                                # traces_for_imshow[i, :] = traces_for_imshow[i, :] - np.median(traces_for_imshow[i, :])
 
                         plot_with_imshow(raster=traces_for_imshow,
-                                         n_subplots=1, axes_list=[ax2],
+                                         n_subplots=1, axes_list=[ax_im_show],
                                          hide_x_labels=True, vmin=0,
                                          y_ticks_labels_size=2,
                                          y_ticks_labels=cells_best_order[first_cell:last_cell + 1],
-                                         vmax=1, fig=fig, show_color_bar=False,
+                                         vmax=np.max(traces_for_imshow), fig=fig,
+                                         show_color_bar=False,
                                          values_to_plot=None, cmap="hot",
                                          lines_to_display=lines_to_display,
-                                         lines_color="white",
-                                         lines_width=0.2,
-                                         lines_band=range_around_slope_in_frames,
-                                         lines_band_color="white",
-                                         lines_band_alpha=0.8
+                                         # lines_color="white",
+                                         # lines_width=0.2,
+                                         # lines_band=range_around_slope_in_frames,
+                                         # lines_band_color="white",
+                                         # lines_band_alpha=0.8,
+                                         speed_array=speed_array
                                          )
-
+                        x_ticks_labels = [x for x in np.arange(n_frames) if x % 100 == 0]
+                        x_ticks_labels_size = 2
+                        x_ticks = x_ticks_labels
                         plot_spikes_raster(spike_nums=raster_dur[np.array(cells_best_order)][first_cell:last_cell+1],
                                            param=param,
+                                           x_ticks_labels=x_ticks_labels,
+                                           x_ticks_labels_size=x_ticks_labels_size,
+                                           x_ticks=x_ticks,
                                            size_fig=(10, 2),
-                                           axes_list=[ax3],
+                                           axes_list=[ax_raster],
                                            spike_train_format=False,
                                            file_name=f"{ms.description}_raster_dur_{first_cell}-{last_cell}",
                                            y_ticks_labels=cells_best_order[first_cell:last_cell+1],
@@ -2586,6 +2785,8 @@ def compute_stat_about_seq_with_slope(files_path, param,
                                            lines_band=range_around_slope_in_frames,
                                            lines_band_color="white",
                                            save_formats="pdf")
+                        # fig.tight_layout()
+                        fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 0.1, 'h_pad': 0})
                         file_name = f"{ms.description}_raster_dur_{first_cell}-{last_cell}"
                         if isinstance(save_formats, str):
                             save_formats = [save_formats]
@@ -2606,8 +2807,8 @@ def compute_stat_about_seq_with_slope(files_path, param,
                 for cells_seq in dict_cells_seq.keys():
                     if cells_seq == "cells_best_order":
                         continue
-                    color = (100 / 255, 215 / 255, 247 / 255, 1)  # #64D7F7"
-                    # color = (213 / 255, 38 / 255, 215 / 255, 1)  # #D526D7
+                    # color = (100 / 255, 215 / 255, 247 / 255, 1)  # #64D7F7"
+                    color = (213 / 255, 38 / 255, 215 / 255, 1)  # #D526D7
                     cells_groups_colors = [color]
                     cells_to_color = [cells_seq]
                     # check if at least a pair of cells intersect
@@ -4550,11 +4751,12 @@ def plot_covnorm_matrix(m_sces, n_clusters, cluster_labels, param, data_descr):
 
     plt.close()
 
-def try_hdbscan(cells_in_sce, param, activity_threshold, spike_nums, SCE_times, data_descr):
+
+def try_hdbscan(cells_in_sce, param, data_descr, activity_threshold=None,
+                spike_nums=None, SCE_times=None, use_co_var=True):
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
               '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
-    use_co_var = True
 
     m_sces = cells_in_sce
     # m_sces = spike_nums
@@ -4570,7 +4772,7 @@ def try_hdbscan(cells_in_sce, param, activity_threshold, spike_nums, SCE_times, 
         metric = 'euclidean'
     clusterer = hdbscan.HDBSCAN(algorithm='best', alpha=1.0, approx_min_span_tree=True,
                                 gen_min_span_tree=False, leaf_size=40,
-                                metric='precomputed', min_cluster_size=5, min_samples=None, p=None)
+                                metric=metric, min_cluster_size=2, min_samples=None, p=None)
     # metric='precomputed' euclidean
     clusterer.fit(m_sces)
 
@@ -4586,6 +4788,9 @@ def try_hdbscan(cells_in_sce, param, activity_threshold, spike_nums, SCE_times, 
         plot_covnorm_matrix(m_sces=m_sces, n_clusters=labels.max()+1, cluster_labels=labels, param=param,
                             data_descr=data_descr)
         return
+    if spike_nums is None:
+        return
+
     n_cells = spike_nums.shape[0]
     clustered_spike_nums = np.zeros(spike_nums.shape, dtype="int8")
     cells_to_highlight = []
@@ -5116,7 +5321,12 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
     # ms_str_to_load = ["p19_19_04_08_a000_ms"]
     # ms_str_to_load = ["p9_19_02_20_a001_ms"]
-    # ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    # ms with good run
+    # ms_str_to_load = ["p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+    #                   "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
+    #                   "p14_18_10_30_a001_ms"] #                       "p14_18_10_30_a001_ms"]
+
     # ms_str_to_load = ["richard_028_D1_P1_ms"]
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
@@ -5163,7 +5373,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                    "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms", "p21_19_04_10_a000_ms",
     #                    "p21_19_04_10_a001_ms",
     #                    "p21_19_04_10_a000_j3_ms", "p41_19_04_30_a000_ms"]
-    ms_str_to_load = "p6_18_02_07_a001_ms"
+    # ms_str_to_load = "p6_18_02_07_a001_ms"
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
@@ -5219,9 +5429,9 @@ def main():
         # color_option="manual"
         return
 
-    just_compute_significant_seq_with_slope_stat = False
+    just_compute_significant_seq_with_slope_stat = True
     if just_compute_significant_seq_with_slope_stat:
-        compute_stat_about_seq_with_slope(files_path=f"{path_data}/seq_slope/v3_70/", param=param,
+        compute_stat_about_seq_with_slope(files_path=f"{path_data}/seq_slope/v3_70_150_surro/", param=param,
                                            save_formats=["pdf"],
                                            color_option="manual", cmap_name="Reds")
         # use_cmap_gradient
@@ -5236,11 +5446,12 @@ def main():
         return
 
     load_traces = True
+    load_abf = False
 
     if for_lexi:
         ms_str_to_ms_dict = lexi_loading_process(param=param, load_traces=load_traces)
     else:
-        ms_str_to_ms_dict = robin_loading_process(param=param, load_traces=load_traces, load_abf=False)
+        ms_str_to_ms_dict = robin_loading_process(param=param, load_traces=load_traces, load_abf=load_abf)
 
     available_ms = list(ms_str_to_ms_dict.values())
     # for ms in available_ms:
@@ -5273,6 +5484,7 @@ def main():
     just_find_seq_using_graph = False
     just_test_elephant_cad = False
     just_plot_variance_according_to_sum_of_activity = False
+    just_cluster_using_grid = True
 
     just_plot_raster = False
     just_plot_raster_with_z_shift_periods = False
@@ -5554,6 +5766,14 @@ def main():
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("fifi")
             continue
+
+        if just_cluster_using_grid:
+            cluster_using_grid(ms, param)
+
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_cluster_using_grid")
+            continue
+
         if just_plot_raster_with_z_shift_periods:
             # spike_shape = '|' if use_raster_dur else 'o'
             spike_shape = 'o'

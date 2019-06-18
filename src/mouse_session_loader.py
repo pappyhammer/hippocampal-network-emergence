@@ -1728,6 +1728,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                              "shift_unclassified": "shift_unclassified"}
         ms.load_data_from_period_selection_gui(path_to_load=f"p{ms.age}/{ms.description.lower()}/",
                                                                 variables_mapping=variables_mapping)
+
+        ms.load_speed_from_file(path_to_load=f"p{ms.age}/{ms.description.lower()}/")
+
         if load_abf and (not ms.abf_loaded):
             # if sampling_rate is not 50000, load specific data for a session
             # loading abf

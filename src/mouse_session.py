@@ -3195,7 +3195,7 @@ class MouseSession:
         # first frame
         first_frame_index = np.where(frames_data < 0.01)[0][0]
 
-        if (run_channel is None) or (lfp_channel is not None):
+        if lfp_channel is not None:
             for current_channel in np.arange(1, abf.channelCount):
                 times_in_sec = np.copy(original_time_in_sec)
                 frames_data = np.copy(original_frames_data)
@@ -3298,6 +3298,46 @@ class MouseSession:
                         piezzo_shift)
 
         if run_channel is not None:
+            # defining active_frames
+            times_in_sec = original_time_in_sec
+            frames_data = original_frames_data
+            times_in_sec = times_in_sec[:-first_frame_index]
+            frames_data = frames_data[first_frame_index:]
+            threshold_value = 0.02
+            if self.abf_sampling_rate < 50000:
+                # frames_data represent the content of the abf channel that contains the frames
+                # the index stat at the first frame recorded, meaning the first value where the
+                # value is < 0.01
+                mask_frames_data = np.ones(len(frames_data), dtype="bool")
+                # we need to detect the frames manually, but first removing data between movies
+                selection = np.where(frames_data >= threshold_value)[0]
+                mask_selection = np.zeros(len(selection), dtype="bool")
+                pos = np.diff(selection)
+                # looking for continuous data between movies
+                to_keep_for_removing = np.where(pos == 1)[0] + 1
+                mask_selection[to_keep_for_removing] = True
+                selection = selection[mask_selection]
+                # we remove the "selection" from the frames data
+                mask_frames_data[selection] = False
+                frames_data = frames_data[mask_frames_data]
+                # len_frames_data_in_s = np.round(len(frames_data) / self.abf_sampling_rate, 3)
+                mvt_data = mvt_data[mask_frames_data]
+                times_in_sec = times_in_sec[:-len(np.where(mask_frames_data == 0)[0])]
+                active_frames = np.linspace(0, len(frames_data), 12500).astype(int)
+                mean_diff_active_frames = np.mean(np.diff(active_frames)) / self.abf_sampling_rate
+                # print(f"mean diff active_frames {np.round(mean_diff_active_frames, 3)}")
+                if mean_diff_active_frames < 0.09:
+                    raise Exception("mean_diff_active_frames < 0.09")
+            else:
+                binary_frames_data = np.zeros(len(frames_data), dtype="int8")
+                binary_frames_data[frames_data >= threshold_value] = 1
+                binary_frames_data[frames_data < threshold_value] = 0
+                # +1 due to the shift of diff
+                # contains the index at which each frame from the movie is matching the abf signal
+                # length should be 12500
+                active_frames = np.where(np.diff(binary_frames_data) == 1)[0] + 1
+
+
             abf.setSweep(sweepNumber=0, channel=run_channel)
             run_data = abf.sweepY
             mvt_periods, speed_during_mvt_periods, speed_by_time = \
@@ -3308,8 +3348,8 @@ class MouseSession:
             # matfiledata['Speed'] = speed_by_time
             # hdf5storage.write(matfiledata, os.path.join(self.param.path_data, path_abf_data),
             #                   f'speed_{self.description}.mat', matlab_compatible=True)
-            hdf5storage.savemat(os.path.join(self.param.path_data, path_abf_data, f'speed_{self.description}.mat'
-                                             ), {'Speed': speed_by_time}, format='7.3')
+            print(f"Saving speed for {self.description}")
+            np.save(os.path.join(self.param.path_data, path_abf_data, f'speed_{self.description}.npy'), speed_by_time)
 
         self.abf_loaded = True
         # manual selection deactivated
@@ -4174,6 +4214,29 @@ class MouseSession:
             return
         np.save(os.path.join(self.param.path_data, path, f"{self.description}_raw_traces.npy".lower()),
                 self.raw_traces)
+
+    def load_speed_from_file(self, path_to_load):
+        """
+        Load the speed file in path_to_load for the ms
+        :param path_to_load:
+        :return:
+        """
+        if self.speed_by_frame is not None:
+            return
+
+        if (path_to_load is None):
+            print(f"{self.description} load_speed_from_file "
+                  f"path_to_load is None")
+            return
+
+        for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data, path_to_load)):
+            for file_name in local_filenames:
+                if (("speed" in file_name.lower()) and (self.description.lower() in file_name.lower())) \
+                        and file_name.endswith(".npy"):
+                    self.speed_by_frame = np.load(os.path.join(self.param.path_data, path_to_load, file_name))
+                    return
+            break
+        print(f"{self.description} no speed data file found")
 
     def load_data_from_period_selection_gui(self, variables_mapping, file_name_to_load=None, path_to_load=None):
         if self.shift_data_dict is not None:
