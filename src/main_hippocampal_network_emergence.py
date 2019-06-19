@@ -2313,10 +2313,10 @@ def compute_stat_about_seq_with_slope(files_path, param,
     :return:
     """
     plot_slopes_by_ages = False
-    plot_seq_contour_map = False
+    plot_seq_contour_map = True
     plot_seq_with_rep_by_age = False
     plot_synchronies_on_raster = False
-    plot_3_kinds_of_slopes = True
+    plot_3_kinds_of_slopes = False
 
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     # + 11 diverting
@@ -2620,18 +2620,19 @@ def compute_stat_about_seq_with_slope(files_path, param,
                         color = (67 / 255, 162 / 255, 202 / 255, 1) # blue
                         color = (33 / 255, 113 / 255, 181 / 255, 1)
                         cells_groups_colors = [color]
-                        cells_to_color = [cells_seq]
+                        cells_seq_for_map = np.array(cells_best_order)[first_cell:last_cell+1]
+                        cells_to_color = [cells_seq_for_map]
                         # check if at least a pair of cells intersect
                         at_least_one_intersect = False
-                        for cell_index, cell_1 in enumerate(cells_seq[:-2]):
-                            for cell_2 in cells_seq[cell_index + 1:]:
+                        for cell_index, cell_1 in enumerate(cells_seq_for_map[:-2]):
+                            for cell_2 in cells_seq_for_map[cell_index + 1:]:
                                 if cell_2 in ms.coord_obj.intersect_cells[cell_1]:
                                     at_least_one_intersect = True
                                     break
                             if at_least_one_intersect:
                                 break
 
-                        data_id = ms.description + f" {'_'.join(map(str, cells_seq))}"
+                        data_id = ms.description + f" {'_'.join(map(str, cells_seq_for_map))}"
                         if at_least_one_intersect:
                             data_id = "intersect_" + data_id
 
@@ -2804,24 +2805,28 @@ def compute_stat_about_seq_with_slope(files_path, param,
                 if ms_description.lower() + "_ms" not in ms_str_to_ms_dict:
                     continue
                 ms = ms_str_to_ms_dict[ms_description.lower() + "_ms"]
+                cells_best_order = dict_cells_seq["cells_best_order"]
                 for cells_seq in dict_cells_seq.keys():
                     if cells_seq == "cells_best_order":
                         continue
                     # color = (100 / 255, 215 / 255, 247 / 255, 1)  # #64D7F7"
                     color = (213 / 255, 38 / 255, 215 / 255, 1)  # #D526D7
                     cells_groups_colors = [color]
-                    cells_to_color = [cells_seq]
+                    first_cell = cells_seq[0]
+                    last_cell = cells_seq[-1]
+                    cells_seq_for_map = np.array(cells_best_order)[first_cell:last_cell + 1]
+                    cells_to_color = [cells_seq_for_map]
                     # check if at least a pair of cells intersect
                     at_least_one_intersect = False
-                    for cell_index, cell_1 in enumerate(cells_seq[:-2]):
-                        for cell_2 in cells_seq[cell_index+1:]:
+                    for cell_index, cell_1 in enumerate(cells_seq_for_map[:-2]):
+                        for cell_2 in cells_seq_for_map[cell_index+1:]:
                             if cell_2 in ms.coord_obj.intersect_cells[cell_1]:
                                 at_least_one_intersect = True
                                 break
                         if at_least_one_intersect:
                             break
 
-                    data_id = ms.description + f" {'_'.join(map(str, cells_seq))}"
+                    data_id = ms.description + f" {'_'.join(map(str, cells_seq_for_map))}"
                     if at_least_one_intersect:
                         data_id = "intersect_" + data_id
 
@@ -4619,6 +4624,24 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                                                            perc_threshold=perc_threshold,
                                                            n_surrogate=n_surrogate)
 
+            plot_distrib_participation_to_event = True
+            if plot_distrib_participation_to_event:
+                shift_binary = shift_bool.astype("int8")
+                periods_shift = get_continous_time_periods(shift_binary)
+                shift_numbers = np.ones(n_frames, dtype="int16")
+                shift_numbers = shift_numbers * -1
+                for period_index, period in enumerate(periods_shift):
+                    shift_numbers[period[0]:period[1]+1] = period_index
+                ratio_spikes_total_events = get_ratio_spikes_on_events_vs_total_events_by_cell(
+                    spike_nums=ms.spike_struct.spike_nums[np.array(significant_cells)],
+                    spike_nums_dur=ms.spike_struct.spike_nums_dur[np.array(significant_cells)],
+                    sce_times_numbers=shift_numbers,
+                    use_only_onsets=False)
+                # TODO: to finish
+                plot_hist_distribution(distribution_data=ratio_spikes_total_events,
+                                       description=f"{ms.description}_hist_spike_total_{shift_key_descr}_ratio",
+                                       xlabel=f"spikes in {shift_key_descr} vs total {shift_key_descr} (%)",
+                                       param=param)
             print(f"{ms.description}: {shift_key_descr} analysis")
             print(f"{n_cells} cells")
             print(f"{len(significant_cells)} significant cells")
@@ -4904,9 +4927,9 @@ def elephant_cad(ms, param, save_formats="pdf"):
                        t_stop=n_times / ms.sampling_rate)
         spike_trains.append(neo_spike_train)
 
-    binsize = 300*pq.ms
+    binsize = 100*pq.ms
     spike_trains_binned = elephant_conv.BinnedSpikeTrain(spike_trains, binsize=binsize)
-    assembly_bin = cad.cell_assembly_detection(data=spike_trains_binned, maxlag=4)
+    assembly_bin = cad.cell_assembly_detection(data=spike_trains_binned, maxlag=5, verbose=True)
     print(f"assembly_bin {assembly_bin}")
 
     """
@@ -5241,18 +5264,18 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p8_18_10_17_a001_ms"]
 
     # session with mouvements periods (twitch, long mvt etc...) available
-    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-    #                   "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
-    #                   "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-    #                   "p7_19_03_27_a002_ms",
-    #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-    #                   "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
-    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-    #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-    #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+                      "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                      "p7_19_03_27_a002_ms",
+                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
     # #   for test
-    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-    #                   "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+                      "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p5_19_03_25_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
@@ -5279,49 +5302,51 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p11_17_11_24_a000_ms"]
     ## all the ms separated in 5 groups
 
-    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                      "p7_171012_a000_ms",
-                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-                      "p7_19_03_05_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+    #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    #                   "p7_171012_a000_ms",
+    #                   "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+    #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+    #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+    #                   "p7_19_03_05_a000_ms"]
     #
-    ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                      "p7_19_03_27_a002_ms",
-                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                       "p8_18_10_17_a000_ms",
-                      "p8_18_10_17_a001_ms"]
+    # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+    #                   "p7_19_03_27_a002_ms",
+    #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+    #                    "p8_18_10_17_a000_ms",
+    #                   "p8_18_10_17_a001_ms"]
     #
-    ms_str_to_load = ["p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
-                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
-                      "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
-                      "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
-                      "p9_19_03_22_a001_ms"]
-    # # #
-    ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-                      "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
-                      "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
-                      "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
-                      "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
-                      "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
-                      "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
-                      "p13_19_03_11_a000_ms"]
-    # # #
-    ms_str_to_load = ["p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
-                      "p16_18_11_01_a002_ms",
-                      "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
-                      "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
-                      "p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+    #                   "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+    #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
+    #                   "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+    #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
+    #                   "p9_19_03_22_a001_ms"]
+    # # # #
+    # ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+    #                   "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
+    #                   "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+    #                   "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+    #                   "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+    #                   "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+    #                   "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
+    #                   "p13_19_03_11_a000_ms"]
+    # # # #
+    # ms_str_to_load = ["p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+    #                   "p16_18_11_01_a002_ms",
+    #                   "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
+    #                   "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+    #                   "p41_19_04_30_a000_ms"]
 
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
     # ms_str_to_load = ["p19_19_04_08_a000_ms"]
     # ms_str_to_load = ["p9_19_02_20_a001_ms"]
-    ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms",  "p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+    #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms", "p41_19_04_30_a000_ms"]
     # ms with good run
     # ms_str_to_load = ["p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
     #                   "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
@@ -5429,7 +5454,7 @@ def main():
         # color_option="manual"
         return
 
-    just_compute_significant_seq_with_slope_stat = True
+    just_compute_significant_seq_with_slope_stat = False
     if just_compute_significant_seq_with_slope_stat:
         compute_stat_about_seq_with_slope(files_path=f"{path_data}/seq_slope/v3_70_150_surro/", param=param,
                                            save_formats=["pdf"],
@@ -5468,7 +5493,7 @@ def main():
     just_plot_all_time_correlation_graph_over_events = False
     just_plot_raster_with_periods = False
     just_do_stat_significant_time_period = False
-    just_plot_cells_that_fire_during_time_periods = False
+    just_plot_cells_that_fire_during_time_periods = True
     just_plot_twitch_ratio_activity = False
     just_fca_clustering_on_twitches_activity = False
     just_save_stat_about_mvt_for_each_ms = False
@@ -5484,8 +5509,9 @@ def main():
     just_find_seq_using_graph = False
     just_test_elephant_cad = False
     just_plot_variance_according_to_sum_of_activity = False
-    just_cluster_using_grid = True
+    just_cluster_using_grid = False
 
+    just_plot_raster_with_same_sum_activity_lim = False
     just_plot_raster = False
     just_plot_raster_with_z_shift_periods = False
     just_do_stat_on_event_detection_parameters = False
@@ -5522,7 +5548,7 @@ def main():
     # ##########################################################################################
     # #################################### SPOT DIST ###########################################
     # ##########################################################################################
-    do_spotdist = True
+    do_spotdist = False
 
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
@@ -5680,8 +5706,9 @@ def main():
     if just_plot_cells_that_fire_during_time_periods:
         # take a list of periods, and will determine whichh cells are specific of each
         # and then all and then none (still)
-        plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys=["shift_twitch", "shift_long",
-                                                                           "shift_unclassified"], param=param,
+        # "shift_twitch", "shift_long",
+        #                                                                            "shift_unclassified"
+        plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys=["shift_twitch"], param=param,
                                                       perc_threshold=95, n_surrogate=1000)
         raise Exception("just_plot_cells_that_fire_during_time_periods")
 
@@ -5710,6 +5737,43 @@ def main():
         plot_jsd_correlation(ms_to_analyse, param, "Hamming_distance", n_surrogate=20, save_formats=["png", "pdf"])
 
         raise Exception("just_plot_jsd_correlation")
+
+    if just_plot_raster_with_same_sum_activity_lim:
+        max_sum_activity = 0
+        show_sum_spikes_as_percentage = False
+        for ms_index, ms in enumerate(ms_to_analyse):
+            sum_activity = np.sum(ms.spike_struct.spike_nums, axis=0)
+            if show_sum_spikes_as_percentage:
+                sum_activity = (sum_activity / ms.spike_struct.spike_nums.shape[0]) * 100
+            max_sum_activity = max(max_sum_activity, np.max(sum_activity))
+        # spike_shape = '|' if use_raster_dur else 'o'
+
+        for ms_index, ms in enumerate(ms_to_analyse):
+            spike_shape = 'o'
+            if ms.spike_struct.spike_nums is None:
+                continue
+            n_cells = len(ms.spike_struct.spike_nums)
+            y_lim_sum_activity = (0, max_sum_activity)
+            bonus_file_name = "_sum"
+            if show_sum_spikes_as_percentage:
+                bonus_file_name = "_percentage"
+            plot_spikes_raster(spike_nums=ms.spike_struct.spike_nums, param=ms.param,
+                               spike_train_format=False,
+                               title=f"{ms.description}",
+                               file_name=f"{ms.description}_raster{bonus_file_name}",
+                               y_ticks_labels=np.arange(n_cells),
+                               y_ticks_labels_size=2,
+                               save_raster=True,
+                               show_raster=False,
+                               plot_with_amplitude=False,
+                               show_sum_spikes_as_percentage=show_sum_spikes_as_percentage,
+                               span_area_only_on_raster=False,
+                               spike_shape=spike_shape,
+                               spike_shape_size=0.5,
+                               y_lim_sum_activity=y_lim_sum_activity,
+                               save_formats=["pdf", "png"])
+
+        raise Exception("just_plot_raster_with_same_sum_activity_lim")
 
     if do_plot_graph:
         plot_connectivity_graph(ms_to_analyse, param, save_formats="pdf")
@@ -5749,6 +5813,7 @@ def main():
             if ms.spike_struct.spike_nums is None:
                 continue
             n_cells = len(ms.spike_struct.spike_nums)
+            y_lim_sum_activity = None
             plot_spikes_raster(spike_nums=ms.spike_struct.spike_nums, param=ms.param,
                                spike_train_format=False,
                                title=f"{ms.description}",
@@ -5762,6 +5827,7 @@ def main():
                                span_area_only_on_raster=False,
                                spike_shape=spike_shape,
                                spike_shape_size=0.5,
+                               y_lim_sum_activity=None,
                                save_formats=["pdf", "png"])
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("fifi")
