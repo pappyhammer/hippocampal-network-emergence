@@ -85,15 +85,18 @@ def spotdist_function(ms, param):
 
     ###################################################################################################################
     # CHOOSE METHOD TO USE #
-    method_homemade = False  # The one to use if want to run on traces be careful with risk of memory error
-    method_battaglia = True  # Run faster for raster_dur / raster but EMD is not normalized
+    method_homemade = True  # The one to use if want to run on traces be careful with risk of memory error
+    method_battaglia = False  # Run faster for raster_dur / raster but EMD is not normalized
 
     # DECIDE ON WHICH DATA TO WORK
-    data_to_use = "raster_dur"
+    data_to_use = "traces"
     possible_data_to_use = ["raster_dur", "raster", "traces", "artificial_raster"]
     if data_to_use not in possible_data_to_use:
         data_to_use = "raster_dur"
         raise Exception("Can not run SpotDist on this data, by default use of raster_dur")
+
+    # DECIDE EPOCH LENGTH  ONLY FOR NON ARTIFICIAL DATA
+    len_epoch = 250
 
     # If you want to work on artificial data
     random_pattern_order = True
@@ -114,13 +117,13 @@ def spotdist_function(ms, param):
     if data_to_use == "artificial_raster":
         # DEFINE RASTER #
         n_cells = 50
-        len_epoch = 100
+        len_pattern = 100
         if random_pattern_order:
             n_epochs = 100  # Put something that 4 can divide
-            n_frames = len_epoch * n_epochs
+            n_frames = len_pattern * n_epochs
         if known_pattern_order:
             n_epochs = 12  # Do not change, only 12 epochs are generated
-            n_frames = len_epoch * n_epochs
+            n_frames = len_pattern * n_epochs
 
         art_raster_dur = np.zeros((n_cells, n_frames), dtype="int8")
         art_raster_dur_noise = np.zeros((n_cells, n_frames), dtype="int8")
@@ -129,10 +132,9 @@ def spotdist_function(ms, param):
         noise_matrix = np.zeros((n_cells, n_frames), dtype="int8")
         rand_art_raster_dur_noise = np.zeros((n_cells, n_frames), dtype="int8")
 
-        n_epochs = n_frames // len_epoch
-        print(f"Epoch length is {len_epoch} frames, total number of epochs is {n_epochs}")
+        n_epochs = n_frames // len_pattern
         # to make things easy for now, the number of frames should be divisible by the length of epochs
-        if (n_frames % len_epoch) != 0:
+        if (n_frames % len_pattern) != 0:
             raise Exception("number of frames {n_frames} not divisible by {len_epoch}")
 
         ############################################
@@ -140,7 +142,7 @@ def spotdist_function(ms, param):
         ############################################
 
         # create pattern#1 = sequence in order
-        pattern1 = np.zeros((n_cells, len_epoch))
+        pattern1 = np.zeros((n_cells, len_pattern))
         for i in range(n_cells):
             pattern1[i, i] = 1
             pattern1[i, i+50] = 1
@@ -149,7 +151,7 @@ def spotdist_function(ms, param):
         np.random.shuffle(pattern1_shuffle)
 
         # create pattern#2 = assemblies in order
-        pattern2 = np.zeros((n_cells, len_epoch))
+        pattern2 = np.zeros((n_cells, len_pattern))
         pattern2[13: 26, 2: 4] = 1
         pattern2[0: 13, 14:16] = 1
         pattern2[39:50, 26:28] = 1
@@ -163,19 +165,19 @@ def spotdist_function(ms, param):
         np.random.shuffle(pattern2_shuffle)
 
         # create pattern#3 = sequence together with noise
-        pattern3 = np.zeros((n_cells, len_epoch))
+        pattern3 = np.zeros((n_cells, len_pattern))
         n_cells_in_sequence = 40
         noisy_cells = n_cells - n_cells_in_sequence
         for i in range(n_cells_in_sequence):
             pattern3[i, i:i + 2] = 1
             pattern3[i, 20 + i:i + 22] = 1
-        pattern3[n_cells_in_sequence:n_cells, :] = generate_poisson_pattern(noisy_cells, len_epoch, 10, 50, 1, 2)
+        pattern3[n_cells_in_sequence:n_cells, :] = generate_poisson_pattern(noisy_cells, len_pattern, 10, 50, 1, 2)
         # create pattern#3 shuffle
         pattern3_shuffle = np.copy(pattern3)
         np.random.shuffle(pattern3_shuffle)
 
         # create pattern#4 = assemblies together with noise
-        pattern4 = np.zeros((n_cells, len_epoch))
+        pattern4 = np.zeros((n_cells, len_pattern))
         cells_in_assemblies = 41
         cells_with_noise = n_cells - cells_in_assemblies
         pattern4[11: 22, 2: 4] = 1
@@ -186,7 +188,7 @@ def spotdist_function(ms, param):
         pattern4[36: 41, 62:64] = 1
         pattern4[22:36, 74:76] = 1
         pattern4[0:11, 86:88] = 1
-        pattern4[41:50, :] = generate_poisson_pattern(cells_with_noise, len_epoch, 10, 50, 1, 2)
+        pattern4[41:50, :] = generate_poisson_pattern(cells_with_noise, len_pattern, 10, 50, 1, 2)
         # create pattern#2 shuffle = assemblies in shuffle order
         pattern4_shuffle = np.copy(pattern4)
         np.random.shuffle(pattern4_shuffle)
@@ -198,17 +200,17 @@ def spotdist_function(ms, param):
         if known_pattern_order:
             # CREATE ARTIFICIAL RASTER FROM KNOWN COMBINATION OF PATTERN
             art_raster_dur[:, 0:100] = pattern1
-            art_raster_dur[:, 100:200] = generate_poisson_pattern(n_cells, len_epoch, 20, 50, 1, 2)
+            art_raster_dur[:, 100:200] = generate_poisson_pattern(n_cells, len_pattern, 20, 50, 1, 2)
             art_raster_dur[:, 200:300] = pattern2
             art_raster_dur[:, 300:400] = pattern1
-            art_raster_dur[:, 400:500] = generate_poisson_pattern(n_cells, len_epoch, 10, 50, 1, 2)
-            art_raster_dur[:, 500:600] = generate_poisson_pattern(n_cells, len_epoch, 10, 50, 1, 2)
+            art_raster_dur[:, 400:500] = generate_poisson_pattern(n_cells, len_pattern, 10, 50, 1, 2)
+            art_raster_dur[:, 500:600] = generate_poisson_pattern(n_cells, len_pattern, 10, 50, 1, 2)
             art_raster_dur[:, 600:700] = pattern1
             art_raster_dur[:, 700:800] = pattern2
-            art_raster_dur[:, 800:900] = generate_poisson_pattern(n_cells, len_epoch, 10, 50, 1, 2)
-            art_raster_dur[:, 900:1000] = generate_poisson_pattern(n_cells, len_epoch, 10, 50, 1, 2)
+            art_raster_dur[:, 800:900] = generate_poisson_pattern(n_cells, len_pattern, 10, 50, 1, 2)
+            art_raster_dur[:, 900:1000] = generate_poisson_pattern(n_cells, len_pattern, 10, 50, 1, 2)
             art_raster_dur[:, 1000:1100] = pattern2
-            art_raster_dur[:, 1100:1200] = generate_poisson_pattern(n_cells, len_epoch, 10, 50, 1, 2)
+            art_raster_dur[:, 1100:1200] = generate_poisson_pattern(n_cells, len_pattern, 10, 50, 1, 2)
 
         if random_pattern_order:
             # CREATE ARTIFICIAL RASTER COMBINATION OF THESE ASSEMBLIES SEQUENCES PLUS NOISE
@@ -228,14 +230,14 @@ def spotdist_function(ms, param):
 
             for i in range(n_epochs):
                 if pattern_id[i] == 0:
-                    art_raster_dur[:, np.arange((i*len_epoch), (i*len_epoch)+len_epoch)] = generate_poisson_pattern(n_cells, len_epoch, 10, 50, 1, 2)
-                    art_raster_dur_pattern_shuffle[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = generate_poisson_pattern(n_cells, len_epoch, 10, 50, 1, 2)
+                    art_raster_dur[:, np.arange((i*len_pattern), (i*len_pattern)+len_pattern)] = generate_poisson_pattern(n_cells, len_pattern, 10, 50, 1, 2)
+                    art_raster_dur_pattern_shuffle[:, np.arange((i * len_pattern), (i * len_pattern) + len_pattern)] = generate_poisson_pattern(n_cells, len_pattern, 10, 50, 1, 2)
                 if pattern_id[i] == 1:
-                    art_raster_dur[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = pattern3
-                    art_raster_dur_pattern_shuffle[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = pattern3_shuffle
+                    art_raster_dur[:, np.arange((i * len_pattern), (i * len_pattern) + len_pattern)] = pattern3
+                    art_raster_dur_pattern_shuffle[:, np.arange((i * len_pattern), (i * len_pattern) + len_pattern)] = pattern3_shuffle
                 if pattern_id[i] == 2:
-                    art_raster_dur[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = pattern4
-                    art_raster_dur_pattern_shuffle[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = pattern4_shuffle
+                    art_raster_dur[:, np.arange((i * len_pattern), (i * len_pattern) + len_pattern)] = pattern4
+                    art_raster_dur_pattern_shuffle[:, np.arange((i * len_pattern), (i * len_pattern) + len_pattern)] = pattern4_shuffle
 
         if use_one_shuffle_per_pattern is False:
             rand_art_raster_dur = np.copy(art_raster_dur)
@@ -249,21 +251,21 @@ def spotdist_function(ms, param):
 
         # CREATE ARTIFICIAL RASTER COMBINATION OF NOISE ONLY
         for i in np.arange(n_epochs):
-            tmp_patt_noise = np.zeros((n_cells, len_epoch))
+            tmp_patt_noise = np.zeros((n_cells, len_pattern))
             patt_num_noise = np.random.randint(3)
             n_cells_to_clear = np.random.randint(np.round(n_cells / 5), n_cells)
             cell_to_clear_indices = np.random.randint(0, n_cells, size=n_cells_to_clear)
             # print(f"pattern number is {patt_num}")
             if patt_num_noise == 0:
-                tmp_patt_noise = generate_poisson_pattern(n_cells, len_epoch, 10, 40, 1, 2)
+                tmp_patt_noise = generate_poisson_pattern(n_cells, len_pattern, 10, 40, 1, 2)
                 tmp_patt_noise[cell_to_clear_indices, :] = 0
             if patt_num_noise == 1:
-                tmp_patt_noise = generate_poisson_pattern(n_cells, len_epoch, 25, 40, 1, 2)
+                tmp_patt_noise = generate_poisson_pattern(n_cells, len_pattern, 25, 40, 1, 2)
                 tmp_patt_noise[cell_to_clear_indices, :] = 0
             if patt_num_noise == 2:
-                tmp_patt_noise = generate_poisson_pattern(n_cells, len_epoch, 30, 40, 1, 2)
+                tmp_patt_noise = generate_poisson_pattern(n_cells, len_pattern, 30, 40, 1, 2)
                 tmp_patt_noise[cell_to_clear_indices, :] = 0
-            noise_matrix[:, np.arange((i * len_epoch), (i * len_epoch) + len_epoch)] = tmp_patt_noise
+            noise_matrix[:, np.arange((i * len_pattern), (i * len_pattern) + len_pattern)] = tmp_patt_noise
 
         if fuse_raster_with_noise is True:
             art_raster_dur_noise = np.copy(art_raster_dur)
@@ -369,7 +371,7 @@ def spotdist_function(ms, param):
     if data_to_use == "traces":
         print(f"Loading traces")
         traces = load_data_traces(ms)  # automatic way
-        # traces = spike_nums[:20, :2500]  # TO TEST THE CODE
+        traces = traces[:100, :10000]  # TO TEST THE CODE
         n_cells, n_frames = traces.shape
         print(f"traces has {n_cells} cells and {n_frames} frames")
         data = traces
@@ -377,17 +379,16 @@ def spotdist_function(ms, param):
     #####################
     # COMPUTE DISTANCES #
     #####################
-    len_epoch = 250
     n_epochs = n_frames // len_epoch
     # to make things easy for now, the number of frames should be divisible by the length of epochs
     if (n_frames % len_epoch) != 0:
         raise Exception("number of frames {n_frames} not divisible by {len_epoch}")
     if method_battaglia:
         method = "battaglia"
-        distances = SPOT_Dist_Battaglia(data, len_epoch=250)[0]
+        distances = SPOT_Dist_Battaglia(data, len_epoch=len_epoch)[0]
     if method_homemade:
         method = "homemade"
-        distances = SPOT_Dist_JD_RD(data, len_epoch=250, distance_metric="EMD_Battaglia")
+        distances = SPOT_Dist_JD_RD(data, len_epoch=len_epoch, distance_metric="EMD_Battaglia")
 
     # Plot Distance matrix
     # ax = sns.heatmap(distances, annot=True)
