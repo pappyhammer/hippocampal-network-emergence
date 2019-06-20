@@ -16,7 +16,7 @@ def main():
             'nplanes' : 1, # each tiff has these many planes in sequence
             'nchannels' : 1, # each tiff has these many channels per plane
             'functional_chan' : 1, # this channel is used to extract functional ROIs (1-based)
-            'diameter':3, # this is the main parameter for cell detection, 2-dimensional if Y and X are different (e.g. [6 12])
+            'diameter':6, # this is the main parameter for cell detection, 2-dimensional if Y and X are different (e.g. [6 12])
             'tau':  2., # this is the main parameter for deconvolution, 2 for gcamp6s
             'fs': 10.,  # sampling rate (total across planes)
             # output settings
@@ -59,7 +59,7 @@ def main():
     # db overwrites any ops (allows for experiment specific settings)
     db = {
         # 'h5py': '/Users/pappyhammer/Documents/academique/these_inmed/suite2p/suite2p_tiffs/p8.h5',  # a single h5 file path
-        'h5py': '/home/julien/these_inmed/suite2p/suite2p_tiffs/p_6.h5',
+        'h5py': '/home/julien/these_inmed/suite2p/suite2p_tiffs/p6_19_02_18_a000.h5',
         'h5py_key': 'data',
         'look_one_level_down': False,  # whether to look in ALL subfolders when searching for tiffs
         # 'data_path': ['/home/julien/these_inmed/suite2p/suite2p_tiffs'],  # a list of folders with tiffs

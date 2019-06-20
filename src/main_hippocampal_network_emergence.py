@@ -1202,12 +1202,12 @@ def cluster_using_grid(ms, param):
 
     # in pixels
     square_size = 160
-    if ms.tiff_movie.shape[1] < square_size or  ms.tiff_movie.shape[2] < square_size :
+    if ms.tiff_movie.shape[1] < square_size or ms.tiff_movie.shape[2] < square_size :
         print(f"{ms.description} movie shape is too small {ms.tiff_movie.shape}")
         return
-    tiff_movie = np.copy(ms.tiff_movie)
+    tiff_movie = np.copy(ms.tiff_movie).astype("float")
     n_frames = tiff_movie.shape[0]
-    n_lines = 32
+    n_lines = 16
     if square_size % n_lines != 0:
         print(f"{square_size} should be divisible by {n_lines}")
     box_size = square_size // n_lines
@@ -1217,12 +1217,15 @@ def cluster_using_grid(ms, param):
     # create option to remove cells from the movie
     # before building grid traces
     # putting to np.nan all pixels of a cell
+
     if remove_cells:
         mask_movie = np.zeros((tiff_movie.shape[1], tiff_movie.shape[2]), dtype="bool")
         for cell in np.arange(ms.coord_obj.n_cells):
-            cell_mask = ms.coord_obj.get_cell_mask(cell, (square_size, square_size))
+            if cell % 50 == 0:
+                print(f"Removing mask of cell {cell}")
+            cell_mask = ms.coord_obj.get_cell_mask(cell, (tiff_movie.shape[1], tiff_movie.shape[2]))
             mask_movie[cell_mask] = True
-            tiff_movie[mask_movie] = np.nan
+            tiff_movie[:, mask_movie] = np.nan
     # traces = np.zeros((n_frames, n_lines*n_lines))
     for x_box in np.arange(n_lines):
         for y_box in np.arange(n_lines):
@@ -4230,7 +4233,10 @@ def plot_connectivity_graph(ms_to_analyse, param, save_formats="pdf"):
                              figsize=(30, 25))
     fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
     fig.patch.set_facecolor(background_color)
-    axes = axes.flatten()
+    if n_ms == 1:
+        axes = [axes]
+    else:
+        axes = axes.flatten()
 
     for ax_index, ax in enumerate(axes):
         ax.set_facecolor(background_color)
@@ -4445,6 +4451,8 @@ def select_cells_that_fire_during_time_periods(raster, time_periods_bool, descri
     n_cells = raster.shape[0]
     for n in np.arange(n_cells):
         n_count = np.sum(raster[n, time_periods_bool])
+        if n_count == 0:
+            continue
         if n_count >= activity_threshold[n]:
             significant_cells.append(n)
 
@@ -4592,6 +4600,8 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                 if step == n_shift_keys:
                     shift_keys_to_loop = shift_keys
                     shift_key_descr = "all_mvt"
+                    # for now we don't want all_mvt
+                    continue
                 else:
                     shift_keys_to_loop = shift_keys
                     shift_key_descr = "still"
@@ -4623,7 +4633,9 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                                                            description=f"{ms.description}_{shift_key_descr}",
                                                            perc_threshold=perc_threshold,
                                                            n_surrogate=n_surrogate)
-
+            print(f"{ms.description}: significant {len(significant_cells)}, all {len(ms.spike_struct.spike_nums)}")
+            if len(significant_cells) > 0:
+                continue
             plot_distrib_participation_to_event = True
             if plot_distrib_participation_to_event:
                 shift_binary = shift_bool.astype("int8")
@@ -4632,16 +4644,109 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                 shift_numbers = shift_numbers * -1
                 for period_index, period in enumerate(periods_shift):
                     shift_numbers[period[0]:period[1]+1] = period_index
+                if len(significant_cells) > 0:
+                    ratio_spikes_total_events_significant_cells = get_ratio_spikes_on_events_vs_total_events_by_cell(
+                        spike_nums=ms.spike_struct.spike_nums[np.array(significant_cells)],
+                        spike_nums_dur=ms.spike_struct.spike_nums_dur[np.array(significant_cells)],
+                        sce_times_numbers=shift_numbers,
+                        use_only_onsets=False)
                 ratio_spikes_total_events = get_ratio_spikes_on_events_vs_total_events_by_cell(
-                    spike_nums=ms.spike_struct.spike_nums[np.array(significant_cells)],
-                    spike_nums_dur=ms.spike_struct.spike_nums_dur[np.array(significant_cells)],
+                    spike_nums=ms.spike_struct.spike_nums,
+                    spike_nums_dur=ms.spike_struct.spike_nums_dur,
                     sce_times_numbers=shift_numbers,
                     use_only_onsets=False)
-                # TODO: to finish
-                plot_hist_distribution(distribution_data=ratio_spikes_total_events,
-                                       description=f"{ms.description}_hist_spike_total_{shift_key_descr}_ratio",
+
+                if len(significant_cells) > 0:
+                    ratio_spikes_events_significant_cells = get_ratio_spikes_on_events_vs_total_spikes_by_cell(
+                        spike_nums=ms.spike_struct.spike_nums[np.array(significant_cells)],
+                        spike_nums_dur=ms.spike_struct.spike_nums_dur[np.array(significant_cells)],
+                        sce_times_numbers=shift_numbers, use_only_onsets=False)
+
+                ratio_spikes_events = get_ratio_spikes_on_events_vs_total_spikes_by_cell(
+                    spike_nums=ms.spike_struct.spike_nums,
+                    spike_nums_dur=ms.spike_struct.spike_nums_dur,
+                    sce_times_numbers=shift_numbers, use_only_onsets=False)
+
+                n_bins = 30
+                values_to_scatter = []
+                labels = []
+                scatter_shapes = []
+                colors = []
+                values_to_scatter.append(np.mean(ratio_spikes_total_events_significant_cells))
+                labels.extend(["mean"])
+                scatter_shapes.extend(["o"])
+                colors.extend(["white"])
+                plot_hist_distribution(distribution_data=ratio_spikes_total_events_significant_cells,
+                                       description=f"{ms.description}_hist_spike_total_{shift_key_descr}_"
+                                       f"ratio_significant_"
+                                       f"{len(ratio_spikes_total_events_significant_cells)}_cells",
                                        xlabel=f"spikes in {shift_key_descr} vs total {shift_key_descr} (%)",
+                                       values_to_scatter=np.array(values_to_scatter),
+                                       labels=labels,
+                                       twice_more_bins=True,
+                                       scatter_shapes=scatter_shapes,
+                                       colors=colors,
+                                       n_bins=n_bins,
                                        param=param)
+
+                values_to_scatter = []
+                values_to_scatter.append(np.mean(ratio_spikes_events_significant_cells))
+                plot_hist_distribution(distribution_data=ratio_spikes_events_significant_cells,
+                                       description=f"{ms.description}_hist_spike_total_{shift_key_descr}_vs_all_spikes"
+                                       f"_ratio_significant_"
+                                       f"{len(ratio_spikes_events_significant_cells)}_cells",
+                                       xlabel=f"spikes in {shift_key_descr} vs total spikes (%)",
+                                       values_to_scatter=np.array(values_to_scatter),
+                                       labels=labels,
+                                       twice_more_bins=True,
+                                       scatter_shapes=scatter_shapes,
+                                       colors=colors,
+                                       n_bins=n_bins,
+                                       param=param)
+
+                values_to_scatter = []
+                values_to_scatter.append(np.mean(ratio_spikes_total_events))
+                plot_hist_distribution(distribution_data=ratio_spikes_total_events,
+                                       description=f"{ms.description}_hist_spike_total_{shift_key_descr}_ratio_"
+                                       f"{len(ratio_spikes_total_events)}_cells",
+                                       xlabel=f"spikes in {shift_key_descr} vs total {shift_key_descr} (%)",
+                                       values_to_scatter=np.array(values_to_scatter),
+                                       labels=labels,
+                                       scatter_shapes=scatter_shapes,
+                                       colors=colors,
+                                       n_bins=n_bins,
+                                       param=param)
+
+                values_to_scatter = []
+                values_to_scatter.append(np.mean(ratio_spikes_events))
+                plot_hist_distribution(distribution_data=ratio_spikes_events,
+                                       description=f"{ms.description}_hist_spike_total_{shift_key_descr}_vs_all_spikes"
+                                       f"_ratio"
+                                       f"{len(ratio_spikes_events)}_cells",
+                                       xlabel=f"spikes in {shift_key_descr} vs total spikes (%)",
+                                       values_to_scatter=np.array(values_to_scatter),
+                                       labels=labels,
+                                       scatter_shapes=scatter_shapes,
+                                       colors=colors,
+                                       n_bins=n_bins,
+                                       param=param)
+
+                display_misc.plot_scatters(ratio_spikes_total_events_significant_cells, ratio_spikes_events_significant_cells,
+                              size_scatter=30, ax_to_use=None, color_to_use=None, legend_str="",
+                              xlabel="spikes on total events", ylabel="spikes on total spikes",
+                              filename_option=f"{ms.description}_spikes_on_all_spikes_vs_all_events_{shift_key_descr}_significant",
+                            param=param, y_lim=(0, 100), x_lim=(0, 100),
+                              save_formats="pdf")
+
+                display_misc.plot_scatters(ratio_spikes_total_events, ratio_spikes_events,
+                              size_scatter=30, ax_to_use=None, color_to_use=None, legend_str="",
+                              xlabel="spikes on total events", ylabel="spikes on total spikes",
+                              filename_option=f"{ms.description}_spikes_on_all_spikes_vs_all_events_{shift_key_descr}",
+                              param=param, y_lim=(0, 100), x_lim=(0, 100),
+                              save_formats="pdf")
+
+                # TODO: Take the mean of each distribution and do a boxplot by age with those values
+
             print(f"{ms.description}: {shift_key_descr} analysis")
             print(f"{n_cells} cells")
             print(f"{len(significant_cells)} significant cells")
@@ -5273,9 +5378,9 @@ def robin_loading_process(param, load_traces, load_abf=False):
                       "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
                       "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
                       "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
-    # #   for test
-    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-                      "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
+    # # #   for test
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+    #                   "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p5_19_03_25_a000_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
@@ -5362,6 +5467,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
+    # ms_str_to_load = ["p6_19_02_18_a000_ms"]
     # loading data
     # z_shifts_ms = ["p5_19_03_25_a000_ms",
     #                "p5_19_03_25_a001_ms",
@@ -5554,7 +5660,7 @@ def main():
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
     do_clustering = False
-    do_detect_sce_on_traces = False
+    do_detect_sce_on_traces = True
     use_hdbscan = False
     # to add in the file title
     clustering_bonus_descr = ""
@@ -5649,10 +5755,10 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 10)
+    range_n_clusters_k_mean = np.arange(3, 4)
     # range_n_clusters_k_mean = np.array([7])
     n_surrogate_k_mean = 20
-    keep_only_the_best_kmean_cluster = True
+    keep_only_the_best_kmean_cluster = False
 
     # ##########################################################################################
     # ################################ PATTERNS SEARCH #########################################
@@ -5810,11 +5916,12 @@ def main():
         if just_plot_raster:
             # spike_shape = '|' if use_raster_dur else 'o'
             spike_shape = 'o'
-            if ms.spike_struct.spike_nums is None:
+            if ms.spike_struct.spike_nums_dur is None:
+                print(f"{ms.description} spike_struct.spike_nums_dur is None")
                 continue
             n_cells = len(ms.spike_struct.spike_nums)
             y_lim_sum_activity = None
-            plot_spikes_raster(spike_nums=ms.spike_struct.spike_nums, param=ms.param,
+            plot_spikes_raster(spike_nums=ms.spike_struct.spike_nums_dur, param=ms.param,
                                spike_train_format=False,
                                title=f"{ms.description}",
                                file_name=f"{ms.description}_raster",
@@ -5915,6 +6022,7 @@ def main():
         if do_spotdist:
             spotdist_function(ms, param)
         if just_find_seq_with_pca:
+            # speed = ms.speed_by_frame
             find_seq_with_pca(ms, ms.raw_traces, path_results=param.path_results,
                               file_name=f"{ms.description}_seq_with_pca")
             if ms_index == len(ms_to_analyse) - 1:
@@ -6892,7 +7000,7 @@ def main():
         ###################################################################
 
         spike_struct = ms.spike_struct
-        n_cells = len(spike_struct.spike_nums_dur)
+        n_cells = ms.coord_obj.n_cells
         # spike_struct.build_spike_trains()
 
         # ######  parameters setting #########
@@ -7037,6 +7145,7 @@ def main():
                                                         sce_min_distance=4, use_median_norm=True,
                                                         use_bleaching_correction=False,
                                                         use_savitzky_golay_filt=True)
+            cellsinpeak = cellsinpeak.astype("int8")
             sce_times_bool = np.zeros(spike_nums_to_use.shape[1], dtype="bool")
             sce_times_bool[sce_loc] = True
             SCE_times = get_continous_time_periods(sce_times_bool)
@@ -7049,6 +7158,26 @@ def main():
             ms.sce_bool = sce_times_bool
             ms.sce_times_numbers = sce_times_numbers
             ms.SCE_times = SCE_times
+            print(f"n SCE {len(SCE_times)}")
+            plot_spikes_raster(spike_nums=ms.spike_struct.spike_nums_dur, param=param,
+                               spike_train_format=False,
+                               file_name=f"spike_nums_{data_descr}_sce_on_traces",
+                               y_ticks_labels=np.arange(len(ms.spike_struct.spike_nums_dur)),
+                               y_ticks_labels_size=2,
+                               save_raster=True,
+                               show_raster=False,
+                               plot_with_amplitude=False,
+                               raster_face_color='black',
+                               cell_spikes_color='white',
+                               span_area_coords=[SCE_times],
+                               span_area_colors=['white'],
+                               alpha_span_area=0.8,
+                               span_area_only_on_raster=False,
+                               show_sum_spikes_as_percentage=True,
+                               spike_shape="o",
+                               spike_shape_size=0.3,
+                               save_formats="pdf",
+                               SCE_times=SCE_times)
         else:
             # TODO: detect_sce_with_sliding_window with spike_trains
             sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use[:5000],

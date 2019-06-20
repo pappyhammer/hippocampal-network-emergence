@@ -239,6 +239,38 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["p6_18_02_07_a002_ms"] = p6_18_02_07_a002_ms
 
+    if "p6_19_02_18_a000_ms" in ms_str_to_load:
+        p6_19_02_18_a000_ms = MouseSession(age=6, session_id="19_02_18_a000", sampling_rate=8, param=param,
+                                           weight=None)
+        p6_19_02_18_a000_ms.use_suite_2p = True
+        # calculated with 99th percentile on raster dur
+        # p6_18_02_07_a002_ms.activity_threshold =
+
+        if not p6_19_02_18_a000_ms.use_suite_2p:
+            # variables_mapping = {"spike_nums": "spikenums"}
+            # p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load=
+            #                                         "p6/p6_19_02_18_a000/p6_19_02_18_a000_MCMC.mat",
+            #                                         variables_mapping=variables_mapping)
+            if load_traces:
+                variables_mapping = {"traces": "C_df"}
+                p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_Traces.mat",
+                                                        variables_mapping=variables_mapping)
+                variables_mapping = {"raw_traces": "Tracecells"}
+                p6_19_02_18_a000_ms.load_data_from_file(
+                    file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_Traces.mat",
+                    variables_mapping=variables_mapping)
+
+            # p6_19_02_18_a000_ms.load_caiman_results(path_data="p6/p6_19_02_18_a000/")
+            # p6_19_02_18_a000_ms.spike_struct.spike_nums = p6_19_02_18_a000_ms.caiman_spike_nums
+            # p6_19_02_18_a000_ms.spike_struct.spike_nums_dur = p6_19_02_18_a000_ms.caiman_spike_nums_dur
+            # p6_19_02_18_a000_ms.spike_struct.n_cells = len(p6_19_02_18_a000_ms.caiman_spike_nums_dur)
+
+            variables_mapping = {"coord": "ContoursAll"}
+            p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_CellDetect.mat",
+                                                    variables_mapping=variables_mapping)
+
+        ms_str_to_ms_dict["p6_19_02_18_a000_ms"] = p6_19_02_18_a000_ms
+
     if "p7_171012_a000_ms" in ms_str_to_load:
         p7_171012_a000_ms = MouseSession(age=7, session_id="17_10_12_a000", sampling_rate=10, param=param,
                                          weight=None)
@@ -1134,7 +1166,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p12_171110_a000_ms.use_suite_2p = True
 
         # calculated with 99th percentile on raster dur
-        # p12_171110_a000_ms.activity_threshold =
+        p12_171110_a000_ms.activity_threshold = 13
 
         # caiman version
         # variables_mapping = {"spike_nums_dur": "corrected_rasterdur"} # rasterdur before

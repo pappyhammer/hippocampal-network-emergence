@@ -172,6 +172,7 @@ class ChooseSessionFrame(tk.Frame):
         self.available_ms_str = ["artificial_ms",
                                  "p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
                                  "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                                 "p6_19_02_18_a000_ms",
                                  "p7_171012_a000_ms",
                                  "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
                                  "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
@@ -994,6 +995,8 @@ class ManualOnsetFrame(tk.Frame):
         self.last_predicted_transient_selected = None
         # checking if a prediction results are already loaded in mouse_sessions
         if self.data_and_param.ms.rnn_transients_predictions is not None:
+            # print(f"len(self.data_and_param.ms.rnn_transients_predictions) "
+            #       f"{len(self.data_and_param.ms.rnn_transients_predictions)} {self.nb_neurons}")
             for cell in np.arange(self.nb_neurons):
                 self.transient_prediction_periods[cell] = dict()
                 cell_predictions = self.data_and_param.ms.rnn_transients_predictions[cell]
@@ -1015,7 +1018,10 @@ class ManualOnsetFrame(tk.Frame):
         self.caiman_spike_nums = None
         if self.data_and_param.ms.caiman_active_periods is not None:
             self.caiman_active_periods = self.data_and_param.ms.caiman_active_periods
-            self.caiman_spike_nums = self.data_and_param.ms.caiman_spike_nums
+            if self.data_and_param.ms.caiman_spike_nums_dur is not None:
+                self.caiman_spike_nums = self.data_and_param.ms.caiman_spike_nums_dur
+            else:
+                self.caiman_spike_nums = self.data_and_param.ms.caiman_spike_nums
             # for cell in np.arange(self.nb_neurons):
             #     self.caiman_active_periods[cell] = \
             #         get_continous_time_periods(self.data_and_param.ms.caiman_spike_nums_dur[cell, :])

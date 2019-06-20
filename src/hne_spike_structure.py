@@ -294,10 +294,10 @@ class HNESpikeStructure:
                         n_out_sum = np.sum(distribution_array[(event_index + 1):])
                         if n_in_sum > n_out_sum:
                             self.n_in_dict[neuron][neuron_to_consider] = 1
-                            self.n_in_matrix[neuron][neuron_to_consider] = 1
+                            # self.n_in_matrix[neuron][neuron_to_consider] = 1
                         else:
                             self.n_out_dict[neuron][neuron_to_consider] = 1
-                            self.n_out_matrix[neuron][neuron_to_consider] = 1
+                            # self.n_out_matrix[neuron][neuron_to_consider] = 1
                 else:
                     continue
                 # # means we have the same number of spikes before and after
