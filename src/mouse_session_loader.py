@@ -242,7 +242,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "p6_19_02_18_a000_ms" in ms_str_to_load:
         p6_19_02_18_a000_ms = MouseSession(age=6, session_id="19_02_18_a000", sampling_rate=8, param=param,
                                            weight=None)
-        p6_19_02_18_a000_ms.use_suite_2p = True
+        p6_19_02_18_a000_ms.use_suite_2p = False
         # calculated with 99th percentile on raster dur
         # p6_18_02_07_a002_ms.activity_threshold =
 
@@ -731,7 +731,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                            sampling_rate=10, param=param, weight=6.4)
 
         # oriens field, using Caiman
-        p8_18_10_24_a006_ms.use_suite_2p = False
+        p8_18_10_24_a006_ms.use_suite_2p = True
 
         if not p8_18_10_24_a006_ms.use_suite_2p:
             if for_cell_classifier or for_transient_classifier:
@@ -1762,6 +1762,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                                 variables_mapping=variables_mapping)
 
         ms.load_speed_from_file(path_to_load=f"p{ms.age}/{ms.description.lower()}/")
+
+        ms.load_seq_pca_results(path=f"p{ms.age}/{ms.description.lower()}/")
 
         if load_abf and (not ms.abf_loaded):
             # if sampling_rate is not 50000, load specific data for a session

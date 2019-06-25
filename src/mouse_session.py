@@ -111,6 +111,7 @@ class MouseSession:
         self.avg_cell_map_img = None
         self.avg_cell_map_img_file_name = None
         self.tif_movie_file_name = None
+        self.pca_seq_cells_order = None
         # will be use by the cell classifier
         self.tiff_movie = None
         # movie dimensions (x = shape[1] and y = shape[0] for a given frame)
@@ -2152,9 +2153,9 @@ class MouseSession:
         print(f"starting PCA")
         # save_formats = ["pdf", "png"]
         save_formats = ["png"]
-        use_original_raster = False
-        do_pca_on_trace = False
-        n_components = 10
+        use_original_raster = True
+        do_pca_on_trace = True
+        n_components = 20
         n_cells = self.spike_struct.spike_nums_dur.shape[0]
         n_times = self.spike_struct.spike_nums_dur.shape[1]
         spike_nums_dur_original = np.copy(self.spike_struct.spike_nums_dur)
@@ -2246,7 +2247,7 @@ class MouseSession:
 
         for component in np.arange(n_components):
             # sorted_raster = np.copy(spike_nums_dur)
-            indices_sorted = np.argsort(pca_result[:, component])
+            indices_sorted = np.argsort(pca_result[:, component])[::-1]
             plot_spikes_raster(spike_nums=spike_nums_dur[indices_sorted, :], param=self.param,
                                title=f"{self.description}_spike_nums_pc_{component}_ordered",
                                spike_train_format=False,
@@ -2264,7 +2265,7 @@ class MouseSession:
                                spike_shape_size=0.5,
                                spike_nums_for_activity_sum=self.spike_struct.spike_nums_dur[indices_sorted, :],
                                without_activity_sum=False,
-                               size_fig=(15, 6))
+                               size_fig=(15, 6), dpi=300)
             n_cells_to_display = 40
             cells_groups_colors = [(1, 0, 0, 1)]
             cells_groups = []
@@ -3803,6 +3804,44 @@ class MouseSession:
                         self.cell_cnn_predictions.extend(cells_list)
                 self.cell_cnn_predictions = np.array(self.cell_cnn_predictions)
                 return
+    def load_seq_pca_results(self, path):
+        """
+        Load matlab results of the search of seq using PCA
+        :param path:
+        :return:
+        """
+        file_names = []
+
+        # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data, path)):
+            file_names.extend(local_filenames)
+            break
+        if len(file_names) == 0:
+            return
+        dc_array = None
+        dc_shift_array = None
+        x_del_array = None
+        for file_name in file_names:
+            if ("DC" in file_name) and (self.description.lower() in file_name.lower()) \
+                    and (file_name.endswith(".mat")) and ("shift" not in file_name.lower()):
+                dc_var = hdf5storage.loadmat(os.path.join(self.param.path_data,
+                                                        path, file_name))
+                dc_array = dc_var["DC"][0]
+            if ("dcshift" in file_name.lower()) and (self.description.lower() in file_name.lower()) \
+                    and (file_name.endswith(".mat")):
+                data = hdf5storage.loadmat(os.path.join(self.param.path_data,
+                                                        path, file_name))
+                dc_shift_array = data["ShiftDC"][0]
+            if ("xdel" in file_name.lower()) and (self.description.lower() in file_name.lower()) \
+                    and (file_name.endswith(".mat")):
+                data = hdf5storage.loadmat(os.path.join(self.param.path_data,
+                                                        path, file_name))
+                x_del_array = data["xDel"][0]
+        if (dc_array is None) or (x_del_array is None):
+            return
+        # +1 because it's coming from matlab
+        cells_order = dc_array[x_del_array-1]-1
+        self.pca_seq_cells_order = cells_order
 
     def load_tif_movie(self, path):
         """
