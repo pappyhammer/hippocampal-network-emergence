@@ -65,6 +65,7 @@ import elephant.conversion as elephant_conv
 import quantities as pq
 import elephant.cell_assembly_detection as cad
 from spot_dist import spotdist_function
+from rastermap import Rastermap
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -5056,6 +5057,9 @@ def stat_significant_time_period(ms_to_analyse, shift_key, perc_threshold=95, n_
                                     with_cell_assemblies=False)
 
 
+def use_rastermap_for_pca(ms, path_results, file_name):
+    model = Rastermap(n_components=1, n_X=30, nPC=200, init='pca')
+
 def elephant_cad(ms, param, save_formats="pdf"):
     if ms.spike_struct.spike_nums is None:
         print(f"elephant_cad {ms.description} ms.spike_struct.spike_nums should not be None")
@@ -5333,7 +5337,6 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ms_with_piezo
     # ms_str_to_load = ms_with_piezo
-    # ms_str_to_load = ["p7_18_02_08_a000_ms"]
     # ms_str_to_load = ["p7_17_10_18_a002_ms"]
     # # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ms_new_from_Robin_2nd_dec
@@ -5486,6 +5489,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
 
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
     ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p7_18_02_08_a000_ms"]
     # ms_str_to_load = ["p7_18_02_08_a001_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
     # ms_str_to_load = ["p19_19_04_08_a000_ms"]
@@ -5550,7 +5554,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
 
-    # add_z_shifts_from_file(ms_str_to_ms_dict, param)
+    add_z_shifts_from_file(ms_str_to_ms_dict, param)
 
     return ms_str_to_ms_dict
 
@@ -5658,6 +5662,8 @@ def main():
     just_plot_variance_according_to_sum_of_activity = False
     just_cluster_using_grid = False
     just_plot_seq_from_pca_with_map = False
+    just_save_raster_as_npy_file = True
+    just_use_rastermap_for_pca = False
 
     just_plot_raster_with_same_sum_activity_lim = False
     just_plot_raster = False
@@ -5672,7 +5678,7 @@ def main():
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_do_seqnmf = False
     just_generate_artificial_movie_from_rasterdur = False
-    just_do_pca_on_raster = True
+    just_do_pca_on_raster = False
     just_display_seq_with_cell_assembly = False
     just_produce_animation = False
     just_plot_ratio_spikes_for_shift = False
@@ -6030,6 +6036,7 @@ def main():
                                                           without_sum_activity_traces=True,
                                                           save_formats=["pdf", "png"], dpi=300)
             # with z_shifts_mvt
+            # print(f"ms.z_shift_periods {ms.z_shift_periods}")
             if len(ms.z_shift_periods) > 0:
                 span_area_coords = []
                 span_area_colors = []
@@ -6212,6 +6219,22 @@ def main():
                               file_name=f"{ms.description}_seq_with_pca")
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_find_seq_with_pca")
+            continue
+
+        if just_use_rastermap_for_pca:
+            use_rastermap_for_pca(ms, path_results=param.path_results,
+                              file_name=f"{ms.description}_pca_with_rastermap")
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_use_rastermap_for_pca")
+            continue
+
+        if just_save_raster_as_npy_file:
+            if ms.spike_struct.spike_nums_dur is None:
+                continue
+            np.save(os.path.join(param.path_results, f'{ms.description}_raster_dur.npy'),
+                    ms.spike_struct.spike_nums_dur.astype("uint8"))
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_save_raster_as_npy_file")
             continue
         if just_test_elephant_cad:
             elephant_cad(ms, param)
