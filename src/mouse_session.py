@@ -111,6 +111,7 @@ class MouseSession:
         self.avg_cell_map_img = None
         self.avg_cell_map_img_file_name = None
         self.tif_movie_file_name = None
+        # will be a dict, with key the principal component number, and value the cells order
         self.pca_seq_cells_order = None
         # will be use by the cell classifier
         self.tiff_movie = None
@@ -3804,6 +3805,7 @@ class MouseSession:
                         self.cell_cnn_predictions.extend(cells_list)
                 self.cell_cnn_predictions = np.array(self.cell_cnn_predictions)
                 return
+
     def load_seq_pca_results(self, path):
         """
         Load matlab results of the search of seq using PCA
@@ -3818,30 +3820,42 @@ class MouseSession:
             break
         if len(file_names) == 0:
             return
-        dc_array = None
-        dc_shift_array = None
-        x_del_array = None
+        dc_dict = dict()
+        dc_shift_dict = dict()
+        x_del_dict = dict()
         for file_name in file_names:
+            # first we get the pc_number
+            if ("Comp" in file_name) and (file_name.endswith(".mat")):
+                index_comp = file_name.index("Comp")
+                index_mat = file_name.index(".mat")
+                pc_number = int(file_name[index_comp+4:index_mat])
+            else:
+                continue
             if ("DC" in file_name) and (self.description.lower() in file_name.lower()) \
                     and (file_name.endswith(".mat")) and ("shift" not in file_name.lower()):
                 dc_var = hdf5storage.loadmat(os.path.join(self.param.path_data,
                                                         path, file_name))
-                dc_array = dc_var["DC"][0]
+                dc_dict[pc_number] = dc_var["DC"][0]
+
             if ("dcshift" in file_name.lower()) and (self.description.lower() in file_name.lower()) \
                     and (file_name.endswith(".mat")):
                 data = hdf5storage.loadmat(os.path.join(self.param.path_data,
                                                         path, file_name))
-                dc_shift_array = data["ShiftDC"][0]
+                dc_dict[pc_number] = data["ShiftDC"][0]
             if ("xdel" in file_name.lower()) and (self.description.lower() in file_name.lower()) \
                     and (file_name.endswith(".mat")):
                 data = hdf5storage.loadmat(os.path.join(self.param.path_data,
                                                         path, file_name))
-                x_del_array = data["xDel"][0]
-        if (dc_array is None) or (x_del_array is None):
+                x_del_dict[pc_number] = data["xDel"][0]
+
+        if (dc_dict is None) or (x_del_dict is None):
             return
-        # +1 because it's coming from matlab
-        cells_order = dc_array[x_del_array-1]-1
-        self.pca_seq_cells_order = cells_order
+        for pc_number, dc_array in dc_dict.items():
+            # -1 because it's coming from matlab
+            cells_order = dc_array[x_del_dict[pc_number]-1]-1
+            if self.pca_seq_cells_order is None:
+                self.pca_seq_cells_order = dict()
+            self.pca_seq_cells_order[pc_number] = cells_order
 
     def load_tif_movie(self, path):
         """

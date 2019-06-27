@@ -5549,6 +5549,30 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                    "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms", "p21_19_04_10_a000_ms",
     #                    "p21_19_04_10_a001_ms",
     #                    "p21_19_04_10_a000_j3_ms", "p41_19_04_30_a000_ms"]
+    # with pca matlab
+    ms_str_to_load = [ "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+                      "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                      "p7_19_03_27_a002_ms",
+                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+                      "p8_18_10_17_a001_ms",
+                                             "p8_19_03_19_a000_ms",
+                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
+                      "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
+                      "p9_19_03_22_a001_ms",
+                      "p10_17_11_16_a003_ms",
+                      "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
+                      "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+                      "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+                      "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+                      "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+                      "p16_18_11_01_a002_ms",
+                      "p19_19_04_08_a000_ms",
+                      # "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+                      # "p21_19_04_10_a000_j3_ms",
+                      "p41_19_04_30_a000_ms"]
     # ms_str_to_load = "p6_18_02_07_a001_ms"
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -5661,8 +5685,8 @@ def main():
     just_test_elephant_cad = False
     just_plot_variance_according_to_sum_of_activity = False
     just_cluster_using_grid = False
-    just_plot_seq_from_pca_with_map = False
-    just_save_raster_as_npy_file = True
+    just_plot_seq_from_pca_with_map = True
+    just_save_raster_as_npy_file = False
     just_use_rastermap_for_pca = False
 
     just_plot_raster_with_same_sum_activity_lim = False
@@ -5993,88 +6017,13 @@ def main():
         if just_plot_seq_from_pca_with_map:
             if ms.pca_seq_cells_order is None:
                 continue
-            file_name = f"{ms.description}_map_and_raster_seq_pca_{len(ms.pca_seq_cells_order)}_cells"
-            if ms.speed_by_frame is not None:
-                binary_speed = np.zeros(len(ms.speed_by_frame), dtype="int8")
-                binary_speed[ms.speed_by_frame > 0] = 1
-                speed_periods = get_continous_time_periods(binary_speed)
-
-            # colors for movement periods
-            span_area_coords = None
-            span_area_colors = None
-            with_mvt_periods = True
-
-            if with_mvt_periods:
-                colors = ["red", "green", "blue", "pink", "orange"]
-                i = 0
-                span_area_coords = []
-                span_area_colors = []
-                periods_dict = ms.shift_data_dict
-                if periods_dict is not None:
-                    print(f"{ms.description}:")
-                    for name_period, period in periods_dict.items():
-                        span_area_coords.append(get_continous_time_periods(period.astype("int8")))
-                        span_area_colors.append(colors[i % len(colors)])
-                        print(f"  Period {name_period} -> {colors[i]}")
-                        i += 1
-                elif ms.speed_by_frame is not None:
-                    span_area_coords = []
-                    span_area_colors = []
-                    span_area_coords.append(speed_periods)
-                    span_area_colors.append("cornflowerblue")
-                else:
-                    print(f"no mvt info for {ms.description}")
-
-            plot_figure_with_map_and_raster_for_sequences(ms=ms,
-                                                          cells_in_seq=ms.pca_seq_cells_order[::-1],
-                                                          file_name=file_name,
-                                                          lines_to_display=None,
-                                                          range_around_slope_in_frames=
-                                                          0,
-                                                          span_area_coords=span_area_coords,
-                                                          span_area_colors=span_area_colors,
-                                                          without_sum_activity_traces=True,
-                                                          save_formats=["pdf", "png"], dpi=300)
-            # with z_shifts_mvt
-            # print(f"ms.z_shift_periods {ms.z_shift_periods}")
-            if len(ms.z_shift_periods) > 0:
-                span_area_coords = []
-                span_area_colors = []
-                span_area_coords.append(ms.z_shift_periods)
-                span_area_colors.append("powderblue")
-                file_name = f"{ms.description}_map_and_raster_seq_pca_{len(ms.pca_seq_cells_order)}_cells_z_shifts"
-                plot_figure_with_map_and_raster_for_sequences(ms=ms,
-                                                              cells_in_seq=ms.pca_seq_cells_order[::-1],
-                                                              file_name=file_name,
-                                                              lines_to_display=None,
-                                                              range_around_slope_in_frames=
-                                                              0,
-                                                              span_area_coords=span_area_coords,
-                                                              span_area_colors=span_area_colors,
-                                                              without_sum_activity_traces=True,
-                                                              save_formats=["pdf", "png"], dpi=300)
-
-
-
-            n_times = ms.spike_struct.spike_nums_dur.shape[1]
-            for index_beg in np.arange(0, n_times, 2500):
-                frames_to_display = np.arange(index_beg, index_beg+2500)
-                file_name = f"{ms.description}_map_and_raster_seq_pca_{len(ms.pca_seq_cells_order)}_cells_" \
-                    f"frame_{index_beg}_to_frame_{index_beg+2500}"
+            for pc_number, pca_seq_cells_order in ms.pca_seq_cells_order.items():
+                file_name = f"{ms.description}_pc_{pc_number}_map_and_raster_seq_pca_{len(pca_seq_cells_order)}_cells"
                 if ms.speed_by_frame is not None:
                     binary_speed = np.zeros(len(ms.speed_by_frame), dtype="int8")
                     binary_speed[ms.speed_by_frame > 0] = 1
-                    speed_periods_tmp = get_continous_time_periods(binary_speed)
-                    speed_periods = []
-                    for speed_period in speed_periods_tmp:
-                        if (speed_period[0] not in frames_to_display) and (speed_period[1] not in frames_to_display):
-                            continue
-                        elif (speed_period[0] in frames_to_display) and (speed_period[1] in frames_to_display):
-                            speed_periods.append((speed_period[0] - index_beg, speed_period[1] - index_beg))
-                        elif speed_period[0] in frames_to_display:
-                            speed_periods.append((speed_period[0] - index_beg, frames_to_display[-1] - index_beg))
-                        else:
-                            speed_periods.append((0, speed_period[1] - index_beg))
+                    speed_periods = get_continous_time_periods(binary_speed)
+
                 # colors for movement periods
                 span_area_coords = None
                 span_area_colors = None
@@ -6089,19 +6038,7 @@ def main():
                     if periods_dict is not None:
                         print(f"{ms.description}:")
                         for name_period, period in periods_dict.items():
-                            mvt_periods_tmp = get_continous_time_periods(period.astype("int8"))
-                            mvt_periods = []
-                            for mvt_period in mvt_periods_tmp:
-                                if (mvt_period[0] not in frames_to_display) and (
-                                        mvt_period[1] not in frames_to_display):
-                                    continue
-                                elif (mvt_period[0] in frames_to_display) and (mvt_period[1] in frames_to_display):
-                                    mvt_periods.append((mvt_period[0] - index_beg, mvt_period[1] - index_beg))
-                                elif mvt_period[0] in frames_to_display:
-                                    mvt_periods.append((mvt_period[0] - index_beg, frames_to_display[-1] - index_beg))
-                                else:
-                                    mvt_periods.append((0, mvt_period[1] - index_beg))
-                            span_area_coords.append(mvt_periods)
+                            span_area_coords.append(get_continous_time_periods(period.astype("int8")))
                             span_area_colors.append(colors[i % len(colors)])
                             print(f"  Period {name_period} -> {colors[i]}")
                             i += 1
@@ -6114,8 +6051,7 @@ def main():
                         print(f"no mvt info for {ms.description}")
 
                 plot_figure_with_map_and_raster_for_sequences(ms=ms,
-                                                              frames_to_use=frames_to_display,
-                                                              cells_in_seq=ms.pca_seq_cells_order[::-1],
+                                                              cells_in_seq=pca_seq_cells_order[::-1],
                                                               file_name=file_name,
                                                               lines_to_display=None,
                                                               range_around_slope_in_frames=
@@ -6124,6 +6060,95 @@ def main():
                                                               span_area_colors=span_area_colors,
                                                               without_sum_activity_traces=True,
                                                               save_formats=["pdf", "png"], dpi=300)
+                # with z_shifts_mvt
+                # print(f"ms.z_shift_periods {ms.z_shift_periods}")
+                if len(ms.z_shift_periods) > 0:
+                    span_area_coords = []
+                    span_area_colors = []
+                    span_area_coords.append(ms.z_shift_periods)
+                    span_area_colors.append("powderblue")
+                    file_name = f"{ms.description}_pc_{pc_number}_map_and_raster_seq_pca_{len(pca_seq_cells_order)}_cells_z_shifts"
+                    plot_figure_with_map_and_raster_for_sequences(ms=ms,
+                                                                  cells_in_seq=pca_seq_cells_order[::-1],
+                                                                  file_name=file_name,
+                                                                  lines_to_display=None,
+                                                                  range_around_slope_in_frames=
+                                                                  0,
+                                                                  span_area_coords=span_area_coords,
+                                                                  span_area_colors=span_area_colors,
+                                                                  without_sum_activity_traces=True,
+                                                                  save_formats=["pdf", "png"], dpi=300)
+
+
+
+                n_times = ms.spike_struct.spike_nums_dur.shape[1]
+                for index_beg in np.arange(0, n_times, 2500):
+                    frames_to_display = np.arange(index_beg, index_beg+2500)
+                    file_name = f"{ms.description}_pc_{pc_number}_map_and_raster_seq_pca_{len(pca_seq_cells_order)}_cells_" \
+                        f"frame_{index_beg}_to_frame_{index_beg+2500}"
+                    if ms.speed_by_frame is not None:
+                        binary_speed = np.zeros(len(ms.speed_by_frame), dtype="int8")
+                        binary_speed[ms.speed_by_frame > 0] = 1
+                        speed_periods_tmp = get_continous_time_periods(binary_speed)
+                        speed_periods = []
+                        for speed_period in speed_periods_tmp:
+                            if (speed_period[0] not in frames_to_display) and (speed_period[1] not in frames_to_display):
+                                continue
+                            elif (speed_period[0] in frames_to_display) and (speed_period[1] in frames_to_display):
+                                speed_periods.append((speed_period[0] - index_beg, speed_period[1] - index_beg))
+                            elif speed_period[0] in frames_to_display:
+                                speed_periods.append((speed_period[0] - index_beg, frames_to_display[-1] - index_beg))
+                            else:
+                                speed_periods.append((0, speed_period[1] - index_beg))
+                    # colors for movement periods
+                    span_area_coords = None
+                    span_area_colors = None
+                    with_mvt_periods = True
+
+                    if with_mvt_periods:
+                        colors = ["red", "green", "blue", "pink", "orange"]
+                        i = 0
+                        span_area_coords = []
+                        span_area_colors = []
+                        periods_dict = ms.shift_data_dict
+                        if periods_dict is not None:
+                            print(f"{ms.description}:")
+                            for name_period, period in periods_dict.items():
+                                mvt_periods_tmp = get_continous_time_periods(period.astype("int8"))
+                                mvt_periods = []
+                                for mvt_period in mvt_periods_tmp:
+                                    if (mvt_period[0] not in frames_to_display) and (
+                                            mvt_period[1] not in frames_to_display):
+                                        continue
+                                    elif (mvt_period[0] in frames_to_display) and (mvt_period[1] in frames_to_display):
+                                        mvt_periods.append((mvt_period[0] - index_beg, mvt_period[1] - index_beg))
+                                    elif mvt_period[0] in frames_to_display:
+                                        mvt_periods.append((mvt_period[0] - index_beg, frames_to_display[-1] - index_beg))
+                                    else:
+                                        mvt_periods.append((0, mvt_period[1] - index_beg))
+                                span_area_coords.append(mvt_periods)
+                                span_area_colors.append(colors[i % len(colors)])
+                                print(f"  Period {name_period} -> {colors[i]}")
+                                i += 1
+                        elif ms.speed_by_frame is not None:
+                            span_area_coords = []
+                            span_area_colors = []
+                            span_area_coords.append(speed_periods)
+                            span_area_colors.append("cornflowerblue")
+                        else:
+                            print(f"no mvt info for {ms.description}")
+
+                    plot_figure_with_map_and_raster_for_sequences(ms=ms,
+                                                                  frames_to_use=frames_to_display,
+                                                                  cells_in_seq=pca_seq_cells_order[::-1],
+                                                                  file_name=file_name,
+                                                                  lines_to_display=None,
+                                                                  range_around_slope_in_frames=
+                                                                  0,
+                                                                  span_area_coords=span_area_coords,
+                                                                  span_area_colors=span_area_colors,
+                                                                  without_sum_activity_traces=True,
+                                                                  save_formats=["pdf", "png"], dpi=300)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_plot_seq_from_pca_with_map")
             continue
