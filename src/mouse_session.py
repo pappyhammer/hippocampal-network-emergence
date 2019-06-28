@@ -1281,6 +1281,61 @@ class MouseSession:
         #             continue
         return twitches_times, twitches_periods
 
+    def get_spikes_values_around_long_mvt(self, time_around=100, low_percentile=25, high_percentile=75):
+        if self.spike_struct.spike_nums_dur is None:
+            return
+
+        spike_nums_dur = self.spike_struct.spike_nums_dur
+        spike_nums_to_use = spike_nums_dur
+
+        n_cells = len(spike_nums_dur)
+
+        # frames on which to center the ptsth
+        mvt_times = []
+
+        mvt_frames_periods = get_continous_time_periods(self.shift_data_dict["shift_long"].astype("int8"))
+        for mvt_period in mvt_frames_periods:
+            mvt_times.append(mvt_period[0])
+
+        n_mvts = len(mvt_times)
+
+        results = self.get_spikes_by_time_around_a_time(mvt_times, spike_nums_to_use, time_around)
+        if results is None:
+            return
+
+        spike_sum_of_sum_at_time_dict, spikes_sums_at_time_dict, \
+        spikes_at_time_dict = results
+
+        distribution = []
+        mean_values = []
+        median_values = []
+        low_values = []
+        high_values = []
+        std_values = []
+        time_x_values = np.arange(-1 * time_around, time_around + 1)
+        for time, nb_spikes_at_time in spike_sum_of_sum_at_time_dict.items():
+            # print(f"time {time}")
+            distribution.extend([time] * nb_spikes_at_time)
+            # mean percentage of cells at each twitch
+        for time_value in time_x_values:
+            if time_value in spike_sum_of_sum_at_time_dict:
+                mean_values.append((np.mean(spikes_sums_at_time_dict[time_value]) / n_cells) * 100)
+                median_values.append((np.median(spikes_sums_at_time_dict[time_value]) / n_cells) * 100)
+                std_values.append((np.std(spikes_sums_at_time_dict[time_value]) / n_cells) * 100)
+                low_values.append((np.percentile(spikes_sums_at_time_dict[time_value], low_percentile) / n_cells) * 100)
+                high_values.append(
+                    (np.percentile(spikes_sums_at_time_dict[time_value], high_percentile) / n_cells) * 100)
+            else:
+                print(f"time {time_value} not there")
+                mean_values.append(0)
+                std_values.append(0)
+                median_values.append(0)
+                low_values.append(0)
+                high_values.append(0)
+        return n_mvts, time_x_values, np.array(mean_values), \
+               np.array(median_values), np.array(low_values), np.array(high_values), np.array(std_values)
+
+
     def get_spikes_values_around_twitches(self, sce_bool=None, time_around=100,
                                           twitches_group=0, low_percentile=25, high_percentile=75):
         if self.spike_struct.spike_nums_dur is None:
@@ -1387,6 +1442,141 @@ class MouseSession:
                 high_values.append(0)
         return n_twitches, time_x_values, np.array(mean_values), \
                np.array(median_values), np.array(low_values), np.array(high_values), np.array(std_values)
+
+
+    def plot_psth_long_mvt(self, time_around=100, line_mode=False, ax_to_use=None, put_mean_line_on_plt=False,
+                                  color_to_use=None, duration_option=False, save_formats="pdf"):
+        """
+
+        :param line_mode:
+        :param ax_to_use:
+        :param put_mean_line_on_plt:
+        :param color_to_use:
+        :param duration_option:
+        :param save_formats:
+        :return:
+        """
+        if self.shift_data_dict is None:
+            return
+
+        # sce_bool = self.sce_bool
+        sce_bool = None
+
+        # if duration_option:
+        #     results = \
+        #         self.get_spikes_duration_values_around_twitches(sce_bool=sce_bool, time_around=time_around,
+        #                                                         twitches_group=twitches_group)
+        # else:
+        results = \
+                self.get_spikes_values_around_long_mvt(time_around=time_around)
+
+        if results is None:
+            return
+        n_twitches, time_x_values, mean_values, median_values, low_values, high_values, std_values = results
+
+        n_cells = len(self.spike_struct.spike_nums_dur)
+        # activity_threshold_percentage = (self.activity_threshold / n_cells) * 100
+
+        hist_color = "blue"
+        edge_color = "white"
+        # bar chart
+
+        for mean_version in [True]:  # False
+            max_value = 0
+            if ax_to_use is None:
+                fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                        gridspec_kw={'height_ratios': [1]},
+                                        figsize=(15, 10))
+                fig.patch.set_facecolor("black")
+
+                ax1.set_facecolor("black")
+            else:
+                ax1 = ax_to_use
+            if line_mode:
+                ms_to_plot = [self]
+                for index_ms, ms in enumerate(ms_to_plot):
+                    ms_mean_values = mean_values
+                    ms_std_values = std_values
+                    ms_median_values = median_values
+                    ms_low_values = low_values
+                    ms_high_values = high_values
+
+                    if color_to_use is not None:
+                        color = color_to_use
+                    else:
+                        color = hist_color
+
+                    if mean_version:
+                        ax1.plot(time_x_values,
+                                 ms_mean_values, color=color, lw=2, label=f"{ms.description} {n_twitches} mvt")
+                        if put_mean_line_on_plt:
+                            plt.plot(time_x_values,
+                                     ms_mean_values, color=color, lw=2)
+                        ax1.fill_between(time_x_values, ms_mean_values - ms_std_values,
+                                             ms_mean_values + ms_std_values,
+                                             alpha=0.5, facecolor=color)
+                        max_value = np.max((max_value, np.max(ms_mean_values + ms_std_values)))
+                    else:
+                        ax1.plot(time_x_values,
+                                 ms_median_values, color=color, lw=2, label=f"{ms.description} {n_twitches} mvt")
+                        ax1.fill_between(time_x_values, ms_low_values, ms_high_values, alpha=0.5, facecolor=color)
+                        max_value = np.max((max_value, np.max(ms_high_values)))
+            else:
+                if color_to_use is not None:
+                    hist_color = color_to_use
+                    edge_color = "white"
+                ax1.bar(time_x_values,
+                        mean_values, color=hist_color, edgecolor=edge_color,
+                        label=f"{self.description} {n_twitches} mvt")
+                max_value = np.max((max_value, np.max(mean_values)))
+            ax1.vlines(0, 0,
+                       np.max(mean_values), color="white", linewidth=2,
+                       linestyles="dashed")
+            if put_mean_line_on_plt:
+                plt.vlines(0, 0,
+                           np.max(mean_values), color="white", linewidth=2,
+                           linestyles="dashed")
+            # ax1.hlines(activity_threshold_percentage, -1 * time_around, time_around,
+            #            color="white", linewidth=1,
+            #            linestyles="dashed")
+
+            ax1.tick_params(axis='y', colors="white")
+            ax1.tick_params(axis='x', colors="white")
+
+            ax1.legend()
+
+            extra_info = ""
+            if line_mode:
+                extra_info = "lines_"
+            if mean_version:
+                extra_info += "mean_"
+            else:
+                extra_info += "median_"
+
+            descr = self.description
+
+            # ax1.title(f"{descr} {n_twitches} twitches bar chart {title_option} {extra_info}")
+            if duration_option:
+                ax1.set_ylabel(f"Duration (ms)")
+            else:
+                ax1.set_ylabel(f"Spikes (%)")
+            ax1.set_xlabel("time (frames)")
+            ax1.set_ylim(0, max_value + 1)
+            # ax1.set_ylim(0, np.max((activity_threshold_percentage, max_value)) + 1)
+
+            ax1.xaxis.label.set_color("white")
+            ax1.yaxis.label.set_color("white")
+            if ax_to_use is None:
+                if isinstance(save_formats, str):
+                    save_formats = [save_formats]
+                for save_format in save_formats:
+                    fig.savefig(f'{self.param.path_results}/{descr}_bar_chart_'
+                                f'{n_twitches}_mvt'
+                                f'_{extra_info}{self.param.time_str}.{save_format}',
+                                format=f"{save_format}",
+                                facecolor=fig.get_facecolor())
+
+                plt.close()
 
     def plot_psth_twitches(self, time_around=100,
                            twitches_group=0, line_mode=False,

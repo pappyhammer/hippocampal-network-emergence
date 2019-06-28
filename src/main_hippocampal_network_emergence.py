@@ -999,6 +999,63 @@ def plot_all_sum_spikes_dur(ms_to_analyse, param, save_formats="pdf"):
                     facecolor=fig.get_facecolor())
     plt.close()
 
+def plot_all_long_mvt_psth_in_one_figure(ms_to_analyse, param, line_mode=True,
+                                         duration_option=False, save_formats="pdf"):
+    """
+
+    :param ms_to_analyse:
+    :param param:
+    :param line_mode:
+    :param duration_option:
+    :param save_formats:
+    :return:
+    """
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    # + 11 diverting
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+                     '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
+                     '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+                     '#74add1', '#4575b4', '#313695']
+    background_color = "black"
+    labels_color = "white"
+    max_sum = 0
+
+    if line_mode:
+        n_plots = len(ms_to_analyse) + 1
+    else:
+        n_plots = len(ms_to_analyse)
+
+    max_n_lines = 5
+    n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
+    n_col = math.ceil(n_plots / n_lines)
+
+    fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                             gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
+                             figsize=(30, 20))
+    fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig.patch.set_facecolor(background_color)
+
+    axes = axes.flatten()
+    for ax_index, ax in enumerate(axes):
+        ax.set_facecolor(background_color)
+        if ax_index >= len(ms_to_analyse):
+            continue
+        ms = ms_to_analyse[ax_index]
+        print(f"{ms.description} plot_all_mvt_psth_in_one_figure")
+        ms.plot_psth_long_mvt(time_around=100, line_mode=line_mode, ax_to_use=ax, put_mean_line_on_plt=line_mode,
+                                  color_to_use=colors[ax_index % len(colors)], duration_option=duration_option)
+    bonus_file_name = ""
+    if duration_option:
+        bonus_file_name = "_duration"
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/mvt_psth{bonus_file_name}_'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+    plt.close()
+
 def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, duration_option=False, save_formats="pdf"):
     """
     Will plot in one plot with subplots all twitches PSTH
@@ -2775,25 +2832,33 @@ def plot_figure_with_map_and_raster_for_sequences(ms, cells_in_seq, span_area_co
 
     # first we display the cells map
     # color = (213 / 255, 38 / 255, 215 / 255, 1)  # #D526D7
-    color = (67 / 255, 162 / 255, 202 / 255, 1)  # blue
-    color = (33 / 255, 113 / 255, 181 / 255, 1)
-    cells_groups_colors = [color]
-    cells_seq_for_map = cells_in_seq
-    cells_to_color = [cells_seq_for_map]
+    use_color_map_to_color_cells_in_seq = True
+    if use_color_map_to_color_cells_in_seq:
+        cells_groups_colors = []
+        cells_to_color = []
+        for cell_index, cell in enumerate(cells_in_seq):
+            cells_to_color.append([cell])
+            color = cm.Reds(cell_index / (len(cells_in_seq)))
+            # print(f"color {color}")
+            cells_groups_colors.append(color)
+    else:
+        color = (67 / 255, 162 / 255, 202 / 255, 1)  # blue
+        color = (33 / 255, 113 / 255, 181 / 255, 1)
+        cells_groups_colors = [color]
+        cells_to_color = [cells_in_seq]
     # check if at least a pair of cells intersect
     at_least_one_intersect = False
-    for cell_index, cell_1 in enumerate(cells_seq_for_map[:-2]):
-        for cell_2 in cells_seq_for_map[cell_index + 1:]:
+    for cell_index, cell_1 in enumerate(cells_in_seq[:-2]):
+        for cell_2 in cells_in_seq[cell_index + 1:]:
             if cell_2 in ms.coord_obj.intersect_cells[cell_1]:
                 at_least_one_intersect = True
                 break
         if at_least_one_intersect:
             break
 
-    data_id = ms.description + f" {'_'.join(map(str, cells_seq_for_map))}"
+    data_id = ms.description + f" {'_'.join(map(str, cells_in_seq))}"
     if at_least_one_intersect:
         data_id = "intersect_" + data_id
-
     ms.coord_obj.plot_cells_map(param=param,
                                 ax_to_use=ax_map,
                                 data_id=data_id,
@@ -2821,6 +2886,16 @@ def plot_figure_with_map_and_raster_for_sequences(ms, cells_in_seq, span_area_co
         raw_traces[i] = norm01(raw_traces[i])
         raw_traces[i] = norm01(raw_traces[i]) * 5
 
+    cells_to_highlight = None
+    cells_to_highlight_colors = None
+    if use_color_map_to_color_cells_in_seq:
+        cells_to_highlight_colors = []
+        cells_to_highlight = []
+        for cell_index, cell in enumerate(cells_in_seq):
+            cells_to_highlight.append([cell])
+            color = cm.Reds(cell_index / (len(cells_in_seq)))
+            # print(f"color {color}")
+            cells_to_highlight_colors.append(color)
     plot_spikes_raster(spike_nums=raster_dur[cells_in_seq],
                        param=ms.param,
                        display_spike_nums=False,
@@ -2835,6 +2910,8 @@ def plot_figure_with_map_and_raster_for_sequences(ms, cells_in_seq, span_area_co
                        show_raster=False,
                        span_area_coords=span_area_coords,
                        span_area_colors=span_area_colors,
+                       cells_to_highlight=cells_to_highlight,
+                       cells_to_highlight_colors=cells_to_highlight_colors,
                        alpha_span_area=0.3,
                        plot_with_amplitude=False,
                        # raster_face_color="white",
@@ -5457,13 +5534,13 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
     #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
     #                   "p7_19_03_05_a000_ms"]
-    #
+    # #
     # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
     #                   "p7_19_03_27_a002_ms",
     #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
     #                    "p8_18_10_17_a000_ms",
     #                   "p8_18_10_17_a001_ms"]
-    #
+    # #
     # ms_str_to_load = ["p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
     #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
     #                   "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
@@ -5550,29 +5627,29 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                    "p21_19_04_10_a001_ms",
     #                    "p21_19_04_10_a000_j3_ms", "p41_19_04_30_a000_ms"]
     # with pca matlab
-    ms_str_to_load = [ "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-                      "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                      "p7_19_03_27_a002_ms",
-                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                      "p8_18_10_17_a001_ms",
-                                             "p8_19_03_19_a000_ms",
-                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
-                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
-                      "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
-                      "p9_19_03_22_a001_ms",
-                      "p10_17_11_16_a003_ms",
-                      "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
-                      "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
-                      "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
-                      "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
-                      "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
-                      "p16_18_11_01_a002_ms",
-                      "p19_19_04_08_a000_ms",
-                      # "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
-                      # "p21_19_04_10_a000_j3_ms",
-                      "p41_19_04_30_a000_ms"]
+    # ms_str_to_load = [ "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+    #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+    #                   "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+    #                   "p7_19_03_27_a002_ms",
+    #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+    #                   "p8_18_10_17_a001_ms",
+    #                                          "p8_19_03_19_a000_ms",
+    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+    #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
+    #                   "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+    #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
+    #                   "p9_19_03_22_a001_ms",
+    #                   "p10_17_11_16_a003_ms",
+    #                   "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
+    #                   "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+    #                   "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+    #                   "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+    #                   "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+    #                   "p16_18_11_01_a002_ms",
+    #                   "p19_19_04_08_a000_ms",
+    #                   # "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+    #                   # "p21_19_04_10_a000_j3_ms",
+    #                   "p41_19_04_30_a000_ms"]
     # ms_str_to_load = "p6_18_02_07_a001_ms"
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -5665,6 +5742,8 @@ def main():
     just_plot_movement_activity = False
     just_plot_psth_over_event_time_correlation_graph_style = False
     do_plot_psth_twitches = False
+    # Add weight in legend of long mvt psth
+    do_plot_psth_long_mvt = False
     just_plot_all_time_correlation_graph_over_events = False
     just_plot_raster_with_periods = False
     just_do_stat_significant_time_period = False
@@ -6276,6 +6355,15 @@ def main():
             fca_clustering_on_twitches_activity(ms, param, save_formats="pdf")
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_fca_clustering_on_twitches_activity")
+            continue
+
+        if do_plot_psth_long_mvt:
+            line_mode = True
+            duration_option = False
+            plot_all_long_mvt_psth_in_one_figure(ms_to_analyse, param, line_mode,
+                                               duration_option=duration_option, save_formats="pdf")
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("do_plot_psth_long_mvt")
             continue
 
         if do_plot_psth_twitches:
