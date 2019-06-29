@@ -1556,7 +1556,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p41_19_04_30_a000_ms.use_suite_2p = True
 
         # for threshold prediction at 0.5
-        p41_19_04_30_a000_ms.activity_threshold = 8
+        # p41_19_04_30_a000_ms.activity_threshold = 8
 
         # prediction based on rnn on GT epoch 11, no trans, no overlap
         # variables_mapping = {"predictions": "predictions"}

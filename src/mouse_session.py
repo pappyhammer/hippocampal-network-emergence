@@ -18,7 +18,7 @@ from pattern_discovery.graph.misc import welsh_powell
 import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.tools.misc import get_time_correlation_data
 from pattern_discovery.tools.misc import get_continous_time_periods, give_unique_id_to_each_transient_of_raster_dur
-from pattern_discovery.display.raster import plot_spikes_raster
+from pattern_discovery.display.raster import plot_spikes_raster, plot_with_imshow
 from pattern_discovery.display.misc import time_correlation_graph, plot_hist_distribution, plot_scatters
 from pattern_discovery.display.cells_map_module import CoordClass
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import CellAssembliesStruct
@@ -1472,7 +1472,7 @@ class MouseSession:
 
         if results is None:
             return
-        n_twitches, time_x_values, mean_values, median_values, low_values, high_values, std_values = results
+        n_mvts, time_x_values, mean_values, median_values, low_values, high_values, std_values = results
 
         n_cells = len(self.spike_struct.spike_nums_dur)
         # activity_threshold_percentage = (self.activity_threshold / n_cells) * 100
@@ -1495,6 +1495,9 @@ class MouseSession:
             if line_mode:
                 ms_to_plot = [self]
                 for index_ms, ms in enumerate(ms_to_plot):
+                    weight_str = ""
+                    if ms.weight is not None:
+                        weight_str = f" ({ms.weight} g)"
                     ms_mean_values = mean_values
                     ms_std_values = std_values
                     ms_median_values = median_values
@@ -1508,7 +1511,7 @@ class MouseSession:
 
                     if mean_version:
                         ax1.plot(time_x_values,
-                                 ms_mean_values, color=color, lw=2, label=f"{ms.description} {n_twitches} mvt")
+                                 ms_mean_values, color=color, lw=2, label=f"{ms.description}{weight_str} {n_mvts} mvt")
                         if put_mean_line_on_plt:
                             plt.plot(time_x_values,
                                      ms_mean_values, color=color, lw=2)
@@ -1518,16 +1521,20 @@ class MouseSession:
                         max_value = np.max((max_value, np.max(ms_mean_values + ms_std_values)))
                     else:
                         ax1.plot(time_x_values,
-                                 ms_median_values, color=color, lw=2, label=f"{ms.description} {n_twitches} mvt")
+                                 ms_median_values, color=color, lw=2, label=f"{ms.description}{weight_str} {n_mvts} "
+                            f"mvt")
                         ax1.fill_between(time_x_values, ms_low_values, ms_high_values, alpha=0.5, facecolor=color)
                         max_value = np.max((max_value, np.max(ms_high_values)))
             else:
                 if color_to_use is not None:
                     hist_color = color_to_use
                     edge_color = "white"
+                weight_str = ""
+                if ms.weight is not None:
+                    weight_str = f" ({ms.weight} g)"
                 ax1.bar(time_x_values,
                         mean_values, color=hist_color, edgecolor=edge_color,
-                        label=f"{self.description} {n_twitches} mvt")
+                        label=f"{self.description}{weight_str} {n_mvts} mvt")
                 max_value = np.max((max_value, np.max(mean_values)))
             ax1.vlines(0, 0,
                        np.max(mean_values), color="white", linewidth=2,
@@ -1555,7 +1562,7 @@ class MouseSession:
 
             descr = self.description
 
-            # ax1.title(f"{descr} {n_twitches} twitches bar chart {title_option} {extra_info}")
+            # ax1.title(f"{descr} {n_mvts} twitches bar chart {title_option} {extra_info}")
             if duration_option:
                 ax1.set_ylabel(f"Duration (ms)")
             else:
@@ -1571,7 +1578,7 @@ class MouseSession:
                     save_formats = [save_formats]
                 for save_format in save_formats:
                     fig.savefig(f'{self.param.path_results}/{descr}_bar_chart_'
-                                f'{n_twitches}_mvt'
+                                f'{n_mvts}_mvt'
                                 f'_{extra_info}{self.param.time_str}.{save_format}',
                                 format=f"{save_format}",
                                 facecolor=fig.get_facecolor())
@@ -2339,6 +2346,96 @@ class MouseSession:
         if show_plot:
             plt.show()
         plt.close()
+
+    def pca_on_suite2p_spks(self):
+        if self.suite2p_data is None:
+            return
+
+
+        print(f"starting pca_on_suite2p_spks")
+        n_components = 10
+        spks = self.suite2p_data["spks"]
+        is_cell = self.suite2p_data["is_cell"]
+        clean_spks = np.zeros((self.coord_obj.n_cells, spks.shape[1]))
+        true_cell_index = 0
+        for cell_index in np.arange(spks.shape[0]):
+            if is_cell[cell_index][0]:
+                clean_spks[true_cell_index] = spks[cell_index]
+                true_cell_index += 1
+        spks = clean_spks
+        n_cells = self.coord_obj.n_cells
+        # first we remove the fake cell of spks
+        normalize_0_1 = False
+        normalize_z_score = True
+        if normalize_0_1:
+            spks_0_1 = np.zeros(spks.shape)
+            for cell_index, spk in enumerate(spks):
+                spks_0_1[cell_index] = self.norm01(spk)
+            spks = spks_0_1
+            vmin = 0
+            vmax = 0.5
+        elif normalize_z_score:
+            spks_z = np.zeros(spks.shape)
+            for cell_index, spk in enumerate(spks):
+                spks_z[cell_index] = (spk - np.mean(spk)) / np.std(spk)
+            spks = spks_z
+            spks += np.min(spks)
+            vmin = 0.1
+            vmax = 3
+        else:
+            vmin = 0.4
+            vmax = 20
+
+        print(f"spks: {np.min(spks)} {np.max(spks)} {np.mean(spks)} {np.std(spks)}")
+
+        pca = PCA(n_components=n_components)  #
+        pca_result = pca.fit_transform(spks)
+
+        plot_with_imshow(raster=spks,
+                         n_subplots=1,
+                         hide_x_labels=True,
+                         y_ticks_labels_size=2,
+                         y_ticks_labels=np.arange(n_cells),
+                         show_color_bar=False,
+                         values_to_plot=None, cmap="hot",
+                         without_ticks=True,
+                         vmin=vmin, vmax=vmax,
+                         reverse_order=False,
+                         speed_array=None,
+                         path_results=self.param.path_results,
+                         file_name=f"{self.description}_spks_suite2p",
+                         save_formats="pdf"
+                         )
+        for component in np.arange(n_components):
+            # sorted_raster = np.copy(spike_nums_dur)
+            indices_sorted = np.argsort(pca_result[:, component])[::-1]
+            plot_with_imshow(raster=spks[indices_sorted],
+                             n_subplots=1,
+                             hide_x_labels=True,
+                             y_ticks_labels_size=2,
+                             y_ticks_labels=np.arange(n_cells)[indices_sorted],
+                             show_color_bar=False,
+                             values_to_plot=None, cmap="hot",
+                             without_ticks=True,
+                             vmin=vmin, vmax=vmax,
+                             reverse_order=False,
+                             speed_array=None,
+                             path_results=self.param.path_results,
+                             file_name=f"{self.description}_spks_suite2p_pc_{component+1}",
+                             save_formats="pdf"
+                             )
+
+            file_name = f'{self.param.path_results}/{self.description}_spks_suite2p_pc_{component+1}.npy'
+
+            with open(file_name, "w", encoding='UTF-8') as file:
+                for cell in indices_sorted:
+                    file.write(f"{indices_sorted[cell]}")
+
+                    if cell != indices_sorted[-1]:
+                        file.write(' ')
+                # file.write('\n')
+            file_name = f'{self.param.path_results}/{self.description}_spks_suite2p_cells_order_pc_{component + 1}.npy'
+            np.save(file_name, indices_sorted)
 
     def pca_on_raster(self, span_area_coords=None, span_area_colors=None):
         print(f"starting PCA")
