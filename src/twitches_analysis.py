@@ -64,9 +64,11 @@ def get_twitches_intersection_matrix(m_sces):
     prop_common_cells = np.zeros((nb_events, nb_events))
     for i in np.arange(nb_events):
         for j in np.arange(nb_events):
+            n_cell_twitch_i = np.sum(m_sces[:, i])
+            n_cell_twitch_j = np.sum(m_sces[:, j])
             common_part_twitch_i_twitch_j = len(np.intersect1d(np.where(m_sces[:, i])[0], np.where(m_sces[:, j])[0],
                                                                assume_unique=True))
-            prop_common_cells[i, j] = (common_part_twitch_i_twitch_j / n_cells) * 100
+            prop_common_cells[i, j] = (common_part_twitch_i_twitch_j / np.min((n_cell_twitch_i, n_cell_twitch_j))) * 100
     return prop_common_cells
 
 

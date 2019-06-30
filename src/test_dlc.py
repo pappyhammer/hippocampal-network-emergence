@@ -38,5 +38,4 @@ def main():
                                  trainingsetindex=0, filtered=False, showfigures=False, destfolder=None)
 
 
-
 main()
