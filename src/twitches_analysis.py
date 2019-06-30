@@ -58,7 +58,19 @@ def sce_twitches(ms, before_extension=0, after_extension=15):
     return cells_in_twitches, n_cells_with_spikes
 
 
-def covnorm(m_sces):
+def get_twitches_intersection_matrix(m_sces):
+    nb_events = np.shape(m_sces)[1]
+    n_cells = np.shape(m_sces)[0]
+    prop_common_cells = np.zeros((nb_events, nb_events))
+    for i in np.arange(nb_events):
+        for j in np.arange(nb_events):
+            common_part_twitch_i_twitch_j = len(np.intersect1d(np.where(m_sces[:, i])[0], np.where(m_sces[:, j])[0],
+                                                               assume_unique=True))
+            prop_common_cells[i, j] = (common_part_twitch_i_twitch_j / n_cells) * 100
+    return prop_common_cells
+
+
+def covnorm(m_sces, use_pearson=False):
     nb_events = np.shape(m_sces)[1]
     co_var_matrix = np.zeros((nb_events, nb_events))
     for i in np.arange(nb_events):
@@ -66,21 +78,26 @@ def covnorm(m_sces):
             if np.correlate(m_sces[:, i], m_sces[:, j]) == 0:
                 co_var_matrix[i, j] = 0
             else:
-                # co_var_matrix[i, j] = np.correlate(m_sces[:, i] - np.mean(m_sces[:, i]), m_sces[:, j] - np.mean(m_sces[:, j])) \
-                #                       / np.std(m_sces[:, i]) / np.std(m_sces[:, j]) / nb_events
-
-                co_var_matrix[i, j] = scipy.stats.pearsonr(m_sces[:, i], m_sces[:, j])[0]
-
+                if use_pearson:
+                    co_var_matrix[i, j] = scipy.stats.pearsonr(m_sces[:, i], m_sces[:, j])[0]
+                else:
+                    co_var_matrix[i, j] = np.correlate(m_sces[:, i] - np.mean(m_sces[:, i]), m_sces[:, j]
+                                                       - np.mean(m_sces[:, j])) \
+                                          / np.std(m_sces[:, i]) / np.std(m_sces[:, j]) / nb_events
     return co_var_matrix
 
 
-def twitch_analysis(ms, n_surrogates):
+def twitch_analysis(ms, n_surrogates, option="intersect"):
     param = ms.param
     cells_in_twitches, n_cells_with_spikes = sce_twitches(ms=ms, before_extension=0, after_extension=20)
     # print(f"{np.max(cells_in_twitches)}, {np.min(cells_in_twitches)}, {np.mean(cells_in_twitches)}")
     [n_cells, n_twitches] = cells_in_twitches.shape
     print(f"N total cells is {n_cells}, N twitches is {n_twitches}")
-    co_var_matrix = covnorm(cells_in_twitches)
+    print(f"N cells with spikes: {n_cells_with_spikes}")
+    if option == "intersect":
+        co_var_matrix = get_twitches_intersection_matrix(cells_in_twitches)
+    else:
+        co_var_matrix = covnorm(cells_in_twitches, use_pearson=True)
 
     # Plot heatmap figure
     svm = sns.heatmap(co_var_matrix)
@@ -182,9 +199,12 @@ def twitch_analysis(ms, n_surrogates):
             # print(f"cell in twitch {i} are {random_cells_in_twitch_i}")
             rnd_cells_in_twitches[random_cells_in_twitch_i, i] = 1
         # print(f"{np.sum(rnd_cells_in_twitches, axis=0)}")
+        if option == "intersect":
+            rnd_co_var_matrix = get_twitches_intersection_matrix(rnd_cells_in_twitches)
+        else:
+            rnd_co_var_matrix = covnorm(rnd_cells_in_twitches, use_pearson=True)
 
-        rnd_co_var_matrix = covnorm(rnd_cells_in_twitches)
-        rnd_co_var_matrix_list.append(rnd_co_var_matrix_list)
+        rnd_co_var_matrix_list.append(rnd_co_var_matrix)
 
         # Get superior triangle to get distribution of correlation values
         rnd_var_matrix = np.triu(rnd_co_var_matrix, k=1)
@@ -192,5 +212,5 @@ def twitch_analysis(ms, n_surrogates):
         rnd_distrib_list.append(rnd_distrib)
 
     return distrib, co_var_matrix, rnd_distrib_list, rnd_co_var_matrix_list
-
-twitch_analysis(n_surrogates=10)
+#
+# twitch_analysis(n_surrogates=10)
