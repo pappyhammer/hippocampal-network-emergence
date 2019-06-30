@@ -15,9 +15,11 @@ import numpy as np
 import hdf5storage
 # import copy
 from datetime import datetime
+from scipy import signal
 # import keras
 import os
 import pyabf
+from sklearn.decomposition import PCA
 # import seqnmf
 # to add homemade package, go to preferences, then project interpreter, then click on the wheel symbol
 # then show all, then select the interpreter and lick on the more right icon to display a list of folder and
@@ -1043,7 +1045,7 @@ def plot_all_long_mvt_psth_in_one_figure(ms_to_analyse, param, line_mode=True,
         ms = ms_to_analyse[ax_index]
         print(f"{ms.description} plot_all_mvt_psth_in_one_figure")
         ms.plot_psth_long_mvt(time_around=100, line_mode=line_mode, ax_to_use=ax, put_mean_line_on_plt=line_mode,
-                                  color_to_use=colors[ax_index % len(colors)], duration_option=duration_option)
+                              color_to_use=colors[ax_index % len(colors)], duration_option=duration_option)
     bonus_file_name = ""
     if duration_option:
         bonus_file_name = "_duration"
@@ -2789,7 +2791,7 @@ def compute_stat_about_seq_with_slope(files_path, param,
 def plot_figure_with_map_and_raster_for_sequences(ms, cells_in_seq, span_area_coords, span_area_colors,
                                                   file_name, lines_to_display=None, range_around_slope_in_frames=0,
                                                   without_sum_activity_traces=False,
-                                                  frames_to_use=None,
+                                                  frames_to_use=None, color_map_for_seq=cm.Reds,
                                                   save_formats="pdf", dpi=500):
     param = ms.param
     if frames_to_use is not None:
@@ -2832,13 +2834,12 @@ def plot_figure_with_map_and_raster_for_sequences(ms, cells_in_seq, span_area_co
 
     # first we display the cells map
     # color = (213 / 255, 38 / 255, 215 / 255, 1)  # #D526D7
-    use_color_map_to_color_cells_in_seq = True
-    if use_color_map_to_color_cells_in_seq:
+    if color_map_for_seq is not None:
         cells_groups_colors = []
         cells_to_color = []
         for cell_index, cell in enumerate(cells_in_seq):
             cells_to_color.append([cell])
-            color = cm.Reds(cell_index / (len(cells_in_seq)))
+            color = color_map_for_seq(cell_index / (len(cells_in_seq)))
             # print(f"color {color}")
             cells_groups_colors.append(color)
     else:
@@ -2886,16 +2887,6 @@ def plot_figure_with_map_and_raster_for_sequences(ms, cells_in_seq, span_area_co
         raw_traces[i] = norm01(raw_traces[i])
         raw_traces[i] = norm01(raw_traces[i]) * 5
 
-    cells_to_highlight = None
-    cells_to_highlight_colors = None
-    if use_color_map_to_color_cells_in_seq:
-        cells_to_highlight_colors = []
-        cells_to_highlight = []
-        for cell_index, cell in enumerate(cells_in_seq):
-            cells_to_highlight.append([cell])
-            color = cm.Reds(cell_index / (len(cells_in_seq)))
-            # print(f"color {color}")
-            cells_to_highlight_colors.append(color)
     plot_spikes_raster(spike_nums=raster_dur[cells_in_seq],
                        param=ms.param,
                        display_spike_nums=False,
@@ -2910,8 +2901,6 @@ def plot_figure_with_map_and_raster_for_sequences(ms, cells_in_seq, span_area_co
                        show_raster=False,
                        span_area_coords=span_area_coords,
                        span_area_colors=span_area_colors,
-                       cells_to_highlight=cells_to_highlight,
-                       cells_to_highlight_colors=cells_to_highlight_colors,
                        alpha_span_area=0.3,
                        plot_with_amplitude=False,
                        # raster_face_color="white",
@@ -2999,6 +2988,23 @@ def plot_figure_with_map_and_raster_for_sequences(ms, cells_in_seq, span_area_co
         x_ticks = x_ticks_labels
     x_ticks_labels_size = 2
 
+
+    cells_to_highlight = None
+    cells_to_highlight_colors = None
+    if color_map_for_seq is not None:
+        cells_to_highlight_colors = []
+        cells_to_highlight = []
+        for cell_index, cell in enumerate(cells_in_seq):
+            cells_to_highlight.append(cell_index)
+            color = color_map_for_seq(cell_index / (len(cells_in_seq)))
+            # print(f"color {color}")
+            cells_to_highlight_colors.append(color)
+
+    do_bin_raster = False
+    bin_size = 12
+    if do_bin_raster:
+        raster_dur = tools_misc.bin_raster(raster=raster_dur, bin_size=bin_size, keep_same_dimension=True)
+
     plot_spikes_raster(spike_nums=raster_dur[cells_in_seq],
                        param=param,
                        x_ticks_labels=x_ticks_labels,
@@ -3015,6 +3021,8 @@ def plot_figure_with_map_and_raster_for_sequences(ms, cells_in_seq, span_area_co
                        plot_with_amplitude=False,
                        span_area_coords=span_area_coords,
                        span_area_colors=span_area_colors,
+                       cells_to_highlight=cells_to_highlight,
+                       cells_to_highlight_colors=cells_to_highlight_colors,
                        alpha_span_area=0.5,
                        # cells_to_highlight=cells_to_highlight,
                        # cells_to_highlight_colors=cells_to_highlight_colors,
@@ -3335,6 +3343,7 @@ def box_plot_data_by_age(data_dict, title, filename,
                          y_label, param, colors=None,
                          path_results=None, y_lim=None,
                          x_label=None, with_scatters=True,
+                         y_log=False,
                          scatters_with_same_colors=None,
                          scatter_size=20,
                          scatter_alpha=0.5,
@@ -3344,6 +3353,7 @@ def box_plot_data_by_age(data_dict, title, filename,
                          color_link_medians="red",
                          labels_color="white",
                          with_y_jitter=None,
+                         x_labels_rotation=None,
                          save_formats="pdf"):
     """
 
@@ -3451,6 +3461,8 @@ def box_plot_data_by_age(data_dict, title, filename,
         ax1.set_xlabel(x_label, fontsize=30, labelpad=20)
     ax1.xaxis.label.set_color(labels_color)
     ax1.yaxis.label.set_color(labels_color)
+    if y_log:
+        ax1.set_yscale("log")
 
     ax1.yaxis.set_tick_params(labelsize=20)
     ax1.xaxis.set_tick_params(labelsize=5)
@@ -3462,6 +3474,9 @@ def box_plot_data_by_age(data_dict, title, filename,
     ax1.xaxis.set_ticks_position('none')
     # sce clusters labels
     ax1.set_xticklabels(labels)
+    if x_labels_rotation is not None:
+        for tick in ax1.get_xticklabels():
+            tick.set_rotation(x_labels_rotation)
 
     # padding between ticks label and  label axis
     # ax1.tick_params(axis='both', which='major', pad=15)
@@ -4212,6 +4227,42 @@ def save_stat_about_mvt_for_each_ms(ms_to_analyse, param):
                 f" {ratio_unclassified} % unclassified, {ratio_still} % still  \n")
             file.write("" + '\n')
 
+
+def get_peaks_periods_on_sum_of_activity(raster, around_peaks, distance_bw_peaks, min_n_cells=5,
+                                         frames_to_exclude=None):
+    """
+
+    :param raster:
+    :param around_peaks:
+    :param distance_bw_peaks:
+    :param min_n_cells:
+    :param frames_to_exclude: if not None, boolean 1d array of len raster.shape[1], at True when the frame should
+    be excluded
+    :return:
+    """
+    n_cells = raster.shape[0]
+    n_frames = raster.shape[1]
+    sum_activity = np.sum(raster, axis=0)
+    peaks, properties = signal.find_peaks(x=sum_activity, height=min_n_cells, distance=distance_bw_peaks)
+    peaks_bool = np.zeros(n_frames, dtype="bool")
+    for peak in peaks:
+        if frames_to_exclude is not None:
+            if np.any(frames_to_exclude[max(0, peak-around_peaks): min(n_frames, peak+around_peaks+1)]):
+                continue
+        peaks_bool[max(0, peak-around_peaks): min(n_frames, peak+around_peaks+1)] = True
+
+    peaks_periods = get_continous_time_periods(peaks_bool.astype("int8"))
+    cellsinpeak = np.zeros((n_cells, len(peaks_periods)), dtype="int8")
+    peaks_numbers = np.zeros(n_frames, dtype="int16")
+    for period_index, period in enumerate(peaks_periods):
+        peaks_numbers[period[0]:period[1]+1] = period_index
+        sum_spikes = np.sum(raster[:, period[0]:(period[1] + 1)], axis=1)
+        active_cells = np.where(sum_spikes)[0]
+        cellsinpeak[active_cells, period_index] = 1
+
+    return peaks, peaks_periods, peaks_bool, peaks_numbers, cellsinpeak
+
+
 def plot_all_cell_assemblies_proportion_on_shift_categories(ms_to_analyse,
                                                                 param, save_formats="pdf"):
     # TODO : to finish
@@ -4575,6 +4626,62 @@ def select_cells_that_fire_during_time_periods(raster, time_periods_bool, descri
             significant_cells.append(n)
 
     return significant_cells
+
+
+def do_stat_on_pca(ms_to_analyse, param, save_formats="pdf"):
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    # + 11 diverting
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
+              '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+              '#74add1', '#4575b4', '#313695']
+    results_n_cpts_by_age_dict = dict()
+    results_variance_by_session_dict = dict()
+    n_sessions_dict = dict()
+    variance_number = 95
+
+    for ms in ms_to_analyse:
+        if ms.raw_traces is None:
+            continue
+        if "p" + str(ms.age) not in results_n_cpts_by_age_dict:
+            results_n_cpts_by_age_dict["p" + str(ms.age)] = []
+            n_sessions_dict["p" + str(ms.age)] = set()
+        results_variance_by_session_dict[ms.description] = []
+        n_sessions_dict["p" + str(ms.age)].add(ms.description[:-4])
+        # normalization of raw_traces
+        raw_traces = ms.raw_traces
+        raw_traces_z_score = np.zeros(raw_traces.shape)
+        for cell in np.arange(raw_traces.shape[0]):
+            raw_traces_z_score[cell] = (raw_traces[cell] - np.mean(raw_traces[cell])) / np.std(raw_traces[cell])
+        pca = PCA(n_components=0.95, svd_solver='full')  #
+        pca_result = pca.fit_transform(raw_traces_z_score)
+        explained_variance = pca.explained_variance_
+        n_components = len(explained_variance)
+        results_n_cpts_by_age_dict["p" + str(ms.age)].append(n_components)
+        results_variance_by_session_dict[ms.description].extend(explained_variance)
+        # sum_activity = np.sum(ms.spike_struct.spike_nums_dur, axis=0)
+        # # as percentage of cells
+        # sum_activity = (sum_activity / ms.spike_struct.spike_nums_dur.shape[0]) * 100
+        # results_n_cpts_by_age_dict["p" + str(ms.age)].append(np.var(sum_activity))
+
+    for age, animals in n_sessions_dict.items():
+        n_sessions_dict[age] = len(animals)
+
+    box_plot_data_by_age(data_dict=results_n_cpts_by_age_dict, title="",
+                         filename=f"n_component_for {variance_number}_variance_by_age",
+                         y_label=f"N componenents explaining {variance_number}% variance",
+                         colors=colors, with_scatters=True,
+                         n_sessions_dict=n_sessions_dict,
+                         path_results=param.path_results, scatter_size=200,
+                         param=param, save_formats=save_formats)
+
+    box_plot_data_by_age(data_dict=results_variance_by_session_dict, title="",
+                         filename=f"variance_expained_by_session",
+                         y_label=f"variance", y_log=True,
+                         x_labels_rotation=45,
+                         colors=colors, with_scatters=True,
+                         path_results=param.path_results, scatter_size=80,
+                         param=param, save_formats=save_formats)
 
 def plot_variance_according_to_sum_of_activity(ms_to_analyse, param, save_formats="pdf"):
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
@@ -5489,15 +5596,15 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p8_18_10_17_a001_ms"]
 
     # session with mouvements periods (twitch, long mvt etc...) available
-    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                      "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
-                      "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                      "p7_19_03_27_a002_ms",
-                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
-                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    #                   "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+    #                   "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+    #                   "p7_19_03_27_a002_ms",
+    #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+    #                   "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+    #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+    #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
     # # #   for test
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
     #                   "P6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
@@ -5524,7 +5631,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p60_arnaud_ms"]
     # ms_str_to_load = ["p9_19_02_20_a000_ms"]
     # ms_str_to_load = ["p10_19_02_21_a002_ms"]p5
-    # ms_str_to_load = ["p11_17_11_24_a000_ms"]
+    # ms_str_to_load = ["p7_18_02_08_a001_ms"]
     ## all the ms separated in 5 groups
 
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
@@ -5534,7 +5641,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
     #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
     #                   "p7_19_03_05_a000_ms"]
-    # #
+    # # #
     # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
     #                   "p7_19_03_27_a002_ms",
     #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
@@ -5548,7 +5655,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
     #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
     #                   "p9_19_03_22_a001_ms"]
-    # # # #
+    # # #
     # ms_str_to_load = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
     #                   "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
     #                   "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
@@ -5565,7 +5672,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p41_19_04_30_a000_ms"]
 
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
-    ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p7_18_02_08_a000_ms"]
     # ms_str_to_load = ["p7_18_02_08_a001_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
@@ -5585,7 +5692,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
     # ms_str_to_load = ["richard_028_D2_P1_ms"]
-    # ms_str_to_load = ["p12_171110_a000_ms"]
+    # ms_str_to_load = ["p7_18_02_08_a001_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
@@ -5764,9 +5871,11 @@ def main():
     just_test_elephant_cad = False
     just_plot_variance_according_to_sum_of_activity = False
     just_cluster_using_grid = False
-    just_plot_seq_from_pca_with_map = True
+    just_plot_seq_from_pca_with_map = False
     just_save_raster_as_npy_file = False
+    just_do_pca_on_suite2p_spks = False
     just_use_rastermap_for_pca = False
+    just_do_stat_on_pca = True
 
     just_plot_raster_with_same_sum_activity_lim = False
     just_plot_raster = False
@@ -5810,8 +5919,9 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = False
-    do_detect_sce_on_traces = True
+    do_clustering = True
+    do_detect_sce_on_traces = False
+    do_detect_sce_based_on_peaks_finder = True
     use_hdbscan = False
     # to add in the file title
     clustering_bonus_descr = ""
@@ -5908,7 +6018,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(5, 15)
+    range_n_clusters_k_mean = np.arange(2, 12)
     # range_n_clusters_k_mean = np.array([7])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
@@ -5982,6 +6092,10 @@ def main():
     if just_plot_variance_according_to_sum_of_activity:
         plot_variance_according_to_sum_of_activity(ms_to_analyse, param, save_formats="pdf")
         raise Exception("just_plot_variance_according_to_sum_of_activity")
+
+    if just_do_stat_on_pca:
+        do_stat_on_pca(ms_to_analyse, param, save_formats="pdf")
+        raise Exception("just_do_stat_on_pca")
 
     if just_save_stat_about_mvt_for_each_ms:
         save_stat_about_mvt_for_each_ms(ms_to_analyse, param=param)
@@ -6094,9 +6208,20 @@ def main():
             continue
 
         if just_plot_seq_from_pca_with_map:
+            do_test = False
+
             if ms.pca_seq_cells_order is None:
                 continue
             for pc_number, pca_seq_cells_order in ms.pca_seq_cells_order.items():
+                if do_test:
+                    # pca_seq_cells_order = np.load(f"{param.path_data}/test_pca/"
+                    #                               f"P41_19_04_30_a000_spks_suite2p_cells_order_pc_3.npy")
+                    data = hdf5storage.loadmat(f"{param.path_data}/test_pca/"
+                                                  f"p7_18_02_08_a002_order.mat")
+
+                    pca_seq_cells_order = data['used_cells'][0][data['used_cells'][0] > 0] - 1
+                    # other_cells = np.setdiff1d(np.arange(ms.coord_obj.n_cells), pca_seq_cells_order)
+                    # pca_seq_cells_order = np.concatenate((pca_seq_cells_order, other_cells))
                 file_name = f"{ms.description}_pc_{pc_number}_map_and_raster_seq_pca_{len(pca_seq_cells_order)}_cells"
                 if ms.speed_by_frame is not None:
                     binary_speed = np.zeros(len(ms.speed_by_frame), dtype="int8")
@@ -6228,6 +6353,8 @@ def main():
                                                                   span_area_colors=span_area_colors,
                                                                   without_sum_activity_traces=True,
                                                                   save_formats=["pdf", "png"], dpi=300)
+                if do_test:
+                    break
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_plot_seq_from_pca_with_map")
             continue
@@ -6287,6 +6414,7 @@ def main():
             span_area_colors = None
             with_mvt_periods = True
             spike_nums_dur = ms.spike_struct.spike_nums_dur
+            spike_nums_dur = tools_misc.bin_raster(raster=spike_nums_dur, bin_size=12, keep_same_dimension=True)
             # if ms.pca_seq_cells_order is not None:
             #     spike_nums_dur = spike_nums_dur[ms.pca_seq_cells_order]
             #     with_mvt_periods = False
@@ -6305,7 +6433,7 @@ def main():
                 else:
                     print(f"no shift_data_dict for {ms.description}")
             # used to be 1 and 10
-            find_sequences_using_graph_main(spike_nums_dur, param, min_time_bw_2_spikes=1,
+            find_sequences_using_graph_main(spike_nums_dur, param, min_time_bw_2_spikes=2,
                                             max_time_bw_2_spikes=10, max_connex_by_cell=5, min_nb_of_rep=3,
                                             debug_mode=False, descr=ms.description, ms=ms,
                                             error_rate=0.7,
@@ -6384,7 +6512,7 @@ def main():
             # frames_selected = ms.richard_dict["Active_Wake_Frames"]
             # frames_selected = frames_selected[frames_selected < ms.spike_struct.spike_nums_dur.shape[1]]
             # ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, frames_selected]
-            ms.plot_raster_with_periods(ms.shift_data_dict, with_periods=False,
+            ms.plot_raster_with_periods(ms.shift_data_dict, with_periods=True,
                                         with_cell_assemblies=False, only_cell_assemblies=False)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("The Lannisters always pay their debts")
@@ -6477,7 +6605,12 @@ def main():
 
             test_seq_detect(ms, span_area_coords=span_area_coords, span_area_colors=span_area_colors)
             raise Exception("just_display_seq_with_cell_assembly")
+        if just_do_pca_on_suite2p_spks:
+            ms.pca_on_suite2p_spks()
 
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_do_pca_on_suite2p_spks")
+            continue
         if just_do_pca_on_raster:
             spike_nums_to_use = ms.spike_struct.spike_nums_dur
             # sce_detection_result = detect_sce_potatoes_style(spike_nums=spike_nums_to_use, perc_threshold=95,
@@ -7331,6 +7464,8 @@ def main():
         spike_struct = ms.spike_struct
         n_cells = ms.coord_obj.n_cells
         # spike_struct.build_spike_trains()
+        # used to keep only some cells
+        cells_to_keep = np.arange(ms.coord_obj.n_cells)
 
         # ######  parameters setting #########
         data_descr = f"{ms.description}"
@@ -7433,20 +7568,28 @@ def main():
             print(f"spike_nums_to_use n_frames after: {spike_nums_to_use.shape[1]}")
             # raise Exception("test richard")
 
-        if (ms.activity_threshold is None) or use_richard_option:
-            activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use,
+        if ((ms.activity_threshold is None) or use_richard_option) and (not do_detect_sce_based_on_peaks_finder) \
+                and (not do_detect_sce_on_traces):
+            # print("kokorico")
+            # cells_to_keep = np.arange(ms.coord_obj.n_cells)
+            # for pc_number, pca_seq_cells_order in ms.pca_seq_cells_order.items():
+            #     cells_to_keep = pca_seq_cells_order
+
+            activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use[pca_seq_cells_order],
                                                              window_duration=sliding_window_duration,
                                                              spike_train_mode=False,
                                                              n_surrogate=n_surrogate_activity_threshold,
                                                              perc_threshold=perc_threshold,
                                                              use_max_of_each_surrogate=use_max_of_each_surrogate,
                                                              debug_mode=False)
+        elif do_detect_sce_based_on_peaks_finder or do_detect_sce_on_traces:
+            activity_threshold = None
         else:
             activity_threshold = ms.activity_threshold
-
-        print(f"perc_threshold {perc_threshold}, "
-              f"activity_threshold {activity_threshold}, {np.round((activity_threshold/n_cells)*100, 2)}%")
-        print(f"sliding_window_duration {sliding_window_duration}")
+        if activity_threshold is not None:
+            print(f"perc_threshold {perc_threshold}, "
+                  f"activity_threshold {activity_threshold}, {np.round((activity_threshold/n_cells)*100, 2)}%")
+            print(f"sliding_window_duration {sliding_window_duration}")
         spike_struct.activity_threshold = activity_threshold
         # param.activity_threshold = activity_threshold
 
@@ -7468,8 +7611,16 @@ def main():
                            spike_shape="|",
                            spike_shape_size=1,
                            save_formats="pdf")
+
+
         if do_detect_sce_on_traces:
-            cellsinpeak, sce_loc = detect_sce_on_traces(ms.raw_traces, use_speed=False,
+            # cells_to_keep = np.sum(ms.spike_struct.spike_nums, axis=1) > 2
+            # cells_to_keep = np.arange(len(ms.raw_traces))
+            # for pc_number, pca_seq_cells_order in ms.pca_seq_cells_order.items():
+            #     cells_to_keep = pca_seq_cells_order
+
+            cellsinpeak, sce_loc = detect_sce_on_traces(ms.raw_traces[cells_to_keep],
+                                                        speed=ms.speed_by_frame, use_speed=True,
                                                         speed_threshold=None, sce_n_cells_threshold=5,
                                                         sce_min_distance=4, use_median_norm=True,
                                                         use_bleaching_correction=False,
@@ -7489,28 +7640,26 @@ def main():
             ms.sce_times_numbers = sce_times_numbers
             ms.SCE_times = SCE_times
             print(f"n SCE {len(SCE_times)}")
-            plot_spikes_raster(spike_nums=ms.spike_struct.spike_nums_dur, param=param,
-                               spike_train_format=False,
-                               file_name=f"spike_nums_{data_descr}_sce_on_traces",
-                               y_ticks_labels=np.arange(len(ms.spike_struct.spike_nums_dur)),
-                               y_ticks_labels_size=2,
-                               save_raster=True,
-                               show_raster=False,
-                               plot_with_amplitude=False,
-                               raster_face_color='black',
-                               cell_spikes_color='white',
-                               span_area_coords=[SCE_times],
-                               span_area_colors=['white'],
-                               alpha_span_area=0.8,
-                               span_area_only_on_raster=False,
-                               show_sum_spikes_as_percentage=True,
-                               spike_shape="o",
-                               spike_shape_size=0.3,
-                               save_formats="pdf",
-                               SCE_times=SCE_times)
+            if len(SCE_times) == 0:
+                print("No SCE :(")
+                raise Exception("STOP")
+        elif do_detect_sce_based_on_peaks_finder:
+            for pc_number, pca_seq_cells_order in ms.pca_seq_cells_order.items():
+                cells_to_keep = pca_seq_cells_order
+            frames_to_exclude = None
+            if ms.speed_by_frame is not None:
+                frames_to_exclude = ms.speed_by_frame > 0
+            results = get_peaks_periods_on_sum_of_activity(raster=spike_nums_to_use[cells_to_keep],
+                                                           around_peaks=4, distance_bw_peaks=15, min_n_cells=5,
+                                                           frames_to_exclude=frames_to_exclude)
+            peaks, SCE_times, sce_times_bool, sce_times_numbers, cellsinpeak = results
+            # useful for plotting twitches
+            ms.sce_bool = sce_times_bool
+            ms.sce_times_numbers = sce_times_numbers
+            ms.SCE_times = SCE_times
         else:
             # TODO: detect_sce_with_sliding_window with spike_trains
-            sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use[:5000],
+            sce_detection_result = detect_sce_with_sliding_window(spike_nums=spike_nums_to_use[cells_to_keep],
                                                                   window_duration=sliding_window_duration,
                                                                   perc_threshold=perc_threshold,
                                                                   activity_threshold=activity_threshold,
@@ -7530,6 +7679,28 @@ def main():
             ms.sce_times_numbers = sce_times_numbers
             ms.SCE_times = SCE_times
 
+        plot_spikes_raster(spike_nums=ms.spike_struct.spike_nums_dur[cells_to_keep],
+                           param=param,
+                           spike_train_format=False,
+                           file_name=f"spike_nums_{data_descr}_with_sce",
+                           y_ticks_labels=np.arange
+                           (len(ms.spike_struct.spike_nums_dur[cells_to_keep])),
+                           y_ticks_labels_size=2,
+                           save_raster=True,
+                           show_raster=False,
+                           plot_with_amplitude=False,
+                           raster_face_color='black',
+                           cell_spikes_color='white',
+                           span_area_coords=[SCE_times],
+                           span_area_colors=['white'],
+                           alpha_span_area=0.8,
+                           span_area_only_on_raster=False,
+                           show_sum_spikes_as_percentage=True,
+                           spike_shape="o",
+                           spike_shape_size=0.3,
+                           save_formats="pdf",
+                           SCE_times=SCE_times)
+
         print(f"Nb SCE: {cellsinpeak.shape}")
         # print(f"Nb spikes by SCE: {np.sum(cellsinpeak, axis=0)}")
         display_isi_info = False
@@ -7544,6 +7715,8 @@ def main():
         # the key is the K from the k-mean
         if do_clustering:
             if do_fca_clustering:
+                if spike_struct.spike_trains is None:
+                    ms.spike_struct.set_spike_trains_from_spike_nums()
                 compute_and_plot_clusters_raster_fca_version(spike_trains=spike_struct.spike_trains,
                                                              spike_nums=spike_struct.spike_nums,
                                                              data_descr=data_descr, param=param,
@@ -7672,12 +7845,14 @@ def main():
                                     SCE_times=SCE_times,
                                     data_descr=data_descr+clustering_bonus_descr, activity_threshold=activity_threshold)
                     else:
-                        compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels,
+                        if cells_to_keep is None:
+                            cells_to_keep = np.arange(len(spike_nums_to_use))
+                        compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels[cells_to_keep],
                                                                    activity_threshold=ms.spike_struct.activity_threshold,
                                                                    range_n_clusters_k_mean=range_n_clusters_k_mean,
                                                                    n_surrogate_k_mean=n_surrogate_k_mean,
                                                                    with_shuffling=with_shuffling,
-                                                                   spike_nums_to_use=spike_nums_to_use,
+                                                                   spike_nums_to_use=spike_nums_to_use[cells_to_keep],
                                                                    cellsinpeak=cellsinpeak,
                                                                    data_descr=data_descr+clustering_bonus_descr,
                                                                    param=ms.param,
