@@ -5675,7 +5675,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p7_18_02_08_a000_ms"]
     # ms_str_to_load = ["p7_18_02_08_a001_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
-    ms_str_to_load = ["p19_19_04_08_a000_ms"]
+    # ms_str_to_load = ["p19_19_04_08_a000_ms"]
     # ms_str_to_load = ["p9_19_02_20_a001_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms",  "p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
@@ -5696,7 +5696,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
     # ms_str_to_load = ["p8_18_10_24_a006_ms"]
-    # ms_str_to_load = ["p7_19_03_05_a000_ms"]
+    ms_str_to_load = ["p7_19_03_05_a000_ms"]
     # loading data
     # z_shifts_ms = ["p5_19_03_25_a000_ms",
     #                "p5_19_03_25_a001_ms",
@@ -5876,7 +5876,7 @@ def main():
     just_do_pca_on_suite2p_spks = False
     just_use_rastermap_for_pca = False
     just_do_stat_on_pca = False
-    just_analyse_lfp = False
+    just_analyse_lfp = True
 
     just_plot_raster_with_same_sum_activity_lim = False
     just_plot_raster = False
@@ -5896,7 +5896,7 @@ def main():
     just_produce_animation = False
     just_plot_ratio_spikes_for_shift = False
     just_save_sum_spikes_dur_in_npy_file = False
-    do_find_hubs = True
+    do_find_hubs = False
 
     # for events (sce) detection
     perc_threshold = 95

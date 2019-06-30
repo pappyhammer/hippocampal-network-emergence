@@ -37,8 +37,9 @@ import math
 import PIL
 import pattern_discovery.display.misc as display_misc
 import itertools
-from pattern_discovery.tools.lfp_analysis_tools import WaveletParameters, spectral_analysis
-
+from pattern_discovery.tools.lfp_analysis_tools import WaveletParameters, spectral_analysis_on_time_segment, \
+    butter_bandpass_filter, plot_wavelet_heatmap
+import scipy.signal
 
 class MouseSession:
     def __init__(self, age, session_id, param, sampling_rate=10, weight=None, spike_nums=None, spike_nums_dur=None,
@@ -2352,8 +2353,178 @@ class MouseSession:
         plt.close()
 
     def analyse_lfp(self):
-        pass
-        # spectral_analysis()
+        wp = self.create_wavelet_param()
+        print(f"analyse_lfp on {self.description}")
+        lfp_signal = self.lfp_signal
+        lfp_sampling_rate = self.lfp_sampling_rate
+        print(f"len(lfp_signal) {len(lfp_signal)}")
+        print(f"lfp_sampling_rate {lfp_sampling_rate}")
+        if lfp_sampling_rate > 1000:
+            decimate_factor = 10
+            lfp_signal = scipy.signal.decimate(lfp_signal, decimate_factor)
+            print(f"After decimate: len(lfp_signal) {len(lfp_signal)}")
+            lfp_sampling_rate = int(lfp_sampling_rate / decimate_factor)
+        apply_band_pass = False
+        if apply_band_pass:
+            lowcut = 1
+            highcut = 300
+            lfp_signal = butter_bandpass_filter(lfp_signal, lowcut, highcut,
+                                                lfp_sampling_rate, order=3)
+        file_name = f"{self.description}_lfp_spectrogram"
+
+        save_formats = "png"
+        dpi = 400
+        n_times = len(lfp_signal)
+        num_levels_contourf = 50
+        window_len_in_s = 30
+        n_times = len(lfp_signal)
+        window_len_in_times = window_len_in_s * lfp_sampling_rate
+
+        colors_shift = ["red", "green", "blue", "pink", "orange"]
+
+        raster_dur = self.spike_struct.spike_nums_dur
+        n_cells = raster_dur.shape[1]
+
+        for time_index, beg_time in enumerate(np.arange(0, n_times, window_len_in_times)):
+            wav_outcome = spectral_analysis_on_time_segment(beg_time=beg_time,
+                                                            lfp_signal=lfp_signal, sampling_rate=lfp_sampling_rate,
+                                                            n_times=n_times, window_len_in_s=window_len_in_s,
+                                                            save_formats="png", wavelet_param=wp,
+                                                            file_name=file_name,
+                                                            param=self.param, dpi=dpi,
+                                                            save_spectrogram=False, keep_dbconverted=True)
+
+            beg_time_s = beg_time // lfp_sampling_rate
+            if wp.using_median_for_threshold:
+                threshold = np.median(wav_outcome.dbconverted)
+            else:
+                threshold = np.mean(wav_outcome.dbconverted) + np.std(wav_outcome.dbconverted)
+
+            max_color_heatmap = np.max(wav_outcome.dbconverted)
+            file_name_segment = file_name + f"_{beg_time_s}s_win_{window_len_in_s}"
+            n_lines = 3
+            n_col = 1
+            background_color = "black"
+            fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                                     gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [0.45, 0.1, 0.45]},
+                                     figsize=(30, 20))
+            fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+            fig.patch.set_facecolor(background_color)
+            axes = axes.flatten()
+            beg_time_raster = int((beg_time / lfp_sampling_rate) * self.sampling_rate)
+            end_time_raster = int(((beg_time+window_len_in_times) / lfp_sampling_rate) * self.sampling_rate)
+            print(f"beg_time_raster-end_time_raster {beg_time_raster} - {end_time_raster}")
+
+            frames_to_display = np.arange(beg_time_raster, end_time_raster)
+
+            if self.speed_by_frame is not None:
+                binary_speed = np.zeros(len(self.speed_by_frame), dtype="int8")
+                binary_speed[self.speed_by_frame > 0] = 1
+                speed_periods_tmp = get_continous_time_periods(binary_speed)
+                speed_periods = []
+                for speed_period in speed_periods_tmp:
+                    if (speed_period[0] not in frames_to_display) and (speed_period[1] not in frames_to_display):
+                        continue
+                    elif (speed_period[0] in frames_to_display) and (speed_period[1] in frames_to_display):
+                        speed_periods.append((speed_period[0] - beg_time_raster, speed_period[1] - beg_time_raster))
+                    elif speed_period[0] in frames_to_display:
+                        speed_periods.append((speed_period[0] - beg_time_raster, frames_to_display[-1] - beg_time_raster))
+                    else:
+                        speed_periods.append((0, speed_period[1] - beg_time_raster))
+
+            # colors for movement periods
+            span_area_coords = None
+            span_area_colors = None
+            with_mvt_periods = True
+
+            if with_mvt_periods:
+                colors = ["red", "green", "blue", "pink", "orange"]
+                i = 0
+                span_area_coords = []
+                span_area_colors = []
+                periods_dict = self.shift_data_dict
+                if periods_dict is not None:
+                    print(f"{self.description}:")
+                    for name_period, period in periods_dict.items():
+                        mvt_periods_tmp = get_continous_time_periods(period.astype("int8"))
+                        mvt_periods = []
+                        for mvt_period in mvt_periods_tmp:
+                            if (mvt_period[0] not in frames_to_display) and (
+                                    mvt_period[1] not in frames_to_display):
+                                continue
+                            elif (mvt_period[0] in frames_to_display) and (mvt_period[1] in frames_to_display):
+                                mvt_periods.append((mvt_period[0] - beg_time_raster, mvt_period[1] - beg_time_raster))
+                            elif mvt_period[0] in frames_to_display:
+                                mvt_periods.append((mvt_period[0] - beg_time_raster, frames_to_display[-1] - beg_time_raster))
+                            else:
+                                mvt_periods.append((0, mvt_period[1] - beg_time_raster))
+                        span_area_coords.append(mvt_periods)
+                        print(f"span_area_coords {span_area_coords}")
+                        span_area_colors.append(colors[i % len(colors)])
+                        print(f"  Period {name_period} -> {colors[i]}")
+                        i += 1
+                elif self.speed_by_frame is not None:
+                    span_area_coords = []
+                    span_area_colors = []
+                    span_area_coords.append(speed_periods)
+                    span_area_colors.append("cornflowerblue")
+                else:
+                    print(f"no mvt info for {self.description}")
+
+            x_ticks_labels = [x for x in frames_to_display if x % 50 == 0]
+            x_ticks = [x*50 for x in np.arange(len(x_ticks_labels))]
+            x_ticks_labels_size = 10
+            plot_spikes_raster(spike_nums=raster_dur[:, frames_to_display],
+                               param=self.param,
+                               display_spike_nums=True,
+                               axes_list=[axes[0], axes[1]],
+                               x_ticks_labels=x_ticks_labels,
+                               x_ticks_labels_size=x_ticks_labels_size,
+                               x_ticks=x_ticks,
+                               display_traces=False,
+                               spike_train_format=False,
+                               y_ticks_labels=np.arange(n_cells),
+                               y_ticks_labels_size=2,
+                               save_raster=False,
+                               show_raster=False,
+                               span_area_coords=span_area_coords,
+                               span_area_colors=span_area_colors,
+                               alpha_span_area=0.4,
+                               plot_with_amplitude=False,
+                               # raster_face_color="white",
+                               hide_x_labels=True,
+                               without_activity_sum=False,
+                               show_sum_spikes_as_percentage=True,
+                               span_area_only_on_raster=False,
+                               spike_shape='|',
+                               spike_shape_size=5,
+                               save_formats="pdf")
+
+            ax_to_use = axes[2]
+
+            plot_wavelet_heatmap(threshold=threshold,
+                                 num_levels_contourf=num_levels_contourf,
+                                 log_y=wp.log_y,
+                                 display_EEG=True,
+                                 sampling_rate=lfp_sampling_rate,
+                                 wp=wp,
+                                 wav_outcome=wav_outcome, max_v_colorbar=max_color_heatmap,
+                                 param=self.param,
+                                 file_name=file_name_segment,
+                                 plot_freq_band_detection=wp.show_freq_bands,
+                                 dpi=dpi, ax_to_use=ax_to_use,
+                                 first_x_tick_label=beg_time_s,
+                                 levels=None, red_v_bars=None, save_formats=save_formats)
+
+            if isinstance(save_formats, str):
+                save_formats = [save_formats]
+
+            for save_format in save_formats:
+                fig.savefig(f'{self.param.path_results}/{file_name_segment}'
+                            f'_{self.param.time_str}.{save_format}',
+                            format=f"{save_format}",
+                            facecolor=fig.get_facecolor())
+
 
     def create_wavelet_param(self):
         """
@@ -2387,7 +2558,7 @@ class MouseSession:
             # numbers of freq to apply by the wavelets (between min_freq and max-Freq) used to be 1
             min_freq = 1
             # used to be 60
-            max_freq = 30
+            max_freq = 60
             freq_steps = 0.1
             # used to be 16 then 8
             wav_cycles = 7
@@ -2427,12 +2598,12 @@ class MouseSession:
             low_freq_spike_detector = 3
             high_freq_spike_detector = 25
         else:
-            spike_percentage = 0.75
+            spike_percentage = 0.90 # 0.75
             # by how should be multiplied the threshold used to display wavelet or identify freq_band in order to identify
             # spike
-            spike_threshold_ratio = 1.03
-            low_freq_spike_detector = 2
-            high_freq_spike_detector = 30
+            spike_threshold_ratio = 2.5 # 1.05
+            low_freq_spike_detector = 5
+            high_freq_spike_detector = 50
         # in sec
         spike_removal_time_after = 1
         spike_removal_time_before = 0.5
@@ -4685,7 +4856,7 @@ class MouseSession:
 
     def load_graph_data(self, path_to_load):
         """
-                        Load the lfp data in path_to_load for the ms
+                        Load the graph data in path_to_load for the ms
                         :param path_to_load:
                         :return:
                         """
