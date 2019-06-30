@@ -37,6 +37,7 @@ import math
 import PIL
 import pattern_discovery.display.misc as display_misc
 import itertools
+from pattern_discovery.tools.lfp_analysis_tools import WaveletParameters, spectral_analysis
 
 
 class MouseSession:
@@ -98,6 +99,9 @@ class MouseSession:
         # of cells and as value either of positive int representing the new index of the cell or -1 if the cell has been
         # removed
         self.removed_cells_mapping = None
+        # 1d array float
+        self.lfp_signal = None
+        self.lfp_sampling_rate = None
         # array of float, each index corresponds to a cell and the value is the prediction made by the cell classifier
         self.cell_cnn_predictions = None
         self.load_cnn_cell_classifier_results()
@@ -2347,6 +2351,125 @@ class MouseSession:
             plt.show()
         plt.close()
 
+    def analyse_lfp(self):
+        pass
+        # spectral_analysis()
+
+    def create_wavelet_param(self):
+        """
+        Object used to keep parameters for wavelet analysis on lfp
+        :return:
+        """
+
+        # Avoid to compute wavelet for the main game
+        only_compute_baseline_stats = False
+        # compute_freq_bands matters only if bosc_method is at False
+        compute_freq_bands = False
+        # baseline not used for now
+        baseline_duration = 120
+        max_baseline_duration = False
+        use_derivative = False
+        # use_spike_removal = False
+        # load spikes if file is available
+        # load_spikes = False
+        detect_spikes = True
+
+        bosc_method = False
+        if bosc_method:
+            min_freq = 1
+            # used to be 60
+            max_freq = 60
+            # used to be 0.5
+            freq_steps = 0.1
+            wav_cycles = 7
+            log_y = False
+        else:
+            # numbers of freq to apply by the wavelets (between min_freq and max-Freq) used to be 1
+            min_freq = 1
+            # used to be 60
+            max_freq = 30
+            freq_steps = 0.1
+            # used to be 16 then 8
+            wav_cycles = 7
+            log_y = False
+
+        num_frex = int((max_freq - min_freq) / freq_steps)
+
+        # boolean : define if the number of cycles or the wavelet should increase as the frequency do
+        # if True, increase from min_cycle to max_cycle
+        # a larger number of cycles gives you better frequency precision at the cost of worse temporal precision,
+        # and a smaller number of cycles gives you better temporal precision
+        # at the cost of worse frequency precision
+        increase_gaussian_cycles = False
+
+        # nb of cycles used if increase_gaussian_cycles = False
+        min_cycle = 6
+        max_cycle = 15
+        welch_method = False
+
+        # 3 baseline_mode choice : "decibel_conversion", "percentage_change", "z_score_normalization"
+        baseline_modes = ["decibel_conversion", "percentage_change", "z_score_normalization"]
+        baseline_mode = baseline_modes[0]
+
+        # If False, mean + std will be used
+        using_median_for_threshold = True
+        # Hz gap to remove redondant freq band episode that overlap
+        hz_gap_fb_ep = 1
+        # it means the algorihtm will go to freq from freq, so 2 times freq_steps
+        step_fb_ep = int(1 / freq_steps)
+        if bosc_method:
+            # spike data
+            # how percentage of the height should be superior at the treshold specified
+            spike_percentage = 0.85
+            # by how should be multiplied the threshold used to display wavelet or identify freq_band in order to identify
+            # spike
+            spike_threshold_ratio = 1.5
+            low_freq_spike_detector = 3
+            high_freq_spike_detector = 25
+        else:
+            spike_percentage = 0.75
+            # by how should be multiplied the threshold used to display wavelet or identify freq_band in order to identify
+            # spike
+            spike_threshold_ratio = 1.03
+            low_freq_spike_detector = 2
+            high_freq_spike_detector = 30
+        # in sec
+        spike_removal_time_after = 1
+        spike_removal_time_before = 0.5
+
+        show_freq_bands = False
+
+        # frequency band to explore, for corresponding Hz, see Game.TYPE_OF_FREQ_BAND
+        freq_band_to_explore = ('delta', 'theta', 'delta_theta', 'low_theta', 'high_theta',
+                                'alpha', 'alpha1', 'alpha2', 'theta_alpha',
+                                'beta', 'gamma', 'slow_gamma', 'mid_gamma', 'fast_gamma')
+
+        wp = WaveletParameters(baseline_duration=baseline_duration,
+                               max_baseline_duration=max_baseline_duration,
+                               min_freq=min_freq, max_freq=max_freq,
+                               num_frex=num_frex, freq_steps=freq_steps,
+                               use_derivative=use_derivative,
+                               detect_spikes=detect_spikes,
+                               show_freq_bands=show_freq_bands,
+                               low_freq_spike_detector=low_freq_spike_detector,
+                               high_freq_spike_detector=high_freq_spike_detector,
+                               increase_gaussian_cycles=increase_gaussian_cycles,
+                               min_cycle=min_cycle, max_cycle=max_cycle, wav_cycles=wav_cycles,
+                               baseline_mode=baseline_mode, log_y=log_y,
+                               hz_gap_fb_ep=hz_gap_fb_ep, step_fb_ep=step_fb_ep,
+                               using_median_for_threshold=using_median_for_threshold,
+                               compute_freq_bands=compute_freq_bands,
+                               freq_band_to_explore=freq_band_to_explore,
+                               spike_percentage=spike_percentage,
+                               spike_threshold_ratio=spike_threshold_ratio,
+                               spike_removal_time_after=spike_removal_time_after,
+                               spike_removal_time_before=spike_removal_time_before,
+                               bosc_method=bosc_method,
+                               welch_method=welch_method,
+                               only_compute_baseline_stats=only_compute_baseline_stats)
+
+        return wp
+
     def pca_on_suite2p_spks(self):
         if self.suite2p_data is None:
             return
@@ -3484,104 +3607,109 @@ class MouseSession:
         # first frame
         first_frame_index = np.where(frames_data < 0.01)[0][0]
 
-        if lfp_channel is not None:
-            for current_channel in np.arange(1, abf.channelCount):
-                times_in_sec = np.copy(original_time_in_sec)
-                frames_data = np.copy(original_frames_data)
-                if (run_channel is not None) and (current_channel == run_channel):
-                    continue
-                if (run_channel is not None) and (current_channel == 4) and (lfp_channel is None):
-                    lfp_channel = 4
-                if (run_channel is None) and (current_channel == 3) and (lfp_channel is None):
-                    lfp_channel = 3
-                abf.setSweep(sweepNumber=0, channel=current_channel)
-                mvt_data = abf.sweepY
-                if offset is not None:
-                    mvt_data = mvt_data + offset
-                # self.channelCount-1
-                mvt_data = mvt_data[first_frame_index:]
-                times_in_sec = times_in_sec[:-first_frame_index]
-                frames_data = frames_data[first_frame_index:]
-                threshold_value = 0.02
-                if self.abf_sampling_rate < 50000:
-                    # frames_data represent the content of the abf channel that contains the frames
-                    # the index stat at the first frame recorded, meaning the first value where the
-                    # value is < 0.01
-                    mask_frames_data = np.ones(len(frames_data), dtype="bool")
-                    # we need to detect the frames manually, but first removing data between movies
-                    selection = np.where(frames_data >= threshold_value)[0]
-                    mask_selection = np.zeros(len(selection), dtype="bool")
-                    pos = np.diff(selection)
-                    # looking for continuous data between movies
-                    to_keep_for_removing = np.where(pos == 1)[0] + 1
-                    mask_selection[to_keep_for_removing] = True
-                    selection = selection[mask_selection]
-                    # we remove the "selection" from the frames data
-                    mask_frames_data[selection] = False
-                    frames_data = frames_data[mask_frames_data]
-                    # len_frames_data_in_s = np.round(len(frames_data) / self.abf_sampling_rate, 3)
-                    mvt_data = mvt_data[mask_frames_data]
-                    times_in_sec = times_in_sec[:-len(np.where(mask_frames_data == 0)[0])]
-                    active_frames = np.linspace(0, len(frames_data), 12500).astype(int)
-                    mean_diff_active_frames = np.mean(np.diff(active_frames)) / self.abf_sampling_rate
-                    # print(f"mean diff active_frames {np.round(mean_diff_active_frames, 3)}")
-                    if mean_diff_active_frames < 0.09:
-                        raise Exception("mean_diff_active_frames < 0.09")
-                else:
-                    binary_frames_data = np.zeros(len(frames_data), dtype="int8")
-                    binary_frames_data[frames_data >= threshold_value] = 1
-                    binary_frames_data[frames_data < threshold_value] = 0
-                    # +1 due to the shift of diff
-                    # contains the index at which each frame from the movie is matching the abf signal
-                    # length should be 12500
-                    active_frames = np.where(np.diff(binary_frames_data) == 1)[0] + 1
+        # if lfp_channel is not None:
+        for current_channel in np.arange(1, abf.channelCount):
+            times_in_sec = np.copy(original_time_in_sec)
+            frames_data = np.copy(original_frames_data)
+            if (run_channel is not None) and (current_channel == run_channel):
+                continue
+            if (run_channel is not None) and (current_channel == 4) and (lfp_channel is None):
+                lfp_channel = 4
+            if (run_channel is None) and (current_channel == 3) and (lfp_channel is None):
+                lfp_channel = 3
+            abf.setSweep(sweepNumber=0, channel=current_channel)
+            mvt_data = abf.sweepY
+            if offset is not None:
+                mvt_data = mvt_data + offset
+            # self.channelCount-1
+            mvt_data = mvt_data[first_frame_index:]
+            times_in_sec = times_in_sec[:-first_frame_index]
+            frames_data = frames_data[first_frame_index:]
+            threshold_value = 0.02
+            if self.abf_sampling_rate < 50000:
+                # frames_data represent the content of the abf channel that contains the frames
+                # the index stat at the first frame recorded, meaning the first value where the
+                # value is < 0.01
+                mask_frames_data = np.ones(len(frames_data), dtype="bool")
+                # we need to detect the frames manually, but first removing data between movies
+                selection = np.where(frames_data >= threshold_value)[0]
+                mask_selection = np.zeros(len(selection), dtype="bool")
+                pos = np.diff(selection)
+                # looking for continuous data between movies
+                to_keep_for_removing = np.where(pos == 1)[0] + 1
+                mask_selection[to_keep_for_removing] = True
+                selection = selection[mask_selection]
+                # we remove the "selection" from the frames data
+                mask_frames_data[selection] = False
+                frames_data = frames_data[mask_frames_data]
+                # len_frames_data_in_s = np.round(len(frames_data) / self.abf_sampling_rate, 3)
+                mvt_data = mvt_data[mask_frames_data]
+                times_in_sec = times_in_sec[:-len(np.where(mask_frames_data == 0)[0])]
+                active_frames = np.linspace(0, len(frames_data), 12500).astype(int)
+                mean_diff_active_frames = np.mean(np.diff(active_frames)) / self.abf_sampling_rate
+                # print(f"mean diff active_frames {np.round(mean_diff_active_frames, 3)}")
+                if mean_diff_active_frames < 0.09:
+                    raise Exception("mean_diff_active_frames < 0.09")
+            else:
+                binary_frames_data = np.zeros(len(frames_data), dtype="int8")
+                binary_frames_data[frames_data >= threshold_value] = 1
+                binary_frames_data[frames_data < threshold_value] = 0
+                # +1 due to the shift of diff
+                # contains the index at which each frame from the movie is matching the abf signal
+                # length should be 12500
+                active_frames = np.where(np.diff(binary_frames_data) == 1)[0] + 1
 
-                # correspond of the variation of the piezo
-                mvt_data_without_abs = mvt_data
-                mvt_data = np.abs(mvt_data)
-                # useful is the piezo channel is known
-                # if (run_channel is not None):
-                #     self.raw_piezo = mvt_data
-                #     self.raw_piezo_without_abs = mvt_data_without_abs
+            # correspond of the variation of the piezo
+            mvt_data_without_abs = mvt_data
+            mvt_data = np.abs(mvt_data)
+            # useful is the piezo channel is known
+            # if (run_channel is not None):
+            #     self.raw_piezo = mvt_data
+            #     self.raw_piezo_without_abs = mvt_data_without_abs
 
-                self.abf_times_in_sec = times_in_sec
-                # active_frames = np.concatenate(([0], active_frames))
-                # print(f"active_frames {active_frames}")
-                nb_frames = len(active_frames)
-                self.abf_frames = active_frames
-                # print(f"nb_frames {nb_frames}")
-                # print(f"len(mvt_data_without_abs) {len(mvt_data_without_abs)}")
-                # print(f"self.abf_frames {self.abf_frames[-50:]}")
-                # print(f'Saving abf_frames for {self.description}')
-                # np.save(self.param.path_data + path_abf_data + self.description +
-                #         f"_abf_frames_channel_{current_channel}.npy", self.abf_frames)
-                # down sampling rate: 50 for piezzo, 1000 for LFP
-                if (lfp_channel is not None) and lfp_channel == current_channel:
-                    down_sampling_hz = 1000
-                elif (piezo_channel is not None) and (piezo_channel == current_channel):
-                    down_sampling_hz = 50
-                elif current_channel <= 2:
-                    down_sampling_hz = 50
-                else:
-                    down_sampling_hz = 1000
-                sampling_step = int(self.abf_sampling_rate / down_sampling_hz)
-                # np.save(self.param.path_data + path_abf_data + self.description +
-                #         f"_abf_12500_channel_{current_channel}.npy",
-                #         mvt_data_without_abs[self.abf_frames])
-                # first we want to keep piezzo data only for the active movie, removing the time between imaging session
-                # to do so we concatenate the time between frames
-                piezzo_shift = np.zeros(0)
-                for i in np.arange(0, 12500, 2500):
-                    last_abf_frame = self.abf_frames[i + 2499]
-                    # mvt_data_without_abs represents the piezzo values without taking the absolute value
-                    if self.abf_frames[i + 2499] == len(mvt_data_without_abs):
-                        last_abf_frame -= 1
-                    # sampling_step is produce according to a down_sampling_hz that changes
-                    # according to the channel (lfp, piezzo etc...)
-                    new_data = mvt_data_without_abs[np.arange(self.abf_frames[i],
-                                                              last_abf_frame, sampling_step)]
-                    piezzo_shift = np.concatenate((piezzo_shift, new_data,
-                                                   np.array([mvt_data_without_abs[last_abf_frame]])))
+            self.abf_times_in_sec = times_in_sec
+            # active_frames = np.concatenate(([0], active_frames))
+            # print(f"active_frames {active_frames}")
+            nb_frames = len(active_frames)
+            self.abf_frames = active_frames
+            # print(f"nb_frames {nb_frames}")
+            # print(f"len(mvt_data_without_abs) {len(mvt_data_without_abs)}")
+            # print(f"self.abf_frames {self.abf_frames[-50:]}")
+            # print(f'Saving abf_frames for {self.description}')
+            # np.save(self.param.path_data + path_abf_data + self.description +
+            #         f"_abf_frames_channel_{current_channel}.npy", self.abf_frames)
+            # down sampling rate: 50 for piezzo, 1000 for LFP
+            if (lfp_channel is not None) and lfp_channel == current_channel:
+                down_sampling_hz = 1000
+            elif (piezo_channel is not None) and (piezo_channel == current_channel):
+                down_sampling_hz = 50
+            elif current_channel <= 2:
+                down_sampling_hz = 50
+            else:
+                down_sampling_hz = 1000
+            sampling_step = int(self.abf_sampling_rate / down_sampling_hz)
+            # np.save(self.param.path_data + path_abf_data + self.description +
+            #         f"_abf_12500_channel_{current_channel}.npy",
+            #         mvt_data_without_abs[self.abf_frames])
+            # first we want to keep piezzo data only for the active movie, removing the time between imaging session
+            # to do so we concatenate the time between frames
+            piezzo_shift = np.zeros(0)
+            for i in np.arange(0, 12500, 2500):
+                last_abf_frame = self.abf_frames[i + 2499]
+                # mvt_data_without_abs represents the piezzo values without taking the absolute value
+                if self.abf_frames[i + 2499] == len(mvt_data_without_abs):
+                    last_abf_frame -= 1
+                # sampling_step is produce according to a down_sampling_hz that changes
+                # according to the channel (lfp, piezzo etc...)
+                new_data = mvt_data_without_abs[np.arange(self.abf_frames[i],
+                                                          last_abf_frame, sampling_step)]
+                piezzo_shift = np.concatenate((piezzo_shift, new_data,
+                                               np.array([mvt_data_without_abs[last_abf_frame]])))
+            if current_channel == lfp_channel:
+                np.save(self.param.path_data + path_abf_data + self.description +
+                        f"_abf_lfp_channel_{current_channel}_{down_sampling_hz}hz.npy",
+                        piezzo_shift)
+            else:
                 np.save(self.param.path_data + path_abf_data + self.description +
                         f"_abf_HR_channel_{current_channel}.npy",
                         piezzo_shift)
@@ -4554,6 +4682,66 @@ class MouseSession:
             return
         np.save(os.path.join(self.param.path_data, path, f"{self.description}_raw_traces.npy".lower()),
                 self.raw_traces)
+
+    def load_graph_data(self, path_to_load):
+        """
+                        Load the lfp data in path_to_load for the ms
+                        :param path_to_load:
+                        :return:
+                        """
+        if self.spike_struct.graph_out is not None:
+            return
+
+        if (path_to_load is None):
+            print(f"{self.description} load_graph_data "
+                  f"path_to_load is None")
+            return
+
+        for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data, path_to_load)):
+            for file_name in local_filenames:
+                if (("graph" in file_name.lower()) and (self.description.lower() in file_name.lower())) \
+                        and file_name.endswith(".graphml"):
+
+                    graph =nx.read_graphml(path=(os.path.join(self.param.path_data, path_to_load, file_name)),
+                                           node_type=int)
+                    if "graph_out" in file_name.lower():
+                        print(f"{self.description} graph_out loaded from file")
+                        self.spike_struct.graph_out = graph
+                    elif "graph_in" in file_name.lower():
+                        print(f"{self.description} graph_in loaded from file")
+                        self.spike_struct.graph_in = graph
+
+            break
+        if self.spike_struct.graph_out is None:
+            print(f"{self.description} no graph data file found")
+
+    def load_lfp_data(self, path_to_load):
+        """
+                Load the lfp data in path_to_load for the ms
+                :param path_to_load:
+                :return:
+                """
+        if self.lfp_signal is not None:
+            return
+
+        if (path_to_load is None):
+            print(f"{self.description} load_lfp_data "
+                  f"path_to_load is None")
+            return
+
+        for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data, path_to_load)):
+            for file_name in local_filenames:
+                if (("lfp" in file_name.lower()) and (self.description.lower() in file_name.lower())) \
+                        and file_name.endswith(".npy") and ("hz" in file_name.lower()):
+                    self.lfp_signal = np.load(os.path.join(self.param.path_data, path_to_load, file_name))
+                    index_npy = file_name.index(".npy")
+                    index_ = len(file_name) - file_name[::-1].index("_") - 1
+                    # format exemple: P7_19_03_05_a000_abf_lfp_channel_3_1000hz.npy
+                    self.lfp_sampling_rate = int(file_name[index_+1:index_npy-2])
+                    # print(f"{file_name} {self.lfp_sampling_rate}")
+                    return
+            break
+        print(f"{self.description} no lfp data file found")
 
     def load_speed_from_file(self, path_to_load):
         """
