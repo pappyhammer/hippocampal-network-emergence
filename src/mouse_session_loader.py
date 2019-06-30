@@ -1765,6 +1765,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms.load_seq_pca_results(path=f"{param.path_data}/PCA_sequences_Robin/")
 
+        ms.load_lfp_data(path_to_load=f"p{ms.age}/{ms.description.lower()}/")
+
+        ms.load_graph_data(path_to_load=f"p{ms.age}/{ms.description.lower()}/")
+
         if load_abf and (not ms.abf_loaded):
             # if sampling_rate is not 50000, load specific data for a session
             # loading abf
@@ -1775,7 +1779,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             else:
                 # default LFP is channel 3
                 # if channel 1 for LFP, load specific data for a session
-                ms.load_abf_file(path_abf_data=f"p{ms.age}/PCA_sequences_Robin/")
+                ms.load_abf_file(path_abf_data=f"p{ms.age}/{ms.description.lower()}/")
 
         # TODO: charge those files automatically if they exists
 

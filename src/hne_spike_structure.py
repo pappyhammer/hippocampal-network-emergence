@@ -223,8 +223,9 @@ class HNESpikeStructure:
                 self.spike_nums[cell, onset] = 1
                 self.peak_nums[cell, peak] = 1
 
-    def detect_n_in_n_out(self):
+    def detect_n_in_n_out(self, save_graphs=True):
         if self.spike_nums is None:
+            print(f"{self.mouse_session.description} spike_nums is None in detect_n_in_n_out")
             return
         # look neuron by neuron, at each spike and make a pair wise for each other neurons according to the spike
         # distribution around 500ms before and after. If the distribution is not uniform then we look where is the max
@@ -326,6 +327,23 @@ class HNESpikeStructure:
         for cell, cells_connected in self.n_out_dict.items():
             for cell_connected in cells_connected.keys():
                 self.graph_out.add_edge(cell, cell_connected)
+
+        if save_graphs:
+            ms = self.mouse_session
+            param = ms.param
+            nx.write_graphml(self.graph_in, f"{param.path_data}/p{ms.age}/{ms.description.lower()}/"
+            f"{ms.description}_graph_in.graphml")
+            nx.write_graphml(self.graph_out, f"{param.path_data}/p{ms.age}/{ms.description.lower()}/"
+            f"{ms.description}_graph_out.graphml")
+            nx.write_gexf(self.graph_in, f"{param.path_data}/p{ms.age}/{ms.description.lower()}/"
+            f"{ms.description}_graph_in.gexf")
+            nx.write_gexf(self.graph_out, f"{param.path_data}/p{ms.age}/{ms.description.lower()}/"
+            f"{ms.description}_graph_out.gexf")
+            # nx.write_gpickle(self.graph_in,f"{param.path_data}/p{ms.age}/{ms.description.lower()}/"
+            # f"{ms.description}_graph_in.gpickle")
+            # nx.write_gpickle(self.graph_out,f"{param.path_data}/p{ms.age}/{ms.description.lower()}/"
+            # f"{ms.description}_graph_out.gpickle")
+
 
         # raise Exception("testing")
         # best_cell = -1

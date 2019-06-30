@@ -5586,7 +5586,6 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p6_18_02_07_a001_ms"]
     # ms_str_to_load = ["p7_19_03_05_a000_ms", "p9_19_02_20_a003"]
     # ms_str_to_load = ["p9_19_02_20_a003_ms"]
-    # ms_str_to_load = ["p7_19_03_05_a000_ms"]
     # 4 mice with nice abf + LFP
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p7_19_03_05_a000_ms", "p9_19_02_20_a003_ms"]
 
@@ -5631,7 +5630,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p60_arnaud_ms"]
     # ms_str_to_load = ["p9_19_02_20_a000_ms"]
     # ms_str_to_load = ["p10_19_02_21_a002_ms"]p5
-    # ms_str_to_load = ["p7_18_02_08_a001_ms"]
+    # ms_str_to_load = ["p8_18_10_24_a005_ms"]
     ## all the ms separated in 5 groups
 
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
@@ -5676,7 +5675,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p7_18_02_08_a000_ms"]
     # ms_str_to_load = ["p7_18_02_08_a001_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
-    # ms_str_to_load = ["p19_19_04_08_a000_ms"]
+    ms_str_to_load = ["p19_19_04_08_a000_ms"]
     # ms_str_to_load = ["p9_19_02_20_a001_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms",  "p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
@@ -5697,6 +5696,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
     # ms_str_to_load = ["p8_18_10_24_a006_ms"]
+    # ms_str_to_load = ["p7_19_03_05_a000_ms"]
     # loading data
     # z_shifts_ms = ["p5_19_03_25_a000_ms",
     #                "p5_19_03_25_a001_ms",
@@ -5836,7 +5836,7 @@ def main():
         ms_str_to_ms_dict = lexi_loading_process(param=param, load_traces=load_traces)
     else:
         ms_str_to_ms_dict = robin_loading_process(param=param, load_traces=load_traces, load_abf=load_abf)
-
+    # return
     available_ms = list(ms_str_to_ms_dict.values())
     # for ms in available_ms:
     #     ms.plot_each_inter_neuron_connect_map()
@@ -5875,7 +5875,8 @@ def main():
     just_save_raster_as_npy_file = False
     just_do_pca_on_suite2p_spks = False
     just_use_rastermap_for_pca = False
-    just_do_stat_on_pca = True
+    just_do_stat_on_pca = False
+    just_analyse_lfp = False
 
     just_plot_raster_with_same_sum_activity_lim = False
     just_plot_raster = False
@@ -5895,7 +5896,7 @@ def main():
     just_produce_animation = False
     just_plot_ratio_spikes_for_shift = False
     just_save_sum_spikes_dur_in_npy_file = False
-    do_find_hubs = False
+    do_find_hubs = True
 
     # for events (sce) detection
     perc_threshold = 95
@@ -5919,7 +5920,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = True
+    do_clustering = False
     do_detect_sce_on_traces = False
     do_detect_sce_based_on_peaks_finder = True
     use_hdbscan = False
@@ -6399,7 +6400,9 @@ def main():
             # for cell_to_map in [61, 73, 130, 138, 142]:
             #     ms.plot_connectivity_maps_of_a_cell(cell_to_map=cell_to_map, cell_descr="", not_in=False,
             #                                         cell_color="red", links_cell_color="cornflowerblue")
-            ms.detect_n_in_n_out()
+            if ms.spike_struct.graph_out is None:
+                print(f"{ms.description} detect_n_in_n_out")
+                ms.detect_n_in_n_out()
             if ms.spike_struct.graph_out is not None:
                 hubs = find_hubs(graph=ms.spike_struct.graph_out, ms=ms)
                 print(f"{ms.description} hubs: {hubs}")
@@ -6611,6 +6614,13 @@ def main():
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_do_pca_on_suite2p_spks")
             continue
+
+        if just_analyse_lfp:
+            ms.analyse_lfp()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_analyse_lfp")
+            continue
+
         if just_do_pca_on_raster:
             spike_nums_to_use = ms.spike_struct.spike_nums_dur
             # sce_detection_result = detect_sce_potatoes_style(spike_nums=spike_nums_to_use, perc_threshold=95,
