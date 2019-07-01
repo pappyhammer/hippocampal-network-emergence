@@ -98,6 +98,130 @@ def covnorm(m_sces, use_pearson=False, full_with=None):
     return co_var_matrix
 
 
+def plot_intersect_course_over_twitches(cells_in_twitches, twitches_times, ms):
+    nb_twitches = np.shape(cells_in_twitches)[1]
+    param = ms.param
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    # + 11 diverting
+    brewer_colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+                     '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
+                     '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+                     '#74add1', '#4575b4', '#313695']
+    # key is the first twitch
+    # value is a list containing 2 list, x (delay) and y (n intersect cells)
+    results_intersect = dict()
+
+    for twitch in np.arange(nb_twitches - 1):
+        twitch_1 = twitch
+        intersect_cells = np.where(cells_in_twitches[:, twitch_1])[0]
+
+        for twitch_2 in np.arange(twitch_1 + 1, nb_twitches):
+            intersect_cells = np.intersect1d(intersect_cells,
+                                             np.where(cells_in_twitches[:, twitch_2])[0],
+                                             assume_unique=True)
+            delay_bw_twitches = twitches_times[twitch_2][0] - twitches_times[twitch_1][0]
+            if twitch not in results_intersect:
+                results_intersect[twitch] = [[delay_bw_twitches], [len(intersect_cells)]]
+            else:
+                results_intersect[twitch][0].append(delay_bw_twitches)
+                results_intersect[twitch][1].append(len(intersect_cells))
+            twitch_1 = twitch_2
+            if len(intersect_cells) == 0:
+                break
+
+    fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                            gridspec_kw={'height_ratios': [1]},
+                            figsize=(12, 12))
+    background_color = "black"
+    ax1.set_facecolor(background_color)
+
+    fig.patch.set_facecolor(background_color)
+    for twitch, delay_intersect in results_intersect.items():
+        color = brewer_colors[twitch % len(brewer_colors)]
+        ax1.scatter(delay_intersect[0], delay_intersect[1], color=color, marker="o",
+                    edgecolors="white",
+                    s=50, zorder=2)
+        ax1.plot(delay_intersect[0], delay_intersect[1], color=color,
+                 lw=1, zorder=1)
+
+    labels_color = "white"
+    ax1.set_xlabel("delay (frames)", fontsize=30, labelpad=20)
+    ax1.set_ylabel("Intersecting cells course", fontsize=30, labelpad=20)
+    ax1.xaxis.label.set_color(labels_color)
+    ax1.yaxis.label.set_color(labels_color)
+    ax1.tick_params(axis='y', colors=labels_color)
+    ax1.tick_params(axis='x', colors=labels_color)
+
+    save_formats = ["png", "pdf"]
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+
+    filename = f"{ms.description}_cells_intersecting_course"
+    path_results = param.path_results
+    for save_format in save_formats:
+        fig.savefig(f'{path_results}/{filename}'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+
+    plt.close()
+
+
+def plot_twitches_delay_stat(distrib_similarity, twitches_times, ms):
+    param = ms.param
+    n_twitches = len(twitches_times)
+
+    delay_bw_twitch_matrix = np.zeros((n_twitches, n_twitches), dtype="int16")
+
+    # represent the number of twitches between 2 twitches
+    n_twitches_bw_matrix = np.ones((n_twitches, n_twitches), dtype="int16")
+    n_twitches_bw_matrix = n_twitches_bw_matrix * -1
+    for twitch_1 in np.arange(n_twitches - 1):
+        for twitch_2 in np.arange(twitch_1 + 1, n_twitches):
+            delay_bw_twitch_matrix[twitch_1, twitch_2] = abs(twitches_times[twitch_2][0] - twitches_times[twitch_1][0])
+            n_twitches_bw_matrix[twitch_1, twitch_2] = twitch_2 - twitch_1 - 1
+
+    distrib_n_twitches_bw = delay_bw_twitch_matrix[np.where(n_twitches_bw_matrix) > -1]
+    distrib_delay = delay_bw_twitch_matrix[np.where(delay_bw_twitch_matrix)]
+
+    distrib_dict = ()
+    distrib_dict["delay_bw_twitches"] = distrib_delay
+    distrib_dict["n_twitches_bw"] = distrib_n_twitches_bw
+
+    for key_str, distrib_value in distrib_dict.items():
+        fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                gridspec_kw={'height_ratios': [1]},
+                                figsize=(12, 12))
+        background_color = "black"
+        ax1.set_facecolor(background_color)
+
+        fig.patch.set_facecolor(background_color)
+        ax1.scatter(distrib_value, distrib_similarity, color="red", marker="o",
+                    edgecolors="white",
+                    s=50, zorder=1)
+        labels_color = "white"
+        ax1.set_xlabel("delay (frames)", fontsize=30, labelpad=20)
+        ax1.set_ylabel("similarity (%)", fontsize=30, labelpad=20)
+        ax1.xaxis.label.set_color(labels_color)
+        ax1.yaxis.label.set_color(labels_color)
+        ax1.tick_params(axis='y', colors=labels_color)
+        ax1.tick_params(axis='x', colors=labels_color)
+
+        save_formats = ["png", "pdf"]
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+
+        filename = f"{ms.description}_{key_str}"
+        path_results = param.path_results
+        for save_format in save_formats:
+            fig.savefig(f'{path_results}/{filename}'
+                        f'_{param.time_str}.{save_format}',
+                        format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
+
+        plt.close()
+
+
 def twitch_analysis(ms, n_surrogates, option="intersect"):
     param = ms.param
     cells_in_twitches, n_cells_with_spikes, twitches_times = sce_twitches(ms=ms, before_extension=0, after_extension=20)
@@ -114,49 +238,13 @@ def twitch_analysis(ms, n_surrogates, option="intersect"):
         co_var_matrix = covnorm(cells_in_twitches, use_pearson=True, full_with=-1)
 
     # Get superior triangle to get distribution of correlation values
-    var_matrix = np.triu(co_var_matrix+1, k=1)
-    distrib = var_matrix[np.where((var_matrix-1) > -1)]
+    var_matrix = np.triu(co_var_matrix + 1, k=1)
+    distrib = var_matrix[np.where((var_matrix - 1) > -1)]
 
-    delay_bw_twitch_matrix = np.zeros((n_twitches, n_twitches), dtype="int16")
-
-    for twitch_1 in np.arange(n_twitches-1):
-        for twitch_2 in np.arange(twitch_1+1, n_twitches):
-            delay_bw_twitch_matrix[twitch_1, twitch_2] = abs(twitches_times[twitch_2][0] - twitches_times[twitch_1][0])
-
-    distrib_delay = delay_bw_twitch_matrix[np.where(delay_bw_twitch_matrix)]
-
-    print(f"len(distrib) {len(distrib)}, "
-          f"len(distrib_delay) {len(distrib_delay)}")
-
-    fig, ax1 = plt.subplots(nrows=1, ncols=1,
-                            gridspec_kw={'height_ratios': [1]},
-                            figsize=(12, 12))
-    background_color = "black"
-    ax1.set_facecolor(background_color)
-
-    fig.patch.set_facecolor(background_color)
-    ax1.scatter(distrib_delay, distrib, color="red", marker="o",
-                        edgecolors="white",
-                        s=50, zorder=1)
-    labels_color = "white"
-    ax1.set_xlabel("delay (frames)", fontsize=30, labelpad=20)
-    ax1.set_ylabel("similarity (%)", fontsize=30, labelpad=20)
-    ax1.xaxis.label.set_color(labels_color)
-    ax1.yaxis.label.set_color(labels_color)
-
-    save_formats = ["png", "pdf"]
-    if isinstance(save_formats, str):
-        save_formats = [save_formats]
-
-    filename = f"{ms.description}_delay_bw_twitches"
-    path_results = param.path_results
-    for save_format in save_formats:
-        fig.savefig(f'{path_results}/{filename}'
-                    f'_{param.time_str}.{save_format}',
-                    format=f"{save_format}",
-                    facecolor=fig.get_facecolor())
-
-    plt.close()
+    plot_twitches_delay_stat(distrib_similarity=distrib,
+                             twitches_times=twitches_times,
+                             ms=ms)
+    plot_intersect_course_over_twitches(cells_in_twitches, twitches_times, ms)
 
     # Plot heatmap figure
     svm = sns.heatmap(co_var_matrix)
@@ -172,7 +260,6 @@ def twitch_analysis(ms, n_surrogates, option="intersect"):
                     format=f"{save_format}",
                     facecolor=fig.get_facecolor())
     plt.close()
-
 
     # DO HDBSCAN ON DISTANCES MATRIX - CONSIDER PRECOMPUTED DISTANCES #
     # # clusterer = hdbscan.HDBSCAN(algorithm='best', alpha=1.0, approx_min_span_tree=True,
@@ -250,7 +337,8 @@ def twitch_analysis(ms, n_surrogates, option="intersect"):
     for surrogate in np.arange(n_surrogates):
         rnd_cells_in_twitches = np.zeros((n_cells, n_twitches))
         for i in range(n_twitches):
-            random_cells_in_twitch_i = np.random.choice(n_cells_with_spikes_in_twitche, nbr_cells_per_twitches[i], replace=False)
+            random_cells_in_twitch_i = np.random.choice(n_cells_with_spikes_in_twitche, nbr_cells_per_twitches[i],
+                                                        replace=False)
             # print(f"{len(np.unique(random_cells_in_twitch_i))}")
             # print(f"cell in twitch {i} are {random_cells_in_twitch_i}")
             rnd_cells_in_twitches[random_cells_in_twitch_i, i] = 1
