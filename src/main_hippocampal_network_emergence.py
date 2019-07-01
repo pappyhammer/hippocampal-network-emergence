@@ -67,6 +67,7 @@ import elephant.conversion as elephant_conv
 import quantities as pq
 import elephant.cell_assembly_detection as cad
 from spot_dist import spotdist_function
+from twitches_analysis import twitch_analysis, covnorm
 from rastermap import Rastermap
 
 
@@ -736,7 +737,7 @@ def plot_movement_activity(ms_to_analyse, param, save_formats="pdf"):
             periods = get_continous_time_periods(array_bool.astype("int8"))
             for period in periods:
                 # see to associate a period to a period of activity
-                sum_activity = np.sum(ms.spike_struct.spike_nums_dur[:, period[0]:period[1]+1], axis=1)
+                sum_activity = np.sum(ms.spike_struct.spike_nums_dur[:, period[0]:period[1] + 1], axis=1)
                 sum_activity = len(np.where(sum_activity > 0)[0])
                 sum_activity = sum_activity / n_cells
                 sum_activity = sum_activity / ((period[1] - period[0] + 1) / ms.sampling_rate)
@@ -758,6 +759,7 @@ def plot_movement_activity(ms_to_analyse, param, save_formats="pdf"):
                              path_results=path_results, with_scatters=False,
                              y_label=f"{data_type} activity", colors=colors, param=param,
                              save_formats=save_formats)
+
 
 def plot_psth_over_event_time_correlation_graph_style(ms_to_analyse, event_str, param, time_around_events=10,
                                                       save_formats="pdf"):
@@ -792,17 +794,18 @@ def plot_psth_over_event_time_correlation_graph_style(ms_to_analyse, event_str, 
 
     # for scatter, ratio all spikes vs all twitches
     fig_for_scatter, axes_for_scatter = plt.subplots(nrows=n_lines, ncols=n_col,
-                                                   gridspec_kw={'width_ratios': [1] * n_col,
-                                                                'height_ratios': [1] * n_lines},
-                                                   figsize=(30, 20))
+                                                     gridspec_kw={'width_ratios': [1] * n_col,
+                                                                  'height_ratios': [1] * n_lines},
+                                                     figsize=(30, 20))
     fig_for_scatter.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
     fig_for_scatter.patch.set_facecolor(background_color)
     axes_for_scatter = axes_for_scatter.flatten()
 
     # for histogram all spikes
     fig_all_spikes, axes_all_spikes = plt.subplots(nrows=n_lines, ncols=n_col,
-                             gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
-                             figsize=(30, 20))
+                                                   gridspec_kw={'width_ratios': [1] * n_col,
+                                                                'height_ratios': [1] * n_lines},
+                                                   figsize=(30, 20))
     fig_all_spikes.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
     fig_all_spikes.patch.set_facecolor(background_color)
     axes_all_spikes = axes_all_spikes.flatten()
@@ -832,12 +835,12 @@ def plot_psth_over_event_time_correlation_graph_style(ms_to_analyse, event_str, 
             continue
         ms = ms_to_analyse[ax_index]
         ms.plot_psth_over_event_time_correlation_graph_style(event_str=event_str, time_around_events=time_around_events,
-                                                   ax_to_use=ax,
-                                                   color_to_use=colors[ax_index % len(colors)],
-                                                    ax_to_use_total_spikes=axes_all_spikes[ax_index],
-                                                    color_to_use_total_spikes=colors[ax_index % len(colors)],
-                                                    ax_to_use_total_events = axes_all_events[ax_index],
-                                                    color_to_use_total_events =colors[ax_index % len(colors)],
+                                                             ax_to_use=ax,
+                                                             color_to_use=colors[ax_index % len(colors)],
+                                                             ax_to_use_total_spikes=axes_all_spikes[ax_index],
+                                                             color_to_use_total_spikes=colors[ax_index % len(colors)],
+                                                             ax_to_use_total_events=axes_all_events[ax_index],
+                                                             color_to_use_total_events=colors[ax_index % len(colors)],
                                                              ax_to_use_for_scatter=axes_for_scatter[ax_index],
                                                              color_to_use_for_scatter=colors[ax_index % len(colors)])
 
@@ -850,21 +853,24 @@ def plot_psth_over_event_time_correlation_graph_style(ms_to_analyse, event_str, 
                     format=f"{save_format}",
                     facecolor=fig.get_facecolor())
         fig_all_spikes.savefig(f'{param.path_results}/hist_spike_{event_str}_{time_around_events}_by_session'
-                    f'_{param.time_str}.{save_format}',
-                    format=f"{save_format}",
-                    facecolor=fig.get_facecolor())
-        fig_all_events.savefig(f'{param.path_results}/hist_event_{event_str}_{time_around_events}_by_session'
-                    f'_{param.time_str}.{save_format}',
-                    format=f"{save_format}",
-                    facecolor=fig.get_facecolor())
-        fig_for_scatter.savefig(f'{param.path_results}/scatter_all_spikes_vs_all_twitches_{event_str}_{time_around_events}_by_session'
                                f'_{param.time_str}.{save_format}',
                                format=f"{save_format}",
                                facecolor=fig.get_facecolor())
+        fig_all_events.savefig(f'{param.path_results}/hist_event_{event_str}_{time_around_events}_by_session'
+                               f'_{param.time_str}.{save_format}',
+                               format=f"{save_format}",
+                               facecolor=fig.get_facecolor())
+        fig_for_scatter.savefig(
+            f'{param.path_results}/scatter_all_spikes_vs_all_twitches_{event_str}_{time_around_events}_by_session'
+            f'_{param.time_str}.{save_format}',
+            format=f"{save_format}",
+            facecolor=fig.get_facecolor())
 
     plt.close()
 
-def plot_all_time_correlation_graph_over_events(ms_to_analyse, event_str, param, time_around_events=1, save_formats="pdf"):
+
+def plot_all_time_correlation_graph_over_events(ms_to_analyse, event_str, param, time_around_events=1,
+                                                save_formats="pdf"):
     """
         Will plot in one plot with subplots all time_correlation_graph_over event periods
         Event could be "shift_twitch" or "shift_long'
@@ -906,8 +912,8 @@ def plot_all_time_correlation_graph_over_events(ms_to_analyse, event_str, param,
             continue
         ms = ms_to_analyse[ax_index]
         ms.plot_time_correlation_graph_over_events(event_str=event_str, time_around_events=time_around_events,
-                                                     ax_to_use=ax,
-                                                    color_to_use=colors[ax_index % len(colors)])
+                                                   ax_to_use=ax,
+                                                   color_to_use=colors[ax_index % len(colors)])
 
     if isinstance(save_formats, str):
         save_formats = [save_formats]
@@ -917,6 +923,7 @@ def plot_all_time_correlation_graph_over_events(ms_to_analyse, event_str, param,
                     format=f"{save_format}",
                     facecolor=fig.get_facecolor())
     plt.close()
+
 
 def plot_all_sum_spikes_dur(ms_to_analyse, param, save_formats="pdf"):
     """
@@ -981,7 +988,7 @@ def plot_all_sum_spikes_dur(ms_to_analyse, param, save_formats="pdf"):
 
         sum_spikes = sum_activity_list[ax_index]
         label = ms_description_list[ax_index]
-        face_color = colors[ax_index%len(colors)]
+        face_color = colors[ax_index % len(colors)]
         x_value = np.arange(len(sum_spikes))
         ax.fill_between(x_value, 0, sum_spikes, facecolor=face_color, label=label)
         ax.set_ylim(0, max_sum)
@@ -1001,6 +1008,7 @@ def plot_all_sum_spikes_dur(ms_to_analyse, param, save_formats="pdf"):
                     facecolor=fig.get_facecolor())
     plt.close()
 
+
 def plot_all_long_mvt_psth_in_one_figure(ms_to_analyse, param, line_mode=True,
                                          duration_option=False, save_formats="pdf"):
     """
@@ -1015,9 +1023,9 @@ def plot_all_long_mvt_psth_in_one_figure(ms_to_analyse, param, line_mode=True,
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     # + 11 diverting
     colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
-                     '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
-                     '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
-                     '#74add1', '#4575b4', '#313695']
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
+              '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+              '#74add1', '#4575b4', '#313695']
     background_color = "black"
     labels_color = "white"
     max_sum = 0
@@ -1058,6 +1066,7 @@ def plot_all_long_mvt_psth_in_one_figure(ms_to_analyse, param, line_mode=True,
                     facecolor=fig.get_facecolor())
     plt.close()
 
+
 def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, duration_option=False, save_formats="pdf"):
     """
     Will plot in one plot with subplots all twitches PSTH
@@ -1084,7 +1093,6 @@ def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, dur
         n_plots = len(ms_to_analyse) + 1
     else:
         n_plots = len(ms_to_analyse)
-
 
     max_n_lines = 5
     n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
@@ -1122,7 +1130,7 @@ def plot_all_basic_stats(ms_to_analyse, param, use_animal_weight=False, save_for
     # from: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8
     colors = ['#ffffd9', '#edf8b1', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']
     # orange ones: http://colorbrewer2.org/?type=sequential&scheme=YlGnBu&n=8#type=sequential&scheme=YlOrBr&n=9
-    colors = ['#ffffe5','#fff7bc','#fee391','#fec44f','#fe9929','#ec7014','#cc4c02','#993404','#662506']
+    colors = ['#ffffe5', '#fff7bc', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#993404', '#662506']
     # diverging, 11 colors : http://colorbrewer2.org/?type=diverging&scheme=RdYlBu&n=11
     colors = ['#a50026', '#d73027', '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
               '#74add1', '#4575b4', '#313695']
@@ -1135,7 +1143,6 @@ def plot_all_basic_stats(ms_to_analyse, param, use_animal_weight=False, save_for
                              use_animal_weight=use_animal_weight)
     # plot_transient_amplitude(ms_to_analyse, param, colors=colors, save_formats=save_formats)
     # plot_transient_durations_normalized_by_amplitude(ms_to_analyse, param, colors=colors, save_formats=save_formats)
-
 
 
 def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pdf"):
@@ -1156,9 +1163,9 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
     n_col = math.ceil(n_ms / n_lines)
     # for histogram all events
     fig_tr_amplitude, axes_tr_amplitude = plt.subplots(nrows=n_lines, ncols=n_col,
-                                                   gridspec_kw={'width_ratios': [1] * n_col,
-                                                                'height_ratios': [1] * n_lines},
-                                                   figsize=(30, 20))
+                                                       gridspec_kw={'width_ratios': [1] * n_col,
+                                                                    'height_ratios': [1] * n_lines},
+                                                       figsize=(30, 20))
     fig_tr_amplitude.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
     fig_tr_amplitude.patch.set_facecolor(background_color)
     if n_lines + n_col == 2:
@@ -1168,8 +1175,9 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
 
     # figure for the psth
     fig_tr_amplitude_avg, axes_tr_amplitude_avg = plt.subplots(nrows=n_lines, ncols=n_col,
-                             gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
-                             figsize=(30, 20))
+                                                               gridspec_kw={'width_ratios': [1] * n_col,
+                                                                            'height_ratios': [1] * n_lines},
+                                                               figsize=(30, 20))
     fig_tr_amplitude_avg.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
     fig_tr_amplitude_avg.patch.set_facecolor(background_color)
     axes_tr_amplitude_avg = axes_tr_amplitude_avg.flatten()
@@ -1196,7 +1204,7 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
             periods = get_continous_time_periods(cell_raster)
             transient_amplitude_for_this_cell = []
             for period in periods:
-                max_value = np.max(raw_trace[period[0]:period[1]+1])
+                max_value = np.max(raw_trace[period[0]:period[1] + 1])
                 transient_amplitude.append(max_value)
                 transient_amplitude_for_this_cell.append(max_value)
             if len(transient_amplitude_for_this_cell) > 0:
@@ -1215,7 +1223,7 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
                                tight_x_range=True,
                                twice_more_bins=True,
                                ax_to_use=axes_tr_amplitude[real_ms_index],
-                               color_to_use=colors[real_ms_index%len(colors)],
+                               color_to_use=colors[real_ms_index % len(colors)],
                                legend_str=f"{ms.description}",
                                xlabel="Amplitude (DF/F) of transients", save_formats=save_formats)
 
@@ -1225,8 +1233,8 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
                                path_results=path_results,
                                tight_x_range=True,
                                twice_more_bins=True,
-                               ax_to_use= axes_tr_amplitude_avg[real_ms_index],
-                               color_to_use=colors[real_ms_index%len(colors)],
+                               ax_to_use=axes_tr_amplitude_avg[real_ms_index],
+                               color_to_use=colors[real_ms_index % len(colors)],
                                legend_str=f"{ms.description}",
                                xlabel="Avg amplitude (DF/F) of transients by cell", save_formats=save_formats)
         real_ms_index += 1
@@ -1236,22 +1244,23 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
 
     for save_format in save_formats:
         fig_tr_amplitude.savefig(f'{path_results}/_hist_transient_amplitude'
-                    f'_{param.time_str}.{save_format}',
-                    format=f"{save_format}",
-                    facecolor=fig_tr_amplitude.get_facecolor())
+                                 f'_{param.time_str}.{save_format}',
+                                 format=f"{save_format}",
+                                 facecolor=fig_tr_amplitude.get_facecolor())
         fig_tr_amplitude_avg.savefig(f'{path_results}/hist_transient_amplitude_by_cell'
-                               f'_{param.time_str}.{save_format}',
-                               format=f"{save_format}",
-                               facecolor=fig_tr_amplitude_avg.get_facecolor())
+                                     f'_{param.time_str}.{save_format}',
+                                     format=f"{save_format}",
+                                     facecolor=fig_tr_amplitude_avg.get_facecolor())
 
     box_plot_data_by_age(data_dict=transient_amplitude_by_age, title="", filename="transient_amplitude_by_age",
-                               path_results=path_results, with_scatters=False,
-                        y_label="Amplitude (DF/F) of transients", colors=colors, param=param, save_formats=save_formats)
+                         path_results=path_results, with_scatters=False,
+                         y_label="Amplitude (DF/F) of transients", colors=colors, param=param,
+                         save_formats=save_formats)
 
     box_plot_data_by_age(data_dict=transient_amplitude_by_age_avg_by_cell, title="",
-                               path_results=path_results, with_scatters=True,
+                         path_results=path_results, with_scatters=True,
                          filename="transient_amplitude_by_age_avg_by_cell",
-                        y_label="Avg amplitude (DF/F) of transients by cell", colors=colors,
+                         y_label="Avg amplitude (DF/F) of transients by cell", colors=colors,
                          param=param, save_formats=save_formats)
 
 
@@ -1261,7 +1270,7 @@ def cluster_using_grid(ms, param):
 
     # in pixels
     square_size = 160
-    if ms.tiff_movie.shape[1] < square_size or ms.tiff_movie.shape[2] < square_size :
+    if ms.tiff_movie.shape[1] < square_size or ms.tiff_movie.shape[2] < square_size:
         print(f"{ms.description} movie shape is too small {ms.tiff_movie.shape}")
         return
     tiff_movie = np.copy(ms.tiff_movie).astype("float")
@@ -1289,14 +1298,14 @@ def cluster_using_grid(ms, param):
     for x_box in np.arange(n_lines):
         for y_box in np.arange(n_lines):
             mask = np.zeros((tiff_movie.shape[1], tiff_movie.shape[2]), dtype="bool")
-            mask[y_box*box_size:(y_box+1)*box_size, x_box*box_size:(x_box+1)*box_size] = True
+            mask[y_box * box_size:(y_box + 1) * box_size, x_box * box_size:(x_box + 1) * box_size] = True
             grid_traces[y_box, x_box, :] = np.nanmean(tiff_movie[:, mask], axis=1)
             # print(f"{y_box} {x_box} np.sum(grid) {np.sum(grid_traces[y_box, x_box])}")
             # normalizing the trace
             # grid_traces[y_box, x_box] = (grid_traces[y_box, x_box] - np.mean(grid_traces[y_box, x_box])) / \
             #                             np.std(grid_traces[y_box, x_box])
 
-    traces = np.reshape(grid_traces, (n_lines*n_lines, n_frames))
+    traces = np.reshape(grid_traces, (n_lines * n_lines, n_frames))
     print(f"traces.shape {traces.shape}")
 
     cellsinpeak, sce_loc = detect_sce_on_traces(traces, use_speed=False,
@@ -1342,6 +1351,7 @@ def cluster_using_grid(ms, param):
     #                                                False,
     #                                                keep_only_the_best=False)
 
+
 def get_pair_wise_pearson_correlation_distribution(raster_dur):
     """
     Distribution of pair-wise pearson correlation of all cells
@@ -1353,10 +1363,10 @@ def get_pair_wise_pearson_correlation_distribution(raster_dur):
     corr_distribution = []
     # count_high_p_value = 0
     # total_count = 0
-    for cell in np.arange(n_cells-1):
+    for cell in np.arange(n_cells - 1):
         if np.sum(raster_dur[cell]) == 0:
             continue
-        for cell_bis in np.arange(cell+1, n_cells):
+        for cell_bis in np.arange(cell + 1, n_cells):
             if np.sum(raster_dur[cell_bis]) == 0:
                 continue
             corr, p_value = scipy_stats.pearsonr(raster_dur[cell].astype(float),
@@ -1566,7 +1576,7 @@ def plot_jsd_correlation(ms_to_analyse, param, metric, n_surrogate=50, save_form
                                legend_str=f"{ms_description}", tight_x_range=True,
                                ax_to_use=axes[n_ms_so_far], twice_more_bins=True,
                                x_range=(min_value_distribution, max_value_distribution),
-                               color_to_use=colors[n_ms_so_far % len(colors)], xlabel=xlabel, # n_bins=n_bins,
+                               color_to_use=colors[n_ms_so_far % len(colors)], xlabel=xlabel,  # n_bins=n_bins,
                                param=param, density=True, use_log=True)
         n_ms_so_far += 1
     print(f"end loop plot_hist_distribution")
@@ -1619,12 +1629,12 @@ def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pd
         if use_animal_weight:
             if ms.weight is None:
                 continue
-            label_key = str(ms.weight) + "-" +  label_key
+            label_key = str(ms.weight) + "-" + label_key
         transient_frequency = []
         n_times = ms.spike_struct.spike_nums_dur.shape[1]
         for cell_raster in ms.spike_struct.spike_nums_dur:
             n_transients = len(get_continous_time_periods(cell_raster))
-            transient_frequency.append(n_transients/(n_times/ms.sampling_rate))
+            transient_frequency.append(n_transients / (n_times / ms.sampling_rate))
         if label_key not in transient_frequency_by_age:
             transient_frequency_by_age[label_key] = []
         transient_frequency_by_age[label_key].extend(transient_frequency)
@@ -1637,8 +1647,8 @@ def plot_transient_frequency(ms_to_analyse, param, colors=None, save_formats="pd
                                    twice_more_bins=True,
                                    xlabel="Frequency of transients (Hz)", save_formats=save_formats)
     box_plot_data_by_age(data_dict=transient_frequency_by_age, title="", filename="transients_frequency_by_age",
-                               path_results=path_results, with_scatters=False,
-                        y_label="Frequency of transients (Hz)", colors=colors, param=param, save_formats=save_formats)
+                         path_results=path_results, with_scatters=False,
+                         y_label="Frequency of transients (Hz)", colors=colors, param=param, save_formats=save_formats)
 
 
 def plot_transient_durations_normalized_by_amplitude(ms_to_analyse, param, colors=None, save_formats="pdf"):
@@ -1686,7 +1696,6 @@ def plot_transient_durations_normalized_by_amplitude(ms_to_analyse, param, color
         spike_durations_by_age[age_str].extend(distribution_all)
         spike_durations_by_age_avg_by_cell[age_str].extend(distribution_avg_by_cell)
 
-
         plot_hist_distribution(distribution_data=distribution_all,
                                description=f"{ms.description}_hist_rising_time_durations_normalized_by_amplitude",
                                param=param,
@@ -1706,11 +1715,11 @@ def plot_transient_durations_normalized_by_amplitude(ms_to_analyse, param, color
     box_plot_data_by_age(data_dict=spike_durations_by_age, title="",
                          filename="rising_time_duration_by_age_normalized_by_amplitude",
                          y_label="Duration of rising time (s)", colors=colors,
-                               path_results=path_results, with_scatters=False,
+                         path_results=path_results, with_scatters=False,
                          param=param, save_formats=save_formats)
     box_plot_data_by_age(data_dict=spike_durations_by_age_avg_by_cell, title="",
                          filename="rising_time_durations_by_age_avg_by_cell_normalized_by_amplitude",
-                               path_results=path_results,
+                         path_results=path_results,
                          y_label="Average duration of rising time for each cell (s)",
                          colors=colors,
                          param=param, save_formats=save_formats)
@@ -1740,7 +1749,7 @@ def plot_transient_durations(ms_to_analyse, param, colors=None, save_formats="pd
         for spike_durations_by_cell in spike_durations:
             if len(spike_durations_by_cell) == 0:
                 continue
-            spike_durations_by_cell = [d/ms.sampling_rate for d in spike_durations_by_cell]
+            spike_durations_by_cell = [d / ms.sampling_rate for d in spike_durations_by_cell]
             distribution_all.extend(spike_durations_by_cell)
             spike_durations_by_age[age_str].extend(spike_durations_by_cell)
 
@@ -1764,13 +1773,14 @@ def plot_transient_durations(ms_to_analyse, param, colors=None, save_formats="pd
 
     box_plot_data_by_age(data_dict=spike_durations_by_age, title="", filename="rising_time_duration_by_age",
                          y_label="Duration of rising time (s)", colors=colors, with_scatters=False,
-                               path_results=path_results,
+                         path_results=path_results,
                          param=param, save_formats=save_formats)
     box_plot_data_by_age(data_dict=spike_durations_by_age_avg_by_cell, title="",
                          filename="rising_time_durations_by_age_avg_by_cell",
-                               path_results=path_results,
+                         path_results=path_results,
                          y_label="Average duration of rising time for each cell (s)", colors=colors,
                          param=param, save_formats=save_formats)
+
 
 def plot_duration_spikes_by_age(mouse_sessions, ms_ages,
                                 duration_spikes_by_age, param, save_formats="pdf"):
@@ -1822,7 +1832,7 @@ def plot_duration_spikes_by_age(mouse_sessions, ms_ages,
 
 
 def plot_hist_distribution(distribution_data, description, param, values_to_scatter=None,
-                           n_bins = None, use_log=False, x_range=None,
+                           n_bins=None, use_log=False, x_range=None,
                            labels=None, scatter_shapes=None, colors=None, tight_x_range=False,
                            twice_more_bins=False, background_color="black", labels_color="white",
                            xlabel="", ylabel=None, path_results=None, save_formats="pdf",
@@ -1959,7 +1969,7 @@ def plot_hist_distribution(distribution_data, description, param, values_to_scat
             fig.savefig(f'{path_results}/{description}'
                         f'_{param.time_str}.{save_format}',
                         format=f"{save_format}",
-                                facecolor=fig.get_facecolor())
+                        facecolor=fig.get_facecolor())
 
         plt.close()
 
@@ -2074,7 +2084,7 @@ def correlate_global_roi_and_shift(path_data, param):
             roi = (roi - np.mean(roi))
 
         # mvt = np.abs(value["xshifts"]) + np.abs(value["yshifts"])
-        mvt = np.sqrt((value["xshifts"]**2) + (value["yshifts"]**2))
+        mvt = np.sqrt((value["xshifts"] ** 2) + (value["yshifts"] ** 2))
         np.save(os.path.join(value["dirpath"], f"{value['id']}_shift.npy"), mvt)
         mvt -= np.nanmedian(mvt)
         mvt = np.abs(mvt)
@@ -2170,8 +2180,8 @@ def correlate_global_roi_and_shift(path_data, param):
         corr_by_age[value["age"]].append(rho)
 
         bin_size = 100
-        roi_bin = non_lag_roi.reshape((len(non_lag_roi)//bin_size, bin_size)).sum(axis=1)
-        mvt_bin = non_lag_mvt.reshape((len(non_lag_mvt)//bin_size, bin_size)).sum(axis=1)
+        roi_bin = non_lag_roi.reshape((len(non_lag_roi) // bin_size, bin_size)).sum(axis=1)
+        mvt_bin = non_lag_mvt.reshape((len(non_lag_mvt) // bin_size, bin_size)).sum(axis=1)
         rho_bin, p_bin = scipy_stats.pearsonr(roi_bin, mvt_bin)
         print(f"{value['id']} rho_bin {str(np.round(rho_bin, 3))}, p_bin {p_bin}")
         corr_by_age_bin[value["age"]].append(rho_bin)
@@ -2198,7 +2208,6 @@ def correlate_global_roi_and_shift(path_data, param):
         # rho_diff, p_diff = scipy_stats.pearsonr(np.diff(roi), np.diff(mvt))
         # print(f"{value['id']} rho_diff {str(np.round(rho_diff, 3))}, p_diff {p_diff}")
 
-
         # roi_filter = np.copy(roi)
         # roi_filter[roi_filter < np.mean(roi)] = np.min(roi)
         # roi_filter[roi_filter >= np.mean(roi)] = np.max(roi)
@@ -2208,7 +2217,6 @@ def correlate_global_roi_and_shift(path_data, param):
         #
         # rho_filter, p_filter = scipy_stats.pearsonr(roi_filter, mvt_filter)
         # print(f"{value['id']} rho_filter {str(np.round(rho_filter, 3))}, p_filter {p_filter}")
-
 
         # then we plot the correlation graph
         fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex='col',
@@ -2363,8 +2371,8 @@ def correlate_global_roi_and_shift(path_data, param):
 
 
 def compute_stat_about_seq_with_slope(files_path, param,
-                                           save_formats=["pdf"],
-                                           color_option="manual", cmap_name="Reds"):
+                                      save_formats=["pdf"],
+                                      color_option="manual", cmap_name="Reds"):
     """
 
     :param files_path:
@@ -2383,9 +2391,9 @@ def compute_stat_about_seq_with_slope(files_path, param,
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     # + 11 diverting
     brewer_colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
-              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
-              '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
-              '#74add1', '#4575b4', '#313695']
+                     '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
+                     '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+                     '#74add1', '#4575b4', '#313695']
 
     file_names = []
     # look for filenames in the fisrst directory, if we don't break, it will go through all directories
@@ -2536,14 +2544,14 @@ def compute_stat_about_seq_with_slope(files_path, param,
                                 range_around = values[2]
                                 range_around_slope_in_frames = range_around
                                 lines_to_display[cells_pair_tuple].append((first_cell_spike_time, last_cell_spike_time))
-                                frames_to_remove[max(0, first_cell_spike_time-range_around):
-                                                 min(n_frames, first_cell_spike_time+range_around+1)] = False
+                                frames_to_remove[max(0, first_cell_spike_time - range_around):
+                                                 min(n_frames, first_cell_spike_time + range_around + 1)] = False
                                 if cells_pair_tuple not in cells_added_for_span:
                                     cells_to_highlight.extend(list(range(cells_pair_tuple[0],
-                                                                              cells_pair_tuple[1])))
+                                                                         cells_pair_tuple[1])))
                                     cells_to_highlight_colors.extend([brewer_colors[len(cells_added_for_span)
-                                                                                        % len(brewer_colors)]] *
-                                                                          (cells_pair_tuple[1] - cells_pair_tuple[0]))
+                                                                                    % len(brewer_colors)]] *
+                                                                     (cells_pair_tuple[1] - cells_pair_tuple[0]))
                                     cells_added_for_span.append(cells_pair_tuple)
                 raster_dur[:, frames_to_remove] = 0
                 plot_spikes_raster(spike_nums=raster_dur[np.array(cells_best_order)], param=param,
@@ -2625,7 +2633,7 @@ def compute_stat_about_seq_with_slope(files_path, param,
                     lines_to_display = dict()
                     first_cell = cells_seq[0]
                     last_cell = cells_seq[-1]
-                    cells_pair_tuple = (0, len(cells_seq)-1)
+                    cells_pair_tuple = (0, len(cells_seq) - 1)
                     # number of negatives, synchrone and positive slopes
                     slopes_count = np.zeros(3, dtype="uint16")
                     for slope, values_list in dict_slope.items():
@@ -2684,7 +2692,7 @@ def compute_stat_about_seq_with_slope(files_path, param,
                     # check if at least a pair of cells intersect
                     at_least_one_intersect = False
                     for cell_index, cell_1 in enumerate(cells_seq_for_map[:-2]):
-                        for cell_2 in cells_seq_for_map[cell_index+1:]:
+                        for cell_2 in cells_seq_for_map[cell_index + 1:]:
                             if cell_2 in ms.coord_obj.intersect_cells[cell_1]:
                                 at_least_one_intersect = True
                                 break
@@ -2716,7 +2724,7 @@ def compute_stat_about_seq_with_slope(files_path, param,
         # will allow to group age by groups, for each age, we give a string value which is going to be a key for another
         # dict
         agCe_tuples = [(5,), (6, 7), (8, 10), (11, 12), (13, 14), (15, 16), (17, 21), (41,)]  # , (60, )
-        age_tuples = [(5, 7), (8, ), (9, 10), (11, 14), (15, 21), (41,)]  # , (60, )
+        age_tuples = [(5, 7), (8,), (9, 10), (11, 14), (15, 21), (41,)]  # , (60, )
         manual_colors = dict()
         # manual_colors["5"] = "white"
         # manual_colors["6-7"] = "navajowhite"
@@ -2982,12 +2990,11 @@ def plot_figure_with_map_and_raster_for_sequences(ms, cells_in_seq, span_area_co
                      )
     if frames_to_use is not None:
         x_ticks_labels = [x for x in frames_to_use if x % 100 == 0]
-        x_ticks = [x for x in np.arange(0, 100*len(x_ticks_labels), 100)]
+        x_ticks = [x for x in np.arange(0, 100 * len(x_ticks_labels), 100)]
     else:
         x_ticks_labels = [x for x in np.arange(n_frames) if x % 100 == 0]
         x_ticks = x_ticks_labels
     x_ticks_labels_size = 2
-
 
     cells_to_highlight = None
     cells_to_highlight_colors = None
@@ -3051,6 +3058,7 @@ def plot_figure_with_map_and_raster_for_sequences(ms, cells_in_seq, span_area_co
 
     plt.close()
 
+
 def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap_gradient", cmap_name="Reds",
                                        scale_scatter=False, use_different_shapes_for_stat=False,
                                        min_len_seq_to_display=4,
@@ -3088,7 +3096,7 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
     ages_groups = dict()
     # will allow to group age by groups, for each age, we give a string value which is going to be a key for another
     # dict
-    age_tuples = [(5,), (6, 7), (8, 10), (11, 12), (13, 14), (15, 21), (41,)] # , (60, )
+    age_tuples = [(5,), (6, 7), (8, 10), (11, 12), (13, 14), (15, 21), (41,)]  # , (60, )
     manual_colors = dict()
     manual_colors["5"] = "white"
     manual_colors["6-7"] = "navajowhite"
@@ -3097,7 +3105,6 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
     manual_colors["13-14"] = "orange"
     manual_colors["15-21"] = "coral"
     manual_colors["41"] = "red"
-
 
     # manual_colors["60"] = "red"
     # used for display
@@ -3260,7 +3267,7 @@ def plot_fig_nb_cells_in_seq_vs_rep_by_age(data_dict, ages_key_order, param, min
                     color = manual_colors[age]
                 else:
                     color = param.colors[age_index % (len(param.colors))]
-                scatter_size = 80 + 1.2 * x_pos + 1.2 * y_pos # 50
+                scatter_size = 80 + 1.2 * x_pos + 1.2 * y_pos  # 50
                 # scatter_size = 100
                 if scale_scatter:
                     scatter_size = 15 + 5 * np.sqrt(n_seq_normalized)
@@ -3334,7 +3341,7 @@ def plot_fig_nb_cells_in_seq_vs_rep_by_age(data_dict, ages_key_order, param, min
         fig.savefig(f'{param.path_results}/{file_name}'
                     f'_{param.time_str}.{save_format}',
                     format=f"{save_format}",
-                facecolor=fig.get_facecolor())
+                    facecolor=fig.get_facecolor())
 
     plt.close()
 
@@ -3354,6 +3361,7 @@ def box_plot_data_by_age(data_dict, title, filename,
                          labels_color="white",
                          with_y_jitter=None,
                          x_labels_rotation=None,
+                         fliers_symbol=None,
                          save_formats="pdf"):
     """
 
@@ -3381,7 +3389,6 @@ def box_plot_data_by_age(data_dict, title, filename,
 
     fig.patch.set_facecolor(background_color)
 
-
     labels = []
     data_list = []
     medians_values = []
@@ -3399,9 +3406,11 @@ def box_plot_data_by_age(data_dict, title, filename,
             else:
                 label += f"\n(N={n_sessions})"
         labels.append(label)
-
+    sym = ""
+    if fliers_symbol is not None:
+        sym = fliers_symbol
     bplot = plt.boxplot(data_list, patch_artist=colorfull,
-                        labels=labels, sym='', zorder=30)  # whis=[5, 95], sym='+'
+                        labels=labels, sym=sym, zorder=30)  # whis=[5, 95], sym='+'
     # color=["b", "cornflowerblue"],
     # fill with colors
 
@@ -3443,13 +3452,14 @@ def box_plot_data_by_age(data_dict, title, filename,
             else:
                 colors_scatters = [colors[data_index]]
             ax1.scatter(x_pos, y_pos,
-                       color=colors_scatters[:len(y_pos)],
-                       alpha=scatter_alpha,
-                       marker="o",
-                       edgecolors=background_color,
-                       s=scatter_size, zorder=1)
+                        color=colors_scatters[:len(y_pos)],
+                        alpha=scatter_alpha,
+                        marker="o",
+                        edgecolors=background_color,
+                        s=scatter_size, zorder=1)
     if link_medians:
-        ax1.plot(np.arange(1, len(medians_values)+1), medians_values, zorder=36, color=color_link_medians, linewidth=2)
+        ax1.plot(np.arange(1, len(medians_values) + 1), medians_values, zorder=36, color=color_link_medians,
+                 linewidth=2)
 
     # plt.xlim(0, 100)
     plt.title(title)
@@ -3494,9 +3504,10 @@ def box_plot_data_by_age(data_dict, title, filename,
         fig.savefig(f'{path_results}/{filename}'
                     f'_{param.time_str}.{save_format}',
                     format=f"{save_format}",
-                            facecolor=fig.get_facecolor())
+                    facecolor=fig.get_facecolor())
 
     plt.close()
+
 
 def box_joy_plot_data_by_age(data_dict, title, filename, y_label, param, save_formats="pdf"):
     """
@@ -3568,6 +3579,7 @@ def box_joy_plot_data_by_age(data_dict, title, filename, y_label, param, save_fo
     #                 format=f"{save_format}")
     #
     # plt.close()
+
 
 def plot_psth_interneurons_events(ms, spike_nums_dur, spike_nums, SCE_times, sliding_window_duration,
                                   param, save_formats="pdf"):
@@ -3799,7 +3811,7 @@ def test_seq_detect(ms, span_area_coords=None, span_area_colors=None):
         #     print(f"Original: {cells_seq_with_correct_indices[index]}")
         #     print(f"Cell assemblies {seq}")
     else:
-        max_index_seq = 100 # len(spike_nums_dur_ordered)  # 50
+        max_index_seq = 100  # len(spike_nums_dur_ordered)  # 50
 
     cells_to_highlight = []
     cells_to_highlight_colors = []
@@ -4073,6 +4085,7 @@ function B=GaussBlur1d(A,dw,dim)
     B=real(ifft(ifftshift(tfA.*Fil),[],dim));
 """
 
+
 def plot_ratio_spikes_on_events_by_cell(spike_nums,
                                         spike_nums_dur,
                                         times_numbers,
@@ -4107,6 +4120,7 @@ def plot_ratio_spikes_on_events_by_cell(spike_nums,
                            description=f"{session_description}_hist_spike_total_{event_description}_ratio",
                            xlabel=f"spikes in {event_description} vs total {event_description} (%)",
                            param=param)
+
 
 def get_ratio_spikes_on_events_vs_total_spikes_by_cell(spike_nums,
                                                        spike_nums_dur,
@@ -4220,7 +4234,8 @@ def save_stat_about_mvt_for_each_ms(ms_to_analyse, param):
             ratio_twitch = str(np.round((np.sum(shift_twitch_bool) / n_frames) * 100, 2))
             ratio_long = str(np.round((np.sum(shift_long_bool) / n_frames) * 100, 2))
             ratio_unclassified = str(np.round((np.sum(shift_unclassified_bool) / n_frames) * 100, 2))
-            still_n_frames = n_frames - np.sum(shift_twitch_bool) - np.sum(shift_long_bool) - np.sum(shift_unclassified_bool)
+            still_n_frames = n_frames - np.sum(shift_twitch_bool) - np.sum(shift_long_bool) - np.sum(
+                shift_unclassified_bool)
             ratio_still = str(np.round((np.sum(still_n_frames) / n_frames) * 100, 2))
             file.write(
                 f"{ms.description}: {ratio_twitch} % twitches, {ratio_long} % long mvt,"
@@ -4247,15 +4262,15 @@ def get_peaks_periods_on_sum_of_activity(raster, around_peaks, distance_bw_peaks
     peaks_bool = np.zeros(n_frames, dtype="bool")
     for peak in peaks:
         if frames_to_exclude is not None:
-            if np.any(frames_to_exclude[max(0, peak-around_peaks): min(n_frames, peak+around_peaks+1)]):
+            if np.any(frames_to_exclude[max(0, peak - around_peaks): min(n_frames, peak + around_peaks + 1)]):
                 continue
-        peaks_bool[max(0, peak-around_peaks): min(n_frames, peak+around_peaks+1)] = True
+        peaks_bool[max(0, peak - around_peaks): min(n_frames, peak + around_peaks + 1)] = True
 
     peaks_periods = get_continous_time_periods(peaks_bool.astype("int8"))
     cellsinpeak = np.zeros((n_cells, len(peaks_periods)), dtype="int8")
     peaks_numbers = np.zeros(n_frames, dtype="int16")
     for period_index, period in enumerate(peaks_periods):
-        peaks_numbers[period[0]:period[1]+1] = period_index
+        peaks_numbers[period[0]:period[1] + 1] = period_index
         sum_spikes = np.sum(raster[:, period[0]:(period[1] + 1)], axis=1)
         active_cells = np.where(sum_spikes)[0]
         cellsinpeak[active_cells, period_index] = 1
@@ -4264,7 +4279,7 @@ def get_peaks_periods_on_sum_of_activity(raster, around_peaks, distance_bw_peaks
 
 
 def plot_all_cell_assemblies_proportion_on_shift_categories(ms_to_analyse,
-                                                                param, save_formats="pdf"):
+                                                            param, save_formats="pdf"):
     # TODO : to finish
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
@@ -4348,9 +4363,9 @@ def plot_all_cell_assemblies_proportion_on_shift_categories(ms_to_analyse,
                 for period in periods:
                     if shift_key_descr == "still":
                         # for still, all the frames in SCE must be in still
-                        in_the_shift = np.all(shift_bool[period[0:period[1]+1]])
+                        in_the_shift = np.all(shift_bool[period[0:period[1] + 1]])
                     else:
-                        in_the_shift = np.any(shift_bool[period[0:period[1]+1]])
+                        in_the_shift = np.any(shift_bool[period[0:period[1] + 1]])
                     if in_the_shift:
                         n_rep_assembly_in_shift += 1
                 assemblies_ratio.append((n_rep_assembly_in_shift / n_rep_assembly_total) * 100)
@@ -4370,8 +4385,7 @@ def plot_all_cell_assemblies_proportion_on_shift_categories(ms_to_analyse,
                              path_results=param.path_results, scatter_size=240,
                              param=param, save_formats=save_formats)
 
-            # shift_time_periods = get_continous_time_periods(shift_bool.astype("int8"))
-
+        # shift_time_periods = get_continous_time_periods(shift_bool.astype("int8"))
 
         n_ms += 1
 
@@ -4436,14 +4450,14 @@ def plot_connectivity_graph(ms_to_analyse, param, save_formats="pdf"):
     #                      save_formats="pdf", show_plot=False)
 
     if isinstance(save_formats, str):
-
         save_formats = [save_formats]
 
     for save_format in save_formats:
         fig.savefig(f'{param.path_results}/connectiviy_graph_by_age'
-                                     f'_{param.time_str}.{save_format}',
-                                     format=f"{save_format}",
-                                     facecolor=fig.get_facecolor())
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+
 
 def plot_twitch_ratio_activity(ms_to_analyse, param, time_around=20, save_formats="pdf"):
     """
@@ -4493,9 +4507,9 @@ def plot_twitch_ratio_activity(ms_to_analyse, param, time_around=20, save_format
     n_col = math.ceil(n_ms / n_lines)
     # for histogram all events
     fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
-                                                       gridspec_kw={'width_ratios': [1] * n_col,
-                                                                    'height_ratios': [1] * n_lines},
-                                                       figsize=(30, 25))
+                             gridspec_kw={'width_ratios': [1] * n_col,
+                                          'height_ratios': [1] * n_lines},
+                             figsize=(30, 25))
     fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
     fig.patch.set_facecolor(background_color)
     axes = axes.flatten()
@@ -4525,8 +4539,8 @@ def plot_twitch_ratio_activity(ms_to_analyse, param, time_around=20, save_format
             continue
         display_misc.plot_hist_distribution(distribution_data=distribution_ratio,
                                             description=f"{ms.description} \n {n_twitches} twitches: "
-                                            f"{n_twitches_low_ratio} / {n_twitches_high_ratio} "
-                                            f"({perc_sum_activity_after} %)",
+                                                        f"{n_twitches_low_ratio} / {n_twitches_high_ratio} "
+                                                        f"({perc_sum_activity_after} %)",
                                             param=param, x_range=(0, 100),
                                             path_results=param.path_results,
                                             tight_x_range=True,
@@ -4537,14 +4551,14 @@ def plot_twitch_ratio_activity(ms_to_analyse, param, time_around=20, save_format
                                             xlabel="Ratio", save_formats=save_formats)
         real_ms_index += 1
     if isinstance(save_formats, str):
-
         save_formats = [save_formats]
 
     for save_format in save_formats:
         fig.savefig(f'{param.path_results}/ratio_twitches'
-                                     f'_{param.time_str}.{save_format}',
-                                     format=f"{save_format}",
-                                     facecolor=fig.get_facecolor())
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+
 
 def get_threshold_sum_activity_for_time_periods(raster, time_periods, perc_threshold=95, n_surrogate=1000):
     """
@@ -4566,12 +4580,13 @@ def get_threshold_sum_activity_for_time_periods(raster, time_periods, perc_thres
             # roll the data to a random displace number
             copy_raster[n, :] = np.roll(neuron_spikes, np.random.randint(1, n_times))
         for period in time_periods:
-            n_rand_sum[count] = np.sum(np.sum(copy_raster[:, period[0]:period[1]+1], axis=0))
+            n_rand_sum[count] = np.sum(np.sum(copy_raster[:, period[0]:period[1] + 1], axis=0))
             count += 1
 
     activity_threshold = np.percentile(n_rand_sum, perc_threshold)
 
     return activity_threshold
+
 
 def get_thresholds_cell_transient_post_twitches(raster, time_periods_bool, perc_threshold=95, n_surrogate=1000):
     """
@@ -4601,7 +4616,9 @@ def get_thresholds_cell_transient_post_twitches(raster, time_periods_bool, perc_
 
     return activity_threshold
 
-def select_cells_that_fire_during_time_periods(raster, time_periods_bool, description="", perc_threshold=95, n_surrogate=1000):
+
+def select_cells_that_fire_during_time_periods(raster, time_periods_bool, description="", perc_threshold=95,
+                                               n_surrogate=1000):
     """
     Take a raster and a boolean array reprensenting periods.
     :param raster: represents the onsets
@@ -4683,6 +4700,108 @@ def do_stat_on_pca(ms_to_analyse, param, save_formats="pdf"):
                          path_results=param.path_results, scatter_size=80,
                          param=param, save_formats=save_formats)
 
+
+def stats_on_graph_on_all_ms(ms_to_analyse, param, save_formats="pdf"):
+    print(f"starting to do graph stats on all selected sessions")
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    # + 11 diverting
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
+              '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+              '#74add1', '#4575b4', '#313695']
+    density_results_by_age_dict = dict()
+    subgraph_len__results_by_age_dict = dict()
+    n_sessions_dict = dict()
+    for ms in ms_to_analyse:
+        print(f"Current mouse session: {ms.description}")
+        if ms.spike_struct.graph_out is None:
+            print(f"Building graph")
+            ms.detect_n_in_n_out()
+            print(f"Graph is built")
+        if ms.spike_struct.spike_nums is None:
+            continue
+        if "p" + str(ms.age) not in density_results_by_age_dict:
+            density_results_by_age_dict["p" + str(ms.age)] = []
+            subgraph_len__results_by_age_dict["p" + str(ms.age)] = []
+            n_sessions_dict["p" + str(ms.age)] = set()
+        n_sessions_dict["p" + str(ms.age)].add(ms.description[:-4])
+        print(f"Computing graph density")
+        rho = nx.density(ms.spike_struct.graph_out)
+        rho = rho * 100  # Get in % of all possible connections
+        print(f"Graph density is computed")
+        # largest_subgraph_size = max(nx.connected_component_subgraphs(ms.spike_struct.graph_out), key=len)
+        density_results_by_age_dict["p" + str(ms.age)].append(rho)
+        # subgraph_len__results_by_age_dict["p" + str(ms.age)].append(largest_subgraph_size)
+
+    for age, animals in n_sessions_dict.items():
+        n_sessions_dict[age] = len(animals)
+
+    box_plot_data_by_age(data_dict=density_results_by_age_dict, title="",
+                         filename=f"network_density",
+                         y_label=f"Density",
+                         colors=colors, with_scatters=True,
+                         n_sessions_dict=n_sessions_dict,
+                         path_results=param.path_results, scatter_size=200,
+                         param=param, save_formats=save_formats)
+
+    # box_plot_data_by_age(data_dict=subgraph_len__results_by_age_dict, title="",
+    #                      filename=f"largest_subgraph_size",
+    #                      y_label=f"largest_subgraph_size",
+    #                      colors=colors, with_scatters=True,
+    #                      n_sessions_dict=n_sessions_dict,
+    #                      path_results=param.path_results, scatter_size=200,
+    #                      param=param, save_formats=save_formats)
+
+
+def twitch_analysis_on_all_ms(ms_to_analyse, param, n_surrogates, save_formats=["png", "pdf"], option="intersect"):
+    print(f"starting twitches analysis on all selected sessions")
+    # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+    # + 11 diverting
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
+              '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+              '#74add1', '#4575b4', '#313695']
+    results_by_age_dict = dict()
+    # n_sessions_dict = dict()
+    for ms in ms_to_analyse:
+        if (ms.spike_struct.spike_nums_dur is None) or (ms.shift_data_dict is None):
+            if ms.shift_data_dict is None:
+                print(f"{ms.description} no shift data")
+            continue
+        if not (np.any(ms.shift_data_dict["shift_twitch"])):
+            print(f"{ms.description} has no twitches")
+            continue
+        print(f"mouse current session: {ms.description}")
+        # if "p" + str(ms.age) not in results_by_age_dict:
+        #     results_by_age_dict[ms.description] = []
+        # n_sessions_dict["p" + str(ms.age)] = set()
+        # n_sessions_dict["p" + str(ms.age)].add(ms.description[:-4])
+        results = twitch_analysis(ms, n_surrogates=n_surrogates)
+        distrib, co_var_matrix, rnd_distrib_list, rnd_co_var_matrix_list = results
+        results_by_age_dict[ms.description] = distrib
+        results_for_this_ms = dict()
+        results_for_this_ms[ms.description] = distrib
+        results_for_this_ms["random\nactivation"] = [item for sublist in rnd_distrib_list for item in sublist]
+        box_plot_data_by_age(data_dict=results_for_this_ms, title="",
+                             filename=f"{ms.description}_{option}_on_twitches_vs_random_activation",
+                             y_label=f"{option}",
+                             colors=colors, with_scatters=False,
+                             fliers_symbol="wo",
+                             x_labels_rotation=45,
+                             path_results=param.path_results, scatter_size=50,
+                             param=param, save_formats=save_formats)
+    # for age, animals in n_sessions_dict.items():
+    #     n_sessions_dict[age] = len(animals)
+
+    box_plot_data_by_age(data_dict=results_by_age_dict, title="",
+                         filename=f"{option}_on_twitches_by_age",
+                         y_label=f"{option}",
+                         colors=colors, with_scatters=True,
+                         x_labels_rotation=45,
+                         path_results=param.path_results, scatter_size=50,
+                         param=param, save_formats=save_formats)
+
+
 def plot_variance_according_to_sum_of_activity(ms_to_analyse, param, save_formats="pdf"):
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     # + 11 diverting
@@ -4717,6 +4836,7 @@ def plot_variance_according_to_sum_of_activity(ms_to_analyse, param, save_format
                          n_sessions_dict=n_sessions_dict,
                          path_results=param.path_results, scatter_size=200,
                          param=param, save_formats=save_formats)
+
 
 def plot_nb_transients_in_mvt_vs_nb_total_transients(ms_to_analyse, param, save_formats="pdf"):
     # key is p_age, and value a list of the % of cell in that period of time
@@ -4802,7 +4922,7 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
 
     n_shift_keys = len(shift_keys)
 
-    for step in np.arange(n_shift_keys+2):
+    for step in np.arange(n_shift_keys + 2):
         results_dict = dict()
         animals_dict = dict()
 
@@ -4868,7 +4988,7 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                 shift_numbers = np.ones(n_frames, dtype="int16")
                 shift_numbers = shift_numbers * -1
                 for period_index, period in enumerate(periods_shift):
-                    shift_numbers[period[0]:period[1]+1] = period_index
+                    shift_numbers[period[0]:period[1] + 1] = period_index
                 if len(significant_cells) > 0:
                     ratio_spikes_total_events_significant_cells = get_ratio_spikes_on_events_vs_total_events_by_cell(
                         spike_nums=ms.spike_struct.spike_nums[np.array(significant_cells)],
@@ -4903,8 +5023,8 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                 colors.extend(["white"])
                 plot_hist_distribution(distribution_data=ratio_spikes_total_events_significant_cells,
                                        description=f"{ms.description}_hist_spike_total_{shift_key_descr}_"
-                                       f"ratio_significant_"
-                                       f"{len(ratio_spikes_total_events_significant_cells)}_cells",
+                                                   f"ratio_significant_"
+                                                   f"{len(ratio_spikes_total_events_significant_cells)}_cells",
                                        xlabel=f"spikes in {shift_key_descr} vs total {shift_key_descr} (%)",
                                        values_to_scatter=np.array(values_to_scatter),
                                        labels=labels,
@@ -4918,8 +5038,8 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                 values_to_scatter.append(np.mean(ratio_spikes_events_significant_cells))
                 plot_hist_distribution(distribution_data=ratio_spikes_events_significant_cells,
                                        description=f"{ms.description}_hist_spike_total_{shift_key_descr}_vs_all_spikes"
-                                       f"_ratio_significant_"
-                                       f"{len(ratio_spikes_events_significant_cells)}_cells",
+                                                   f"_ratio_significant_"
+                                                   f"{len(ratio_spikes_events_significant_cells)}_cells",
                                        xlabel=f"spikes in {shift_key_descr} vs total spikes (%)",
                                        values_to_scatter=np.array(values_to_scatter),
                                        labels=labels,
@@ -4933,7 +5053,7 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                 values_to_scatter.append(np.mean(ratio_spikes_total_events))
                 plot_hist_distribution(distribution_data=ratio_spikes_total_events,
                                        description=f"{ms.description}_hist_spike_total_{shift_key_descr}_ratio_"
-                                       f"{len(ratio_spikes_total_events)}_cells",
+                                                   f"{len(ratio_spikes_total_events)}_cells",
                                        xlabel=f"spikes in {shift_key_descr} vs total {shift_key_descr} (%)",
                                        values_to_scatter=np.array(values_to_scatter),
                                        labels=labels,
@@ -4946,8 +5066,8 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                 values_to_scatter.append(np.mean(ratio_spikes_events))
                 plot_hist_distribution(distribution_data=ratio_spikes_events,
                                        description=f"{ms.description}_hist_spike_total_{shift_key_descr}_vs_all_spikes"
-                                       f"_ratio"
-                                       f"{len(ratio_spikes_events)}_cells",
+                                                   f"_ratio"
+                                                   f"{len(ratio_spikes_events)}_cells",
                                        xlabel=f"spikes in {shift_key_descr} vs total spikes (%)",
                                        values_to_scatter=np.array(values_to_scatter),
                                        labels=labels,
@@ -4956,19 +5076,20 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                                        n_bins=n_bins,
                                        param=param)
 
-                display_misc.plot_scatters(ratio_spikes_total_events_significant_cells, ratio_spikes_events_significant_cells,
-                              size_scatter=30, ax_to_use=None, color_to_use=None, legend_str="",
-                              xlabel="spikes on total events", ylabel="spikes on total spikes",
-                              filename_option=f"{ms.description}_spikes_on_all_spikes_vs_all_events_{shift_key_descr}_significant",
-                            param=param, y_lim=(0, 100), x_lim=(0, 100),
-                              save_formats="pdf")
+                display_misc.plot_scatters(ratio_spikes_total_events_significant_cells,
+                                           ratio_spikes_events_significant_cells,
+                                           size_scatter=30, ax_to_use=None, color_to_use=None, legend_str="",
+                                           xlabel="spikes on total events", ylabel="spikes on total spikes",
+                                           filename_option=f"{ms.description}_spikes_on_all_spikes_vs_all_events_{shift_key_descr}_significant",
+                                           param=param, y_lim=(0, 100), x_lim=(0, 100),
+                                           save_formats="pdf")
 
                 display_misc.plot_scatters(ratio_spikes_total_events, ratio_spikes_events,
-                              size_scatter=30, ax_to_use=None, color_to_use=None, legend_str="",
-                              xlabel="spikes on total events", ylabel="spikes on total spikes",
-                              filename_option=f"{ms.description}_spikes_on_all_spikes_vs_all_events_{shift_key_descr}",
-                              param=param, y_lim=(0, 100), x_lim=(0, 100),
-                              save_formats="pdf")
+                                           size_scatter=30, ax_to_use=None, color_to_use=None, legend_str="",
+                                           xlabel="spikes on total events", ylabel="spikes on total spikes",
+                                           filename_option=f"{ms.description}_spikes_on_all_spikes_vs_all_events_{shift_key_descr}",
+                                           param=param, y_lim=(0, 100), x_lim=(0, 100),
+                                           save_formats="pdf")
 
                 # TODO: Take the mean of each distribution and do a boxplot by age with those values
 
@@ -4988,6 +5109,7 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                                  path_results=param.path_results, scatter_size=200,
                                  param=param, save_formats=save_formats)
 
+
 def select_significant_time_periods(raster, time_periods, description="", perc_threshold=95, n_surrogate=1000):
     """
     Take a raster and a list of tuple representing periods.
@@ -5006,25 +5128,13 @@ def select_significant_time_periods(raster, time_periods, description="", perc_t
     significant_time_periods = []
     significant_time_periods_indices = []
     for period_index, period in enumerate(time_periods):
-        sum_activity = np.sum(np.sum(raster[:, period[0]:period[1]+1], axis=0))
+        sum_activity = np.sum(np.sum(raster[:, period[0]:period[1] + 1], axis=0))
         if sum_activity >= activity_threshold:
             significant_time_periods.append(period)
             significant_time_periods_indices.append(period_index)
 
     return significant_time_periods, significant_time_periods_indices
 
-# normalized co-variance
-def covnorm(m_sces):
-    nb_events = np.shape(m_sces)[1]
-    co_var_matrix = np.zeros((nb_events, nb_events))
-    for i in np.arange(nb_events):
-        for j in np.arange(nb_events):
-            if np.correlate(m_sces[:, i], m_sces[:, j]) == 0:
-                co_var_matrix[i, j] = 0
-            else:
-                co_var_matrix[i, j] = np.correlate(m_sces[:, i], m_sces[:, j]) / np.std(m_sces[:, i]) \
-                                      / np.std(m_sces[:, j]) / nb_events
-    return co_var_matrix
 
 def plot_covnorm_matrix(m_sces, n_clusters, cluster_labels, param, data_descr):
     fig, ax1 = plt.subplots(nrows=1, ncols=1,
@@ -5100,7 +5210,7 @@ def plot_covnorm_matrix(m_sces, n_clusters, cluster_labels, param, data_descr):
         fig.savefig(f'{path_results}/{data_descr}_covariance_matrix_clustered'
                     f'_{param.time_str}.{save_format}',
                     format=f"{save_format}",
-                            facecolor=fig.get_facecolor())
+                    facecolor=fig.get_facecolor())
 
     plt.close()
 
@@ -5138,7 +5248,7 @@ def try_hdbscan(cells_in_sce, param, data_descr, activity_threshold=None,
     print(f"With no clusters hdbscan: {len(np.where(labels == -1)[0])}")
 
     if use_co_var:
-        plot_covnorm_matrix(m_sces=m_sces, n_clusters=labels.max()+1, cluster_labels=labels, param=param,
+        plot_covnorm_matrix(m_sces=m_sces, n_clusters=labels.max() + 1, cluster_labels=labels, param=param,
                             data_descr=data_descr)
         return
     if spike_nums is None:
@@ -5150,19 +5260,19 @@ def try_hdbscan(cells_in_sce, param, data_descr, activity_threshold=None,
     cells_to_highlight_colors = []
     count_cells = 0
     cell_labels = np.zeros(0, dtype="int8")
-    for i, cluster_id in enumerate(np.arange(labels.max()+1)):
+    for i, cluster_id in enumerate(np.arange(labels.max() + 1)):
         cells_in_clusters = np.where(labels == cluster_id)[0]
         n_cells_in_cluster = len(cells_in_clusters)
         cell_labels = np.concatenate([cell_labels, cells_in_clusters])
-        cells_to_highlight.extend(list(np.arange(count_cells, count_cells+n_cells_in_cluster)))
-        cells_to_highlight_colors.extend([colors[i%len(colors)]]*n_cells_in_cluster)
-        clustered_spike_nums[count_cells:count_cells+n_cells_in_cluster, :] = spike_nums[cells_in_clusters, :]
+        cells_to_highlight.extend(list(np.arange(count_cells, count_cells + n_cells_in_cluster)))
+        cells_to_highlight_colors.extend([colors[i % len(colors)]] * n_cells_in_cluster)
+        clustered_spike_nums[count_cells:count_cells + n_cells_in_cluster, :] = spike_nums[cells_in_clusters, :]
         count_cells += n_cells_in_cluster
 
     cells_in_clusters = np.where(labels == -1)[0]
     n_cells_in_cluster = len(cells_in_clusters)
     cells_to_highlight.extend(list(np.arange(count_cells, n_cells)))
-    cells_to_highlight_colors.extend(["white"]*n_cells_in_cluster)
+    cells_to_highlight_colors.extend(["white"] * n_cells_in_cluster)
     clustered_spike_nums[count_cells:, :] = spike_nums[cells_in_clusters, :]
     cell_labels = np.concatenate([cell_labels, cells_in_clusters])
     count_cells += n_cells_in_cluster
@@ -5229,9 +5339,9 @@ def stat_significant_time_period(ms_to_analyse, shift_key, perc_threshold=95, n_
         for i in np.arange(len(shift_time_periods)):
             if i in significant_time_periods_indices:
                 # print(f"{shift_time_periods[i]}")
-                significant_shift_bool[shift_time_periods[i][0]:shift_time_periods[i][1]+1] = True
+                significant_shift_bool[shift_time_periods[i][0]:shift_time_periods[i][1] + 1] = True
             else:
-                non_significant_shift_bool[shift_time_periods[i][0]:shift_time_periods[i][1]+1] = True
+                non_significant_shift_bool[shift_time_periods[i][0]:shift_time_periods[i][1] + 1] = True
 
         new_periods_dict = dict()
         new_periods_dict["significant_twitches"] = significant_shift_bool
@@ -5243,6 +5353,7 @@ def stat_significant_time_period(ms_to_analyse, shift_key, perc_threshold=95, n_
 
 def use_rastermap_for_pca(ms, path_results, file_name):
     model = Rastermap(n_components=1, n_X=30, nPC=200, init='pca')
+
 
 def elephant_cad(ms, param, save_formats="pdf"):
     if ms.spike_struct.spike_nums is None:
@@ -5257,10 +5368,10 @@ def elephant_cad(ms, param, save_formats="pdf"):
         # convert frames in s
         spike_frames = spike_frames / ms.sampling_rate
         neo_spike_train = neo.SpikeTrain(times=spike_frames, units='s',
-                       t_stop=n_times / ms.sampling_rate)
+                                         t_stop=n_times / ms.sampling_rate)
         spike_trains.append(neo_spike_train)
 
-    binsize = 100*pq.ms
+    binsize = 100 * pq.ms
     spike_trains_binned = elephant_conv.BinnedSpikeTrain(spike_trains, binsize=binsize)
     assembly_bin = cad.cell_assembly_detection(data=spike_trains_binned, maxlag=5, verbose=True)
     print(f"assembly_bin {assembly_bin}")
@@ -5298,9 +5409,9 @@ def elephant_cad(ms, param, save_formats="pdf"):
     for ca_index, cell_assembly in enumerate(assembly_bin):
         cell_new_order.extend(cell_assembly['neurons'])
         n_cells_in_ca = len(cell_assembly['neurons'])
-        cells_to_highlight.extend(np.arange(cell_index_so_far, cell_index_so_far+n_cells_in_ca))
+        cells_to_highlight.extend(np.arange(cell_index_so_far, cell_index_so_far + n_cells_in_ca))
         cell_index_so_far += n_cells_in_ca
-        cells_to_highlight_colors.extend([colors[ca_index%len(colors)]]*n_cells_in_ca)
+        cells_to_highlight_colors.extend([colors[ca_index % len(colors)]] * n_cells_in_ca)
 
     cell_new_order.extend(list(np.setdiff1d(all_cells, cell_new_order)))
     cell_new_order = np.array(cell_new_order)
@@ -5321,6 +5432,7 @@ def elephant_cad(ms, param, save_formats="pdf"):
                        spike_shape='o',
                        spike_shape_size=0.05,
                        save_formats=["pdf", "png"])
+
 
 def fca_clustering_on_twitches_activity(ms, param, save_formats="pdf"):
     if ms.spike_struct.spike_nums_dur is None:
@@ -5343,8 +5455,8 @@ def fca_clustering_on_twitches_activity(ms, param, save_formats="pdf"):
     spike_nums = np.zeros((n_cells, n_twiches), dtype="int8")
     shift_time_numbers = np.zeros(n_twiches, dtype="int16")
     for period_index, period in enumerate(shift_time_periods):
-        shift_time_numbers[period[0]:period[1]+1] = period_index
-        cells_active_in_twitch = np.where(np.sum(ms.spike_struct.spike_nums_dur[:, period[0]:period[1]+1], axis=1))[0]
+        shift_time_numbers[period[0]:period[1] + 1] = period_index
+        cells_active_in_twitch = np.where(np.sum(ms.spike_struct.spike_nums_dur[:, period[0]:period[1] + 1], axis=1))[0]
         spike_nums[cells_active_in_twitch, period_index] = 1
 
     spike_trains = []
@@ -5377,6 +5489,7 @@ def fca_clustering_on_twitches_activity(ms, param, save_formats="pdf"):
                                                  False,
                                                  use_uniform_jittering=True)
 
+
 def remove_spike_nums_dur_and_associated_transients(spike_nums_dur, frames_to_keep):
     """
 
@@ -5393,7 +5506,7 @@ def remove_spike_nums_dur_and_associated_transients(spike_nums_dur, frames_to_ke
     for cell in np.arange(n_cells):
         periods = get_continous_time_periods(spike_nums_dur[cell])
         for period_index, period in enumerate(periods):
-            spike_nums_dur_transient_id[cell, period[0]:period[1]+1] = period_index
+            spike_nums_dur_transient_id[cell, period[0]:period[1] + 1] = period_index
         # get transients id that are in the frames to remove
         transients_id_to_remove = np.unique(spike_nums_dur_transient_id[cell, frames_to_remove])
         if len(transients_id_to_remove) > 0:
@@ -5403,6 +5516,7 @@ def remove_spike_nums_dur_and_associated_transients(spike_nums_dur, frames_to_ke
                 spike_nums_dur[cell, indices] = 0
     spike_nums_dur = spike_nums_dur[:, frames_to_keep]
     return spike_nums_dur
+
 
 def lexi_loading_process(param, load_traces):
     ms_str_to_load = ["ms"]
@@ -5445,38 +5559,37 @@ def add_z_shifts_from_file(ms_str_to_ms_dict, param):
 def robin_loading_process(param, load_traces, load_abf=False):
     # all avaialble session
     ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-                        "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                        "p7_171012_a000_ms",
-                        "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-                        "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-                        "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-                        "p7_19_03_05_a000_ms",
-                        "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                        "p7_19_03_27_a002_ms",
-                        "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
-                        "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-                        "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms"
-                        "p8_19_03_19_a000_ms",
-                        "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
-                        "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-                        "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
-                        "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-                        "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
-                        "p9_19_03_22_a001_ms",
-                        "p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-                        "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
-                        "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
-                        "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
-                        "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
-                        "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
-                        "p13_18_10_29_a000_ms",  "p13_18_10_29_a001_ms",
-                        "p13_19_03_11_a000_ms",
-                        "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
-                        "p16_18_11_01_a002_ms",
-                        "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
-                      "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
-                      "p21_19_04_10_a000_j3_ms",
-                        "p41_19_04_30_a000_ms"]
+                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_171012_a000_ms",
+                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+                      "p7_19_03_05_a000_ms",
+                      "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                      "p7_19_03_27_a002_ms",
+                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms",
+                      "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+                      "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms"
+                                             "p8_19_03_19_a000_ms",
+                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
+                      "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
+                      "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
+                      "p9_19_03_22_a001_ms",
+                      "p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+                      "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
+                      "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms",
+                      "p11_17_11_24_a000_ms", "p11_17_11_24_a001_ms",
+                      "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms",
+                      "p12_17_11_10_a002_ms", "p12_171110_a000_ms",
+                      "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
+                      "p13_19_03_11_a000_ms",
+                      "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+                      "p16_18_11_01_a002_ms",
+                      "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
+
+                      "p41_19_04_30_a000_ms"]
     # ,
     # gadcre_ms= [ ]
     # arnaud_ms = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
@@ -5526,7 +5639,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ms_new_from_Robin_2nd_dec
     # ms_str_to_load = ["p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p6_18_02_07_a001_ms"]
-    # ms_str_to_load = ["p9_18_09_27_a003_ms"]
+    # ms_str_to_load = ["p9_19_02_20_a003_ms"]
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # no_spike_nums = ["p6_18_02_07_a002_ms", "p12_171110_a000_ms"]
     # ms_str_to_load = ["p13_18_10_29_a000_ms",  # new
@@ -5555,7 +5668,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = for_graph
     # ms_str_to_load = ["p60_arnaud_ms", "p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
-    # ms_str_to_load = ["p6_18_02_07_a001_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a001_ms", "p7_171012_a000_ms"]
     # ms_str_to_load = ["p7_18_02_08_a000_ms"]
     # ms_str_to_load = ["p12_171110_a000_ms"]
     # ms_str_to_load = ["p9_18_09_27_a003_ms"]
@@ -5603,6 +5716,16 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
     #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
     #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+    #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
+    # sessions with predictions for graph stats on young animals
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    #                   "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+    #                   "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+    #                   "p7_19_03_27_a002_ms",
+    #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+    #                   "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+    #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_03_14_a000_ms",
     #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
     # # #   for test
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
@@ -5671,7 +5794,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p41_19_04_30_a000_ms"]
 
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
-    # ms_str_to_load = ["p41_19_04_30_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p7_18_02_08_a000_ms"]
     # ms_str_to_load = ["p7_18_02_08_a001_ms"]
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
@@ -5762,7 +5885,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
 
-    add_z_shifts_from_file(ms_str_to_ms_dict, param)
+    # add_z_shifts_from_file(ms_str_to_ms_dict, param)
 
     return ms_str_to_ms_dict
 
@@ -5816,8 +5939,8 @@ def main():
     just_compute_significant_seq_with_slope_stat = False
     if just_compute_significant_seq_with_slope_stat:
         compute_stat_about_seq_with_slope(files_path=f"{path_data}/seq_slope/v3_70_150_surro/", param=param,
-                                           save_formats=["pdf"],
-                                           color_option="manual", cmap_name="Reds")
+                                          save_formats=["pdf"],
+                                          color_option="manual", cmap_name="Reds")
         # use_cmap_gradient
         # color_option="manual"
         return
@@ -5829,7 +5952,7 @@ def main():
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
 
-    load_traces = True
+    load_traces = False
     load_abf = False
 
     if for_lexi:
@@ -5856,6 +5979,7 @@ def main():
     just_do_stat_significant_time_period = False
     just_plot_cells_that_fire_during_time_periods = False
     just_plot_twitch_ratio_activity = False
+    do_twitches_analysis = True
     just_fca_clustering_on_twitches_activity = False
     just_save_stat_about_mvt_for_each_ms = False
     just_plot_cell_assemblies_on_map = False
@@ -5865,6 +5989,7 @@ def main():
     just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
     just_plot_jsd_correlation = False
     do_plot_graph = False
+    do_stats_on_graph = False
     just_plot_cell_assemblies_clusters = False
     just_find_seq_with_pca = False
     just_find_seq_using_graph = False
@@ -5922,7 +6047,7 @@ def main():
     # ##########################################################################################
     do_clustering = False
     do_detect_sce_on_traces = False
-    do_detect_sce_based_on_peaks_finder = True
+    do_detect_sce_based_on_peaks_finder = False
     use_hdbscan = False
     # to add in the file title
     clustering_bonus_descr = ""
@@ -5949,7 +6074,7 @@ def main():
             # if "no_shift" then select the frame that are not in any period
             # Other keys are: shift_twitch, shift_long, shift_unclassified
             # or a list of those 3 keys and then will take all frames except those
-            with_period_mvt_filter = None # ["shift_twitch","shift_long", "shift_unclassified"]
+            with_period_mvt_filter = None  # ["shift_twitch","shift_long", "shift_unclassified"]
             if (with_period_mvt_filter is not None) and (ms.shift_data_dict is not None) and \
                     (not do_clustering_with_twitches_events):
                 n_frames = ms.spike_struct.spike_nums_dur.shape[1]
@@ -5968,8 +6093,8 @@ def main():
                         true_frames = np.where(shift_bool_tmp)[0]
                         for frame in true_frames:
                             first_frame = max(0, frame - extension_frames_before)
-                            last_frame = min(n_frames-1, frame + extension_frames_after)
-                            shift_bool_tmp[first_frame:last_frame+1] = True
+                            last_frame = min(n_frames - 1, frame + extension_frames_after)
+                            shift_bool_tmp[first_frame:last_frame + 1] = True
                         shift_bool[shift_bool_tmp] = False
                     ms.spike_struct.spike_nums_dur = \
                         remove_spike_nums_dur_and_associated_transients(spike_nums_dur=ms.spike_struct.spike_nums_dur,
@@ -6040,9 +6165,9 @@ def main():
     param.error_rate = 0.25  # 0.25 0.1
     param.max_branches = 10
     param.time_inter_seq = 4  # 30 3
-    param.min_duration_intra_seq = 1 # 1
+    param.min_duration_intra_seq = 1  # 1
     param.min_len_seq = 4  # 5
-    param.min_rep_nb = 5 # 3
+    param.min_rep_nb = 5  # 3
 
     debug_mode = False
 
@@ -6058,11 +6183,11 @@ def main():
     if just_plot_all_time_correlation_graph_over_events:
         # event_str = "shift_twitch" "shift_long"
         plot_all_time_correlation_graph_over_events(event_str="shift_twitch", ms_to_analyse=ms_to_analyse,
-                                                      param=param, time_around_events=10)
+                                                    param=param, time_around_events=10)
         raise Exception("just_plot_all_time_correlation_graph_over_events")
     if just_plot_psth_over_event_time_correlation_graph_style:
         plot_psth_over_event_time_correlation_graph_style(event_str="shift_twitch", ms_to_analyse=ms_to_analyse,
-                                                      param=param, time_around_events=20)
+                                                          param=param, time_around_events=20)
         raise Exception("just_plot_psth_over_event_time_correlation_graph_style")
 
     if just_plot_movement_activity:
@@ -6079,7 +6204,7 @@ def main():
         # "shift_twitch", "shift_long",
         #                                                                            "shift_unclassified"
         plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys=["shift_twitch"], param=param,
-                                                      perc_threshold=95, n_surrogate=1000)
+                                                 perc_threshold=95, n_surrogate=1000)
         raise Exception("just_plot_cells_that_fire_during_time_periods")
 
     if just_plot_nb_transients_in_mvt_vs_nb_total_transients:
@@ -6089,6 +6214,10 @@ def main():
     if just_plot_twitch_ratio_activity:
         plot_twitch_ratio_activity(ms_to_analyse, time_around=20, param=param, save_formats="pdf")
         raise Exception("just_plot_twitch_ratio_activity")
+
+    if do_twitches_analysis:
+        twitch_analysis_on_all_ms(ms_to_analyse, param, n_surrogates=0, option="intersect")
+        raise Exception("twitches analysed")
 
     if just_plot_variance_according_to_sum_of_activity:
         plot_variance_according_to_sum_of_activity(ms_to_analyse, param, save_formats="pdf")
@@ -6152,6 +6281,10 @@ def main():
     if do_plot_graph:
         plot_connectivity_graph(ms_to_analyse, param, save_formats="pdf")
         raise Exception("do_plot_graph")
+
+    if do_stats_on_graph:
+        stats_on_graph_on_all_ms(ms_to_analyse, param, save_formats="pdf")
+        raise Exception("do_stats_graph")
 
     ms_by_age = dict()
     for ms_index, ms in enumerate(ms_to_analyse):
@@ -6218,7 +6351,7 @@ def main():
                     # pca_seq_cells_order = np.load(f"{param.path_data}/test_pca/"
                     #                               f"P41_19_04_30_a000_spks_suite2p_cells_order_pc_3.npy")
                     data = hdf5storage.loadmat(f"{param.path_data}/test_pca/"
-                                                  f"p7_18_02_08_a002_order.mat")
+                                               f"p7_18_02_08_a002_order.mat")
 
                     pca_seq_cells_order = data['used_cells'][0][data['used_cells'][0] > 0] - 1
                     # other_cells = np.setdiff1d(np.arange(ms.coord_obj.n_cells), pca_seq_cells_order)
@@ -6284,20 +6417,19 @@ def main():
                                                                   without_sum_activity_traces=True,
                                                                   save_formats=["pdf", "png"], dpi=300)
 
-
-
                 n_times = ms.spike_struct.spike_nums_dur.shape[1]
                 for index_beg in np.arange(0, n_times, 2500):
-                    frames_to_display = np.arange(index_beg, index_beg+2500)
+                    frames_to_display = np.arange(index_beg, index_beg + 2500)
                     file_name = f"{ms.description}_pc_{pc_number}_map_and_raster_seq_pca_{len(pca_seq_cells_order)}_cells_" \
-                        f"frame_{index_beg}_to_frame_{index_beg+2500}"
+                                f"frame_{index_beg}_to_frame_{index_beg+2500}"
                     if ms.speed_by_frame is not None:
                         binary_speed = np.zeros(len(ms.speed_by_frame), dtype="int8")
                         binary_speed[ms.speed_by_frame > 0] = 1
                         speed_periods_tmp = get_continous_time_periods(binary_speed)
                         speed_periods = []
                         for speed_period in speed_periods_tmp:
-                            if (speed_period[0] not in frames_to_display) and (speed_period[1] not in frames_to_display):
+                            if (speed_period[0] not in frames_to_display) and (
+                                    speed_period[1] not in frames_to_display):
                                 continue
                             elif (speed_period[0] in frames_to_display) and (speed_period[1] in frames_to_display):
                                 speed_periods.append((speed_period[0] - index_beg, speed_period[1] - index_beg))
@@ -6328,7 +6460,8 @@ def main():
                                     elif (mvt_period[0] in frames_to_display) and (mvt_period[1] in frames_to_display):
                                         mvt_periods.append((mvt_period[0] - index_beg, mvt_period[1] - index_beg))
                                     elif mvt_period[0] in frames_to_display:
-                                        mvt_periods.append((mvt_period[0] - index_beg, frames_to_display[-1] - index_beg))
+                                        mvt_periods.append(
+                                            (mvt_period[0] - index_beg, frames_to_display[-1] - index_beg))
                                     else:
                                         mvt_periods.append((0, mvt_period[1] - index_beg))
                                 span_area_coords.append(mvt_periods)
@@ -6458,7 +6591,7 @@ def main():
 
         if just_use_rastermap_for_pca:
             use_rastermap_for_pca(ms, path_results=param.path_results,
-                              file_name=f"{ms.description}_pca_with_rastermap")
+                                  file_name=f"{ms.description}_pca_with_rastermap")
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_use_rastermap_for_pca")
             continue
@@ -6492,7 +6625,7 @@ def main():
             line_mode = True
             duration_option = False
             plot_all_long_mvt_psth_in_one_figure(ms_to_analyse, param, line_mode,
-                                               duration_option=duration_option, save_formats="pdf")
+                                                 duration_option=duration_option, save_formats="pdf")
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("do_plot_psth_long_mvt")
             continue
@@ -7521,8 +7654,9 @@ def main():
                     fusion_thr = 50
                     for frame_index in np.arange(len(frames_diff)):
                         if 1 < frames_diff[frame_index] < fusion_thr:
-                            frames_selected = np.concatenate((frames_selected, np.arange(frames_selected[frame_index]+1,
-                            frames_selected[frame_index+1])))
+                            frames_selected = np.concatenate(
+                                (frames_selected, np.arange(frames_selected[frame_index] + 1,
+                                                            frames_selected[frame_index + 1])))
                     binary_array = np.zeros(spike_nums_to_use.shape[1], dtype="int8")
                     frames_selected = np.unique(frames_selected)
                     # frames_selected = frames_selected[frames_selected < spike_nums_to_use.shape[1]]
@@ -7531,11 +7665,13 @@ def main():
                     frame_extension = 0
                     for run_period in run_periods:
                         if run_period[0] > frame_extension:
-                            frames_selected = np.concatenate((frames_selected, np.arange(run_period[0]-frame_extension,
-                                                                                         run_period[0])))
+                            frames_selected = np.concatenate(
+                                (frames_selected, np.arange(run_period[0] - frame_extension,
+                                                            run_period[0])))
                         if run_period[1] < (spike_nums_to_use.shape[1] - frame_extension):
-                            frames_selected = np.concatenate((frames_selected, np.arange(run_period[1]+1,
-                                                                                         run_period[1]+frame_extension+1)))
+                            frames_selected = np.concatenate((frames_selected, np.arange(run_period[1] + 1,
+                                                                                         run_period[
+                                                                                             1] + frame_extension + 1)))
                 binary_array = np.zeros(spike_nums_to_use.shape[1], dtype="int8")
                 frames_selected = np.unique(frames_selected)
                 # frames_selected = frames_selected[frames_selected < spike_nums_to_use.shape[1]]
@@ -7622,7 +7758,6 @@ def main():
                            spike_shape_size=1,
                            save_formats="pdf")
 
-
         if do_detect_sce_on_traces:
             # cells_to_keep = np.sum(ms.spike_struct.spike_nums, axis=1) > 2
             # cells_to_keep = np.arange(len(ms.raw_traces))
@@ -7645,7 +7780,7 @@ def main():
             for period_index, period in enumerate(SCE_times):
                 # if period[0] == period[1]:
                 #     print("both periods are equals")
-                sce_times_numbers[period[0]:period[1]+1] = period_index
+                sce_times_numbers[period[0]:period[1] + 1] = period_index
             ms.sce_bool = sce_times_bool
             ms.sce_times_numbers = sce_times_numbers
             ms.SCE_times = SCE_times
@@ -7853,31 +7988,33 @@ def main():
                     if use_hdbscan:
                         try_hdbscan(cells_in_sce=cellsinpeak, spike_nums=spike_nums_to_use, param=ms.param,
                                     SCE_times=SCE_times,
-                                    data_descr=data_descr+clustering_bonus_descr, activity_threshold=activity_threshold)
+                                    data_descr=data_descr + clustering_bonus_descr,
+                                    activity_threshold=activity_threshold)
                     else:
                         if cells_to_keep is None:
                             cells_to_keep = np.arange(len(spike_nums_to_use))
                         compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels[cells_to_keep],
-                                                                   activity_threshold=ms.spike_struct.activity_threshold,
-                                                                   range_n_clusters_k_mean=range_n_clusters_k_mean,
-                                                                   n_surrogate_k_mean=n_surrogate_k_mean,
-                                                                   with_shuffling=with_shuffling,
-                                                                   spike_nums_to_use=spike_nums_to_use[cells_to_keep],
-                                                                   cellsinpeak=cellsinpeak,
-                                                                   data_descr=data_descr+clustering_bonus_descr,
-                                                                   param=ms.param,
-                                                                   sliding_window_duration=sliding_window_duration,
-                                                                   SCE_times=SCE_times,
-                                                                   sce_times_numbers=sce_times_numbers,
-                                                                   sce_times_bool=sce_times_bool,
-                                                                   perc_threshold=perc_threshold,
-                                                                   n_surrogate_activity_threshold=
-                                                                   n_surrogate_activity_threshold,
-                                                                   debug_mode=debug_mode,
-                                                                   fct_to_keep_best_silhouettes=np.median,
-                                                                   with_cells_in_cluster_seq_sorted=
-                                                                   with_cells_in_cluster_seq_sorted,
-                                                                   keep_only_the_best=keep_only_the_best_kmean_cluster)
+                                                                       activity_threshold=ms.spike_struct.activity_threshold,
+                                                                       range_n_clusters_k_mean=range_n_clusters_k_mean,
+                                                                       n_surrogate_k_mean=n_surrogate_k_mean,
+                                                                       with_shuffling=with_shuffling,
+                                                                       spike_nums_to_use=spike_nums_to_use[
+                                                                           cells_to_keep],
+                                                                       cellsinpeak=cellsinpeak,
+                                                                       data_descr=data_descr + clustering_bonus_descr,
+                                                                       param=ms.param,
+                                                                       sliding_window_duration=sliding_window_duration,
+                                                                       SCE_times=SCE_times,
+                                                                       sce_times_numbers=sce_times_numbers,
+                                                                       sce_times_bool=sce_times_bool,
+                                                                       perc_threshold=perc_threshold,
+                                                                       n_surrogate_activity_threshold=
+                                                                       n_surrogate_activity_threshold,
+                                                                       debug_mode=debug_mode,
+                                                                       fct_to_keep_best_silhouettes=np.median,
+                                                                       with_cells_in_cluster_seq_sorted=
+                                                                       with_cells_in_cluster_seq_sorted,
+                                                                       keep_only_the_best=keep_only_the_best_kmean_cluster)
 
         ###################################################################
         ###################################################################
