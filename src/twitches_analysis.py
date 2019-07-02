@@ -114,16 +114,17 @@ def plot_intersect_course_over_twitches(cells_in_twitches, twitches_times, ms):
     for twitch in np.arange(nb_twitches - 1):
         twitch_1 = twitch
         intersect_cells = np.where(cells_in_twitches[:, twitch_1])[0]
-
+        total_delay = 0
         for twitch_2 in np.arange(twitch_1 + 1, nb_twitches):
             intersect_cells = np.intersect1d(intersect_cells,
                                              np.where(cells_in_twitches[:, twitch_2])[0],
                                              assume_unique=True)
             delay_bw_twitches = twitches_times[twitch_2][0] - twitches_times[twitch_1][0]
+            total_delay += delay_bw_twitches
             if twitch not in results_intersect:
-                results_intersect[twitch] = [[delay_bw_twitches], [len(intersect_cells)]]
+                results_intersect[twitch] = [[total_delay], [len(intersect_cells)]]
             else:
-                results_intersect[twitch][0].append(delay_bw_twitches)
+                results_intersect[twitch][0].append(total_delay)
                 results_intersect[twitch][1].append(len(intersect_cells))
             twitch_1 = twitch_2
             if len(intersect_cells) == 0:
@@ -181,10 +182,10 @@ def plot_twitches_delay_stat(distrib_similarity, twitches_times, ms):
             delay_bw_twitch_matrix[twitch_1, twitch_2] = abs(twitches_times[twitch_2][0] - twitches_times[twitch_1][0])
             n_twitches_bw_matrix[twitch_1, twitch_2] = twitch_2 - twitch_1 - 1
 
-    distrib_n_twitches_bw = delay_bw_twitch_matrix[np.where(n_twitches_bw_matrix) > -1]
+    distrib_n_twitches_bw = delay_bw_twitch_matrix[np.where(n_twitches_bw_matrix > -1) ]
     distrib_delay = delay_bw_twitch_matrix[np.where(delay_bw_twitch_matrix)]
 
-    distrib_dict = ()
+    distrib_dict = {}
     distrib_dict["delay_bw_twitches"] = distrib_delay
     distrib_dict["n_twitches_bw"] = distrib_n_twitches_bw
 
