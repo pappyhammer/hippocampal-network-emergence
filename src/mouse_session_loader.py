@@ -260,10 +260,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                     file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_Traces.mat",
                     variables_mapping=variables_mapping)
 
-            # p6_19_02_18_a000_ms.load_caiman_results(path_data="p6/p6_19_02_18_a000/")
-            # p6_19_02_18_a000_ms.spike_struct.spike_nums = p6_19_02_18_a000_ms.caiman_spike_nums
-            # p6_19_02_18_a000_ms.spike_struct.spike_nums_dur = p6_19_02_18_a000_ms.caiman_spike_nums_dur
-            # p6_19_02_18_a000_ms.spike_struct.n_cells = len(p6_19_02_18_a000_ms.caiman_spike_nums_dur)
+            p6_19_02_18_a000_ms.load_caiman_results(path_data="p6/p6_19_02_18_a000/")
+            p6_19_02_18_a000_ms.spike_struct.spike_nums = p6_19_02_18_a000_ms.caiman_spike_nums
+            p6_19_02_18_a000_ms.spike_struct.spike_nums_dur = p6_19_02_18_a000_ms.caiman_spike_nums_dur
+            p6_19_02_18_a000_ms.spike_struct.n_cells = len(p6_19_02_18_a000_ms.caiman_spike_nums_dur)
 
             variables_mapping = {"coord": "ContoursAll"}
             p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_CellDetect.mat",
@@ -1768,6 +1768,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms.load_lfp_data(path_to_load=f"p{ms.age}/{ms.description.lower()}/")
 
         ms.load_graph_data(path_to_load=f"p{ms.age}/{ms.description.lower()}/")
+
+
 
         if load_abf and (not ms.abf_loaded):
             # if sampling_rate is not 50000, load specific data for a session

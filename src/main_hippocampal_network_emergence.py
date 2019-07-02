@@ -4386,7 +4386,8 @@ def plot_connectivity_graph(ms_to_analyse, param, save_formats="pdf"):
     n_ms = 0
     for ms in ms_to_analyse:
         print(f"{ms.description}: detect_n_in_n_out")
-        ms.detect_n_in_n_out()
+        if ms.spike_struct.graph_out is None:
+            ms.detect_n_in_n_out()
         if ms.spike_struct.graph_out is not None:
             n_ms += 1
 
@@ -5695,7 +5696,8 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
-    # ms_str_to_load = ["p8_18_10_24_a006_ms"]
+    # Eleonora gad cre
+    # ms_str_to_load = ["p6_19_02_18_a000_ms"]
     ms_str_to_load = ["p7_19_03_05_a000_ms"]
     # loading data
     # z_shifts_ms = ["p5_19_03_25_a000_ms",

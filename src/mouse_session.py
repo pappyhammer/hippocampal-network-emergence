@@ -103,6 +103,8 @@ class MouseSession:
         # 1d array float
         self.lfp_signal = None
         self.lfp_sampling_rate = None
+        # array 1d representing the frames in which a sharp is happening, same length as the number of sharp
+        self.sharp_frames = None
         # array of float, each index corresponds to a cell and the value is the prediction made by the cell classifier
         self.cell_cnn_predictions = None
         self.load_cnn_cell_classifier_results()
@@ -2376,7 +2378,7 @@ class MouseSession:
         dpi = 400
         n_times = len(lfp_signal)
         num_levels_contourf = 50
-        window_len_in_s = 30
+        window_len_in_s = 60
         n_times = len(lfp_signal)
         window_len_in_times = window_len_in_s * lfp_sampling_rate
 
@@ -2384,7 +2386,7 @@ class MouseSession:
 
         raster_dur = self.spike_struct.spike_nums_dur
         n_cells = raster_dur.shape[1]
-
+        spikes_frames = np.zeros(0)
         for time_index, beg_time in enumerate(np.arange(0, n_times, window_len_in_times)):
             wav_outcome = spectral_analysis_on_time_segment(beg_time=beg_time,
                                                             lfp_signal=lfp_signal, sampling_rate=lfp_sampling_rate,
@@ -2414,6 +2416,10 @@ class MouseSession:
             beg_time_raster = int((beg_time / lfp_sampling_rate) * self.sampling_rate)
             end_time_raster = int(((beg_time+window_len_in_times) / lfp_sampling_rate) * self.sampling_rate)
             print(f"beg_time_raster-end_time_raster {beg_time_raster} - {end_time_raster}")
+
+            spikes_array = np.array(wav_outcome.spikes).astype(float)
+            spikes_array = (((spikes_array + beg_time) / lfp_sampling_rate) * self.sampling_rate).astype("int16")
+            spikes_frames = np.concatenate((spikes_frames, spikes_array))
 
             frames_to_display = np.arange(beg_time_raster, end_time_raster)
 
@@ -2459,7 +2465,7 @@ class MouseSession:
                             else:
                                 mvt_periods.append((0, mvt_period[1] - beg_time_raster))
                         span_area_coords.append(mvt_periods)
-                        print(f"span_area_coords {span_area_coords}")
+                        # print(f"span_area_coords {span_area_coords}")
                         span_area_colors.append(colors[i % len(colors)])
                         print(f"  Period {name_period} -> {colors[i]}")
                         i += 1
@@ -2524,6 +2530,8 @@ class MouseSession:
                             f'_{self.param.time_str}.{save_format}',
                             format=f"{save_format}",
                             facecolor=fig.get_facecolor())
+        np.save(f"p{self.age}/{self.description.lower()}/{self.description}_sharp_frames.npy", np.array(spikes_frames),
+                allow_pickle=True)
 
 
     def create_wavelet_param(self):
