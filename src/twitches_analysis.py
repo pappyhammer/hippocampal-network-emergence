@@ -8,6 +8,7 @@ import hdbscan
 from sklearn.manifold import TSNE as t_sne
 import pandas as pd
 from pattern_discovery.tools.misc import get_continous_time_periods
+from pattern_discovery.display.raster import plot_spikes_raster
 
 
 def build_spike_nums_and_peak_nums(spike_nums_dur):
@@ -26,7 +27,7 @@ def build_spike_nums_and_peak_nums(spike_nums_dur):
     return spike_nums, peak_nums
 
 
-def sce_twitches(ms, before_extension=0, after_extension=15):
+def sce_twitches(ms, before_extension, after_extension):
     spike_nums_dur = ms.spike_struct.spike_nums_dur
     spike_nums = ms.spike_struct.spike_nums
     n_cells_with_spikes = len(np.where(np.sum(spike_nums, axis=1) >= 1)[0])
@@ -44,7 +45,7 @@ def sce_twitches(ms, before_extension=0, after_extension=15):
     for frame in true_frames:
         first_frame = max(0, frame - extension_frames_before)
         last_frame = min(n_frames - 1, frame + extension_frames_after)
-        shift_bool_tmp[first_frame:last_frame + 1] = True
+        shift_bool_tmp[first_frame:last_frame] = True
     sce_times_bool[shift_bool_tmp] = True
     SCE_times = get_continous_time_periods(sce_times_bool.astype("int8"))
     sce_times_numbers = np.ones(len(sce_times_bool), dtype="int16")
@@ -52,7 +53,7 @@ def sce_twitches(ms, before_extension=0, after_extension=15):
     cells_in_twitches = np.zeros((n_cells, len(SCE_times)), dtype="int16")
     for index, period in enumerate(SCE_times):
         sce_times_numbers[period[0]:period[1] + 1] = index
-        cells_in_twitches[:, index] = np.sum(spike_nums_dur[:, period[0]:period[1] + 1], axis=1)
+        cells_in_twitches[:, index] = np.sum(spike_nums_dur[:, period[0]:period[1]+1], axis=1)
         cells_in_twitches[cells_in_twitches[:, index] > 0, index] = 1
 
     return cells_in_twitches, n_cells_with_spikes, SCE_times
@@ -223,9 +224,12 @@ def plot_twitches_delay_stat(distrib_similarity, twitches_times, ms):
         plt.close()
 
 
-def twitch_analysis(ms, n_surrogates, option="intersect"):
+def twitch_analysis(ms, n_surrogates, before_extension, after_extension, option="intersect"):
     param = ms.param
-    cells_in_twitches, n_cells_with_spikes, twitches_times = sce_twitches(ms=ms, before_extension=0, after_extension=20)
+    spike_nums_dur = ms.spike_struct.spike_nums_dur
+    [n_cells, n_frames] = spike_nums_dur.shape
+    cells_in_twitches, n_cells_with_spikes, twitches_times = sce_twitches(ms=ms, before_extension=before_extension,
+                                                                          after_extension=after_extension)
     n_cells_with_spikes_in_twitche = len(np.where(np.sum(cells_in_twitches, axis=1) >= 1)[0])
     # for cell in np.where(np.sum(cells_in_twitches, axis=1) == 0)[0]:
     #     print(f"{cell} = {np.sum(ms.spike_struct.spike_nums[cell, :])}")
@@ -356,6 +360,48 @@ def twitch_analysis(ms, n_surrogates, option="intersect"):
         rnd_distrib = rnd_var_matrix[np.where(rnd_var_matrix > -1)]
         rnd_distrib_list.append(rnd_distrib)
 
+    window_length = abs(after_extension - before_extension)
+    print(f"{window_length}")
+    cells_in_window = np.zeros((n_cells, (n_frames - window_length)))
+    for frame in np.arange(n_frames - window_length):
+        cells_in_window[:, frame] = np.max(spike_nums_dur[:, frame:frame + window_length], axis=1)
+
+    prop_common_cells = np.zeros((n_twitches, n_frames))
+    for twitch in np.arange(n_twitches):
+        sum_cells_twitches = np.sum(cells_in_twitches[:, twitch])
+        for window in np.arange(n_frames - window_length):
+            common_cells = len(np.intersect1d(np.where(cells_in_twitches[:, twitch])[0], np.where(cells_in_window[:, window])[0],
+                           assume_unique=True))
+            prop_common_cells[twitch, window] = common_cells / sum_cells_twitches
+            # if prop_common_cells[twitch, window] >= 0.5:
+            #     print(f"Twitch # {twitch} has {np.round(prop_common_cells[twitch, window] * 100, 2)}% of its "
+            #           f"cell reactivated in window # {window}")
+
+    plot_spikes_raster(param=ms.param,
+                       display_spike_nums=False,
+                       traces=prop_common_cells,
+                       display_traces=True,
+                       use_brewer_colors_for_traces=True,
+                       spike_train_format=False,
+                       file_name=f"{ms.description}_twitch_similarity_trace",
+                       y_ticks_labels=np.arange(n_twitches),
+                       y_ticks_labels_size=2,
+                       save_raster=True,
+                       show_raster=False,
+                       alpha_span_area=0.3,
+                       plot_with_amplitude=False,
+                       # raster_face_color="white",
+                       hide_x_labels=True,
+                       without_activity_sum=False,
+                       show_sum_spikes_as_percentage=False,
+                       span_area_only_on_raster=False,
+                       spike_nums_for_activity_sum=ms.spike_struct.spike_nums_dur,
+                       # lines_to_display=lines_to_display,
+                       # lines_color="white",
+                       # lines_width=0.35,
+                       # lines_band=range_around_slope_in_frames,
+                       # lines_band_color="white",
+                       save_formats="pdf")
     return distrib, co_var_matrix, rnd_distrib_list, rnd_co_var_matrix_list
 #
 # twitch_analysis(n_surrogates=10)
