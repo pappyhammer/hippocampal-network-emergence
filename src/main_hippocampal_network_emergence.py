@@ -5820,8 +5820,9 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
     # Eleonora gad cre
-    # ms_str_to_load = ["p6_19_02_18_a000_ms"]
-    ms_str_to_load = ["p7_19_03_05_a000_ms"]
+    ms_str_to_load = ["p6_19_02_18_a000_ms"]
+    # ms_str_to_load = ["p7_19_03_05_a000_ms"]
+    ms_str_to_load = ["p60_20160506_gadcre01_01_ms"]
     # loading data
     # z_shifts_ms = ["p5_19_03_25_a000_ms",
     #                "p5_19_03_25_a001_ms",
@@ -5882,7 +5883,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   # "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   # "p21_19_04_10_a000_j3_ms",
     #                   "p41_19_04_30_a000_ms"]
-    # ms_str_to_load = "p6_18_02_07_a001_ms"
+    # ms_str_to_load = ["p13_18_10_29_a001_ms"]
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
@@ -5954,7 +5955,7 @@ def main():
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
 
-    load_traces = False
+    load_traces = True
     load_abf = False
 
     if for_lexi:
@@ -5977,11 +5978,11 @@ def main():
     # Add weight in legend of long mvt psth
     do_plot_psth_long_mvt = False
     just_plot_all_time_correlation_graph_over_events = False
-    just_plot_raster_with_periods = False
+    just_plot_raster_with_periods = True
     just_do_stat_significant_time_period = False
     just_plot_cells_that_fire_during_time_periods = False
     just_plot_twitch_ratio_activity = False
-    do_twitches_analysis = True
+    do_twitches_analysis = False
     just_fca_clustering_on_twitches_activity = False
     just_save_stat_about_mvt_for_each_ms = False
     just_plot_cell_assemblies_on_map = False
@@ -6003,7 +6004,7 @@ def main():
     just_do_pca_on_suite2p_spks = False
     just_use_rastermap_for_pca = False
     just_do_stat_on_pca = False
-    just_analyse_lfp = True
+    just_analyse_lfp = False
 
     just_plot_raster_with_same_sum_activity_lim = False
     just_plot_raster = False
@@ -6146,7 +6147,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 12)
+    range_n_clusters_k_mean = np.arange(2, 10)
     # range_n_clusters_k_mean = np.array([7])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
@@ -7995,7 +7996,11 @@ def main():
                     else:
                         if cells_to_keep is None:
                             cells_to_keep = np.arange(len(spike_nums_to_use))
-                        compute_and_plot_clusters_raster_kmean_version(labels=ms.spike_struct.labels[cells_to_keep],
+                        if ms.spike_struct.labels is None:
+                            labels = None
+                        else:
+                            labels = ms.spike_struct.labels[cells_to_keep]
+                        compute_and_plot_clusters_raster_kmean_version(labels=labels,
                                                                        activity_threshold=ms.spike_struct.activity_threshold,
                                                                        range_n_clusters_k_mean=range_n_clusters_k_mean,
                                                                        n_surrogate_k_mean=n_surrogate_k_mean,

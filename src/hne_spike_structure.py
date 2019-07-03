@@ -265,7 +265,7 @@ class HNESpikeStructure:
                     mask_start = -1 * (event - self.nb_frames_for_func_connect)
                 mask_end = mask_start + (max_limit - min_limit) + 1
                 mask[:, mask_start:mask_end] = spike_nums_to_use[:, min_limit:(max_limit + 1)] > 0
-                distribution_array_2_d[mask] += 1
+                distribution_array_2_d[mask] = distribution_array_2_d[mask] + 1
 
             # going neuron by neuron
             for neuron_to_consider in neurons_to_consider:
