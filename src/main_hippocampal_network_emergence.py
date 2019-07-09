@@ -1,7 +1,12 @@
-import pandas as pd
-# from scipy.io import loadmat
-from sklearn.cluster import KMeans
-import matplotlib
+max_threads = '5'
+import os
+# Configure threading
+os.environ["MKL_NUM_THREADS"] = max_threads
+os.environ["NUMEXPR_NUM_THREADS"] = max_threads
+os.environ["OMP_NUM_THREADS"] = max_threads
+
+# Importing numpy and model must be performed *after* multithreading is configured. Useful for cilva
+
 import scipy.spatial.distance as sci_sp_dist
 import matplotlib.cm as cm
 import scipy.io as sio
@@ -17,7 +22,6 @@ import hdf5storage
 from datetime import datetime
 from scipy import signal
 # import keras
-import os
 import pyabf
 from sklearn.decomposition import PCA
 # import seqnmf
@@ -5826,6 +5830,8 @@ def robin_loading_process(param, load_traces, load_abf=False):
     ms_str_to_load = ["p11_19_04_30_a001_ms"]
     # ms_str_to_load = ["p7_19_03_05_a000_ms"]
     ms_str_to_load = ["p60_20160506_gadcre01_01_ms"]
+    # to test cilva
+    ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # loading data
     # z_shifts_ms = ["p5_19_03_25_a000_ms",
     #                "p5_19_03_25_a001_ms",
@@ -5981,7 +5987,7 @@ def main():
     # Add weight in legend of long mvt psth
     do_plot_psth_long_mvt = False
     just_plot_all_time_correlation_graph_over_events = False
-    just_plot_raster_with_periods = True
+    just_plot_raster_with_periods = False
     just_do_stat_significant_time_period = False
     just_plot_cells_that_fire_during_time_periods = False
     just_plot_twitch_ratio_activity = False
@@ -6008,6 +6014,7 @@ def main():
     just_use_rastermap_for_pca = False
     just_do_stat_on_pca = False
     just_analyse_lfp = False
+    just_run_cilva = True
 
     just_plot_raster_with_same_sum_activity_lim = False
     just_plot_raster = False
@@ -6759,6 +6766,12 @@ def main():
             ms.analyse_lfp()
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_analyse_lfp")
+            continue
+
+        if just_run_cilva:
+            ms.run_cilva()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_run_cilva")
             continue
 
         if just_do_pca_on_raster:

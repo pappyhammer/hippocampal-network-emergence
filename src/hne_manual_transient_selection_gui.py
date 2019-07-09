@@ -238,7 +238,11 @@ class ChooseSessionFrame(tk.Frame):
         n_cells = len(self.data_and_param.traces)
         n_times = len(self.data_and_param.traces[0, :])
 
-        if (self.data_and_param.peak_nums is None) or (self.data_and_param.spike_nums is None):
+        keep_onsets_and_peaks_empty = False
+        if keep_onsets_and_peaks_empty:
+            self.data_and_param.peak_nums = np.zeros((n_cells, n_times), dtype="int8")
+            self.data_and_param.spike_nums = np.zeros((n_cells, n_times), dtype="int8")
+        elif (self.data_and_param.peak_nums is None) or (self.data_and_param.spike_nums is None):
             using_existing_spike_nums_dur = False
             # look if spike_nums_dur exists
             if using_existing_spike_nums_dur and (self.data_and_param.ms.spike_struct.spike_nums_dur is not None):
@@ -246,13 +250,14 @@ class ChooseSessionFrame(tk.Frame):
                 self.data_and_param.peak_nums = self.data_and_param.ms.spike_struct.peak_nums
                 self.data_and_param.spike_nums = self.data_and_param.ms.spike_struct.spike_nums
             else:
-                # then we do an automatic detection
                 self.data_and_param.peak_nums = np.zeros((n_cells, n_times), dtype="int8")
+                self.data_and_param.spike_nums = np.zeros((n_cells, n_times), dtype="int8")
+                # then we do an automatic detection
                 for cell in np.arange(n_cells):
                     peaks, properties = signal.find_peaks(x=self.data_and_param.traces[cell], distance=2)
                     # print(f"peaks {peaks}")
                     self.data_and_param.peak_nums[cell, peaks] = 1
-                self.data_and_param.spike_nums = np.zeros((n_cells, n_times), dtype="int8")
+
                 for cell in np.arange(n_cells):
                     # first_derivative = np.diff(self.data_and_param.traces[cell]) / np.diff(np.arange(n_times))
                     # onsets = np.where(np.abs(first_derivative) < 0.1)[0]
@@ -1972,6 +1977,8 @@ class ManualOnsetFrame(tk.Frame):
         # print(f"event.keysym {event.keysym}")
         if event.char in ["+"]:
             self.add_onset_switch_mode()
+        elif event.char in ["*"]:
+            self.add_peak_switch_mode()
         elif event.char in ["a", "A"]:
             self.move_zoom(to_the_left=False)
             # so the back button will come back to the curren view
