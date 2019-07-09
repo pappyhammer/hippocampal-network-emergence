@@ -5023,7 +5023,7 @@ class MouseSession:
                 print(f"{self.description} no period_selection_gui data found")
 
     def load_data_from_file(self, file_name_to_load, variables_mapping, frames_filter=None,
-                            from_gui=False):
+                            from_gui=False, from_fiji=False):
         """
 
         :param file_name_to_load:
@@ -5109,7 +5109,7 @@ class MouseSession:
             # coming from matlab
             self.coord = data[variables_mapping["coord"]][0]
             self.coord_obj = CoordClass(coord=self.coord, nb_col=self.movie_len_x,
-                                        nb_lines=self.movie_len_y)
+                                        nb_lines=self.movie_len_y, from_fiji=from_fiji)
         if "spike_durations" in variables_mapping:
             self.spike_struct.set_spike_durations(data[variables_mapping["spike_durations"]])
         elif self.spike_struct.spike_nums_dur is not None:

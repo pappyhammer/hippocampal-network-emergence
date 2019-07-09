@@ -249,7 +249,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if not p6_19_02_18_a000_ms.use_suite_2p:
             variables_mapping = {"coord": "ContoursAll"}
             p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_CellDetect.mat",
-                                                    variables_mapping=variables_mapping)
+                                                    variables_mapping=variables_mapping, from_fiji=True)
 
             p6_19_02_18_a000_ms.load_tif_movie(path="p6/p6_19_02_18_a000/")
             # p6_19_02_18_a000_ms.load_caiman_results(path_data="p6/p6_19_02_18_a000/")
