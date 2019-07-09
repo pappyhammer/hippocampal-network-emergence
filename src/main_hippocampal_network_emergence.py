@@ -4754,7 +4754,9 @@ def stats_on_graph_on_all_ms(ms_to_analyse, param, save_formats="pdf"):
     #                      param=param, save_formats=save_formats)
 
 
-def twitch_analysis_on_all_ms(ms_to_analyse, param, n_surrogates, save_formats=["png", "pdf"], option="intersect"):
+def twitch_analysis_on_all_ms(ms_to_analyse, param, n_surrogates, before_extension, after_extension,
+                              save_formats=["png", "pdf"], option="intersect"):
+
     print(f"starting twitches analysis on all selected sessions")
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     # + 11 diverting
@@ -4777,7 +4779,7 @@ def twitch_analysis_on_all_ms(ms_to_analyse, param, n_surrogates, save_formats=[
         #     results_by_age_dict[ms.description] = []
         # n_sessions_dict["p" + str(ms.age)] = set()
         # n_sessions_dict["p" + str(ms.age)].add(ms.description[:-4])
-        results = twitch_analysis(ms, n_surrogates=n_surrogates)
+        results = twitch_analysis(ms, n_surrogates=n_surrogates, before_extension=before_extension, after_extension=after_extension)
         distrib, co_var_matrix, rnd_distrib_list, rnd_co_var_matrix_list = results
         results_by_age_dict[ms.description] = distrib
         results_for_this_ms = dict()
@@ -5624,7 +5626,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = available_ms_str
     # ms_str_to_load = ms_with_run
     # # ms_str_to_load = ["p60_a529_2015_02_25_v_arnaud_ms"]
-    # ms_str_to_load = ["p7_18_02_08_a001_ms"]
+    ms_str_to_load = ["p7_18_02_08_a001_ms"]
     # ms_str_to_load = ["p10_17_11_16_a003_ms"]
     # ms_str_to_load = available_ms_str
     # ms_str_to_load = ["p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms"]
@@ -5821,6 +5823,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                            "p11_17_11_24_a000_ms"]
     # Eleonora gad cre
     ms_str_to_load = ["p6_19_02_18_a000_ms"]
+    ms_str_to_load = ["p11_19_04_30_a001_ms"]
     # ms_str_to_load = ["p7_19_03_05_a000_ms"]
     ms_str_to_load = ["p60_20160506_gadcre01_01_ms"]
     # loading data
@@ -6219,7 +6222,8 @@ def main():
         raise Exception("just_plot_twitch_ratio_activity")
 
     if do_twitches_analysis:
-        twitch_analysis_on_all_ms(ms_to_analyse, param, n_surrogates=0, option="intersect")
+        twitch_analysis_on_all_ms(ms_to_analyse, param, n_surrogates=0, option="intersect",
+                                  before_extension=0, after_extension=20)
         raise Exception("twitches analysed")
 
     if just_plot_variance_according_to_sum_of_activity:

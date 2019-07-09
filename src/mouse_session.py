@@ -251,9 +251,12 @@ class MouseSession:
         :return:
         """
         start_time = time.time()
-        if self.traces is None:
-            print(f"{self.description} no traces, no caiman loading")
-            return
+        if self.raw_traces is None:
+            self.load_tiff_movie_in_memory()
+            self.raw_traces = self.build_raw_traces_from_movie()
+            if self.raw_traces is None:
+                print(f"{self.description} no raw_traces, no caiman loading")
+                return
 
         file_names = []
 
@@ -287,6 +290,7 @@ class MouseSession:
 
         spike_nums_bin = np.zeros((caiman_spike_nums.shape[0], caiman_spike_nums.shape[1] // 2),
                                   dtype="int8")
+
         for cell in np.arange(spike_nums_bin.shape[0]):
             binned_cell = caiman_spike_nums[cell].reshape(-1, 2).mean(axis=1)
             binned_cell[binned_cell > 0] = 1
@@ -294,11 +298,11 @@ class MouseSession:
 
         self.caiman_spike_nums = spike_nums_bin
 
-        n_cells = self.traces.shape[0]
-        n_times = self.traces.shape[1]
+        n_cells = self.raw_traces.shape[0]
+        n_times = self.raw_traces.shape[1]
 
         # copying traces
-        traces = self.traces[:]
+        traces = self.raw_traces[:]
 
         # normalizing it, should be useful only to plot them
         for i in np.arange(n_cells):
@@ -4494,6 +4498,8 @@ class MouseSession:
         :param non_corrected: if True, load movie from "non_corrected" dir
         :return:
         """
+        if self.tif_movie_file_name is not None:
+            return
         file_names = []
 
         # look for filenames in the fisrst directory, if we don't break, it will go through all directories
