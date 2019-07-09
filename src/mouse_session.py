@@ -251,8 +251,12 @@ class MouseSession:
         :return:
         """
         start_time = time.time()
-        if self.traces is None:
-            return
+        if self.raw_traces is None:
+            self.load_tiff_movie_in_memory()
+            self.raw_traces = self.build_raw_traces_from_movie()
+            if self.raw_traces is None:
+                print(f"{self.description} no raw_traces, no caiman loading")
+                return
 
         file_names = []
 
@@ -277,12 +281,16 @@ class MouseSession:
 
         if caiman_file_name is None:
             return
-
         data_file = hdf5storage.loadmat(caiman_file_name)
-        caiman_spike_nums = data_file["spikenums"].astype(int)
+        print(f'load_caiman_results: {list(data_file.keys())}')
+        if "spikenums" in data_file:
+            caiman_spike_nums = data_file["spikenums"].astype(int)
+        else:
+            caiman_spike_nums = data_file["spikenumsPyr"].astype(int)
 
         spike_nums_bin = np.zeros((caiman_spike_nums.shape[0], caiman_spike_nums.shape[1] // 2),
                                   dtype="int8")
+
         for cell in np.arange(spike_nums_bin.shape[0]):
             binned_cell = caiman_spike_nums[cell].reshape(-1, 2).mean(axis=1)
             binned_cell[binned_cell > 0] = 1
@@ -290,11 +298,11 @@ class MouseSession:
 
         self.caiman_spike_nums = spike_nums_bin
 
-        n_cells = self.traces.shape[0]
-        n_times = self.traces.shape[1]
+        n_cells = self.raw_traces.shape[0]
+        n_times = self.raw_traces.shape[1]
 
         # copying traces
-        traces = self.traces[:]
+        traces = self.raw_traces[:]
 
         # normalizing it, should be useful only to plot them
         for i in np.arange(n_cells):
@@ -3121,16 +3129,47 @@ class MouseSession:
 
         # span_area_coords = None
         # span_area_colors = None
-        colors = ["red", "green", "blue", "pink", "orange"]
-        i = 0
-        span_area_coords = []
-        span_area_colors = []
-        if with_periods and (periods_dict is not None):
-            for name_period, period in periods_dict.items():
-                span_area_coords.append(get_continous_time_periods(period.astype("int8")))
-                span_area_colors.append(colors[i % len(colors)])
-                print(f"Period {name_period} -> {colors[i]}")
-                i += 1
+        if self.speed_by_frame is not None:
+            binary_speed = np.zeros(len(self.speed_by_frame), dtype="int8")
+            binary_speed[self.speed_by_frame > 0] = 1
+            speed_periods = get_continous_time_periods(binary_speed)
+
+        # colors for movement periods
+        span_area_coords = None
+        span_area_colors = None
+        with_mvt_periods = True
+
+        if with_mvt_periods:
+            colors = ["red", "green", "blue", "pink", "orange"]
+            i = 0
+            span_area_coords = []
+            span_area_colors = []
+
+            if self.speed_by_frame is not None:
+                span_area_coords = []
+                span_area_colors = []
+                span_area_coords.append(speed_periods)
+                span_area_colors.append("cornflowerblue")
+            elif with_periods and periods_dict is not None:
+                print(f"{self.description}:")
+                for name_period, period in periods_dict.items():
+                    span_area_coords.append(get_continous_time_periods(period.astype("int8")))
+                    span_area_colors.append(colors[i % len(colors)])
+                    print(f"  Period {name_period} -> {colors[i]}")
+                    i += 1
+            else:
+                print(f"no mvt info for {ms.description}")
+
+        # colors = ["red", "green", "blue", "pink", "orange"]
+        # i = 0
+        # span_area_coords = []
+        # span_area_colors = []
+        # if with_periods and (periods_dict is not None):
+        #     for name_period, period in periods_dict.items():
+        #         span_area_coords.append(get_continous_time_periods(period.astype("int8")))
+        #         span_area_colors.append(colors[i % len(colors)])
+        #         print(f"Period {name_period} -> {colors[i]}")
+        #         i += 1
 
         if len(spike_nums_dur) < 200:
             spike_shape_size = 0.3
@@ -4459,6 +4498,8 @@ class MouseSession:
         :param non_corrected: if True, load movie from "non_corrected" dir
         :return:
         """
+        if self.tif_movie_file_name is not None:
+            return
         file_names = []
 
         # look for filenames in the fisrst directory, if we don't break, it will go through all directories
@@ -5005,6 +5046,7 @@ class MouseSession:
         except (FileNotFoundError, OSError) as e:
             print(f"File not found: {file_name_to_load}")
             return
+        # print(f'load_data_from_file: {list(data.keys())}')
         if "shift_periods_bool" in variables_mapping:
             if matlab_format is False:
                 self.shift_periods_bool = data[variables_mapping["shift_periods_bool"]]

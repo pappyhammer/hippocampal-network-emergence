@@ -244,30 +244,19 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                            weight=None)
         p6_19_02_18_a000_ms.use_suite_2p = False
         # calculated with 99th percentile on raster dur
-        # p6_18_02_07_a002_ms.activity_threshold =
+        # p6_19_02_18_a000_ms.activity_threshold = 2
 
         if not p6_19_02_18_a000_ms.use_suite_2p:
-            # variables_mapping = {"spike_nums": "spikenums"}
-            # p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load=
-            #                                         "p6/p6_19_02_18_a000/p6_19_02_18_a000_MCMC.mat",
-            #                                         variables_mapping=variables_mapping)
-            if load_traces:
-                variables_mapping = {"traces": "C_df"}
-                p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_Traces.mat",
-                                                        variables_mapping=variables_mapping)
-                variables_mapping = {"raw_traces": "Tracecells"}
-                p6_19_02_18_a000_ms.load_data_from_file(
-                    file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_Traces.mat",
-                    variables_mapping=variables_mapping)
-
-            p6_19_02_18_a000_ms.load_caiman_results(path_data="p6/p6_19_02_18_a000/")
-            p6_19_02_18_a000_ms.spike_struct.spike_nums = p6_19_02_18_a000_ms.caiman_spike_nums
-            p6_19_02_18_a000_ms.spike_struct.spike_nums_dur = p6_19_02_18_a000_ms.caiman_spike_nums_dur
-            p6_19_02_18_a000_ms.spike_struct.n_cells = len(p6_19_02_18_a000_ms.caiman_spike_nums_dur)
-
             variables_mapping = {"coord": "ContoursAll"}
             p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_CellDetect.mat",
                                                     variables_mapping=variables_mapping)
+
+            p6_19_02_18_a000_ms.load_tif_movie(path="p6/p6_19_02_18_a000/")
+            # p6_19_02_18_a000_ms.load_caiman_results(path_data="p6/p6_19_02_18_a000/")
+            # p6_19_02_18_a000_ms.spike_struct.spike_nums = p6_19_02_18_a000_ms.caiman_spike_nums
+            # p6_19_02_18_a000_ms.spike_struct.spike_nums_dur = p6_19_02_18_a000_ms.caiman_spike_nums_dur
+            # p6_19_02_18_a000_ms.spike_struct.n_cells = len(p6_19_02_18_a000_ms.caiman_spike_nums_dur)
+            # p6_19_02_18_a000_ms.spike_struct.labels = np.arange(p6_19_02_18_a000_ms.spike_struct.n_cells)
 
         ms_str_to_ms_dict["p6_19_02_18_a000_ms"] = p6_19_02_18_a000_ms
 
@@ -1158,6 +1147,22 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["p11_19_02_22_a000_ms"] = p11_19_02_22_a000_ms
 
+    # GAD-Cre Eleonora
+    if "p11_19_04_30_a001_ms" in ms_str_to_load:
+        p11_19_04_30_a001_ms = MouseSession(age=11, session_id="19_04_30_a001",
+                                            sampling_rate=8, param=param)
+
+        p11_19_04_30_a001_ms.use_suite_2p = False
+
+        if not p11_19_04_30_a001_ms.use_suite_2p:
+            variables_mapping = {"coord": "ContoursAll"}
+            p11_19_04_30_a001_ms.load_data_from_file(
+                file_name_to_load="p11/p11_19_04_30_a001/p11_19_04_30_a001_CellDetect.mat",
+                variables_mapping=variables_mapping)
+            p11_19_04_30_a001_ms.load_tif_movie(path="p11/p11_19_04_30_a001/")
+            # p11_19_04_30_a001_ms.load_caiman_results(path_data="p11/p11_19_04_30_a001/")
+        ms_str_to_ms_dict["p11_19_04_30_a001_ms"] = p11_19_04_30_a001_ms
+
     if "p12_171110_a000_ms" in ms_str_to_load:
         p12_171110_a000_ms = MouseSession(age=12, session_id="17_11_10_a000",
                                           sampling_rate=10, param=param,
@@ -1588,7 +1593,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["p60_arnaud_ms"] = p60_arnaud_ms
 
     if "p60_a529_2015_02_25_ms" in ms_str_to_load:
-        p60_a529_2015_02_25_ms = MouseSession(age=60, session_id="a529_2015_02_25", sampling_rate=10, param=param)
+        p60_a529_2015_02_25_ms = MouseSession(age=60, session_id="a529_2015_02_25",
+                                              sampling_rate=10, param=param)
         p60_a529_2015_02_25_ms.activity_threshold = 10
         p60_a529_2015_02_25_ms.set_inter_neurons([])
         # duration of those interneurons:
@@ -1624,6 +1630,35 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                             variables_mapping=variables_mapping)
 
         ms_str_to_ms_dict["p60_a529_2015_02_25_v_arnaud_ms"] = p60_a529_2015_02_25_v_arnaud_ms
+
+    # marco's mice
+    if "p60_20160506_gadcre01_01_ms" in ms_str_to_load:
+        p60_20160506_gadcre01_01_ms = MouseSession(age=60, session_id="20160506_gadcre01_01",
+                                              sampling_rate=10, param=param)
+        p60_20160506_gadcre01_01_ms.use_suite_2p = False
+
+        if not p60_20160506_gadcre01_01_ms.use_suite_2p:
+            if load_traces:
+                variables_mapping = {"traces": "TracePyrdf"}
+                p60_20160506_gadcre01_01_ms.load_data_from_file(
+                    file_name_to_load="p60/p60_20160506_gadcre01_01/p60_20160506_gadcre01_01_Traces.mat",
+                    variables_mapping=variables_mapping)
+                variables_mapping = {"raw_traces": "TracePyr"}
+                p60_20160506_gadcre01_01_ms.load_data_from_file(
+                    file_name_to_load="p60/p60_20160506_gadcre01_01/p60_20160506_gadcre01_01_Traces.mat",
+                    variables_mapping=variables_mapping)
+
+            p60_20160506_gadcre01_01_ms.load_caiman_results(path_data="p60/p60_20160506_gadcre01_01/")
+            p60_20160506_gadcre01_01_ms.spike_struct.spike_nums = p60_20160506_gadcre01_01_ms.caiman_spike_nums
+            p60_20160506_gadcre01_01_ms.spike_struct.spike_nums_dur = p60_20160506_gadcre01_01_ms.caiman_spike_nums_dur
+            p60_20160506_gadcre01_01_ms.spike_struct.n_cells = len(p60_20160506_gadcre01_01_ms.caiman_spike_nums_dur)
+            p60_20160506_gadcre01_01_ms.spike_struct.labels = np.arange(p60_20160506_gadcre01_01_ms.spike_struct.n_cells)
+
+            variables_mapping = {"coord": "ContoursPyr"}
+            p60_20160506_gadcre01_01_ms.load_data_from_file(
+                file_name_to_load="p60/p60_20160506_gadcre01_01/p60_20160506_gadcre01_01_CellDetect.mat",
+                variables_mapping=variables_mapping)
+        ms_str_to_ms_dict["p60_20160506_gadcre01_01_ms"] = p60_20160506_gadcre01_01_ms
 
     if "richard_015_D74_P2_ms" in ms_str_to_load:
         # from 46517 to the end : all awake, no sleep, but no information about moving or not.
