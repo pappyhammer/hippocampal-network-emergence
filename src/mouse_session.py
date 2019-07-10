@@ -11,6 +11,7 @@ import os
 import pyabf
 import matplotlib.image as mpimg
 import networkx as nx
+import seaborn as sns
 from pattern_discovery.graph.misc import welsh_powell
 # to add homemade package, go to preferences, then project interpreter, then click on the wheel symbol
 # then show all, then select the interpreter and lick on the more right icon to display a list of folder and
@@ -22,6 +23,7 @@ from pattern_discovery.display.raster import plot_spikes_raster, plot_with_imsho
 from pattern_discovery.display.misc import time_correlation_graph, plot_hist_distribution, plot_scatters
 from pattern_discovery.display.cells_map_module import CoordClass
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import CellAssembliesStruct
+import pattern_discovery.cilva.analysis as cilva_analysis, cilva_core
 from sortedcontainers import SortedDict
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
@@ -40,6 +42,7 @@ import itertools
 from pattern_discovery.tools.lfp_analysis_tools import WaveletParameters, spectral_analysis_on_time_segment, \
     butter_bandpass_filter, plot_wavelet_heatmap
 import scipy.signal
+
 
 class MouseSession:
     def __init__(self, age, session_id, param, sampling_rate=10, weight=None, spike_nums=None, spike_nums_dur=None,
@@ -1350,7 +1353,6 @@ class MouseSession:
         return n_mvts, time_x_values, np.array(mean_values), \
                np.array(median_values), np.array(low_values), np.array(high_values), np.array(std_values)
 
-
     def get_spikes_values_around_twitches(self, sce_bool=None, time_around=100,
                                           twitches_group=0, low_percentile=25, high_percentile=75):
         if self.spike_struct.spike_nums_dur is None:
@@ -1458,9 +1460,8 @@ class MouseSession:
         return n_twitches, time_x_values, np.array(mean_values), \
                np.array(median_values), np.array(low_values), np.array(high_values), np.array(std_values)
 
-
     def plot_psth_long_mvt(self, time_around=100, line_mode=False, ax_to_use=None, put_mean_line_on_plt=False,
-                                  color_to_use=None, duration_option=False, save_formats="pdf"):
+                           color_to_use=None, duration_option=False, save_formats="pdf"):
         """
 
         :param line_mode:
@@ -1483,7 +1484,7 @@ class MouseSession:
         #                                                         twitches_group=twitches_group)
         # else:
         results = \
-                self.get_spikes_values_around_long_mvt(time_around=time_around)
+            self.get_spikes_values_around_long_mvt(time_around=time_around)
 
         if results is None:
             return
@@ -1531,8 +1532,8 @@ class MouseSession:
                             plt.plot(time_x_values,
                                      ms_mean_values, color=color, lw=2)
                         ax1.fill_between(time_x_values, ms_mean_values - ms_std_values,
-                                             ms_mean_values + ms_std_values,
-                                             alpha=0.5, facecolor=color)
+                                         ms_mean_values + ms_std_values,
+                                         alpha=0.5, facecolor=color)
                         max_value = np.max((max_value, np.max(ms_mean_values + ms_std_values)))
                     else:
                         ax1.plot(time_x_values,
@@ -2362,6 +2363,286 @@ class MouseSession:
             plt.show()
         plt.close()
 
+    def load_and_analyse_cilva_results(self, f, s, path_cilva_data):
+        file_names = []
+
+        # look for filenames in the first directory, if we don't break, it will go through all directories
+        for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_cilva_data):
+            file_names.extend(local_filenames)
+            break
+
+        cilva_file_name = None
+        for file_name in file_names:
+            if "cilva" not in file_name:
+                continue
+            if self.descrption.lower() not in file_name.lower():
+                continue
+            cilva_file_name = file_name
+            break
+
+        if cilva_file_name is None:
+            return False
+
+        #### Load and compare model fits
+        alpha, beta, w, b, x, sigma, tau_r, tau_d, gamma, L = cilva_analysis.load_fit(
+            os.path.join(self.param.path_data, path_cilva_data, cilva_file_name),
+            'train')
+
+        N, T = f.shape
+
+        kernel = cilva_core.calcium_kernel(tau_r, tau_d, T)
+        f_hat = cilva_analysis.reconstruction(alpha, beta, w, b, x, kernel, s)
+        corr_coefs = np.array([np.corrcoef(f[n], f_hat[n])[0, 1] for n in range(N)])
+        inds = np.argsort(corr_coefs)[::-1]
+
+        for cell in range(10):
+            fig, ax = plt.subplots(nrows=1, ncols=1,
+                                   gridspec_kw={'height_ratios': [1]},
+                                   figsize=(15, 0.75))
+            ax.plot(f[inds[cell]], color='k', linewidth=1)
+            ax.plot(f_hat[inds[cell]], color='g', linewidth=2)
+            plt.axis('off')
+            ax.xlim([0, T])
+            save_formats = "pdf"
+            if isinstance(save_formats, str):
+                save_formats = [save_formats]
+
+            for save_format in save_formats:
+                fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_fit_cell_{cell}'
+                            f'_{self.param.time_str}.{save_format}',
+                            format=f"{save_format}",
+                            facecolor=fig.get_facecolor())
+
+        ##### Correlation coefficient vs count
+        fig, ax = plt.subplots(nrows=1, ncols=1,
+                               gridspec_kw={'height_ratios': [1]},
+                               figsize=(2, 2))
+        ax.hist(corr_coefs, color='firebrick')
+        ax.xlim([-0.15, 1])
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        plt.xlabel('Correlation coefficient')
+        plt.ylabel('Count')
+        save_formats = "pdf"
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+
+        for save_format in save_formats:
+            fig.savefig(f'{self.param.path_results}/{self.description}_cilva_corr_coeff_vs_count'
+                        f'_{self.param.time_str}.{save_format}',
+                        format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
+
+        ##### Decouple evoked and (low dimensional) spontaneous components
+        f_evoked, f_spont = cilva_analysis.decouple_traces(alpha, beta, w, b, x, kernel, s)
+
+        for cell in range(10):
+            fig, ax = plt.subplots(nrows=1, ncols=1,
+                                   gridspec_kw={'height_ratios': [1]},
+                                   figsize=(15, 0.75))
+            ax.plot(f[inds[cell]], color='k', linewidth=1)
+            ax.plot(f_evoked[inds[cell]], color='firebrick', linewidth=2)
+            ax.plot(f_spont[inds[cell]], color='C0', linewidth=2)
+            plt.axis('off')
+            ax.xlim([0, T])
+            save_formats = "pdf"
+            if isinstance(save_formats, str):
+                save_formats = [save_formats]
+
+            for save_format in save_formats:
+                fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_EA_vs_SA_cell_{cell}'
+                            f'_{self.param.time_str}.{save_format}',
+                            format=f"{save_format}",
+                            facecolor=fig.get_facecolor())
+
+        ##### Tuning curves
+
+        kmax = np.max(kernel)
+        tuning_curves = (kmax * alpha[:, None] * w)[:, 2:]  # First two stimuli not presented
+
+        fig, axes = plt.subplots(figsize=(4, 4), sharex=True, sharey=False, ncols=4, nrows=4)
+        for n in range(16):
+            plt.subplot(4, 4, n + 1)
+            plt.plot(tuning_curves[n, :], color='firebrick', linewidth=2)
+            plt.gca().set_xticklabels([])
+            plt.gca().set_yticklabels([])
+            plt.xticks([])
+            plt.yticks([])
+        fig.text(0.5, 0.04, 'Stimulus', ha='center')
+        fig.text(0.04, 0.5, 'Response', va='center', rotation='vertical')
+        save_formats = "pdf"
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+
+        for save_format in save_formats:
+            fig.savefig(f'{self.param.path_results}/{self.description}_cilva_tuning_curves'
+                        f'_{self.param.time_str}.{save_format}',
+                        format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
+
+        '''
+
+            Factor loading matrix
+
+        '''
+
+        # Sort neurons to maximise visual modularity
+        b_order = []
+        ams = np.argmax(b, 1)
+        L = L.astype(int)
+        for l in range(L):
+            nrns = np.where(ams == l)[0]
+            b_order.append(nrns[np.argsort(b[nrns, l])[::-1]])
+        b_order = np.concatenate(b_order)
+        b = b[b_order, :]
+
+        fig, ax = plt.subplots(nrows=1, ncols=1,
+                               gridspec_kw={'height_ratios': [1]},
+                               figsize=(2, 2))
+        plt.imshow(b, aspect='auto')
+        plt.colorbar()
+        plt.xticks(range(L))
+        plt.gca().set_xticklabels(range(1, L + 1))
+        plt.xlabel('Factors')
+        plt.ylabel('Neurons')
+        save_formats = "pdf"
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+
+        for save_format in save_formats:
+            fig.savefig(f'{self.param.path_results}/{self.description}_cilva_tuning_curves'
+                        f'_{self.param.time_str}.{save_format}',
+                        format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
+
+        '''
+
+            Decomposition of variance
+
+        '''
+
+        var_total = np.var(f_hat, 1)
+        var_evoked = np.var(f_evoked, 1)
+        var_spont = np.var(f_spont, 1)
+        var_cov = (var_total - var_spont - var_evoked) / 2
+        var_f = np.var(f, 1) - sigma ** 2  # Correction for imaging noise variance
+
+        fig, ax = plt.subplots(nrows=1, ncols=1,
+                               gridspec_kw={'height_ratios': [1]},
+                               figsize=(15, 2))
+        plt.plot([], [], color='firebrick', linewidth=5)
+        plt.plot([], [], color='C0', linewidth=5)
+        plt.plot([], [], color='C1', linewidth=5)
+
+        plt.legend(['Evoked variance', 'Spontaneous variance', 'Covariance'], frameon=False, ncol=3, loc=(0.25, 0.9))
+
+        sns.barplot(np.arange(N), var_evoked / var_f, color='firebrick', linewidth=0)
+        sns.barplot(np.arange(N), var_spont / var_f, bottom=var_evoked / var_f, linewidth=0, color='C0')
+        sns.barplot(np.arange(N), np.abs(var_cov) / var_f, bottom=(var_evoked + var_spont) / var_f, linewidth=0,
+                    color='C1')
+
+        plt.xlabel('Neuron')
+        plt.ylabel('Proportion\nvariance')
+        plt.xticks(np.arange(0, N, 10))
+        plt.gca().set_xticklabels(np.arange(0, N, 10))
+        plt.xlim([-1, N])
+        plt.ylim([0, 1])
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        save_formats = "pdf"
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+
+        for save_format in save_formats:
+            fig.savefig(f'{self.param.path_results}/{self.description}_cilva_tuning_curves'
+                        f'_{self.param.time_str}.{save_format}',
+                        format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
+
+    def run_cilva(self, path_cilva_data="cilva_data"):
+        """
+        Run cilva analysis https://github.com/GoodhillLab/CILVA
+        :return:
+        """
+
+        if self.shift_data_dict is None:
+            print("run_cilva no twitches informations")
+            return
+        if self.raw_traces is None:
+            print("run_cilva no raw_traces")
+            return
+
+        z_score_raw_traces = np.zeros(self.raw_traces.shape)
+        # z_score traces
+        for i in np.arange(self.raw_traces.shape[0]):
+            z_score_raw_traces[i, :] = (self.raw_traces[i, :] - np.mean(self.raw_traces[i, :])) \
+                                       / np.std(self.raw_traces[i, :])
+
+        twitches_frames_periods = get_continous_time_periods(self.shift_data_dict["shift_twitch"].astype("int8"))
+        twitches_onsets = []
+        for period in twitches_frames_periods:
+            twitches_onsets.append(period[0])
+        twitches_onsets = np.array(twitches_onsets)
+        # need to be 2-dimensions
+        twitches_onsets = np.reshape(twitches_onsets, (twitches_onsets.shape[0], 1))
+
+        # look if cilva has been run before
+        # return True is it's the case and the analysis went trough
+        cilva_loaded = self.load_and_analyse_cilva_results(path_cilva_data=path_cilva_data, f=z_score_raw_traces,
+                                                           s=twitches_onsets)
+        if cilva_loaded:
+            return
+
+        imrate = self.sampling_rate
+        # from cilva.run.py
+        # Default parameter values
+        L = 3
+        # used to be 40 and 40
+        num_iters = 10
+        iters_per_altern = 10
+        gamma = 1.00
+        # Note: default rise and decay time constants are appropriate for our GCaMP6s zebrafish larvae.
+        # They may not be suitable for other indicators or animal models.
+        # default_tau_r = 5.681 / imrate
+        # default_tau_d = 11.551 / imrate
+        tau_r = 6.5 / imrate
+        tau_d = 13.25 / imrate
+
+
+        # Importing numpy and model must be performed *after* multithreading is configured.
+        import pattern_discovery.cilva.model as cilva_model
+
+        # Train model
+        print('Fitting the Calcium Imaging Latent Variable Analysis model...')
+        learned_params = cilva_model.train(z_score_raw_traces, twitches_onsets, convert_stim,
+                                           L, num_iters, iters_per_altern, gamma, tau_r,
+                                           tau_d, imrate)
+        learned_params += [[tau_r], [tau_d], [gamma], [L]]
+        param_names = ['alpha', 'beta', 'w', 'b', 'x', 'sigma', 'tau_r', 'tau_d', 'gamma', 'L']
+
+        # Save learned params to file
+        print('Saving parameters to file...')
+        path = os.path.join(self.param.path_results, f'cilva_{self.description}_' +
+                            '_L_{}_num_iters_{}_iters_per_altern_{}_gamma_{:.2f}_tau_r_{:.2f}_tau_d_{:.2f}_imrate_{:.4f}/'.format(
+                                L, num_iters, iters_per_altern, gamma, tau_r, tau_d, imrate))
+        if not os.path.isdir(path):
+            os.mkdir(path)
+        for i, param_name in enumerate(param_names):
+            np.savetxt(path + param_name, learned_params[i], fmt='%1.6e')
+
+        # Estimate factor activity on held-out test data
+        # if args.test:
+        #     cvd_param_names = ['alpha', 'beta', 'w', 'b', 'sigma']
+        #     cvd_params = []
+        #     for param_name in cvd_param_names:
+        #         # Collect parameters from learned_params
+        #         cvd_params += [learned_params[param_names.index(param_name)]]
+        #
+        #     x_test = model.cvd(args.test, L, convert_stim, cvd_params, num_iters * iters_per_altern, gamma, tau_r,
+        #                        tau_d)
+        #     np.savetxt(path + 'x_test', x_test, fmt='%1.6e')
+        print('Model-fitting complete.')
+
     def analyse_lfp(self):
         wp = self.create_wavelet_param()
         print(f"analyse_lfp on {self.description}")
@@ -2422,7 +2703,7 @@ class MouseSession:
             fig.patch.set_facecolor(background_color)
             axes = axes.flatten()
             beg_time_raster = int((beg_time / lfp_sampling_rate) * self.sampling_rate)
-            end_time_raster = int(((beg_time+window_len_in_times) / lfp_sampling_rate) * self.sampling_rate)
+            end_time_raster = int(((beg_time + window_len_in_times) / lfp_sampling_rate) * self.sampling_rate)
             print(f"beg_time_raster-end_time_raster {beg_time_raster} - {end_time_raster}")
 
             spikes_array = np.array(wav_outcome.spikes).astype(float)
@@ -2442,7 +2723,8 @@ class MouseSession:
                     elif (speed_period[0] in frames_to_display) and (speed_period[1] in frames_to_display):
                         speed_periods.append((speed_period[0] - beg_time_raster, speed_period[1] - beg_time_raster))
                     elif speed_period[0] in frames_to_display:
-                        speed_periods.append((speed_period[0] - beg_time_raster, frames_to_display[-1] - beg_time_raster))
+                        speed_periods.append(
+                            (speed_period[0] - beg_time_raster, frames_to_display[-1] - beg_time_raster))
                     else:
                         speed_periods.append((0, speed_period[1] - beg_time_raster))
 
@@ -2469,7 +2751,8 @@ class MouseSession:
                             elif (mvt_period[0] in frames_to_display) and (mvt_period[1] in frames_to_display):
                                 mvt_periods.append((mvt_period[0] - beg_time_raster, mvt_period[1] - beg_time_raster))
                             elif mvt_period[0] in frames_to_display:
-                                mvt_periods.append((mvt_period[0] - beg_time_raster, frames_to_display[-1] - beg_time_raster))
+                                mvt_periods.append(
+                                    (mvt_period[0] - beg_time_raster, frames_to_display[-1] - beg_time_raster))
                             else:
                                 mvt_periods.append((0, mvt_period[1] - beg_time_raster))
                         span_area_coords.append(mvt_periods)
@@ -2486,7 +2769,7 @@ class MouseSession:
                     print(f"no mvt info for {self.description}")
 
             x_ticks_labels = [x for x in frames_to_display if x % 50 == 0]
-            x_ticks = [x*50 for x in np.arange(len(x_ticks_labels))]
+            x_ticks = [x * 50 for x in np.arange(len(x_ticks_labels))]
             x_ticks_labels_size = 10
             plot_spikes_raster(spike_nums=raster_dur[:, frames_to_display],
                                param=self.param,
@@ -2540,7 +2823,6 @@ class MouseSession:
                             facecolor=fig.get_facecolor())
         np.save(f"p{self.age}/{self.description.lower()}/{self.description}_sharp_frames.npy", np.array(spikes_frames),
                 allow_pickle=True)
-
 
     def create_wavelet_param(self):
         """
@@ -2614,10 +2896,10 @@ class MouseSession:
             low_freq_spike_detector = 3
             high_freq_spike_detector = 25
         else:
-            spike_percentage = 0.90 # 0.75
+            spike_percentage = 0.90  # 0.75
             # by how should be multiplied the threshold used to display wavelet or identify freq_band in order to identify
             # spike
-            spike_threshold_ratio = 2.5 # 1.05
+            spike_threshold_ratio = 2.5  # 1.05
             low_freq_spike_detector = 5
             high_freq_spike_detector = 50
         # in sec
@@ -2660,7 +2942,6 @@ class MouseSession:
     def pca_on_suite2p_spks(self):
         if self.suite2p_data is None:
             return
-
 
         print(f"starting pca_on_suite2p_spks")
         n_components = 10
@@ -2731,11 +3012,11 @@ class MouseSession:
                              reverse_order=False,
                              speed_array=None,
                              path_results=self.param.path_results,
-                             file_name=f"{self.description}_spks_suite2p_pc_{component+1}",
+                             file_name=f"{self.description}_spks_suite2p_pc_{component + 1}",
                              save_formats="pdf"
                              )
 
-            file_name = f'{self.param.path_results}/{self.description}_spks_suite2p_pc_{component+1}.npy'
+            file_name = f'{self.param.path_results}/{self.description}_spks_suite2p_pc_{component + 1}.npy'
 
             with open(file_name, "w", encoding='UTF-8') as file:
                 for cell in indices_sorted:
@@ -3589,9 +3870,9 @@ class MouseSession:
             #       f"{cm.nipy_spectral(float(i + 1) / (n_assemblies + 1))}")
             color = cm.nipy_spectral(float(i + 1) / (n_assemblies + 1))
             if i == 0:
-                color = (100/255, 215/255, 247/255, 1) # #64D7F7"
+                color = (100 / 255, 215 / 255, 247 / 255, 1)  # #64D7F7"
             else:
-                color = (213/255, 38/255, 215/255, 1) # #D526D7
+                color = (213 / 255, 38 / 255, 215 / 255, 1)  # #D526D7
             cells_groups_colors.append(color)
         # print(f"cells_groups_colors {cells_groups_colors}")
         # self.coord_obj.compute_center_coord(cells_groups=self.cell_assemblies,
@@ -3658,7 +3939,7 @@ class MouseSession:
                                    param=self.param, neurons_labels=np.arange(n_cells),
                                    sliding_window_duration=1,
                                    n_surrogate_k_mean=None, SCE_times=self.SCE_times)
-        cas.activity_threshold=self.activity_threshold
+        cas.activity_threshold = self.activity_threshold
         # novel order to display cells organized by cell assembly cluster, last cells being the one without cell assembly
         cells_in_ca_indices = np.array(list(itertools.chain.from_iterable(self.cell_assemblies)))
         cas.cells_indices = cells_in_ca_indices
@@ -3693,8 +3974,6 @@ class MouseSession:
                                  sce_times_bool=self.sce_bool,
                                  display_only_cell_assemblies_on_raster=False,
                                  save_formats=["pdf", "png"])
-
-
 
     def load_abf_file(self, path_abf_data=None, abf_file_name=None, threshold_piezo=None,
                       frames_channel=0, piezo_channel=None, run_channel=None, lfp_channel=None, threshold_ratio=2,
@@ -3971,7 +4250,6 @@ class MouseSession:
                 # contains the index at which each frame from the movie is matching the abf signal
                 # length should be 12500
                 active_frames = np.where(np.diff(binary_frames_data) == 1)[0] + 1
-
 
             abf.setSweep(sweepNumber=0, channel=run_channel)
             run_data = abf.sweepY
@@ -4461,13 +4739,13 @@ class MouseSession:
             if ("Comp" in file_name) and (file_name.endswith(".mat")):
                 index_comp = file_name.index("Comp")
                 index_mat = file_name.index(".mat")
-                pc_number = int(file_name[index_comp+4:index_mat])
+                pc_number = int(file_name[index_comp + 4:index_mat])
             else:
                 continue
             if ("DC" in file_name) and (self.description.lower() in file_name.lower()) \
                     and (file_name.endswith(".mat")) and ("shift" not in file_name.lower()):
                 dc_var = hdf5storage.loadmat(os.path.join(self.param.path_data,
-                                                        path, file_name))
+                                                          path, file_name))
                 dc_dict[pc_number] = dc_var["DC"][0]
 
             if ("dcshift" in file_name.lower()) and (self.description.lower() in file_name.lower()) \
@@ -4485,7 +4763,7 @@ class MouseSession:
             return
         for pc_number, dc_array in dc_dict.items():
             # -1 because it's coming from matlab
-            cells_order = dc_array[x_del_dict[pc_number]-1]-1
+            cells_order = dc_array[x_del_dict[pc_number] - 1] - 1
             if self.pca_seq_cells_order is None:
                 self.pca_seq_cells_order = dict()
             self.pca_seq_cells_order[pc_number] = cells_order
@@ -4564,7 +4842,8 @@ class MouseSession:
                 for file_name in file_names:
                     if (prediction_key in file_name) and ("filtered_predicted_raster_dur" in file_name):
                         self.spike_struct.spike_nums_dur = np.load(os.path.join(self.param.path_data,
-                                                                path_name, file_name), allow_pickle=True)
+                                                                                path_name, file_name),
+                                                                   allow_pickle=True)
                         print(f"{self.description}: filtered_version_loaded")
                         filtered_version_loaded = True
                         break
@@ -4595,7 +4874,6 @@ class MouseSession:
             except (FileNotFoundError, OSError) as e:
                 print(f"Load_raster_dur_from_predictions File not fount: {file_name}")
                 return
-
 
         if (self.tiff_movie is None) and use_filtered_version and (not filtered_version_loaded):
             self.load_tiff_movie_in_memory()
@@ -4757,12 +5035,12 @@ class MouseSession:
 
                         pearson_corr_co_active_cell = \
                             self.coord_obj.corr_between_source_and_transient(cell=co_active_cell,
-                                                              transient=transient_co_active_cell,
-                                                              source_profile_dict=source_profile_dict,
-                                                              tiff_movie=self.tiff_movie,
-                                                              traces=self.raw_traces,
-                                                              source_profile_corr_dict=source_profile_corr_dict,
-                                                              pixels_around=1)
+                                                                             transient=transient_co_active_cell,
+                                                                             source_profile_dict=source_profile_dict,
+                                                                             tiff_movie=self.tiff_movie,
+                                                                             traces=self.raw_traces,
+                                                                             source_profile_corr_dict=source_profile_corr_dict,
+                                                                             pixels_around=1)
                         # pearson_corr = np.round(pearson_corr, 2)
 
                         # cell from which removing a transient
@@ -4781,7 +5059,7 @@ class MouseSession:
                             continue
                         # removing the transient
                         self.spike_struct.spike_nums_dur[cell_to_use,
-                        transient_to_remove[0]:transient_to_remove[1]+1] = 0
+                        transient_to_remove[0]:transient_to_remove[1] + 1] = 0
                         n_fake_transients_by_cell[cell_to_use] += 1
                         if cell_to_use not in fake_transients_periods_by_cell_dict:
                             fake_transients_periods_by_cell_dict[cell_to_use] = []
@@ -4810,8 +5088,8 @@ class MouseSession:
                 file.write(f"N fake transients by cell for {self.description}" + '\n')
                 file.write("" + '\n')
                 file.write(f"n_co_active_transients_detected: "
-                  f"{n_co_active_transients_detected}, n_fake_transients {total_n_fake_transients}, "
-                  f"total_n_transients {total_n_transients}")
+                           f"{n_co_active_transients_detected}, n_fake_transients {total_n_fake_transients}, "
+                           f"total_n_transients {total_n_transients}")
 
                 file.write("" + '\n')
 
@@ -4922,8 +5200,8 @@ class MouseSession:
                 if (("graph" in file_name.lower()) and (self.description.lower() in file_name.lower())) \
                         and file_name.endswith(".graphml"):
 
-                    graph =nx.read_graphml(path=(os.path.join(self.param.path_data, path_to_load, file_name)),
-                                           node_type=int)
+                    graph = nx.read_graphml(path=(os.path.join(self.param.path_data, path_to_load, file_name)),
+                                            node_type=int)
                     if "graph_out" in file_name.lower():
                         print(f"{self.description} graph_out loaded from file")
                         self.spike_struct.graph_out = graph
@@ -4957,7 +5235,7 @@ class MouseSession:
                     index_npy = file_name.index(".npy")
                     index_ = len(file_name) - file_name[::-1].index("_") - 1
                     # format exemple: P7_19_03_05_a000_abf_lfp_channel_3_1000hz.npy
-                    self.lfp_sampling_rate = int(file_name[index_+1:index_npy-2])
+                    self.lfp_sampling_rate = int(file_name[index_ + 1:index_npy - 2])
                     # print(f"{file_name} {self.lfp_sampling_rate}")
                     return
             break
