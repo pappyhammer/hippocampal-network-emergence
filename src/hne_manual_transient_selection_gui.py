@@ -239,7 +239,7 @@ class ChooseSessionFrame(tk.Frame):
         n_times = len(self.data_and_param.traces[0, :])
 
         keep_onsets_and_peaks_empty = False
-        if keep_onsets_and_peaks_empty:
+        if keep_onsets_and_peaks_empty and (self.data_and_param.peak_nums is None):
             self.data_and_param.peak_nums = np.zeros((n_cells, n_times), dtype="int8")
             self.data_and_param.spike_nums = np.zeros((n_cells, n_times), dtype="int8")
         elif (self.data_and_param.peak_nums is None) or (self.data_and_param.spike_nums is None):
@@ -1975,9 +1975,9 @@ class ManualOnsetFrame(tk.Frame):
         # print(f"released keysym {event.keysym}, keycode {event.keycode}, keysym_num {event.keysym_num}, "
         #       f"state {event.state}")
         # print(f"event.keysym {event.keysym}")
-        if event.char in ["+"]:
+        if event.char in ["o", "O", "+"]:
             self.add_onset_switch_mode()
-        elif event.char in ["*"]:
+        elif event.char in ["p", "P", "*"]:
             self.add_peak_switch_mode()
         elif event.char in ["a", "A"]:
             self.move_zoom(to_the_left=False)
@@ -1989,7 +1989,7 @@ class ManualOnsetFrame(tk.Frame):
             self.toolbar.push_current()
         elif event.char in ["r", "R", "-"]:
             self.remove_all_switch_mode()
-        elif event.char in ["B", "P", "G"]:
+        elif event.char in ["B", "G"]:
             if self.display_michou is False:
                 self.display_michou = True
                 self.update_plot_map_img()
@@ -2001,7 +2001,7 @@ class ManualOnsetFrame(tk.Frame):
             if self.display_michou is True:
                 self.display_michou = False
                 self.update_plot_map_img(after_michou=True)
-        elif event.char in ["m", "M"]:
+        elif event.char in ["i", "I"]:
             self.switch_magnifier()
         elif event.char in ["p", "P"]:
             if self.n_michou_img > 0:
