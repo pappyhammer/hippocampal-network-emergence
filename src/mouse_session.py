@@ -2392,6 +2392,9 @@ class MouseSession:
         if cilva_file_name is None:
             return False
 
+        plot_ea_vs_sa = True
+        plot_fit = True
+
         #### Load and compare model fits
         alpha, beta, w, b, x, sigma, tau_r, tau_d, gamma, L = cilva_analysis.load_fit(
             os.path.join(self.param.path_data, path_cilva_data, cilva_file_name),
@@ -2402,7 +2405,9 @@ class MouseSession:
         n_cells = N
 
         if len(w.shape) == 1:
+            # print(f'w {w}')
             w = np.reshape(w, [w.shape[0], 1])
+            # print(f'w_reshape {w}')
 
         kernel = cilva_core.calcium_kernel(tau_r, tau_d, T)
         f_hat = cilva_analysis.reconstruction(alpha, beta, w, b, x, kernel, s)
@@ -2413,36 +2418,37 @@ class MouseSession:
         n_cells_by_plot = 30
         max_n_lines = 10
 
-        for index_first_cell in range(0, n_cells, n_cells_by_plot):
-            n_cells_in_this_plot = min(n_cells_by_plot, n_cells - index_first_cell)
-            n_lines = n_cells_in_this_plot if n_cells_in_this_plot <= max_n_lines else max_n_lines
-            n_col = math.ceil(n_cells_in_this_plot / n_lines)
-            # for histogram all events
-            fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
-                                     gridspec_kw={'width_ratios': [1] * n_col,
-                                                  'height_ratios': [1] * n_lines},
-                                     figsize=(30, 25))
-            fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
-            # fig.patch.set_facecolor(background_color)
-            axes = axes.flatten()
-            for cell_index, cell in enumerate(np.arange(index_first_cell, index_first_cell + n_cells_in_this_plot)):
-                axes[cell_index].plot(f[inds[cell]], color='k', linewidth=1)
-                axes[cell_index].plot(f_hat[inds[cell]], color='g', linewidth=0.8)
-                axes[cell_index].set_xlim([0, T])
-                axes[cell_index].set_frame_on(False)
-                # axes[cell_index].get_xaxis().set_visible(True)
-                # axes[cell_index].get_yaxis().set_visible(False)
+        if plot_fit:
+            for index_first_cell in range(0, n_cells, n_cells_by_plot):
+                n_cells_in_this_plot = min(n_cells_by_plot, n_cells - index_first_cell)
+                n_lines = n_cells_in_this_plot if n_cells_in_this_plot <= max_n_lines else max_n_lines
+                n_col = math.ceil(n_cells_in_this_plot / n_lines)
+                # for histogram all events
+                fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                                         gridspec_kw={'width_ratios': [1] * n_col,
+                                                      'height_ratios': [1] * n_lines},
+                                         figsize=(30, 25))
+                fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+                # fig.patch.set_facecolor(background_color)
+                axes = axes.flatten()
+                for cell_index, cell in enumerate(np.arange(index_first_cell, index_first_cell + n_cells_in_this_plot)):
+                    axes[cell_index].plot(f[inds[cell]], color='k', linewidth=1)
+                    axes[cell_index].plot(f_hat[inds[cell]], color='g', linewidth=0.8)
+                    axes[cell_index].set_xlim([0, T])
+                    axes[cell_index].set_frame_on(False)
+                    # axes[cell_index].get_xaxis().set_visible(True)
+                    # axes[cell_index].get_yaxis().set_visible(False)
 
-            save_formats = "pdf"
-            if isinstance(save_formats, str):
-                save_formats = [save_formats]
+                save_formats = "pdf"
+                if isinstance(save_formats, str):
+                    save_formats = [save_formats]
 
-            for save_format in save_formats:
-                fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_fit_'
-                            f'cell_{index_first_cell}-{index_first_cell + n_cells_in_this_plot}'
-                            f'_{self.param.time_str}.{save_format}',
-                            format=f"{save_format}",
-                            facecolor=fig.get_facecolor())
+                for save_format in save_formats:
+                    fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_fit_'
+                                f'cell_{index_first_cell}-{index_first_cell + n_cells_in_this_plot}'
+                                f'_{self.param.time_str}.{save_format}',
+                                format=f"{save_format}",
+                                facecolor=fig.get_facecolor())
 
         ##### Correlation coefficient vs count
         fig, ax = plt.subplots(nrows=1, ncols=1,
@@ -2467,45 +2473,70 @@ class MouseSession:
         ##### Decouple evoked and (low dimensional) spontaneous components
         f_evoked, f_spont = cilva_analysis.decouple_traces(alpha, beta, w, b, x, kernel, s)
 
-        for index_first_cell in range(0, n_cells, n_cells_by_plot):
-            n_cells_in_this_plot = min(n_cells_by_plot, n_cells - index_first_cell)
-            n_lines = n_cells_in_this_plot if n_cells_in_this_plot <= max_n_lines else max_n_lines
-            n_col = math.ceil(n_cells_in_this_plot / n_lines)
-            # for histogram all events
-            fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
-                                     gridspec_kw={'width_ratios': [1] * n_col,
-                                                  'height_ratios': [1] * n_lines},
-                                     figsize=(30, 25))
-            fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
-            # fig.patch.set_facecolor(background_color)
-            axes = axes.flatten()
-            for cell_index, cell in enumerate(np.arange(index_first_cell, index_first_cell + n_cells_in_this_plot)):
-                axes[cell_index].plot(f[inds[cell]], color='k', linewidth=0.8)
-                axes[cell_index].plot(f_spont[inds[cell]], color='C0', linewidth=0.7, ls='--')
-                axes[cell_index].plot(f_evoked[inds[cell]], color='firebrick', linewidth=0.6)
-                axes[cell_index].set_xlim([0, T])
-                axes[cell_index].set_frame_on(False)
+        if plot_ea_vs_sa:
+            span_area_coords = None
+            span_area_colors = None
+            if self.shift_data_dict is not None:
+                colors = ["red", "green", "blue", "pink", "orange"]
+                i = 0
+                span_area_coords = []
+                span_area_colors = []
+                for name_period, period in self.shift_data_dict.items():
+                    span_area_coords.append(get_continous_time_periods(period.astype("int8")))
+                    span_area_colors.append(colors[i % len(colors)])
+                    print(f"Period {name_period} -> {colors[i]}")
+                    i += 1
 
-            save_formats = "pdf"
-            if isinstance(save_formats, str):
-                save_formats = [save_formats]
+            for index_first_cell in range(0, n_cells, n_cells_by_plot):
+                n_cells_in_this_plot = min(n_cells_by_plot, n_cells - index_first_cell)
+                n_lines = n_cells_in_this_plot if n_cells_in_this_plot <= max_n_lines else max_n_lines
+                n_col = math.ceil(n_cells_in_this_plot / n_lines)
+                # for histogram all events
+                fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                                         gridspec_kw={'width_ratios': [1] * n_col,
+                                                      'height_ratios': [1] * n_lines},
+                                         figsize=(30, 25))
+                fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+                # fig.patch.set_facecolor(background_color)
+                axes = axes.flatten()
+                alpha_span_area = 0.5
 
-            for save_format in save_formats:
-                fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_EA_vs_SA_'
-                            f'cell_{index_first_cell}-{index_first_cell + n_cells_in_this_plot}'
-                            f'_{self.param.time_str}.{save_format}',
-                            format=f"{save_format}",
-                            facecolor=fig.get_facecolor())
+                for cell_index, cell in enumerate(np.arange(index_first_cell, index_first_cell + n_cells_in_this_plot)):
+                    axes[cell_index].plot(f[inds[cell]], color='k', linewidth=0.8)
+                    axes[cell_index].plot(f_spont[inds[cell]], color='C0', linewidth=0.7, ls='--')
+                    axes[cell_index].plot(f_evoked[inds[cell]], color='firebrick', linewidth=0.6)
+                    axes[cell_index].set_xlim([0, T])
+                    axes[cell_index].set_frame_on(False)
+                    for index, span_area_coord in enumerate(span_area_coords):
+                        for coord in span_area_coord:
+                            if span_area_colors is not None:
+                                color = span_area_colors[index]
+                            else:
+                                color = "lightgrey"
+                            axes[cell_index].axvspan(coord[0], coord[1],
+                                                     alpha=alpha_span_area, facecolor=color, zorder=1)
+                save_formats = "pdf"
+                if isinstance(save_formats, str):
+                    save_formats = [save_formats]
+
+                for save_format in save_formats:
+                    fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_EA_vs_SA_'
+                                f'cell_{index_first_cell}-{index_first_cell + n_cells_in_this_plot}'
+                                f'_{self.param.time_str}.{save_format}',
+                                format=f"{save_format}",
+                                facecolor=fig.get_facecolor())
 
         ##### Tuning curves
 
         kmax = np.max(kernel)
-        tuning_curves = (kmax * alpha[:, None] * w)[:, 2:]  # First two stimuli not presented
-
+        tuning_curves = (kmax * alpha[:, None] * w)  # First two stimuli not presented
+        print(f"tuning_curves {tuning_curves}")
         fig, axes = plt.subplots(figsize=(4, 4), sharex=True, sharey=False, ncols=4, nrows=4)
         axes = axes.flatten()
         for n in range(16):
-            axes[n].plot(tuning_curves[n, :], color='firebrick', linewidth=2)
+            print(f'{n}: tuning_curves[n, :] {tuning_curves[n, :]}')
+            axes[n].plot(tuning_curves[n, :], color='firebrick', linewidth=1)
+            # axes[n].scatter([0], tuning_curves[n, :], color='firebrick')
             axes[n].get_xaxis().set_visible(False)
             axes[n].get_yaxis().set_visible(False)
         fig.text(0.5, 0.04, 'Stimulus', ha='center')
@@ -2618,8 +2649,10 @@ class MouseSession:
         raw_traces = np.zeros(self.raw_traces.shape)
         # z_score traces
         for i in np.arange(self.raw_traces.shape[0]):
-            raw_traces[i, :] = raw_traces[i, :] - np.min(raw_traces[i, :])
-            raw_traces[i, :] = self.raw_traces[i, :] / np.max(self.raw_traces[i, :])
+            raw_traces[i, :] = self.raw_traces[i, :] - np.median(self.raw_traces[i, :])
+            raw_traces[i, raw_traces[i, :] < 0] = 0
+            # raw_traces[i, :] = self.raw_traces[i, :] - np.min(self.raw_traces[i, :])
+            raw_traces[i, :] = raw_traces[i, :] / np.max(raw_traces[i, :])
             # variances.append(np.var(raw_traces[i, :]))
 
         # plot_hist_distribution(distribution_data=variances,
@@ -2638,9 +2671,12 @@ class MouseSession:
 
         twitches_frames_periods = get_continous_time_periods(self.shift_data_dict["shift_twitch"].astype("int8"))
         # n_stimulus * n_times, 1 if the stimulus is present at that time
-        twitches_onsets = np.zeros((1, n_times))
-        for period in twitches_frames_periods:
-            twitches_onsets[0, period[0]] = 1
+        twitches_onsets = np.zeros((len(twitches_frames_periods), n_times))
+        # twitches_onsets = np.zeros((1, n_times))
+        for period_index, period in enumerate(twitches_frames_periods):
+            # twitches_onsets[0, period[0]:period[1]+1] = 1
+            twitches_onsets[period_index, period[0]] = 1
+            # twitches_onsets[0, period[0]] = 1
 
         # look if cilva has been run before
         # return True is it's the case and the analysis went trough
@@ -2654,8 +2690,8 @@ class MouseSession:
         # Default parameter values
         L = 3
         # used to be 40 and 40
-        num_iters = 10
-        iters_per_altern = 10
+        num_iters = 20
+        iters_per_altern = 20
         gamma = 1.00
         # Note: default rise and decay time constants are appropriate for our GCaMP6s zebrafish larvae.
         # They may not be suitable for other indicators or animal models.
