@@ -1,4 +1,4 @@
-max_threads = '5'
+max_threads = '10'
 import os
 # Configure threading
 os.environ["MKL_NUM_THREADS"] = max_threads
@@ -1071,7 +1071,8 @@ def plot_all_long_mvt_psth_in_one_figure(ms_to_analyse, param, line_mode=True,
     plt.close()
 
 
-def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, duration_option=False, save_formats="pdf"):
+def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, use_traces=False,
+                                       duration_option=False, save_formats="pdf"):
     """
     Will plot in one plot with subplots all twitches PSTH
     :param ms_to_analyse:
@@ -1116,7 +1117,8 @@ def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, dur
         ms = ms_to_analyse[ax_index]
         print(f"{ms.description} plot_all_twitch_psth_in_one_figure")
         ms.plot_psth_twitches(line_mode=line_mode, ax_to_use=ax, put_mean_line_on_plt=line_mode,
-                              color_to_use=colors[ax_index % len(colors)], duration_option=duration_option)
+                              color_to_use=colors[ax_index % len(colors)], duration_option=duration_option,
+                              use_traces=use_traces)
     bonus_file_name = ""
     if duration_option:
         bonus_file_name = "_duration"
@@ -5763,13 +5765,13 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
     ## all the ms separated in 5 groups
 
-    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-    #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-    #                   "p7_171012_a000_ms",
-    #                   "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-    #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-    #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-    #                   "p7_19_03_05_a000_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_171012_a000_ms",
+                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+                      "p7_19_03_05_a000_ms"]
     # # #
     # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
     #                   "p7_19_03_27_a002_ms",
@@ -5826,12 +5828,14 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
     # Eleonora gad cre
-    ms_str_to_load = ["p6_19_02_18_a000_ms"]
-    ms_str_to_load = ["p11_19_04_30_a001_ms"]
+    # ms_str_to_load = ["p6_19_02_18_a000_ms"]
+    # ms_str_to_load = ["p11_19_04_30_a001_ms"]
     # ms_str_to_load = ["p7_19_03_05_a000_ms"]
-    ms_str_to_load = ["p60_20160506_gadcre01_01_ms"]
+    # ms_str_to_load = ["p60_20160506_gadcre01_01_ms"]
     # to test cilva
-    ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms"]
     # loading data
     # z_shifts_ms = ["p5_19_03_25_a000_ms",
     #                "p5_19_03_25_a001_ms",
@@ -6646,8 +6650,9 @@ def main():
 
         if do_plot_psth_twitches:
             line_mode = True
-            duration_option = True
-            plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode,
+            duration_option = False
+            use_traces = True
+            plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode, use_traces=use_traces,
                                                duration_option=duration_option, save_formats="pdf")
             # ms.plot_psth_twitches(line_mode=line_mode)
             # ms.plot_psth_twitches(twitches_group=1, line_mode=line_mode)

@@ -23,7 +23,8 @@ from pattern_discovery.display.raster import plot_spikes_raster, plot_with_imsho
 from pattern_discovery.display.misc import time_correlation_graph, plot_hist_distribution, plot_scatters
 from pattern_discovery.display.cells_map_module import CoordClass
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import CellAssembliesStruct
-import pattern_discovery.cilva.analysis as cilva_analysis, cilva_core
+import pattern_discovery.cilva.analysis as cilva_analysis
+import pattern_discovery.cilva.core as cilva_core
 from sortedcontainers import SortedDict
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
@@ -1354,13 +1355,18 @@ class MouseSession:
                np.array(median_values), np.array(low_values), np.array(high_values), np.array(std_values)
 
     def get_spikes_values_around_twitches(self, sce_bool=None, time_around=100,
-                                          twitches_group=0, low_percentile=25, high_percentile=75):
+                                          twitches_group=0, low_percentile=25, high_percentile=75,
+                                          use_traces=False):
         if self.spike_struct.spike_nums_dur is None:
             return
 
         spike_nums_dur = self.spike_struct.spike_nums_dur
         # spike_nums = self.spike_struct.spike_nums
-        spike_nums_to_use = spike_nums_dur
+        if use_traces:
+            # print(f"get_spikes_values_around_twitches use_traces")
+            spike_nums_to_use = self.raw_traces
+        else:
+            spike_nums_to_use = spike_nums_dur
 
         n_cells = len(spike_nums_dur)
 
@@ -1386,7 +1392,7 @@ class MouseSession:
         time_x_values = np.arange(-1 * time_around, time_around + 1)
         for time, nb_spikes_at_time in spike_sum_of_sum_at_time_dict.items():
             # print(f"time {time}")
-            distribution.extend([time] * nb_spikes_at_time)
+            distribution.extend([time] * int(nb_spikes_at_time))
             # mean percentage of cells at each twitch
         for time_value in time_x_values:
             if time_value in spike_sum_of_sum_at_time_dict:
@@ -1607,6 +1613,7 @@ class MouseSession:
                            color_to_use=None,
                            with_other_ms=None,
                            duration_option=False,
+                           use_traces=False,
                            save_formats="pdf"):
         """
         Not using groups anymore
@@ -1639,7 +1646,7 @@ class MouseSession:
         else:
             results = \
                 self.get_spikes_values_around_twitches(sce_bool=sce_bool, time_around=time_around,
-                                                       twitches_group=twitches_group)
+                                                       twitches_group=twitches_group, use_traces=use_traces)
 
         if results is None:
             return
@@ -2364,24 +2371,29 @@ class MouseSession:
         plt.close()
 
     def load_and_analyse_cilva_results(self, f, s, path_cilva_data):
+        print("load_and_analyse_cilva_results")
         file_names = []
 
         # look for filenames in the first directory, if we don't break, it will go through all directories
         for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_cilva_data):
-            file_names.extend(local_filenames)
+            file_names.extend(dirnames)
             break
 
         cilva_file_name = None
         for file_name in file_names:
             if "cilva" not in file_name:
                 continue
-            if self.descrption.lower() not in file_name.lower():
+            if self.description.lower() not in file_name.lower():
                 continue
             cilva_file_name = file_name
+            print(f"cilva_file_name {cilva_file_name}")
             break
 
         if cilva_file_name is None:
             return False
+
+        plot_ea_vs_sa = True
+        plot_fit = True
 
         #### Load and compare model fits
         alpha, beta, w, b, x, sigma, tau_r, tau_d, gamma, L = cilva_analysis.load_fit(
@@ -2390,35 +2402,60 @@ class MouseSession:
 
         N, T = f.shape
 
+        n_cells = N
+
+        if len(w.shape) == 1:
+            # print(f'w {w}')
+            w = np.reshape(w, [w.shape[0], 1])
+            # print(f'w_reshape {w}')
+
         kernel = cilva_core.calcium_kernel(tau_r, tau_d, T)
         f_hat = cilva_analysis.reconstruction(alpha, beta, w, b, x, kernel, s)
+        print(f"f_hat.shape {f_hat.shape}")
         corr_coefs = np.array([np.corrcoef(f[n], f_hat[n])[0, 1] for n in range(N)])
         inds = np.argsort(corr_coefs)[::-1]
 
-        for cell in range(10):
-            fig, ax = plt.subplots(nrows=1, ncols=1,
-                                   gridspec_kw={'height_ratios': [1]},
-                                   figsize=(15, 0.75))
-            ax.plot(f[inds[cell]], color='k', linewidth=1)
-            ax.plot(f_hat[inds[cell]], color='g', linewidth=2)
-            plt.axis('off')
-            ax.xlim([0, T])
-            save_formats = "pdf"
-            if isinstance(save_formats, str):
-                save_formats = [save_formats]
+        n_cells_by_plot = 30
+        max_n_lines = 10
 
-            for save_format in save_formats:
-                fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_fit_cell_{cell}'
-                            f'_{self.param.time_str}.{save_format}',
-                            format=f"{save_format}",
-                            facecolor=fig.get_facecolor())
+        if plot_fit:
+            for index_first_cell in range(0, n_cells, n_cells_by_plot):
+                n_cells_in_this_plot = min(n_cells_by_plot, n_cells - index_first_cell)
+                n_lines = n_cells_in_this_plot if n_cells_in_this_plot <= max_n_lines else max_n_lines
+                n_col = math.ceil(n_cells_in_this_plot / n_lines)
+                # for histogram all events
+                fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                                         gridspec_kw={'width_ratios': [1] * n_col,
+                                                      'height_ratios': [1] * n_lines},
+                                         figsize=(30, 25))
+                fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+                # fig.patch.set_facecolor(background_color)
+                axes = axes.flatten()
+                for cell_index, cell in enumerate(np.arange(index_first_cell, index_first_cell + n_cells_in_this_plot)):
+                    axes[cell_index].plot(f[inds[cell]], color='k', linewidth=1)
+                    axes[cell_index].plot(f_hat[inds[cell]], color='g', linewidth=0.8)
+                    axes[cell_index].set_xlim([0, T])
+                    axes[cell_index].set_frame_on(False)
+                    # axes[cell_index].get_xaxis().set_visible(True)
+                    # axes[cell_index].get_yaxis().set_visible(False)
+
+                save_formats = "pdf"
+                if isinstance(save_formats, str):
+                    save_formats = [save_formats]
+
+                for save_format in save_formats:
+                    fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_fit_'
+                                f'cell_{index_first_cell}-{index_first_cell + n_cells_in_this_plot}'
+                                f'_{self.param.time_str}.{save_format}',
+                                format=f"{save_format}",
+                                facecolor=fig.get_facecolor())
 
         ##### Correlation coefficient vs count
         fig, ax = plt.subplots(nrows=1, ncols=1,
                                gridspec_kw={'height_ratios': [1]},
                                figsize=(2, 2))
         ax.hist(corr_coefs, color='firebrick')
-        ax.xlim([-0.15, 1])
+        plt.xlim([-0.15, 1])
         plt.gca().spines['top'].set_visible(False)
         plt.gca().spines['right'].set_visible(False)
         plt.xlabel('Correlation coefficient')
@@ -2436,38 +2473,72 @@ class MouseSession:
         ##### Decouple evoked and (low dimensional) spontaneous components
         f_evoked, f_spont = cilva_analysis.decouple_traces(alpha, beta, w, b, x, kernel, s)
 
-        for cell in range(10):
-            fig, ax = plt.subplots(nrows=1, ncols=1,
-                                   gridspec_kw={'height_ratios': [1]},
-                                   figsize=(15, 0.75))
-            ax.plot(f[inds[cell]], color='k', linewidth=1)
-            ax.plot(f_evoked[inds[cell]], color='firebrick', linewidth=2)
-            ax.plot(f_spont[inds[cell]], color='C0', linewidth=2)
-            plt.axis('off')
-            ax.xlim([0, T])
-            save_formats = "pdf"
-            if isinstance(save_formats, str):
-                save_formats = [save_formats]
+        if plot_ea_vs_sa:
+            span_area_coords = None
+            span_area_colors = None
+            if self.shift_data_dict is not None:
+                colors = ["red", "green", "blue", "pink", "orange"]
+                i = 0
+                span_area_coords = []
+                span_area_colors = []
+                for name_period, period in self.shift_data_dict.items():
+                    span_area_coords.append(get_continous_time_periods(period.astype("int8")))
+                    span_area_colors.append(colors[i % len(colors)])
+                    print(f"Period {name_period} -> {colors[i]}")
+                    i += 1
 
-            for save_format in save_formats:
-                fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_EA_vs_SA_cell_{cell}'
-                            f'_{self.param.time_str}.{save_format}',
-                            format=f"{save_format}",
-                            facecolor=fig.get_facecolor())
+            for index_first_cell in range(0, n_cells, n_cells_by_plot):
+                n_cells_in_this_plot = min(n_cells_by_plot, n_cells - index_first_cell)
+                n_lines = n_cells_in_this_plot if n_cells_in_this_plot <= max_n_lines else max_n_lines
+                n_col = math.ceil(n_cells_in_this_plot / n_lines)
+                # for histogram all events
+                fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                                         gridspec_kw={'width_ratios': [1] * n_col,
+                                                      'height_ratios': [1] * n_lines},
+                                         figsize=(30, 25))
+                fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+                # fig.patch.set_facecolor(background_color)
+                axes = axes.flatten()
+                alpha_span_area = 0.5
+
+                for cell_index, cell in enumerate(np.arange(index_first_cell, index_first_cell + n_cells_in_this_plot)):
+                    axes[cell_index].plot(f[inds[cell]], color='k', linewidth=0.8)
+                    axes[cell_index].plot(f_spont[inds[cell]], color='C0', linewidth=0.7, ls='--')
+                    axes[cell_index].plot(f_evoked[inds[cell]], color='firebrick', linewidth=0.6)
+                    axes[cell_index].set_xlim([0, T])
+                    axes[cell_index].set_frame_on(False)
+                    for index, span_area_coord in enumerate(span_area_coords):
+                        for coord in span_area_coord:
+                            if span_area_colors is not None:
+                                color = span_area_colors[index]
+                            else:
+                                color = "lightgrey"
+                            axes[cell_index].axvspan(coord[0], coord[1],
+                                                     alpha=alpha_span_area, facecolor=color, zorder=1)
+                save_formats = "pdf"
+                if isinstance(save_formats, str):
+                    save_formats = [save_formats]
+
+                for save_format in save_formats:
+                    fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_EA_vs_SA_'
+                                f'cell_{index_first_cell}-{index_first_cell + n_cells_in_this_plot}'
+                                f'_{self.param.time_str}.{save_format}',
+                                format=f"{save_format}",
+                                facecolor=fig.get_facecolor())
 
         ##### Tuning curves
 
         kmax = np.max(kernel)
-        tuning_curves = (kmax * alpha[:, None] * w)[:, 2:]  # First two stimuli not presented
-
+        tuning_curves = (kmax * alpha[:, None] * w)  # First two stimuli not presented
+        print(f"tuning_curves {tuning_curves}")
         fig, axes = plt.subplots(figsize=(4, 4), sharex=True, sharey=False, ncols=4, nrows=4)
+        axes = axes.flatten()
         for n in range(16):
-            plt.subplot(4, 4, n + 1)
-            plt.plot(tuning_curves[n, :], color='firebrick', linewidth=2)
-            plt.gca().set_xticklabels([])
-            plt.gca().set_yticklabels([])
-            plt.xticks([])
-            plt.yticks([])
+            print(f'{n}: tuning_curves[n, :] {tuning_curves[n, :]}')
+            axes[n].plot(tuning_curves[n, :], color='firebrick', linewidth=1)
+            # axes[n].scatter([0], tuning_curves[n, :], color='firebrick')
+            axes[n].get_xaxis().set_visible(False)
+            axes[n].get_yaxis().set_visible(False)
         fig.text(0.5, 0.04, 'Stimulus', ha='center')
         fig.text(0.04, 0.5, 'Response', va='center', rotation='vertical')
         save_formats = "pdf"
@@ -2510,7 +2581,7 @@ class MouseSession:
             save_formats = [save_formats]
 
         for save_format in save_formats:
-            fig.savefig(f'{self.param.path_results}/{self.description}_cilva_tuning_curves'
+            fig.savefig(f'{self.param.path_results}/{self.description}_factor_loading_matrix'
                         f'_{self.param.time_str}.{save_format}',
                         format=f"{save_format}",
                         facecolor=fig.get_facecolor())
@@ -2554,10 +2625,12 @@ class MouseSession:
             save_formats = [save_formats]
 
         for save_format in save_formats:
-            fig.savefig(f'{self.param.path_results}/{self.description}_cilva_tuning_curves'
+            fig.savefig(f'{self.param.path_results}/{self.description}_decomposition_of_variance'
                         f'_{self.param.time_str}.{save_format}',
                         format=f"{save_format}",
                         facecolor=fig.get_facecolor())
+
+        return True
 
     def run_cilva(self, path_cilva_data="cilva_data"):
         """
@@ -2567,28 +2640,47 @@ class MouseSession:
 
         if self.shift_data_dict is None:
             print("run_cilva no twitches informations")
-            return
+            return False
         if self.raw_traces is None:
             print("run_cilva no raw_traces")
-            return
+            return False
 
-        z_score_raw_traces = np.zeros(self.raw_traces.shape)
+        # variances = []
+        raw_traces = np.zeros(self.raw_traces.shape)
         # z_score traces
         for i in np.arange(self.raw_traces.shape[0]):
-            z_score_raw_traces[i, :] = (self.raw_traces[i, :] - np.mean(self.raw_traces[i, :])) \
-                                       / np.std(self.raw_traces[i, :])
+            raw_traces[i, :] = self.raw_traces[i, :] - np.median(self.raw_traces[i, :])
+            raw_traces[i, raw_traces[i, :] < 0] = 0
+            # raw_traces[i, :] = self.raw_traces[i, :] - np.min(self.raw_traces[i, :])
+            raw_traces[i, :] = raw_traces[i, :] / np.max(raw_traces[i, :])
+            # variances.append(np.var(raw_traces[i, :]))
+
+        # plot_hist_distribution(distribution_data=variances,
+        #                        description=f"{self.description}_traces_variances",
+        #                        param=self.param, tight_x_range=True)
+        # print(f"n_cells <= 2 {len(np.where(np.sum(self.spike_struct.spike_nums, axis=1) <= 0)[0])}")
+        # raise Exception("STOP")
+        n_times = raw_traces.shape[1]
+
+        remove_low_firing_cells = True
+        if remove_low_firing_cells:
+            print(f"n cells before filtering: {len(raw_traces)}")
+            cells_to_keep = np.where(np.sum(self.spike_struct.spike_nums, axis=1) > 2)[0]
+            raw_traces = raw_traces[cells_to_keep][100:300]
+            print(f"n cells after filtering: {len(raw_traces)}")
 
         twitches_frames_periods = get_continous_time_periods(self.shift_data_dict["shift_twitch"].astype("int8"))
-        twitches_onsets = []
-        for period in twitches_frames_periods:
-            twitches_onsets.append(period[0])
-        twitches_onsets = np.array(twitches_onsets)
-        # need to be 2-dimensions
-        twitches_onsets = np.reshape(twitches_onsets, (twitches_onsets.shape[0], 1))
+        # n_stimulus * n_times, 1 if the stimulus is present at that time
+        twitches_onsets = np.zeros((len(twitches_frames_periods), n_times))
+        # twitches_onsets = np.zeros((1, n_times))
+        for period_index, period in enumerate(twitches_frames_periods):
+            # twitches_onsets[0, period[0]:period[1]+1] = 1
+            twitches_onsets[period_index, period[0]] = 1
+            # twitches_onsets[0, period[0]] = 1
 
         # look if cilva has been run before
         # return True is it's the case and the analysis went trough
-        cilva_loaded = self.load_and_analyse_cilva_results(path_cilva_data=path_cilva_data, f=z_score_raw_traces,
+        cilva_loaded = self.load_and_analyse_cilva_results(path_cilva_data=path_cilva_data, f=raw_traces,
                                                            s=twitches_onsets)
         if cilva_loaded:
             return
@@ -2598,15 +2690,17 @@ class MouseSession:
         # Default parameter values
         L = 3
         # used to be 40 and 40
-        num_iters = 10
-        iters_per_altern = 10
+        num_iters = 20
+        iters_per_altern = 20
         gamma = 1.00
         # Note: default rise and decay time constants are appropriate for our GCaMP6s zebrafish larvae.
         # They may not be suitable for other indicators or animal models.
         # default_tau_r = 5.681 / imrate
         # default_tau_d = 11.551 / imrate
-        tau_r = 6.5 / imrate
-        tau_d = 13.25 / imrate
+        # tau_r and tau_d are in seconds
+        tau_r = 15 / imrate
+        tau_d = 30 / imrate
+        convert_stim = False
 
 
         # Importing numpy and model must be performed *after* multithreading is configured.
@@ -2614,7 +2708,7 @@ class MouseSession:
 
         # Train model
         print('Fitting the Calcium Imaging Latent Variable Analysis model...')
-        learned_params = cilva_model.train(z_score_raw_traces, twitches_onsets, convert_stim,
+        learned_params = cilva_model.train(raw_traces, twitches_onsets, convert_stim,
                                            L, num_iters, iters_per_altern, gamma, tau_r,
                                            tau_d, imrate)
         learned_params += [[tau_r], [tau_d], [gamma], [L]]
