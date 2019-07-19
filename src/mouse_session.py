@@ -3,7 +3,8 @@ from scipy import signal
 # important to avoid a bug when using virtualenv
 # import matplotlib
 # matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
+# to comment for mesocentre
+# import matplotlib.pyplot as plt
 import numpy as np
 import hdf5storage
 import time
@@ -11,7 +12,8 @@ import os
 import pyabf
 import matplotlib.image as mpimg
 import networkx as nx
-import seaborn as sns
+# import seaborn as sns
+# import hdbscan
 from pattern_discovery.graph.misc import welsh_powell
 # to add homemade package, go to preferences, then project interpreter, then click on the wheel symbol
 # then show all, then select the interpreter and lick on the more right icon to display a list of folder and
@@ -43,6 +45,7 @@ import itertools
 from pattern_discovery.tools.lfp_analysis_tools import WaveletParameters, spectral_analysis_on_time_segment, \
     butter_bandpass_filter, plot_wavelet_heatmap
 import scipy.signal
+import scipy.stats as stats
 
 
 class MouseSession:
@@ -395,20 +398,40 @@ class MouseSession:
                 self.tiff_movie_normalized = self.tiff_movie_normalized / np.std(self.tiff_movie)
                 # self.tiff_movie_normalized = np.copy(self.tiff_movie)
                 print("movie normalization done")
+    def create_smooth_traces(self):
+        if self.raw_traces is None:
+            print(f"create_smooth_traces for {self.description}, raw_traces is None")
+            return
+        if self.smooth_traces is not None:
+            return
+
+        self.smooth_traces = np.copy(self.raw_traces)
+        # smoothing the trace
+        windows = ['hanning', 'hamming', 'bartlett', 'blackman']
+        i_w = 1
+        window_length = 11
+        for i in np.arange(self.raw_traces.shape[0]):
+            smooth_signal = smooth_convolve(x=self.smooth_traces[i], window_len=window_length,
+                                            window=windows[i_w])
+            beg = (window_length - 1) // 2
+            self.smooth_traces[i] = smooth_signal[beg:-beg]
 
     def normalize_traces(self):
-        n_cells = self.traces.shape[0]
-        self.z_score_traces = np.zeros(self.traces.shape)
+        n_cells = self.raw_traces.shape[0]
+        self.z_score_traces = np.zeros(self.raw_traces.shape)
         self.z_score_raw_traces = np.zeros(self.raw_traces.shape)
+        if self.smooth_traces is None:
+            self.create_smooth_traces()
         self.z_score_smooth_traces = np.zeros(self.smooth_traces.shape)
         # z_score traces
         for i in np.arange(n_cells):
-            self.z_score_traces[i, :] = (self.traces[i, :] - np.mean(self.traces[i, :])) / np.std(self.traces[i, :])
+            if self.traces is not None:
+                self.z_score_traces[i, :] = (self.traces[i, :] - np.mean(self.traces[i, :])) / np.std(self.traces[i, :])
             if self.raw_traces is not None:
                 self.z_score_raw_traces[i, :] = (self.raw_traces[i, :] - np.mean(self.raw_traces[i, :])) \
                                                 / np.std(self.raw_traces[i, :])
-                self.z_score_smooth_traces[i, :] = (self.smooth_traces[i, :] - np.mean(self.smooth_traces[i, :])) \
-                                                   / np.std(self.smooth_traces[i, :])
+            self.z_score_smooth_traces[i, :] = (self.smooth_traces[i, :] - np.mean(self.smooth_traces[i, :])) \
+                                                       / np.std(self.smooth_traces[i, :])
 
     def plot_psth_over_event_time_correlation_graph_style(self, event_str, time_around_events=10,
                                                           ax_to_use=None, color_to_use=None,
@@ -2551,6 +2574,82 @@ class MouseSession:
                         format=f"{save_format}",
                         facecolor=fig.get_facecolor())
 
+        # cross-corr between tuning curves
+        tuning_curves_matrix = np.zeros((n_cells, n_cells))
+        for cell in np.arange(n_cells):
+            for cell_2 in np.arange(n_cells):
+                if cell == cell_2:
+                    tuning_curves_matrix[cell, cell_2] = 1
+                tuning_curves_matrix[cell, cell_2] = stats.pearsonr(tuning_curves[cell], tuning_curves[cell_2])[0]
+
+        fig, ax = plt.subplots(nrows=1, ncols=1,
+                               gridspec_kw={'height_ratios': [1]},
+                               figsize=(2, 2))
+        ax = sns.heatmap(tuning_curves_matrix)
+        # fig = ax.get_figure()
+
+        save_formats = ["pdf"]
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+
+        for save_format in save_formats:
+            fig.savefig(
+                f'{self.param.path_results}/{self.description}_cilva_tuning_curves_heatmap'
+                        f'_{self.param.time_str}.{save_format}',
+                format=f"{save_format}",
+                facecolor=fig.get_facecolor())
+        plt.close()
+
+        # DO HDBSCAN ON DISTANCES MATRIX - CONSIDER PRECOMPUTED DISTANCES
+        clusterer = hdbscan.HDBSCAN(algorithm='best', alpha=1.0, approx_min_span_tree=True,
+                                    gen_min_span_tree=False, leaf_size=40,
+                                    metric='precomputed', min_cluster_size=2, min_samples=None, p=None)
+        # metric='precomputed' euclidean
+
+        clusterer.fit(tuning_curves_matrix)
+
+        labels = clusterer.labels_
+        # print(f"labels.shape: {labels.shape}")
+        print(f"N clusters hdbscan: {labels.max() + 1}")
+        print(f"labels: {labels}")
+        print(f"With no clusters hdbscan: {len(np.where(labels == -1)[0])}")
+        n_clusters = 0
+        if labels.max() + 1 > 0:
+            n_clusters = labels.max() + 1
+
+        if n_clusters > 0:
+            n_epoch_by_cluster = [[len(np.where(labels == x)[0])] for x in np.arange(n_clusters)]
+            print(f"Number of epochs by clusters hdbscan: {' '.join(map(str, n_epoch_by_cluster))}")
+
+        tuning_curves_matrix_order = np.copy(tuning_curves_matrix)
+        labels_indices_sorted = np.argsort(labels)
+        tuning_curves_matrix_order = tuning_curves_matrix_order[labels_indices_sorted, :]
+        tuning_curves_matrix_order = tuning_curves_matrix_order[:, labels_indices_sorted]
+
+        # Generate figure: dissimilarity matrice ordered by cluster
+        # Replace Inf values by NaN for better visualization
+        # tuning_curves_matrix_order[np.where(np.isinf(tuning_curves_matrix_order))] = np.nan
+        # svm = sns.heatmap(distances_order, annot=True)  # if you want the value
+        fig, ax = plt.subplots(nrows=1, ncols=1,
+                               gridspec_kw={'height_ratios': [1]},
+                               figsize=(2, 2))
+        svm = sns.heatmap(tuning_curves_matrix_order)
+        svm.set_yticklabels(labels_indices_sorted)
+        svm.set_xticklabels(labels_indices_sorted)
+        # fig = svm.get_figure()
+        # plt.show()
+        save_formats = ["pdf"]
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+
+        for save_format in save_formats:
+            fig.savefig(
+                f'{self.param.path_results}/{self.description}_cilva_tuning_curves_heatmap_cluster'
+                        f'_{self.param.time_str}.{save_format}',
+                        format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
+        plt.close()
+
         '''
 
             Factor loading matrix
@@ -2666,7 +2765,7 @@ class MouseSession:
         if remove_low_firing_cells:
             print(f"n cells before filtering: {len(raw_traces)}")
             cells_to_keep = np.where(np.sum(self.spike_struct.spike_nums, axis=1) > 2)[0]
-            raw_traces = raw_traces[cells_to_keep][100:300]
+            raw_traces = raw_traces[cells_to_keep][100:500]
             print(f"n cells after filtering: {len(raw_traces)}")
 
         twitches_frames_periods = get_continous_time_periods(self.shift_data_dict["shift_twitch"].astype("int8"))
@@ -2698,8 +2797,8 @@ class MouseSession:
         # default_tau_r = 5.681 / imrate
         # default_tau_d = 11.551 / imrate
         # tau_r and tau_d are in seconds
-        tau_r = 15 / imrate
-        tau_d = 30 / imrate
+        tau_r = 25 / imrate
+        tau_d = 150 / imrate # up to 200
         convert_stim = False
 
 
@@ -3595,24 +3694,27 @@ class MouseSession:
             return
 
         self.suite2p_data = dict()
-        if os.path.isfile(os.path.join(self.param.path_data, data_path, 'F.npy')):
-            f = np.load(os.path.join(self.param.path_data, data_path, 'F.npy'), allow_pickle=True)
-            self.suite2p_data["F"] = f
-        if os.path.isfile(os.path.join(self.param.path_data, data_path, 'Fneu.npy')):
-            f_neu = np.load(os.path.join(self.param.path_data, data_path, 'Fneu.npy'), allow_pickle=True)
-            self.suite2p_data["Fneu"] = f_neu
-        if os.path.isfile(os.path.join(self.param.path_data, data_path, 'spks.npy')):
-            spks = np.load(os.path.join(self.param.path_data, data_path, 'spks.npy'), allow_pickle=True)
-            self.suite2p_data["spks"] = spks
+        # commented due to mesocentre
+        # if os.path.isfile(os.path.join(self.param.path_data, data_path, 'F.npy')):
+        #     f = np.load(os.path.join(self.param.path_data, data_path, 'F.npy'), allow_pickle=True)
+        #     self.suite2p_data["F"] = f
+        # if os.path.isfile(os.path.join(self.param.path_data, data_path, 'Fneu.npy')):
+        #     f_neu = np.load(os.path.join(self.param.path_data, data_path, 'Fneu.npy'), allow_pickle=True)
+        #     self.suite2p_data["Fneu"] = f_neu
+        # if os.path.isfile(os.path.join(self.param.path_data, data_path, 'spks.npy')):
+        #     spks = np.load(os.path.join(self.param.path_data, data_path, 'spks.npy'), allow_pickle=True)
+        #     self.suite2p_data["spks"] = spks
         # print(f"spks.shape {spks}")
+
         stat = np.load(os.path.join(self.param.path_data, data_path, 'stat.npy'), allow_pickle=True)
         self.suite2p_data["stat"] = stat
         # print(f"len(stat) {len(stat)}")
         # stat = stat[0]
-        if os.path.isfile(os.path.join(self.param.path_data, data_path, 'ops.npy')):
-            ops = np.load(os.path.join(self.param.path_data, data_path, 'ops.npy'), allow_pickle=True)
-            ops = ops.item()
-            self.suite2p_data["ops"] = ops
+
+        # if os.path.isfile(os.path.join(self.param.path_data, data_path, 'ops.npy')):
+        #     ops = np.load(os.path.join(self.param.path_data, data_path, 'ops.npy'), allow_pickle=True)
+        #     ops = ops.item()
+        #     self.suite2p_data["ops"] = ops
 
         is_cell = np.load(os.path.join(self.param.path_data, data_path, 'iscell.npy'), allow_pickle=True)
         self.suite2p_data["is_cell"] = is_cell

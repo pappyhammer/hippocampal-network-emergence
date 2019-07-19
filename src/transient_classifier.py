@@ -2531,6 +2531,8 @@ def get_source_profile_frames(ms, frames, coords):
 def find_all_onsets_and_peaks_on_traces(ms, cell, threshold_factor=0.5):
     # print(f"find_all_onsets_and_peaks_on_traces ms.description {ms.description}, cell {cell}")
     # trace = ms.traces[cell]
+    if ms.smooth_traces is None:
+        ms.create_smooth_traces()
     trace = ms.smooth_traces[cell]
     # print(f"trace {trace.shape}, np.mean(trace) {np.mean(trace)}")
     n_frames = trace.shape[0]
@@ -2597,8 +2599,9 @@ def cell_encoding(ms, cell):
     :param cell:
     :return:
     """
+    # print(f"cell_encoding {ms.description}")
     # so far we need ms.traces
-    n_frames = ms.smooth_traces.shape[1]
+    n_frames = ms.raw_traces.shape[1]
     encoded_frames = np.zeros(n_frames, dtype="int16")
     decoding_frame_dict = dict()
     # zero will be the Neuropil
@@ -2703,10 +2706,17 @@ def add_segment_of_cells_for_training(param,
     raster_dur_by_cells_and_session = dict()
 
     dir_to_load = []
+    # CAIMAN version
     dir_to_load.append(os.path.join(param.path_data, "p7", "p7_17_10_12_a000", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data,  "p8", "p8_18_10_24_a005", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p11", "p11_17_11_24_a000", "transients_to_add_for_rnn"))
 
+    # SUITE2P version
+    dir_to_load.append(os.path.join(param.path_data, "p10", "p10_19_02_21_a005", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_03_25_a001", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_05_a000", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_27_a000", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p16", "p16_18_11_01_a002", "transients_to_add_for_rnn"))
 
     file_names_to_load = []
     dir_of_files = []
@@ -2792,8 +2802,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     add_doubt_at_movie_concatenation_frames = True
     use_cnn_to_select_cells = False
     use_small_sample = False
-    use_triple_blinded_data = False
-    use_test_sample = True
+    use_triple_blinded_data = True
+    use_test_sample = False
     # used for counting how many cells and transients available
     load_them_all = False
 
@@ -2943,6 +2953,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     # filtering the cells, to keep only the one not removed or with a good source profile according to cell classifier
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
+        print(f"load_data_generator filtering the cells {ms.description}")
         # indicating where to find the frames tiffs
         ms.tiffs_for_transient_classifier_path = tiffs_for_transient_classifier_path
         spike_nums_dur = ms.spike_struct.spike_nums_dur
@@ -2966,6 +2977,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                 raster_dict = raster_dur_by_cells_and_session[ms_str]
                 # modifying the raster for the cell segments
                 # important a cell is either composed of segments or all the frames are included
+                # print(f"ms_str {ms_str}")
                 for cell, raster in raster_dict.items():
                     if cell in original_cell_indices_mapping:
                         # re-mapping the cell
@@ -3963,13 +3975,18 @@ def train_model():
     go_create_tiffs_for_data_generator = False
     if go_create_tiffs_for_data_generator:
         # use to create a single tiff for each frame, then use by data_generator during training of the RNN
-        # ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms",
-        #  "p12_171110_a000_ms",
-        #  "p13_18_10_29_a001_ms", "artificial_ms_1"]
-        create_tiffs_for_data_generator(ms_to_use=["p6_19_02_18_a000_ms"],
+        # ms_for_tiffs = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
+        #                 "p11_17_11_24_a000_ms", "p12_171110_a000_ms", "p10_19_02_21_a005_ms",
+        #                 "p5_19_03_25_a001_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms",
+        #                 "p16_18_11_01_a002_ms", "p13_18_10_29_a001_ms", "artificial_ms_1", "artificial_ms_2"]
+        ms_for_tiffs = ["p5_19_03_25_a001_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms",
+                        "p16_18_11_01_a002_ms"]
+        ms_for_tiffs = ["p10_19_02_21_a005_ms"]
+
+        create_tiffs_for_data_generator(ms_to_use=ms_for_tiffs,
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
@@ -4102,9 +4119,9 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    n_gpus = 1
+    n_gpus = 4
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 20 # TODO: 30
+    n_epochs = 30 # TODO: 30
     # multiplying by the number of gpus used as batches will be distributed to each GPU
     batch_size = 8*n_gpus
     window_len = 100 # TODO: 100
@@ -4120,7 +4137,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     with_augmentation_for_training_data = True
     buffer = 1
     # between training, validation and test data
-    split_values = [0.75, 0.25, 0]
+    split_values = [0.8, 0.2, 0]
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
     if using_multi_class > 1:
@@ -4147,7 +4164,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
     # Maximum number of processes to spin up when using process-based threading
-    workers = 5
+    workers = 10
 
     movie_patch_generator_choices = dict()
     movie_patch_generator_choices["MaskedAndGlobal"] = \
@@ -4266,7 +4283,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         parallel_model = multi_gpu_model(model, gpus=n_gpus)
     else:
         parallel_model = model
-    raise Exception("YOU KNOW NOTHING JON SNOW")
+    # raise Exception("YOU KNOW NOTHING JON SNOW")
 
     # Save the model architecture
     with open(

@@ -239,6 +239,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["p6_18_02_07_a002_ms"] = p6_18_02_07_a002_ms
 
+    # GAD-Cre
     if "p6_19_02_18_a000_ms" in ms_str_to_load:
         p6_19_02_18_a000_ms = MouseSession(age=6, session_id="19_02_18_a000", sampling_rate=8, param=param,
                                            weight=None)
@@ -264,6 +265,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p7_171012_a000_ms = MouseSession(age=7, session_id="17_10_12_a000", sampling_rate=10, param=param,
                                          weight=None)
         p7_171012_a000_ms.use_suite_2p = True
+        if for_transient_classifier:
+            p7_171012_a000_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         # p7_171012_a000_ms.activity_threshold =
@@ -668,6 +671,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # if True will  use the coord from suite2p, if False, will just load the info concerning suite2p in
         # if the dict suit2p_data in mouse_session
         p8_18_10_24_a005_ms.use_suite_2p = True
+        if for_transient_classifier:
+            p8_18_10_24_a005_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         # p8_18_10_24_a005_ms.activity_threshold =
@@ -721,6 +726,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         # oriens field, using Caiman
         p8_18_10_24_a006_ms.use_suite_2p = True
+        if for_transient_classifier:
+            p8_18_10_24_a006_ms.use_suite_2p = False
 
         if not p8_18_10_24_a006_ms.use_suite_2p:
             if for_cell_classifier or for_transient_classifier:
@@ -1048,6 +1055,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                             weight=6.7)
 
         p11_17_11_24_a000_ms.use_suite_2p = True
+        if for_transient_classifier:
+            p11_17_11_24_a000_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         # p11_17_11_24_a000_ms.activity_threshold = 11
@@ -1169,6 +1178,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                           weight=7)
 
         p12_171110_a000_ms.use_suite_2p = True
+        if for_transient_classifier:
+            p12_171110_a000_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         p12_171110_a000_ms.activity_threshold = 13
@@ -1326,6 +1337,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                             weight=9.4)
 
         p13_18_10_29_a001_ms.use_suite_2p = True
+        if for_transient_classifier:
+            p13_18_10_29_a001_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         # p13_18_10_29_a001_ms.activity_threshold =
@@ -1358,7 +1371,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                     variables_mapping=variables_mapping)
                 variables_mapping = {"raw_traces": "raw_traces"}
                 p13_18_10_29_a001_ms.load_data_from_file(
-                    file_name_to_load="p13/p13_18_10_29_a001/p13_2018_10_29_a001_raw_Traces.mat",
+                    file_name_to_load="p13/p13_18_10_29_a001/p13_18_10_29_a001_raw_Traces.mat",
                     variables_mapping=variables_mapping)
             variables_mapping = {"coord": "ContoursAll"}
             p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
