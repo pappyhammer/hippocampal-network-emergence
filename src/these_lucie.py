@@ -121,16 +121,16 @@ class CleanerCoder(Cleaner):
         self.column_to_clean_dict["sexe"] = [self.sexe_mapping]
 
         self.diabete_mapping = {"NA": -1, "non": 0, "oui": 1}
-        self.mapping_dict["Diabete"] = self.diabete_mapping
-        self.column_to_clean_dict["Diabete"] = [self.diabete_mapping, dict()]
+        self.mapping_dict["ATCD_Diabete"] = self.diabete_mapping
+        self.column_to_clean_dict["ATCD_Diabete"] = [self.diabete_mapping, dict()]
 
         self.greffe_cornee_mapping = {"NA": -1, "non": 0, "oui": 1}
-        self.mapping_dict["greffe_cornee"] = self.greffe_cornee_mapping
-        self.column_to_clean_dict["greffe_cornee"] = [self.greffe_cornee_mapping, dict()]
+        self.mapping_dict["ATCD_greffe_cornee"] = self.greffe_cornee_mapping
+        self.column_to_clean_dict["ATCD_greffe_cornee"] = [self.greffe_cornee_mapping, dict()]
 
         self.glaucome_mapping = {"NA": -1, "non": 0, "oui": 1}
-        self.mapping_dict["Glaucome"] = self.glaucome_mapping
-        self.column_to_clean_dict["Glaucome"] = [self.glaucome_mapping, dict()]
+        self.mapping_dict["ATCD_Glaucome"] = self.glaucome_mapping
+        self.column_to_clean_dict["ATCD_Glaucome"] = [self.glaucome_mapping, dict()]
 
         statut_cristallin_to_map = ["phaque", "pke odg"]
         self.statut_cristallin_mapping = {"NA": -1}
@@ -243,24 +243,23 @@ class CleanerCoder(Cleaner):
         self.atcd_hsv_patterns = {}
         self.column_to_clean_with_reg_exp["ATCD_HSV_2_episodes_au_moins"] = [self.atcd_hsv_mapping,
                                                       self.atcd_hsv_patterns]
-        # immunodepression	cause_immunodepression	dysthyroidie
 
         immunodepression_to_map = ["oui", "non"]
         self.immunodepression_mapping = {"NA": -1}
         for code, immunodepression in enumerate(immunodepression_to_map):
             self.immunodepression_mapping[immunodepression] = code
-        self.mapping_dict["immunodepression"] = self.immunodepression_mapping
+        self.mapping_dict["ATCD_immunodepression"] = self.immunodepression_mapping
         self.immunodepression_patterns = {}
-        self.column_to_clean_with_reg_exp["immunodepression"] = [self.immunodepression_mapping,
+        self.column_to_clean_with_reg_exp["ATCD_immunodepression"] = [self.immunodepression_mapping,
                                                                              self.immunodepression_patterns]
 
         dysthyroidie_to_map = ["oui", "non"]
         self.dysthyroidie_mapping = {"NA": -1}
         for code, dysthyroidie in enumerate(dysthyroidie_to_map):
             self.dysthyroidie_mapping[dysthyroidie] = code
-        self.mapping_dict["dysthyroidie"] = self.dysthyroidie_mapping
+        self.mapping_dict["ATCD_dysthyroidie"] = self.dysthyroidie_mapping
         self.dysthyroidie_patterns = {}
-        self.column_to_clean_with_reg_exp["dysthyroidie"] = [self.dysthyroidie_mapping,
+        self.column_to_clean_with_reg_exp["ATCD_dysthyroidie"] = [self.dysthyroidie_mapping,
                                                                  self.dysthyroidie_patterns]
         # cause_immunodepression
         cause_immunodepression_to_map = ["non"]
@@ -743,7 +742,7 @@ def main():
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
 
     use_mutli_sheets_excel = False
-    single_sheet_file_name = "gma recueil Lucie 23 Juillet Finalretouche.xlsx"
+    single_sheet_file_name = "gma recueil Lucie 24 Juilletouf.xlsx"
 
     if use_mutli_sheets_excel:
         original_file_name = "GMA Toulouse.xlsx"

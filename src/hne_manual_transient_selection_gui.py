@@ -4625,7 +4625,20 @@ class ManualOnsetFrame(tk.Frame):
 
             # if we do imshow, then the size of the image will be the one of the square, with no zoom
             if i == -1:
-                self.last_img_displayed = self.axe_plot_map_img.imshow(frame_tiff,
+                high_contrast = True
+                if high_contrast:
+                    img = PIL.Image.new('1', tiff_array.shape, 1)
+                    xy_coords = self.cell_contour_movie.get_xy()
+                    xy_coords = [(xy_coords[pixel, 0], xy_coords[pixel, 1]) for pixel in np.arange(len(xy_coords))]
+                    ImageDraw.Draw(img).polygon(xy_coords, outline=0, fill=0)
+                    mask = np.array(img)
+                    max_value = np.max(tiff_array[mask])
+                    # max_value = np.mean(frame_tiff) + np.std(frame_tiff)*4
+                    self.last_img_displayed = self.axe_plot_map_img.imshow(frame_tiff,
+                                                                           cmap=plt.get_cmap('gray'),
+                                                                           vmax=max_value)
+                else:
+                    self.last_img_displayed = self.axe_plot_map_img.imshow(frame_tiff,
                                                                        cmap=plt.get_cmap('gray'))
                 self.last_img_displayed.set_array(tiff_array)
             else:
@@ -5556,10 +5569,11 @@ def fusion_gui_selection(path_data):
 
     # in case if one of the file is a fusion file
     for index_data, data_file in enumerate(data_files):
+        cells_array = np.array(cells_by_file[index_data])
         if "to_agree_peak_nums" in data_file:
-            to_agree_peak_nums = data_file['to_agree_peak_nums'].astype(int)
+            to_agree_peak_nums[cells_array] = data_file['to_agree_peak_nums'].astype(int)[cells_array]
         if "to_agree_spike_nums" in data_file:
-            to_agree_spike_nums = data_file['to_agree_spike_nums'].astype(int)
+            to_agree_spike_nums[cells_array] = data_file['to_agree_spike_nums'].astype(int)[cells_array]
 
     for index_data, data_file in enumerate(data_files):
         if "inter_neurons" in data_file:
@@ -5622,8 +5636,10 @@ def fusion_gui_selection(path_data):
                 merge_close_values(raster=to_agree_spike_nums, raster_to_fill=spike_nums,
                                    cell=cell, merging_threshold=merging_threshold)
 
+
     # now we want to fill the cells that didn't have to be fusionned, using one the data file
     cells_to_fill = np.setxor1d(cells_fusioned, np.arange(n_cells), assume_unique=True)
+
     for cell in cells_to_fill:
         peak_nums_data = data_files[0]['LocPeakMatrix_Python'].astype(int)
         spike_nums_data = data_files[0]['Bin100ms_spikedigital_Python'].astype(int)
