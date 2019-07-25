@@ -2802,8 +2802,9 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     add_doubt_at_movie_concatenation_frames = True
     use_cnn_to_select_cells = False
     use_small_sample = False
-    use_triple_blinded_data = True
+    use_triple_blinded_data = False
     use_test_sample = False
+    use_gad_cre_sample=True
     # used for counting how many cells and transients available
     load_them_all = False
 
@@ -2904,6 +2905,23 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         p11_17_11_24_a000_ms: 3, 45
         p12_171110_a000_ms: 9, 10
         p13_18_10_29_a001_ms: 77, 117 (need to be done by JD before triple blind) 
+        """
+    elif use_gad_cre_sample:
+        # ms_to_remove_from_test.append("artificial_ms_1")
+        # ms_to_remove_from_validation.append("artificial_ms_1")
+        # ms_to_remove_from_test.append("artificial_ms_2")
+        # ms_to_remove_from_validation.append("artificial_ms_2")
+
+        ms_to_use = ["p8_18_10_24_a006_ms", "p11_19_04_30_a001_ms", "p6_19_02_18_a000_ms"]
+        cell_to_load_by_ms = {"p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
+                              "p11_19_04_30_a001_ms": np.array([0, 2, 3]),
+                              "p6_19_02_18_a000_ms": np.array([0, 1, 2]),
+                              }
+        """
+        For benchmark:
+         "p11_19_04_30_a001_ms" -> cell 4
+         "p11_19_04_30_a001_ms" -> cell 3
+         
         """
     elif use_test_sample:
         ms_to_use = ["p12_171110_a000_ms"]
@@ -3982,6 +4000,7 @@ def train_model():
         ms_for_tiffs = ["p5_19_03_25_a001_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms",
                         "p16_18_11_01_a002_ms"]
         ms_for_tiffs = ["p10_19_02_21_a005_ms"]
+        ms_for_tiffs = ["p8_18_10_24_a006_ms", "p11_19_04_30_a001_ms", "p6_19_02_18_a000_ms"]
 
         create_tiffs_for_data_generator(ms_to_use=ms_for_tiffs,
                                         param=param, path_for_tiffs=path_for_tiffs)
@@ -4119,7 +4138,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    n_gpus = 4
+    n_gpus = 1
     using_multi_class = 1  # 1 or 3 so far
     n_epochs = 30 # TODO: 30
     # multiplying by the number of gpus used as batches will be distributed to each GPU

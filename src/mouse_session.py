@@ -4,7 +4,9 @@ from scipy import signal
 # import matplotlib
 # matplotlib.use('TkAgg')
 # to comment for mesocentre
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+import seaborn as sns
+import hdbscan
 import numpy as np
 import hdf5storage
 import time
@@ -12,8 +14,6 @@ import os
 import pyabf
 import matplotlib.image as mpimg
 import networkx as nx
-# import seaborn as sns
-# import hdbscan
 from pattern_discovery.graph.misc import welsh_powell
 # to add homemade package, go to preferences, then project interpreter, then click on the wheel symbol
 # then show all, then select the interpreter and lick on the more right icon to display a list of folder and
@@ -2442,6 +2442,7 @@ class MouseSession:
         max_n_lines = 10
 
         if plot_fit:
+            # TODO: Compute pearson correlation between the fit and the original traces and plot the distribution
             for index_first_cell in range(0, n_cells, n_cells_by_plot):
                 n_cells_in_this_plot = min(n_cells_by_plot, n_cells - index_first_cell)
                 n_lines = n_cells_in_this_plot if n_cells_in_this_plot <= max_n_lines else max_n_lines
@@ -2457,8 +2458,14 @@ class MouseSession:
                 for cell_index, cell in enumerate(np.arange(index_first_cell, index_first_cell + n_cells_in_this_plot)):
                     axes[cell_index].plot(f[inds[cell]], color='k', linewidth=1)
                     axes[cell_index].plot(f_hat[inds[cell]], color='g', linewidth=0.8)
+                    pearson_corr = stats.pearsonr(f[inds[cell]], f_hat[inds[cell]])[0]
+                    axes[cell_index].text(x=len(f[inds[cell]]) - 500,
+                                          y=np.mean(f[inds[cell]]) + 6*np.std(f[inds[cell]]),
+                                          s=f"r={np.round(corr_coefs[inds[cell]], 2)}", color="black", zorder=22,
+                                          ha='center', va="center", fontsize=10, fontweight='bold')
                     axes[cell_index].set_xlim([0, T])
                     axes[cell_index].set_frame_on(False)
+
                     # axes[cell_index].get_xaxis().set_visible(True)
                     # axes[cell_index].get_yaxis().set_visible(False)
 
@@ -2548,7 +2555,7 @@ class MouseSession:
                                 f'_{self.param.time_str}.{save_format}',
                                 format=f"{save_format}",
                                 facecolor=fig.get_facecolor())
-
+                plt.close()
         ##### Tuning curves
 
         kmax = np.max(kernel)
@@ -2557,7 +2564,7 @@ class MouseSession:
         fig, axes = plt.subplots(figsize=(4, 4), sharex=True, sharey=False, ncols=4, nrows=4)
         axes = axes.flatten()
         for n in range(16):
-            print(f'{n}: tuning_curves[n, :] {tuning_curves[n, :]}')
+            # print(f'{n}: tuning_curves[n, :] {tuning_curves[n, :]}')
             axes[n].plot(tuning_curves[n, :], color='firebrick', linewidth=1)
             # axes[n].scatter([0], tuning_curves[n, :], color='firebrick')
             axes[n].get_xaxis().set_visible(False)
@@ -2573,6 +2580,7 @@ class MouseSession:
                         f'_{self.param.time_str}.{save_format}',
                         format=f"{save_format}",
                         facecolor=fig.get_facecolor())
+        plt.close()
 
         # cross-corr between tuning curves
         tuning_curves_matrix = np.zeros((n_cells, n_cells))
@@ -2789,8 +2797,8 @@ class MouseSession:
         # Default parameter values
         L = 3
         # used to be 40 and 40
-        num_iters = 20
-        iters_per_altern = 20
+        num_iters = 5
+        iters_per_altern = 5
         gamma = 1.00
         # Note: default rise and decay time constants are appropriate for our GCaMP6s zebrafish larvae.
         # They may not be suitable for other indicators or animal models.

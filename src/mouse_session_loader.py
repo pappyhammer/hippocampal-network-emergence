@@ -97,6 +97,20 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["artificial_ms_3"] = artificial_ms
 
+    # GAD-CRE
+    if "p5_19_03_20_a000_ms" in ms_str_to_load:
+        p5_19_03_20_a000_ms = MouseSession(age=5, session_id="19_03_20_a000",
+                                           sampling_rate=8, param=param, weight=3.75)
+        p5_19_03_20_a000_ms.use_suite_2p = False
+
+        if not p5_19_03_20_a000_ms.use_suite_2p:
+            variables_mapping = {"coord": "ContoursAll"}
+            p5_19_03_20_a000_ms.load_data_from_file(
+                file_name_to_load="p5/p5_19_03_20_a000/p5_19_03_20_a000_CellDetect_fiji.mat",
+                variables_mapping=variables_mapping, from_fiji=True)
+
+        ms_str_to_ms_dict["p5_19_03_20_a000_ms"] = p5_19_03_20_a000_ms
+
     if "p5_19_03_25_a000_ms" in ms_str_to_load:
         p5_19_03_25_a000_ms = MouseSession(age=5, session_id="19_03_25_a000",
                                            sampling_rate=8, param=param, weight=3.75)
@@ -244,12 +258,26 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p6_19_02_18_a000_ms = MouseSession(age=6, session_id="19_02_18_a000", sampling_rate=8, param=param,
                                            weight=None)
         p6_19_02_18_a000_ms.use_suite_2p = False
+        if for_transient_classifier:
+            p6_19_02_18_a000_ms.use_suite_2p = False
         # calculated with 99th percentile on raster dur
         # p6_19_02_18_a000_ms.activity_threshold = 2
 
         if not p6_19_02_18_a000_ms.use_suite_2p:
+            if for_transient_classifier:
+                variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                     "peak_nums": "LocPeakMatrix_Python",
+                                     "cells_to_remove": "cells_to_remove",
+                                     "inter_neurons_from_gui": "inter_neurons",
+                                     "doubtful_frames_nums": "doubtful_frames_nums"}
+                p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load=
+                                                         "p6/p6_19_02_18_a000/p6_19_02_18_a000_ground_truth_cell_0_1_2_3.mat",
+                                                         variables_mapping=variables_mapping,
+                                                         from_gui=True)
+                p6_19_02_18_a000_ms.build_spike_nums_dur()
+
             variables_mapping = {"coord": "ContoursAll"}
-            p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_CellDetect.mat",
+            p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_CellDetect_fiji.mat",
                                                     variables_mapping=variables_mapping, from_fiji=True)
 
             p6_19_02_18_a000_ms.load_tif_movie(path="p6/p6_19_02_18_a000/")
@@ -1162,11 +1190,25 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                             sampling_rate=8, param=param)
 
         p11_19_04_30_a001_ms.use_suite_2p = False
+        if for_transient_classifier:
+            p11_19_04_30_a001_ms.use_suite_2p = False
 
         if not p11_19_04_30_a001_ms.use_suite_2p:
+            if for_transient_classifier:
+                variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                     "peak_nums": "LocPeakMatrix_Python",
+                                     "cells_to_remove": "cells_to_remove",
+                                     "inter_neurons_from_gui": "inter_neurons",
+                                     "doubtful_frames_nums": "doubtful_frames_nums"}
+                p11_19_04_30_a001_ms.load_data_from_file(file_name_to_load=
+                                                         "p11/p11_19_04_30_a001/p11_19_04_30_a001_gound_truth.mat",
+                                                         variables_mapping=variables_mapping,
+                                                         from_gui=True)
+                p11_19_04_30_a001_ms.build_spike_nums_dur()
+
             variables_mapping = {"coord": "ContoursAll"}
             p11_19_04_30_a001_ms.load_data_from_file(
-                file_name_to_load="p11/p11_19_04_30_a001/p11_19_04_30_a001_CellDetect.mat",
+                file_name_to_load="p11/p11_19_04_30_a001/p11_19_04_30_a001_CellDetect_fiji.mat",
                 variables_mapping=variables_mapping)
             p11_19_04_30_a001_ms.load_tif_movie(path="p11/p11_19_04_30_a001/")
             # p11_19_04_30_a001_ms.load_caiman_results(path_data="p11/p11_19_04_30_a001/")
@@ -1285,13 +1327,19 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["p12_17_11_10_a002_ms"] = p12_17_11_10_a002_ms
 
-    # Gad cre
+    # GAD-cre
     if "p12_19_02_08_a000_ms" in ms_str_to_load:
         p12_19_02_08_a000_ms = MouseSession(age=12, session_id="19_02_08_a000",
                                             sampling_rate=8, param=param,
                                             weight=7.55)
 
-        p12_19_02_08_a000_ms.use_suite_2p = True
+        p12_19_02_08_a000_ms.use_suite_2p = False
+
+        if not p12_19_02_08_a000_ms.use_suite_2p:
+            variables_mapping = {"coord": "ContoursAll"}
+            p12_17_11_10_a002_ms.load_data_from_file(
+                file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_CellDetect_fiji.mat",
+                variables_mapping=variables_mapping, from_fiji=True)
 
         ms_str_to_ms_dict["p12_19_02_08_a000_ms"] = p12_19_02_08_a000_ms
 
@@ -1777,7 +1825,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms.load_suite2p_data(data_path=f"p{ms.age}/{ms.description.lower()}/suite2p/", with_coord=ms.use_suite_2p)
 
         if load_traces:
-            if ms.use_suite_2p:
+            if ms.use_suite_2p or (ms.raw_traces is None):
                 raw_traces_loaded = ms.load_raw_traces_from_npy(path=f"p{ms.age}/{ms.description.lower()}/")
                 if not raw_traces_loaded:
                     ms.load_tiff_movie_in_memory()
