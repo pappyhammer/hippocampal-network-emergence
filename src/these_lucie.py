@@ -121,16 +121,16 @@ class CleanerCoder(Cleaner):
         self.column_to_clean_dict["sexe"] = [self.sexe_mapping]
 
         self.diabete_mapping = {"NA": -1, "non": 0, "oui": 1}
-        self.mapping_dict["Diabete"] = self.diabete_mapping
-        self.column_to_clean_dict["Diabete"] = [self.diabete_mapping, dict()]
+        self.mapping_dict["ATCD_Diabete"] = self.diabete_mapping
+        self.column_to_clean_dict["ATCD_Diabete"] = [self.diabete_mapping, dict()]
 
         self.greffe_cornee_mapping = {"NA": -1, "non": 0, "oui": 1}
-        self.mapping_dict["greffe_cornee"] = self.greffe_cornee_mapping
-        self.column_to_clean_dict["greffe_cornee"] = [self.greffe_cornee_mapping, dict()]
+        self.mapping_dict["ATCD_greffe_cornee"] = self.greffe_cornee_mapping
+        self.column_to_clean_dict["ATCD_greffe_cornee"] = [self.greffe_cornee_mapping, dict()]
 
         self.glaucome_mapping = {"NA": -1, "non": 0, "oui": 1}
-        self.mapping_dict["Glaucome"] = self.glaucome_mapping
-        self.column_to_clean_dict["Glaucome"] = [self.glaucome_mapping, dict()]
+        self.mapping_dict["ATCD_Glaucome"] = self.glaucome_mapping
+        self.column_to_clean_dict["ATCD_Glaucome"] = [self.glaucome_mapping, dict()]
 
         statut_cristallin_to_map = ["phaque", "pke odg"]
         self.statut_cristallin_mapping = {"NA": -1}
@@ -234,6 +234,42 @@ class CleanerCoder(Cleaner):
         self.column_to_clean_with_reg_exp["germe"] = [self.germe_mapping,
                                                             self.germe_patterns]
 
+        # ATCD_HSV_2_episodes_au_moins
+        atcd_hsv_to_map = ["oui"]
+        self.atcd_hsv_mapping = {"NA": -1}
+        for code, atcd_hsv in enumerate(atcd_hsv_to_map):
+            self.atcd_hsv_mapping[atcd_hsv] = code
+        self.mapping_dict["ATCD_HSV_2_episodes_au_moins"] = self.atcd_hsv_mapping
+        self.atcd_hsv_patterns = {}
+        self.column_to_clean_with_reg_exp["ATCD_HSV_2_episodes_au_moins"] = [self.atcd_hsv_mapping,
+                                                      self.atcd_hsv_patterns]
+
+        immunodepression_to_map = ["oui", "non"]
+        self.immunodepression_mapping = {"NA": -1}
+        for code, immunodepression in enumerate(immunodepression_to_map):
+            self.immunodepression_mapping[immunodepression] = code
+        self.mapping_dict["ATCD_immunodepression"] = self.immunodepression_mapping
+        self.immunodepression_patterns = {}
+        self.column_to_clean_with_reg_exp["ATCD_immunodepression"] = [self.immunodepression_mapping,
+                                                                             self.immunodepression_patterns]
+
+        dysthyroidie_to_map = ["oui", "non"]
+        self.dysthyroidie_mapping = {"NA": -1}
+        for code, dysthyroidie in enumerate(dysthyroidie_to_map):
+            self.dysthyroidie_mapping[dysthyroidie] = code
+        self.mapping_dict["ATCD_dysthyroidie"] = self.dysthyroidie_mapping
+        self.dysthyroidie_patterns = {}
+        self.column_to_clean_with_reg_exp["ATCD_dysthyroidie"] = [self.dysthyroidie_mapping,
+                                                                 self.dysthyroidie_patterns]
+        # cause_immunodepression
+        cause_immunodepression_to_map = ["non"]
+        self.cause_immunodepression_mapping = {"NA": -1}
+        for code, cause_immunodepression in enumerate(cause_immunodepression_to_map):
+            self.cause_immunodepression_mapping[cause_immunodepression] = code
+        self.mapping_dict["cause_immunodepression"] = self.cause_immunodepression_mapping
+        self.cause_immunodepression_patterns = {}
+        self.column_to_clean_with_reg_exp["cause_immunodepression"] = [self.cause_immunodepression_mapping,
+                                                             self.cause_immunodepression_patterns]
 
         etiologies_to_map = ["ulcere inflammatoire", "inflammatoire",
                              "ulcere mecanique", "keratite infectieuse",
@@ -706,7 +742,7 @@ def main():
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
 
     use_mutli_sheets_excel = False
-    single_sheet_file_name = "gma recueil lucie 15 JUILLETfINAL.xlsx"
+    single_sheet_file_name = "gma recueil Lucie 24 Juilletouf.xlsx"
 
     if use_mutli_sheets_excel:
         original_file_name = "GMA Toulouse.xlsx"
@@ -715,7 +751,7 @@ def main():
         names_col = None
         n_columns_full = 43
         n_columns_empty = 2
-        # going through all the sheets
+        # going through all the sheetss
         for n in np.arange(2, 7):
             df = pd.read_excel(path_data + original_file_name, sheet_name=f"Feuil{n}")
             df = df.iloc[:, :n_columns_full + n_columns_empty]
@@ -762,7 +798,7 @@ def main():
         # df_data = pd.read_excel(os.path.join(path_results, single_sheet_file_name), sheet_name="data")
     else:
         original_file_name = single_sheet_file_name
-        df_data = pd.read_excel(os.path.join(path_data, original_file_name), sheet_name="data")
+        df_data = pd.read_excel(os.path.join(path_data, original_file_name), sheet_name="Feuil1")
 
     # print(f"shape: {df_data.shape}")
     # print(f"columns: {df_data.columns}")
@@ -771,14 +807,14 @@ def main():
     cleaner_coder_with_original = CleanerCoder(df_data=df_data.copy(), keep_original=True)
     cleaner_coder_without_original = CleanerCoder(df_data=df_data.copy(), keep_original=False)
 
-    if use_multi_cleaner:
-        cleaner_multi = CleanerMulti(df_data=df_data.copy())
+    # if use_multi_cleaner:
+    #     cleaner_multi = CleanerMulti(df_data=df_data.copy())
 
     # print(f"shape: {cleaner_coder.df_clean.shape}")
     # print(f"columns coder: {cleaner_coder.df_clean.columns}")
-    if use_multi_cleaner:
-        print(f"shape: {cleaner_multi.df_clean.shape}")
-        print(f"columns multi: {cleaner_multi.df_clean.columns}")
+    # if use_multi_cleaner:
+    #     print(f"shape: {cleaner_multi.df_clean.shape}")
+    #     print(f"columns multi: {cleaner_multi.df_clean.columns}")
 
     cleaner_coder_without_original.produce_stats(file_name=f'{path_results}/stats_Lucie_{time_str}.txt')
 
