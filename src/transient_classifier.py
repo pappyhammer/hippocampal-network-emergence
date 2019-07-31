@@ -8,6 +8,7 @@
 # matplotlib.use("Agg")
 
 from tensorflow.python.client import device_lib
+
 print(f"device_lib.list_local_devices(): {device_lib.list_local_devices()}")
 
 import tensorflow as tf
@@ -420,9 +421,9 @@ class StratificationCamembert:
                                                            self.n_full_transient_total[which_ones]) * 100
                 if self.debug_mode:
                     print(perc_color + f"1 full {which_ones} transient perc: "
-                    f"{str(np.round(self.full_1_transient_perc[which_ones], 2))} %" + reset_color)
+                                       f"{str(np.round(self.full_1_transient_perc[which_ones], 2))} %" + reset_color)
                     print(perc_color + f"2+ full {which_ones} transient perc: "
-                    f"{str(np.round(self.full_2p_transient_perc[which_ones], 2))} %" + reset_color)
+                                       f"{str(np.round(self.full_2p_transient_perc[which_ones], 2))} %" + reset_color)
             if self.debug_mode:
                 print(f"{which_ones}: n_cropped_transient_dict {self.n_cropped_transient_dict[which_ones]}")
             self.n_cropped_transient_total[which_ones] = 0
@@ -440,9 +441,9 @@ class StratificationCamembert:
                                                            self.n_transient_total[which_ones]) * 100
                 if self.debug_mode:
                     print(perc_color + f"Full {which_ones}: "
-                    f"{str(np.round(self.full_transient_perc[which_ones], 2))} %" + reset_color)
+                                       f"{str(np.round(self.full_transient_perc[which_ones], 2))} %" + reset_color)
                     print(perc_color + f"Cropped {which_ones}: "
-                    f"{str(np.round(self.cropped_transient_perc[which_ones], 2))} %" + reset_color)
+                                       f"{str(np.round(self.cropped_transient_perc[which_ones], 2))} %" + reset_color)
             if self.debug_mode and (len(self.transient_lengths[which_ones]) > 0):
                 print(f"{which_ones}: transient_lengths n {len(self.transient_lengths[which_ones])} / "
                       f"min-max {np.min(self.transient_lengths[which_ones])} - "
@@ -454,9 +455,9 @@ class StratificationCamembert:
         if self.debug_mode:
             for which_ones in ["real", "fake"]:
                 print(perc_color + f"Total movie with {which_ones} transients {self.n_transient_total[which_ones]}: "
-                f"{str(np.round(self.total_transient_perc[which_ones], 2))} %" + reset_color)
+                                   f"{str(np.round(self.total_transient_perc[which_ones], 2))} %" + reset_color)
             print(perc_color + f"n_only_neuropil {self.n_only_neuropil}: "
-            f"{str(np.round(self.only_neuropil_perc, 2))} %" + reset_color)
+                               f"{str(np.round(self.only_neuropil_perc, 2))} %" + reset_color)
             print("")
             print("")
 
@@ -1153,7 +1154,8 @@ class StratificationDataProcessor:
                 n_movie_patch = camembert.n_movie_patch
                 # list of potential movie patches in this session depending on the augmentation factor
                 # from 1 (no transformation added) to (self.n_transformations_for_session + 1)
-                n_movie_patch_options = [n_movie_patch * x for x in np.arange(1, (self.n_transformations_for_session + 2))]
+                n_movie_patch_options = [n_movie_patch * x for x in
+                                         np.arange(1, (self.n_transformations_for_session + 2))]
                 n_movie_patch_options = np.array(n_movie_patch_options)
                 idx = (np.abs(n_movie_patch_options - max_movie_patch)).argmin()
                 if idx > 0:
@@ -1763,7 +1765,7 @@ class MoviePatchGeneratorGlobalWithContour(MoviePatchGenerator):
 
     def __str__(self):
         return f"{self.n_inputs} inputs. Main cell mask + pixels around that contain overlaping , " \
-            f"with main cell with contour (pixels set to zero)"
+               f"with main cell with contour (pixels set to zero)"
 
 
 class MoviePatchGeneratorMaskedVersions(MoviePatchGenerator):
@@ -2504,7 +2506,8 @@ def get_source_profile_frames(ms, frames, coords):
         source_profile = ms.tiff_movie_normalized[frames, miny:maxy + 1, minx:maxx + 1]
     else:
         if ms.tiff_movie_mean is None:
-            mean_value = np.load(os.path.join(ms.tiffs_for_transient_classifier_path, ms.description.lower(), "mean.npy"))
+            mean_value = np.load(
+                os.path.join(ms.tiffs_for_transient_classifier_path, ms.description.lower(), "mean.npy"))
             ms.tiff_movie_mean = mean_value
         else:
             mean_value = ms.tiff_movie_mean
@@ -2708,7 +2711,7 @@ def add_segment_of_cells_for_training(param,
     dir_to_load = []
     # CAIMAN version
     dir_to_load.append(os.path.join(param.path_data, "p7", "p7_17_10_12_a000", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data,  "p8", "p8_18_10_24_a005", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p8", "p8_18_10_24_a005", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p11", "p11_17_11_24_a000", "transients_to_add_for_rnn"))
 
     # SUITE2P version
@@ -2767,7 +2770,6 @@ def add_segment_of_cells_for_training(param,
 
     # print(f"debug_dict {debug_dict}")
 
-
     return cells_segments_by_session, raster_dur_by_cells_and_session
 
 
@@ -2804,7 +2806,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     use_small_sample = False
     use_triple_blinded_data = False
     use_test_sample = False
-    use_gad_cre_sample=True
+    use_gad_cre_sample = True
     # used for counting how many cells and transients available
     load_them_all = False
 
@@ -2950,8 +2952,6 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                                             param=param,
                                             load_traces=True, load_abf=False,
                                             for_transient_classifier=True)
-
-
 
     total_n_cells = 0
     # n_movies = 0
@@ -3167,8 +3167,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                         # if some frames have been marked as doubtful, we remove them of the training dataset
                         if (ms.doubtful_frames_nums is not None) and (segments is None):
                             if (np.sum(ms.doubtful_frames_nums[cell,
-                                                                np.arange(first_frame,
-                                                                          first_frame + sliding_window_len)]) > 0):
+                                                               np.arange(first_frame,
+                                                                         first_frame + sliding_window_len)]) > 0):
                                 continue
                         # if segments is not None:
                         #     print("segments is not None")
@@ -3620,7 +3620,7 @@ def transients_prediction_from_movie(ms_to_use, param, tiffs_for_transient_class
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
         ms.tiffs_for_transient_classifier_path = tiffs_for_transient_classifier_path
-
+        print(f"ms.description cell: {ms.description}")
         n_cells = len(ms.coord)
         print(f"ms {ms_str}")
         print(f"n_cells {n_cells}")
@@ -4000,12 +4000,15 @@ def train_model():
         ms_for_tiffs = ["p5_19_03_25_a001_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms",
                         "p16_18_11_01_a002_ms"]
         ms_for_tiffs = ["p10_19_02_21_a005_ms"]
-        ms_for_tiffs = ["p8_18_10_24_a006_ms", "p11_19_04_30_a001_ms", "p6_19_02_18_a000_ms"]
+        ms_for_tiffs = ["p8_18_10_24_a005_ms"]
+        # GAD-CRE
+        ms_for_tiffs = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
+                        "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
 
         create_tiffs_for_data_generator(ms_to_use=ms_for_tiffs,
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
@@ -4016,21 +4019,24 @@ def train_model():
         ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
                                  "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms", "p12_171110_a000_ms"]
-        ms_for_gad_cre_benchmarks = ["p6_19_02_18_a000_ms", "p8_18_10_24_a006_ms", "p11_19_04_30_a001_ms"]
-        cells_to_predict_gad_cre = {"p6_19_02_18_a000_ms": np.array([3]),
-                            "p11_19_04_30_a001_ms": np.array([4]),
-                            "p8_18_10_24_a006_ms": np.array([28, 32, 33])  # RD
-                             }
-        # ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
+        ms_for_gad_cre_benchmarks = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
+                                     "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
+        # oriens: "p8_18_10_24_a006_ms"
+        # cells_to_predict_gad_cre = {"p6_19_02_18_a000_ms": np.array([3]),
+        #                     "p11_19_04_30_a001_ms": np.array([4]),
+        #                     "p8_18_10_24_a006_ms": np.array([28, 32, 33])  # RD
+        #                      }
+        ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
         # ms_for_rnn_benchmarks = ["p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
         # ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
-        cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
-                            "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
-                            "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
-                            "p11_17_11_24_a000_ms": np.array([3, 45]),
-                            "p12_171110_a000_ms": np.array([9, 10]),
-                            "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
+        # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
+        # cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
+        #                     "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
+        #                     "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
+        #                     "p11_17_11_24_a000_ms": np.array([3, 45]),
+        #                     "p12_171110_a000_ms": np.array([9, 10]),
+        #                     "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
         # cells_to_predict = {"p11_17_11_24_a000_ms": np.arange(24)}  # np.array([2, 25])} # np.arange(117)
         # cells_to_predict = {"p41_19_04_30_a000_ms": None}
         # cells_to_predict = {"p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])}
@@ -4041,7 +4047,7 @@ def train_model():
         #                     "p13_18_10_29_a001_ms": np.array([77, 117])}
         # cells_to_predict = {"p11_17_11_24_a000_ms": np.array([3, 45]),
         #                     "p12_171110_a000_ms": np.array([9, 10])}
-        # cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
+        cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
 
         # Julien
         # ms_for_rnn_benchmarks = ["p9_19_03_14_a001_ms"]
@@ -4099,16 +4105,19 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # cells_p8_18_10_17_a000_ms = np.setdiff1d(cells_p8_18_10_17_a000_ms, np.array([538]))
         # cells_to_predict["p8_18_10_17_a000_ms"] = cells_p8_18_10_17_a000_ms
 
-
         # ms_for_rnn_benchmarks = ["p8_18_10_24_a006_ms"]
         # cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33])}
 
         # ms_for_rnn_benchmarks = ms_for_gad_cre_benchmarks
+        # cells_to_predict = dict()
+        # # predicting all cells
+        # for ms in ms_for_rnn_benchmarks:
+        #     cells_to_predict[ms] = None
         # cells_to_predict = cells_to_predict_gad_cre
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0.5,
                                          use_data_augmentation=False, using_cnn_predictions=False,
-                                         cells_to_predict=cells_to_predict, file_name_bonus_str="meso_v2_epoch_9",
+                                         cells_to_predict=cells_to_predict, file_name_bonus_str="meso_v2_epoch_19",
                                          tiffs_for_transient_classifier_path=path_for_tiffs)
         # "rnn_gad_cre_epoch_9"
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
@@ -4149,18 +4158,18 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     """
     n_gpus = 1
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 30 # TODO: 30
+    n_epochs = 30  # TODO: 30
     # multiplying by the number of gpus used as batches will be distributed to each GPU
-    batch_size = 8*n_gpus
-    window_len = 100 # TODO: 100
+    batch_size = 8 * n_gpus
+    window_len = 100  # TODO: 100
     max_width = 25
     max_height = 25
-    overlap_value = 0.9 # TODO: 0.9
+    overlap_value = 0.9  # TODO: 0.9
     dropout_value = 0.5
     dropout_value_rnn = 0.5
     dropout_at_the_end = 0
     with_batch_normalization = False
-    max_n_transformations = 6 # TODO: 6
+    max_n_transformations = 6  # TODO: 6
     pixels_around = 0
     with_augmentation_for_training_data = True
     buffer = 1
@@ -4178,8 +4187,8 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     # TODO: try 256, 256, 256
     lstm_layers_size = [128, 256]  # TODO: 128, 256 # 128, 256, 512
     bin_lstm_size = 256
-    use_bin_at_al_version = True # TODO: True
-    apply_attention = True # TODO: True
+    use_bin_at_al_version = True  # TODO: True
+    apply_attention = True  # TODO: True
     apply_attention_before_lstm = True
     use_single_attention_vector = False
     with_early_stopping = True
@@ -4337,8 +4346,8 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     # precision = PPV and recall = sensitiviy but in our case just concerning the active frames
     # the sensitivity and specificity otherwise refers to non-active and active frames classifier
     parallel_model.compile(optimizer=optimizer,
-                  loss=loss_fct,
-                  metrics=['accuracy', sensitivity, specificity, precision])
+                           loss=loss_fct,
+                           metrics=['accuracy', sensitivity, specificity, precision])
     # sample_weight_mode="temporal",
 
     # Set a learning rate annealer
@@ -4380,11 +4389,11 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     start_time = time.time()
 
     history = parallel_model.fit_generator(generator=training_generator,
-                                  validation_data=validation_generator,
-                                  epochs=n_epochs,
-                                  use_multiprocessing=True,
-                                  workers=workers,
-                                  callbacks=callbacks_list, verbose=2) #TODO: Verbose=2
+                                           validation_data=validation_generator,
+                                           epochs=n_epochs,
+                                           use_multiprocessing=True,
+                                           workers=workers,
+                                           callbacks=callbacks_list, verbose=2)  # TODO: Verbose=2
 
     print(f"history.history.keys() {history.history.keys()}")
     stop_time = time.time()
