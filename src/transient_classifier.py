@@ -421,9 +421,9 @@ class StratificationCamembert:
                                                            self.n_full_transient_total[which_ones]) * 100
                 if self.debug_mode:
                     print(perc_color + f"1 full {which_ones} transient perc: "
-                                       f"{str(np.round(self.full_1_transient_perc[which_ones], 2))} %" + reset_color)
+                    f"{str(np.round(self.full_1_transient_perc[which_ones], 2))} %" + reset_color)
                     print(perc_color + f"2+ full {which_ones} transient perc: "
-                                       f"{str(np.round(self.full_2p_transient_perc[which_ones], 2))} %" + reset_color)
+                    f"{str(np.round(self.full_2p_transient_perc[which_ones], 2))} %" + reset_color)
             if self.debug_mode:
                 print(f"{which_ones}: n_cropped_transient_dict {self.n_cropped_transient_dict[which_ones]}")
             self.n_cropped_transient_total[which_ones] = 0
@@ -441,9 +441,9 @@ class StratificationCamembert:
                                                            self.n_transient_total[which_ones]) * 100
                 if self.debug_mode:
                     print(perc_color + f"Full {which_ones}: "
-                                       f"{str(np.round(self.full_transient_perc[which_ones], 2))} %" + reset_color)
+                    f"{str(np.round(self.full_transient_perc[which_ones], 2))} %" + reset_color)
                     print(perc_color + f"Cropped {which_ones}: "
-                                       f"{str(np.round(self.cropped_transient_perc[which_ones], 2))} %" + reset_color)
+                    f"{str(np.round(self.cropped_transient_perc[which_ones], 2))} %" + reset_color)
             if self.debug_mode and (len(self.transient_lengths[which_ones]) > 0):
                 print(f"{which_ones}: transient_lengths n {len(self.transient_lengths[which_ones])} / "
                       f"min-max {np.min(self.transient_lengths[which_ones])} - "
@@ -455,9 +455,9 @@ class StratificationCamembert:
         if self.debug_mode:
             for which_ones in ["real", "fake"]:
                 print(perc_color + f"Total movie with {which_ones} transients {self.n_transient_total[which_ones]}: "
-                                   f"{str(np.round(self.total_transient_perc[which_ones], 2))} %" + reset_color)
+                f"{str(np.round(self.total_transient_perc[which_ones], 2))} %" + reset_color)
             print(perc_color + f"n_only_neuropil {self.n_only_neuropil}: "
-                               f"{str(np.round(self.only_neuropil_perc, 2))} %" + reset_color)
+            f"{str(np.round(self.only_neuropil_perc, 2))} %" + reset_color)
             print("")
             print("")
 
@@ -1765,7 +1765,7 @@ class MoviePatchGeneratorGlobalWithContour(MoviePatchGenerator):
 
     def __str__(self):
         return f"{self.n_inputs} inputs. Main cell mask + pixels around that contain overlaping , " \
-               f"with main cell with contour (pixels set to zero)"
+            f"with main cell with contour (pixels set to zero)"
 
 
 class MoviePatchGeneratorMaskedVersions(MoviePatchGenerator):
@@ -2909,13 +2909,15 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         p13_18_10_29_a001_ms: 77, 117 (need to be done by JD before triple blind) 
         """
     elif use_gad_cre_sample:
-        # ms_to_remove_from_test.append("artificial_ms_1")
-        # ms_to_remove_from_validation.append("artificial_ms_1")
+        ms_to_remove_from_test.append("artificial_ms_1")
+        ms_to_remove_from_validation.append("artificial_ms_1")
         # ms_to_remove_from_test.append("artificial_ms_2")
         # ms_to_remove_from_validation.append("artificial_ms_2")
 
-        ms_to_use = ["p8_18_10_24_a006_ms", "p11_19_04_30_a001_ms", "p6_19_02_18_a000_ms"]
-        cell_to_load_by_ms = {"p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
+        ms_to_use = ["artificial_ms_1", "p8_18_10_24_a006_ms", "p11_19_04_30_a001_ms", "p6_19_02_18_a000_ms"]
+        cell_to_load_by_ms = {"artificial_ms_1":
+                              np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
+                              "p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
                               "p11_19_04_30_a001_ms": np.array([0, 2, 3]),
                               "p6_19_02_18_a000_ms": np.array([0, 1, 2]),
                               }
@@ -4008,7 +4010,7 @@ def train_model():
         create_tiffs_for_data_generator(ms_to_use=ms_for_tiffs,
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
@@ -4320,7 +4322,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         parallel_model = multi_gpu_model(model, gpus=n_gpus)
     else:
         parallel_model = model
-    # raise Exception("YOU KNOW NOTHING JON SNOW")
+    raise Exception("YOU KNOW NOTHING JON SNOW")
 
     # Save the model architecture
     with open(
