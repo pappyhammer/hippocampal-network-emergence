@@ -147,21 +147,21 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["p5_19_03_25_a001_ms"] = p5_19_03_25_a001_ms
 
     # GAD CRE
-    if "p5_19_03_20_a000_ms" in ms_str_to_load:
-        p5_19_03_20_a000_ms = MouseSession(age=5, session_id="19_03_20_a000", sampling_rate=8,
-                                           param=param, weight=3.9)
-
-        variables_mapping = {"global_roi": "global_roi"}
-        p5_19_03_20_a000_ms.load_data_from_file(file_name_to_load=
-                                                "p5/p5_19_03_20_a000/p5_19_03_20_a000_global_roi.mat",
-                                                variables_mapping=variables_mapping)
-        variables_mapping = {"xshifts": "xshifts",
-                             "yshifts": "yshifts"}
-        p5_19_03_20_a000_ms.load_data_from_file(file_name_to_load=
-                                                "p5/p5_19_03_20_a000/MichelMotC_p5_19_03_20_a000_params.mat",
-                                                variables_mapping=variables_mapping)
-        if load_movie:
-            p5_19_03_20_a000_ms.load_tif_movie(path="p5/p5_19_03_20_a000")
+    # if "p5_19_03_20_a000_ms" in ms_str_to_load:
+    #     p5_19_03_20_a000_ms = MouseSession(age=5, session_id="19_03_20_a000", sampling_rate=8,
+    #                                        param=param, weight=3.9)
+    #
+    #     variables_mapping = {"global_roi": "global_roi"}
+    #     p5_19_03_20_a000_ms.load_data_from_file(file_name_to_load=
+    #                                             "p5/p5_19_03_20_a000/p5_19_03_20_a000_global_roi.mat",
+    #                                             variables_mapping=variables_mapping)
+    #     variables_mapping = {"xshifts": "xshifts",
+    #                          "yshifts": "yshifts"}
+    #     p5_19_03_20_a000_ms.load_data_from_file(file_name_to_load=
+    #                                             "p5/p5_19_03_20_a000/MichelMotC_p5_19_03_20_a000_params.mat",
+    #                                             variables_mapping=variables_mapping)
+    #     if load_movie:
+    #         p5_19_03_20_a000_ms.load_tif_movie(path="p5/p5_19_03_20_a000")
 
         ms_str_to_ms_dict["p5_19_03_20_a000_ms"] = p5_19_03_20_a000_ms
 
@@ -1337,8 +1337,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         if not p12_19_02_08_a000_ms.use_suite_2p:
             variables_mapping = {"coord": "ContoursAll"}
-            p12_17_11_10_a002_ms.load_data_from_file(
-                file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_CellDetect_fiji.mat",
+            p12_19_02_08_a000_ms.load_data_from_file(
+                file_name_to_load="p12/p12_19_02_08_a000/p12_19_02_08_a000_CellDetect_fiji.mat",
                 variables_mapping=variables_mapping, from_fiji=True)
 
         ms_str_to_ms_dict["p12_19_02_08_a000_ms"] = p12_19_02_08_a000_ms
@@ -1838,7 +1838,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if ms.spike_struct.spike_nums_dur is None:
             prediction_threshold = 0.5
             # key that should be on the prediction file_name to be loaded
-            prediction_key = "meso_v1_epoch_9" # "meso_v1_epoch_9"
+            # prediction_key = "meso_v1_epoch_9" # "meso_v1_epoch_9"
+            prediction_key = "gad_cre_v1_epoch_15"
             variables_mapping = {"predictions": "predictions"}
             ms.load_raster_dur_from_predictions(
                 path_name=f"p{ms.age}/{ms.description.lower()}/predictions/",

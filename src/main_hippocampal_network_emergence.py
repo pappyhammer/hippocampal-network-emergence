@@ -13,6 +13,7 @@ import scipy.io as sio
 import scipy.stats as scipy_stats
 import seaborn as sns
 from bisect import bisect
+from pattern_discovery.display.cells_map_module import CoordClass
 # important to avoid a bug when using virtualenv
 # matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -1268,6 +1269,23 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
                          filename="transient_amplitude_by_age_avg_by_cell",
                          y_label="Avg amplitude (DF/F) of transients by cell", colors=colors,
                          param=param, save_formats=save_formats)
+
+def merge_coords_map(ms, param):
+    if ms.description.lower() not in ["p6_19_02_18_a000", "p11_19_04_30_a001"]:
+        print(f"merge_coords_map not available for {ms.description}")
+        return
+    # specific fonction to match segmentation from Fiji to the one with Caiman on matlab
+    caiman_mat_file_name = os.path.join(param.path_data, f"p{ms.age}", ms.description.lower(),
+                                       "caiman_matlab", f"{ms.description.lower()}_CellDetect.mat")
+    data = hdf5storage.loadmat(caiman_mat_file_name)
+    coord = data["ContoursAll"][0]
+    coord_obj = CoordClass(coord=coord, nb_col=200,
+                                nb_lines=200, from_fiji=False)
+
+    caiman_suite2p_mapping = ms.coord_obj.match_cells_indices(coord_obj, param=param,
+                                                                plot_title_opt=f"{ms.description}_fiji_vs_caiman")
+    np.save(os.path.join(param.path_results, f"{ms.description}_fiji_vs_caiman.npy"),
+            caiman_suite2p_mapping)
 
 
 def cluster_using_grid(ms, param):
@@ -3997,7 +4015,9 @@ def test_seq_detect(ms, span_area_coords=None, span_area_colors=None):
 
 
 def find_hubs(graph, ms):
+    # TODO: find hubs, but use a list of ms and calculate the thresholds using all data
     n_cells = ms.spike_struct.n_cells
+    # print(f"{ms.description}: graph hubs: {n_cells} vs {len(graph)}")
     # first selecting cells conencted to more than 5% cells
     cells_connectivity_perc_threshold = 5
     # step 1
@@ -5897,6 +5917,16 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   # "p21_19_04_10_a000_j3_ms",
     #                   "p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
+    ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
+    # GAD-CRE with caiman Rois available
+    ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
+    # 4 GAD-CRE
+    ms_str_to_load = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
+                      "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_20_a000_ms"]
+    # ms_str_to_load = ["p6_19_02_18_a000_ms"]
+    ms_str_to_load = ["p11_19_04_30_a001_ms"]
+    # ms_str_to_load = ["p12_19_02_08_a000_ms"]
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
@@ -6008,7 +6038,7 @@ def main():
     do_stats_on_graph = False
     just_plot_cell_assemblies_clusters = False
     just_find_seq_with_pca = False
-    just_find_seq_using_graph = False
+    just_find_seq_using_graph = True
     just_test_elephant_cad = False
     just_plot_variance_according_to_sum_of_activity = False
     just_cluster_using_grid = False
@@ -6018,7 +6048,9 @@ def main():
     just_use_rastermap_for_pca = False
     just_do_stat_on_pca = False
     just_analyse_lfp = False
-    just_run_cilva = True
+    just_run_cilva = False
+
+    just_merge_coords_map = False
 
     just_plot_raster_with_same_sum_activity_lim = False
     just_plot_raster = False
@@ -6518,6 +6550,14 @@ def main():
                 raise Exception("just_cluster_using_grid")
             continue
 
+        if just_merge_coords_map:
+            # code to merge to map cells coords, useful to map cells from different segmentation
+            # code valid for just some sessions
+            merge_coords_map(ms, param)
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_merge_coords_map")
+            continue
+
         if just_plot_raster_with_z_shift_periods:
             # spike_shape = '|' if use_raster_dur else 'o'
             spike_shape = 'o'
@@ -6568,7 +6608,7 @@ def main():
             span_area_colors = None
             with_mvt_periods = True
             spike_nums_dur = ms.spike_struct.spike_nums_dur
-            spike_nums_dur = tools_misc.bin_raster(raster=spike_nums_dur, bin_size=12, keep_same_dimension=True)
+            # spike_nums_dur = tools_misc.bin_raster(raster=spike_nums_dur, bin_size=12, keep_same_dimension=True)
             # if ms.pca_seq_cells_order is not None:
             #     spike_nums_dur = spike_nums_dur[ms.pca_seq_cells_order]
             #     with_mvt_periods = False
@@ -7746,7 +7786,7 @@ def main():
             # for pc_number, pca_seq_cells_order in ms.pca_seq_cells_order.items():
             #     cells_to_keep = pca_seq_cells_order
 
-            activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use[pca_seq_cells_order],
+            activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use,
                                                              window_duration=sliding_window_duration,
                                                              spike_train_mode=False,
                                                              n_surrogate=n_surrogate_activity_threshold,
