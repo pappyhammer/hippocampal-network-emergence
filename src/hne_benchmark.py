@@ -841,7 +841,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["gt"]["path"] = "p6/p6_19_02_18_a000"
         # single expert labeling
         data_dict["gt"]["gui_file"] = "p6_19_02_18_a000_ground_truth_cell_0_1_2_3.mat"
-        data_dict["gt"]["cells"] = np.array([3])
+        data_dict["gt"]["cells"] = np.array([0, 1, 2, 3]) # 3 not seen by the network
         data_dict["gt"]["trace_file_name"] = "p6_19_02_18_a000_raw_traces.npy"
         data_dict["gt"]["trace_var_name"] = "raw_traces"
 
@@ -875,7 +875,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["gt"]["path"] = "p11/p11_19_04_30_a001"
         # single expert labeling
         data_dict["gt"]["gui_file"] = "p11_19_04_30_a001_gound_truth.mat"
-        data_dict["gt"]["cells"] = np.array([4])
+        data_dict["gt"]["cells"] = np.array([0, 2, 3, 4]) # 4 not seen by the network
         data_dict["gt"]["trace_file_name"] = "p11_19_04_30_a001_raw_traces.npy"
         data_dict["gt"]["trace_var_name"] = "raw_traces"
 
@@ -1126,7 +1126,7 @@ def main_benchmark():
                         "p11_19_04_30_a001_ms"]
     # gad-cre
     ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
-    ms_to_benchmarks = ["p6_19_02_18_a000_ms"]
+    # ms_to_benchmarks = ["p6_19_02_18_a000_ms"]
     do_onsets_benchmarks = False
     do_plot_roc_predictions = False
     produce_separate_benchmarks = True

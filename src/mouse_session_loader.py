@@ -293,7 +293,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p7_171012_a000_ms = MouseSession(age=7, session_id="17_10_12_a000", sampling_rate=10, param=param,
                                          weight=None)
         p7_171012_a000_ms.use_suite_2p = True
-        if for_transient_classifier:
+        if for_transient_classifier or for_cell_classifier:
             p7_171012_a000_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
@@ -860,6 +860,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                            weight=6.65)
 
         p9_18_09_27_a003_ms.use_suite_2p = True
+        if for_cell_classifier:
+            p9_18_09_27_a003_ms.use_suite_2p = False
 
         # calculated with 95th percentile on raster dur
         p9_18_09_27_a003_ms.activity_threshold = 13
@@ -1220,7 +1222,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                           weight=7)
 
         p12_171110_a000_ms.use_suite_2p = True
-        if for_transient_classifier:
+        if for_transient_classifier or for_cell_classifier:
             p12_171110_a000_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
