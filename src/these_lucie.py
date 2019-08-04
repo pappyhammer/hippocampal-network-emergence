@@ -132,23 +132,30 @@ class CleanerCoder(Cleaner):
         self.mapping_dict["ATCD_Glaucome"] = self.glaucome_mapping
         self.column_to_clean_dict["ATCD_Glaucome"] = [self.glaucome_mapping, dict()]
 
-        statut_cristallin_to_map = ["phaque", "pke odg"]
+        statut_cristallin_to_map = ["phaque", "pke odg", "pke"]
         self.statut_cristallin_mapping = {"NA": -1}
         for code, statut_cristallin in enumerate(statut_cristallin_to_map):
             self.statut_cristallin_mapping[statut_cristallin] = code
         self.mapping_dict["statut_cristallin"] = self.statut_cristallin_mapping
-        self.statut_cristallin_patterns = {}
+        self.statut_cristallin_patterns = {("pke og", "pkeog", "eic od", r"\bpke\b (?!odg$)"): "pke",
+                                           "pke odg": "pke odg"}
+        """PKE =  pke og / 3 -> pke / 4 -> eic od"""
         self.column_to_clean_with_reg_exp["statut_cristallin"] = [self.statut_cristallin_mapping,
                                                                   self.statut_cristallin_patterns]
 
-        loc_ulcere_to_map = ["central", "superieur", "inferieur"]
+        loc_ulcere_to_map = ["paracentral", "central", "superieur", "inferieur", "conjonctive", "peripherique",
+                             "colerette"]
         self.loc_ulcere_mapping = {"NA": -1}
         for code, loc_ulcere in enumerate(loc_ulcere_to_map):
             self.loc_ulcere_mapping[loc_ulcere] = code
         self.mapping_dict["localisation_ulcere"] = self.loc_ulcere_mapping
-        self.loc_ulcere_patterns = {"cenral": "central",
+
+        self.loc_ulcere_patterns = {(r"\bcenral\b", r"\bcentral\b", r"\bcentrale\b"): "central",
+                                    "conjonctival": "conjonctive",
                                     "inf": "inferieur",
-                                    "sup": "superieur"}
+                                    "sup": "superieur",
+                                    "sclere": "colerette",
+                                    ("temporal", "nasal", "limbique"): "peripherique"}
         self.column_to_clean_with_reg_exp["localisation_ulcere"] = [self.loc_ulcere_mapping,
                                                                     self.loc_ulcere_patterns]
         type_gma_to_map = []
@@ -169,23 +176,61 @@ class CleanerCoder(Cleaner):
         self.column_to_clean_with_reg_exp["antifongiques"] = [self.antifongiques_mapping,
                                                               self.antifongiques_patterns]
 
-        ttt_compl_to_map = ["ciclo 2%", "cure entropion", "cure ectropion"]
+        ttt_compl_to_map = ["ciclo 2%", "cure entropion", "cure ectropion", "verre scleral",
+                            "greffe cornee", "greffe bouchon", "glac", "tarsorraphie  definitive",
+                            "cure chir statique palpebrale", "tarsorraphie", "greffe csl",
+                            "recouvrement conjonctival", "debridement des berges", "poncage edta",
+                            "recul conjonctival", "mitomycine"]
         self.ttt_compl_mapping = {"NA": -1}
         for code, ttt_compl in enumerate(ttt_compl_to_map):
             self.ttt_compl_mapping[ttt_compl] = code
         self.mapping_dict["ttt_complementaire"] = self.ttt_compl_mapping
+        """
+        42 -> mitomycine = mito 0,2% = mitomycine 0,4%
+
+        """
         self.ttt_compl_patterns = {".*ciclo.*": "ciclo 2%",
+
+                                   ("recouvrement conjontival"): "recouvrement conjonctival",
+
+                                   ("debridement berges", "debridement"): "debridement des berges",
+
+                                   ("grattage mecanique"): "poncage edta",
+
+                                   ("mito 0,2%", "mitomycine 0,4%"): "mitomycine",
+
+                                   "recul conjunctival": "recul conjonctival",
+
                                    ".*entropion.*": "cure entropion",
-                                   ".*ectropion.*": "cure ectropion"}
+
+                                   ".*ectropion.*": "cure ectropion",
+
+                                   "verres scleraux": "verre scleral",
+
+                                   "inscription liste greffe": "glac",
+
+                                   ("dsaek", "altk", "klap", r"\bkt\b.*(?!bouchon$)", "dsaek"): "greffe cornee",
+
+                                   ("epikeratoplastie", "greffe limbique", "KT bouchon"): "greffe bouchon",
+
+                                   ".*tarsorraphie.*definitive.*": "tarsorraphie  definitive",
+
+                                   ("tarsorraphie externe", "tarsorraphie provisoire"): "tarsorraphie",
+
+                                   ("autogreffe csl", "autogreffe de limbe", "allogreffe limbe",
+                                    "allogreffe csl"): "greffe csl",
+
+                                   ("cure entropion", "cure ectropion", "greffe muqueuse buccale"):
+                                       "cure chir statique palpebrale"}
         self.column_to_clean_with_reg_exp["ttt_complementaire"] = [self.ttt_compl_mapping,
                                                                    self.ttt_compl_patterns]
 
-        ttt_compl_2_to_map = ["tarsorraphie  definitive"]
+        ttt_compl_2_to_map = ttt_compl_to_map
         self.ttt_compl_2_mapping = {"NA": -1}
         for code, ttt_compl_2 in enumerate(ttt_compl_2_to_map):
             self.ttt_compl_2_mapping[ttt_compl_2] = code
         self.mapping_dict["ttt_complementaire_2"] = self.ttt_compl_2_mapping
-        self.ttt_compl_2_patterns = {".*tarsorraphie.*definitive.*": "tarsorraphie  definitive"}
+        self.ttt_compl_2_patterns = self.ttt_compl_patterns.copy()
         self.column_to_clean_with_reg_exp["ttt_complementaire_2"] = [self.ttt_compl_2_mapping,
                                                                      self.ttt_compl_2_patterns]
 
@@ -275,7 +320,7 @@ class CleanerCoder(Cleaner):
                              "ulcere mecanique", "keratite infectieuse",
                              "insuffisance limbique",
                              "anomalie statique palpebrale", "decompensation bulleuse epitheliale",
-                             "destruction aigue surface", "neurotrophique", "Keratopathie en bandelette",
+                             "destruction aigue surface", "neurotrophique", "keratopathie en bandelette",
                              "reconstruction", "refection BF"]
         self.etiology_mapping = {"NA": -1}
         for code, etiology in enumerate(etiologies_to_map):
@@ -291,7 +336,8 @@ class CleanerCoder(Cleaner):
                                   "decompensation bulleuse.*": "decompensation bulleuse epitheliale",
                                   "destruction aigue surface": "destruction aigue surface",
                                   ("neurotrophique", "neurotrophiqe"): "neurotrophique",
-                                  ("keratopathie.*bandelette", "keratite.*bandelette"): "Keratopathie en bandelette",
+                                  ("keratopathie.*bandelette", "keratite.*bandelette",
+                                   "keratite en bandelette"): "keratopathie en bandelette",
                                   "recon.*ction": "reconstruction", "refection.*bf": "refection BF"}
         self.column_to_clean_with_reg_exp["etiologie"] = [self.etiology_mapping, self.etiology_patterns]
 
@@ -310,7 +356,9 @@ class CleanerCoder(Cleaner):
                                       "central.*": "centrale"}
         self.column_to_clean_with_reg_exp["categorie_NK"] = [self.categorie_nk_mapping, self.categorie_nk_patterns]
 
-        cause_nk_to_map = ["hsv", "base", "kt", "2e kt", "3e kt", "ains", "vzv", "collyres atb", "gougerot"]
+        cause_nk_to_map = ["hsv", "greffe cornee", "exerese meningiome", "tumeurs cerebrales",
+                           "sup ou egal a 2 greffes cornee", "ains", "vzv", "collyres", "pr + gougerot",
+                           "thermocoagulation ganglion gasser", "rosacee et blepharite", "brulure"]
         self.cause_nk_mapping = {"NA": -1}
         for code, etiology in enumerate(cause_nk_to_map):
             self.cause_nk_mapping[etiology] = code
@@ -318,22 +366,103 @@ class CleanerCoder(Cleaner):
         # each key is a tuple of reg_ex, and the value is a key to etiology_mapping
         # the key should be lower case
         self.cause_nk_patterns = {"hsv": "hsv",
-                                  "base": "base", "kt": "kt",
-                                  "2.*kt": "2e kt",
-                                  "3.*kt": "3e kt", "ains": "ains", "vzv": "vzv",
-                                  "col.*atb": "collyres atb",
-                                  "goug.*rot": "gougerot"}
+                                  ("brulure", "base"): "brulure",
+                                  ("rosacee", "blepharite"): "rosacee et blepharite",
+                                  ("metastases cerebrales", "tumeur cerebrale",
+                                   "tumeur cervelet", "neurinome", "tumeur rocher"):
+                                      "tumeurs cerebrales",
+                                  ("kt", "altk", "greffe lamellaire", "tatouage corneen"): "greffe cornee",
+                                  ("2.*kt", "3.*kt"): "sup ou egal a 2 greffes cornee",
+                                  ("ch.*rurgie meningiome", "meningiome"): "exerese meningiome",
+                                  "ains": "ains", "vzv": "vzv",
+                                  ("coagulation ganglion gasser", "thermocoagulation ganglion gasser"):
+                                      "thermocoagulation ganglion gasser",
+                                  ("col.*atb", "liquide conservation lentilles",
+                                   "collyres", "collyres antiglaucomateux", "chimiotherapie", "tumeur rocher"):
+                                      "collyres",
+                                  ("pr", "goug.*rot"): "pr + gougerot"}
         self.column_to_clean_with_reg_exp["cause_NK"] = [self.cause_nk_mapping, self.cause_nk_patterns]
 
-        facteur_favorisant_to_map = ["brulure", "decompensation endotheliale"]
+        facteur_favorisant_to_map = ["brulure", "decompensation endotheliale", "patho corneenne congenitale",
+                                     "greffe", "exerese pterygion",
+                                     "tumeur conjonctivale", "dystrophie de cornee",
+                                     "pr + gougerot",
+                                     "patho corneenne congenitale", "keratoconjonctivite allergique",
+                                     "facteurs locaux", "defect conjonctival/ scleral",
+                                     "chir refractive", "entropion", "lagophtalmie", "vernal",
+                                     "mooren"
+                                     ]
         self.facteur_favorisant_mapping = {"NA": -1}
         for code, etiology in enumerate(facteur_favorisant_to_map):
             self.facteur_favorisant_mapping[etiology] = code
         self.mapping_dict["facteur_favorisant"] = self.facteur_favorisant_mapping
         # each key is a tuple of reg_ex, and the value is a key to etiology_mapping
         # the key should be lower case
-        self.facteur_favorisant_patterns = {"brulure.*": "brulure",
-                                            "deompensation endotheliale":"decompensation endotheliale"}
+
+        """
+        18  mooren, 57 , pseudomooren  + 52 -> puk
+        """
+
+        self.facteur_favorisant_patterns = {("brulure.*", "base"): "brulure",
+                                            ("pseudomooren", "puk"): "mooren",
+
+                                            ("lasik", "post pkr", "pkr"): "chir refractive",
+
+                                            ("kt", "2e kt", "rejet greffe"): "greffe",
+
+                                            ("pr", "gougerot", "spa"): "pr + gougerot",
+
+                                            ("orbitopathie dysthyroidienne"): "lagophtalmie",
+
+                                            ('cil trichiasique', "cils trichiasiques"): "entropion",
+
+                                            ("pterygoide", "cicatrice pter.*"): "exerese pterygion",
+
+                                            ("exerese tumeur conjonctivale", "melanome", "bowen",
+                                             "maladie de bowen", "kyste inclusion",
+                                             "kyste conj.*", "carcinome",
+                                             "carcinome epidermoide", "exerese melanose acquise",
+                                             "exerese lesion", "exerese tumeur",
+                                             "exerese kyste d'inclusion", "exerese lymphome conjonctival",
+                                             "exerese lesion conjonctivale", "lymphome malt"): "tumeur conjonctivale",
+
+                                             ("dyskeratose", "cogan", "salzman", "hydrops",
+                                              "keratite.*bandelette", "poncage keratite en bandelette",
+                                              "keratoglobe", "keratalgie recidivante",
+                                              "keratopathie bandelette", "ICE syndrome"):
+                                            "dystrophie de cornee",
+
+                                            "keratoconjonctivite atopique": "keratoconjonctivite allergique",
+
+                                            ("glaucome congenital", "scerocorneee", "aniridie congenitale",
+                                             "sclerocornee"): "patho corneenne congenitale",
+
+                                            ("deompensation endotheliale", "keratopathie bulleuse"):
+                                                "decompensation endotheliale",
+
+                                            ("ctc locale", "ctc po", "ctc topique", "blepharite", "corps etranger",
+                                             "ce", "blepharite", "post pke", "traumatique", "cellulite infectieuse",
+                                             "sur taie", "chimiotherapie",
+                                             "incision", "trauma vegetal"): "facteurs locaux",
+
+                                            ("ablation symblepharon", "dehiscence conjonctivale",
+                                             "refection bf", "extrusion bille evisceration / scleromalacie",
+                                             "dehiscence keratoprothese", "tumeur palpebrale",
+                                             "reconstruction palpebrale",
+                                             "POC biopsie conjonctivale", "cure symblepharon",
+                                             "scleromalacie", "dellen post pterygion",
+                                             "plaie cornee", "reouverture plaie", "conjonctivoplastie"):
+                                                "defect conjonctival/ scleral",
+
+                                            ("fonte stromale", "alteration chronique surface",
+                                             "gnv", "trijumeau"): "NA",
+
+                                            ("kcv"): "vernal"}
+        """
+
+scleromalacie/ dellen post pterygion / plaie cornee / 37 -> reouverture plaie/ conjonctivoplastie
+
+                """
         self.column_to_clean_with_reg_exp["facteur_favorisant"] = [self.facteur_favorisant_mapping,
                                                                    self.facteur_favorisant_patterns]
 
@@ -352,9 +481,8 @@ class CleanerCoder(Cleaner):
         self.etat_corneen_mapping = {"NA": -1}
         for code, etiology in enumerate(etat_corneen_to_map):
             self.etat_corneen_mapping[etiology] = code
-        self.etat_corneen_cases = {"préperfratif": "preperforatif",
+        self.etat_corneen_cases = {"preperfratif": "preperforatif",
                                    "preerforatif": "preperforatif",
-                                   "preperfratif": "preperforatif",
                                    "preforatif": "preperforatif"}
         self.mapping_dict["etat_corneen"] = self.etat_corneen_mapping
         self.column_to_clean_dict["etat_corneen"] = [self.etat_corneen_mapping, self.etat_corneen_cases]
@@ -398,14 +526,21 @@ class CleanerCoder(Cleaner):
                                  value=self.df_clean.loc[:, column_name],
                                  allow_duplicates=False)
         for index, cell_text in enumerate(self.df_clean.loc[:, column_name]):
-            if pd.isna(cell_text):
+            if pd.isna(cell_text) or (cell_text == ""):
                 self.df_clean.at[index, column_name] = map_dict["NA"]
                 continue
             if isinstance(cell_text, int):
                 self.df_clean.at[index, column_name] = map_dict["NA"]
                 continue
+            # if column_name == "facteur_favorisant":
+            #     print(f"cell_text {cell_text}")
             cell_text = unidecode.unidecode(cell_text)
             cell_text = cell_text.lower().strip()
+            if cell_text == "":
+                self.df_clean.at[index, column_name] = map_dict["NA"]
+                continue
+            # if column_name == "facteur_favorisant":
+            #     print(f"unicode cell_text {cell_text}")
             pattern_found = False
             for patterns, key_value in pattern_dict.items():
                 if isinstance(patterns, str):
@@ -415,6 +550,7 @@ class CleanerCoder(Cleaner):
                     match_object = re.search(pattern, cell_text, flags=0)
                     if match_object is not None:
                         pattern_found = True
+                        # print(f"{patterns}: key_value {key_value}")
                         self.df_clean.at[index, column_name] = map_dict[key_value]
                 if pattern_found:
                     break
@@ -422,7 +558,7 @@ class CleanerCoder(Cleaner):
                 # we could put 'NA" or create a new category from the one found
                 use_na = False
                 # "?" is missing with regexp, we could also remove the ? from the string
-                if ("?" in cell_text) or use_na:
+                if ("?" in cell_text) or (cell_text == "") or use_na:
                     self.df_clean.at[index, column_name] = map_dict["NA"]
                 else:
                     add_key_to_map_dict(map_dict=map_dict, key_to_add=cell_text)
@@ -742,7 +878,7 @@ def main():
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
 
     use_mutli_sheets_excel = False
-    single_sheet_file_name = "gma recueil Lucie 24 Juilletouf.xlsx"
+    single_sheet_file_name = "gma recueil Lucie 2AOUT.xlsx"
 
     if use_mutli_sheets_excel:
         original_file_name = "GMA Toulouse.xlsx"
