@@ -1868,6 +1868,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms.load_graph_data(path_to_load=f"p{ms.age}/{ms.description.lower()}/")
 
+        ms.load_raw_motion_translation_shift_data(path_to_load=f"p{ms.age}/{ms.description.lower()}/")
+
 
 
         if load_abf and (not ms.abf_loaded):

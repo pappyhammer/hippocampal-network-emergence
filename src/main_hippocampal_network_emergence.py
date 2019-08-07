@@ -2048,7 +2048,7 @@ def correlate_global_roi_and_shift(path_data, param):
                             data_dict[parent_dir]["yshifts"] = mvt_x_y['yshifts'][0]
                     if file_name.endswith(".npy"):
                         if "params" in file_name.lower():
-                            ops = np.load(os.path.join(dir_path, file_name))
+                            ops = np.load(os.path.join(dir_path, file_name), allow_pickle=True)
                             ops = ops.item()
                             data_dict[parent_dir]["xshifts"] = ops['xoff']
                             data_dict[parent_dir]["yshifts"] = ops['yoff']
@@ -2069,13 +2069,13 @@ def correlate_global_roi_and_shift(path_data, param):
             # then we load the movie, measure to global roi, put it in the data_dict[key] and save it for future
             # loading
             use_scan_tiff_reader = False
-            if use_scan_tiff_reader:
+            try:
                 start_time = time.time()
                 tiff_movie = ScanImageTiffReader(os.path.join(value["dirpath"], value["tiff_file"])).data()
                 stop_time = time.time()
                 print(f"Time for loading movie {value['tiff_file']} with scan_image_tiff: "
                       f"{np.round(stop_time - start_time, 3)} s")
-            else:
+            except Exception:
                 start_time = time.time()
                 im = PIL.Image.open(os.path.join(value["dirpath"], value["tiff_file"]))
                 n_frames = len(list(ImageSequence.Iterator(im)))
@@ -5923,9 +5923,10 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # 4 GAD-CRE
     ms_str_to_load = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
                       "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_20_a000_ms", "p12_19_02_08_a000_ms"]
     # ms_str_to_load = ["p5_19_03_20_a000_ms"]
     # ms_str_to_load = ["p6_19_02_18_a000_ms"]
-    ms_str_to_load = ["p11_19_04_30_a001_ms"]
+    # ms_str_to_load = ["p11_19_04_30_a001_ms"]
     # ms_str_to_load = ["p12_19_02_08_a000_ms"]
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -6021,7 +6022,7 @@ def main():
     # Add weight in legend of long mvt psth
     do_plot_psth_long_mvt = False
     just_plot_all_time_correlation_graph_over_events = False
-    just_plot_raster_with_periods = False
+    just_plot_raster_with_periods = True
     just_do_stat_significant_time_period = False
     just_plot_cells_that_fire_during_time_periods = False
     just_plot_twitch_ratio_activity = False
@@ -6038,7 +6039,7 @@ def main():
     do_stats_on_graph = False
     just_plot_cell_assemblies_clusters = False
     just_find_seq_with_pca = False
-    just_find_seq_using_graph = True
+    just_find_seq_using_graph = False
     just_test_elephant_cad = False
     just_plot_variance_according_to_sum_of_activity = False
     just_cluster_using_grid = False
@@ -6058,7 +6059,9 @@ def main():
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster_with_sce = False
     # periods such as twitch etc...
+    # next one seems to be an old code
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
+    # this one works properly
     just_plot_raster_with_cells_assemblies_and_shifts = False
     just_plot_traces_raster = False
     just_plot_piezo_with_extra_info = False
@@ -6708,7 +6711,7 @@ def main():
             # frames_selected = frames_selected[frames_selected < ms.spike_struct.spike_nums_dur.shape[1]]
             # ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, frames_selected]
             ms.plot_raster_with_periods(ms.shift_data_dict, with_periods=True,
-                                        with_cell_assemblies=False, only_cell_assemblies=False)
+                                        with_cell_assemblies=True, only_cell_assemblies=False)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("The Lannisters always pay their debts")
             continue
@@ -6955,7 +6958,7 @@ def main():
             continue
 
         if just_plot_raster_with_cells_assemblies_and_shifts:
-            ms.plot_raster_with_cells_assemblies_and_shifts(only_cell_assemblies=True)
+            ms.plot_raster_with_cells_assemblies_and_shifts(only_cell_assemblies=False)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("momo")
             continue

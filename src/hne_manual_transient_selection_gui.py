@@ -243,7 +243,7 @@ class ChooseSessionFrame(tk.Frame):
             self.data_and_param.peak_nums = np.zeros((n_cells, n_times), dtype="int8")
             self.data_and_param.spike_nums = np.zeros((n_cells, n_times), dtype="int8")
         elif (self.data_and_param.peak_nums is None) or (self.data_and_param.spike_nums is None):
-            using_existing_spike_nums_dur = False
+            using_existing_spike_nums_dur = True
             # look if spike_nums_dur exists
             if using_existing_spike_nums_dur and (self.data_and_param.ms.spike_struct.spike_nums_dur is not None):
                 self.data_and_param.ms.spike_struct.build_spike_nums_and_peak_nums()
@@ -788,7 +788,7 @@ class ManualOnsetFrame(tk.Frame):
 
         self.parula_map = LinearSegmentedColormap.from_list('parula', cm_data)
 
-        self.robin_mac = True
+        self.robin_mac = False
 
         self.root = Tk()
         self.root.protocol("WM_DELETE_WINDOW", self.validation_before_closing)

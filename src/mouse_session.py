@@ -3640,7 +3640,7 @@ class MouseSession:
                     print(f"  Period {name_period} -> {colors[i]}")
                     i += 1
             else:
-                print(f"no mvt info for {ms.description}")
+                print(f"no mvt info for {self.description}")
 
         # colors = ["red", "green", "blue", "pink", "orange"]
         # i = 0
@@ -4073,10 +4073,10 @@ class MouseSession:
             # print(f"cm.nipy_spectral(float(i + 1) / (n_assemblies + 1)) "
             #       f"{cm.nipy_spectral(float(i + 1) / (n_assemblies + 1))}")
             color = cm.nipy_spectral(float(i + 1) / (n_assemblies + 1))
-            if i == 0:
-                color = (100 / 255, 215 / 255, 247 / 255, 1)  # #64D7F7"
-            else:
-                color = (213 / 255, 38 / 255, 215 / 255, 1)  # #D526D7
+            # if i == 0:
+            #     color = (100 / 255, 215 / 255, 247 / 255, 1)  # #64D7F7"
+            # else:
+            #     color = (213 / 255, 38 / 255, 215 / 255, 1)  # #D526D7
             cells_groups_colors.append(color)
         # print(f"cells_groups_colors {cells_groups_colors}")
         # self.coord_obj.compute_center_coord(cells_groups=self.cell_assemblies,
@@ -4084,8 +4084,8 @@ class MouseSession:
         #                                     dont_fill_cells_not_in_groups=True)
 
         self.coord_obj.plot_cells_map(param=self.param,
-                                      data_id=self.description, show_polygons=False,
-                                      fill_polygons=False,
+                                      data_id=self.description, show_polygons=True,
+                                      fill_polygons=True,
                                       title_option="cell_assemblies", connections_dict=None,
                                       with_edge=True,
                                       cells_groups=self.cell_assemblies,
@@ -5384,6 +5384,38 @@ class MouseSession:
             return
         np.save(os.path.join(self.param.path_data, path, f"{self.description}_raw_traces.npy".lower()),
                 self.raw_traces)
+
+    def load_raw_motion_translation_shift_data(self, path_to_load):
+        """
+        Load data from xy_translation after motion correction
+        :param path_to_load:
+        :return:
+        """
+        if path_to_load is None:
+            print(f"{self.description} load_raw_motion_translation_shift_data "
+                  f"path_to_load is None")
+            return
+
+        for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data, path_to_load)):
+            for file_name in local_filenames:
+                if (("params" in file_name.lower()) and (self.description.lower() in file_name.lower())) \
+                        and file_name.endswith(".mat"):
+                    data = hdf5storage.loadmat(os.path.join(self.param.path_data, path_to_load, file_name))
+                    variables_mapping = {"xshifts": "xshifts",
+                                         "yshifts": "yshifts"}
+                    self.x_shifts = data[variables_mapping["xshifts"]][0]
+                    self.y_shifts = data[variables_mapping["yshifts"]][0]
+                elif (("params" in file_name.lower()) and (self.description.lower() in file_name.lower())) \
+                        and file_name.endswith(".npy"):
+
+                    ops = np.load(os.path.join(self.param.path_data, path_to_load, file_name))
+                    data = ops.item()
+
+                    variables_mapping = {"xshifts": "xoff",
+                                         "yshifts": "yoff"}
+                    self.x_shifts = data[variables_mapping["xshifts"]]
+                    self.y_shifts = data[variables_mapping["yshifts"]]
+            break
 
     def load_graph_data(self, path_to_load):
         """

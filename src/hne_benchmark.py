@@ -854,21 +854,21 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["caiman"]["trace_file_name"] = "caiman_matlab/p6_19_02_18_a000_Traces.mat"
         data_dict["caiman"]["trace_var_name"] = "C_df"
 
-        data_dict["MP"] = dict()
-        data_dict["MP"]["path"] = "p6/p6_19_02_18_a000/"
-        data_dict["MP"]["gui_file"] = "p6_19_02_18_a000_Transient MP.mat"
-
-        data_dict["EQ"] = dict()
-        data_dict["EQ"]["path"] = "p6/p6_19_02_18_a000/"
-        data_dict["EQ"]["gui_file"] = "p6_19_02_18_a000_ground_truth_ele.mat"
-
-        data_dict["RD"] = dict()
-        data_dict["RD"]["path"] = "p6/p6_19_02_18_a000/"
-        data_dict["RD"]["gui_file"] = "p6_19_02_18_a000_Transients_selection_RD.mat"
-
-        data_dict["JD"] = dict()
-        data_dict["JD"]["path"] = "p6/p6_19_02_18_a000/"
-        data_dict["JD"]["gui_file"] = "p6_19_02_18_a000_ground_truth_JD.mat"
+        # data_dict["MP"] = dict()
+        # data_dict["MP"]["path"] = "p6/p6_19_02_18_a000/"
+        # data_dict["MP"]["gui_file"] = "p6_19_02_18_a000_Transient MP.mat"
+        #
+        # data_dict["EQ"] = dict()
+        # data_dict["EQ"]["path"] = "p6/p6_19_02_18_a000/"
+        # data_dict["EQ"]["gui_file"] = "p6_19_02_18_a000_ground_truth_ele.mat"
+        #
+        # data_dict["RD"] = dict()
+        # data_dict["RD"]["path"] = "p6/p6_19_02_18_a000/"
+        # data_dict["RD"]["gui_file"] = "p6_19_02_18_a000_Transients_selection_RD.mat"
+        #
+        # data_dict["JD"] = dict()
+        # data_dict["JD"]["path"] = "p6/p6_19_02_18_a000/"
+        # data_dict["JD"]["gui_file"] = "p6_19_02_18_a000_ground_truth_JD.mat"
 
     elif ms_to_benchmark == "p11_19_04_30_a001_ms":
         data_dict["gt"] = dict()
@@ -1144,7 +1144,8 @@ def main_benchmark():
     # gad-cre
     predictions_to_load = ["meso_9", "cre_v1_epoch_10", "cre_v1_epoch_15", "cre_v1_epoch_19",
                            "cre_v1_epoch_22", "cre_v1_epoch_23"]
-    # predictions_to_load = []
+    # predictions_to_load = ["meso_9"]
+    predictions_to_load = []
     for ms_to_benchmark in ms_to_benchmarks:
         print(f"ms_to_benchmark {ms_to_benchmark}")
         data_dict = dict()
