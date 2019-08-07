@@ -3483,6 +3483,82 @@ class MouseSession:
                            without_activity_sum=False,
                            size_fig=(15, 6))
 
+    def plot_traces_with_shifts(self, organized_by_cell_assemblies=True):
+        if self.sce_times_in_cell_assemblies is None:
+            organized_by_cell_assemblies = False
+
+        new_cell_order = np.arange(len(self.raw_traces))
+        y_ticks_labels_color = "white"
+        if organized_by_cell_assemblies:
+            y_ticks_labels_color = []
+            n_cells = len(self.spike_struct.spike_nums_dur)
+            n_cell_assemblies = len(self.cell_assemblies)
+            n_cells_in_assemblies = 0
+            for cell_assembly in self.cell_assemblies:
+                n_cells_in_assemblies += len(cell_assembly)
+
+            new_cell_order = np.zeros(n_cells, dtype="uint16")
+
+            cells_in_assemblies = []
+            last_group_index = 0
+            for cell_assembly_index, cell_assembly in enumerate(self.cell_assemblies):
+                color = cm.nipy_spectral(float(cell_assembly_index + 1) / (n_cell_assemblies + 1))
+                y_ticks_labels_color.extend([color] * len(cell_assembly))
+
+                new_cell_order[last_group_index:last_group_index + len(cell_assembly)] = \
+                    np.array(cell_assembly).astype("uint16")
+                last_group_index += len(cell_assembly)
+                cells_in_assemblies.extend(list(cell_assembly))
+
+            other_cells = np.setdiff1d(np.arange(n_cells), cells_in_assemblies)
+            y_ticks_labels_color.extend([(1, 1, 1, 1.0)] * len(other_cells))
+            new_cell_order[last_group_index:] = other_cells
+
+        shifts = np.abs(self.x_shifts) + np.abs(self.y_shifts)
+        # shifts = signal.detrend(shifts)
+        # normalization
+        shifts = (shifts - np.mean(shifts)) / np.std(shifts)
+        if np.min(shifts) < 0:
+            shifts -= np.min(shifts)
+
+        def norm01(data):
+            min_value = np.min(data)
+            max_value = np.max(data)
+
+            difference = max_value - min_value
+
+            data -= min_value
+
+            if difference > 0:
+                data = data / difference
+
+            return data
+
+        raw_traces = np.copy(self.raw_traces)
+        for i in np.arange(len(raw_traces)):
+            raw_traces[i] = (raw_traces[i] - np.mean(raw_traces[i]) / np.std(raw_traces[i]))
+            raw_traces[i] = norm01(raw_traces[i])
+            raw_traces[i] = norm01(raw_traces[i]) * 5
+
+        plot_spikes_raster(param=self.param,
+                           spike_train_format=False,
+                           display_spike_nums=False,
+                           traces=raw_traces,
+                           display_traces=True,
+                           y_ticks_labels_color=y_ticks_labels_color,
+                           use_brewer_colors_for_traces=True,
+                           file_name=f"{self.description}_traces_shift",
+                           y_ticks_labels=new_cell_order,
+                           y_ticks_labels_size=2,
+                           save_raster=True,
+                           show_raster=False,
+                           plot_with_amplitude=False,
+                           without_activity_sum=False,
+                           spikes_sum_to_use=shifts,
+                           span_area_only_on_raster=False,
+                           traces_lw = 0.1,
+                           save_formats=["pdf", "png"])
+
     def plot_raster_with_cells_assemblies_and_shifts(self, only_cell_assemblies=False):
         if self.sce_times_in_cell_assemblies is None:
             return
@@ -5408,7 +5484,7 @@ class MouseSession:
                 elif (("params" in file_name.lower()) and (self.description.lower() in file_name.lower())) \
                         and file_name.endswith(".npy"):
 
-                    ops = np.load(os.path.join(self.param.path_data, path_to_load, file_name))
+                    ops = np.load(os.path.join(self.param.path_data, path_to_load, file_name), allow_pickle=True)
                     data = ops.item()
 
                     variables_mapping = {"xshifts": "xoff",

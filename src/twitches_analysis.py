@@ -69,6 +69,8 @@ def get_twitches_intersection_matrix(m_sces):
             cell_in_twitch_j = np.where(m_sces[:, j])[0]
             cells_in_twitch_i_and_j = np.concatenate((cell_in_twitch_i, cell_in_twitch_j), axis=None)
             cells_in_twitch_i_and_j_unique = np.unique(cells_in_twitch_i_and_j)
+            if len(cells_in_twitch_i_and_j_unique) == 0:
+                continue
             n_cell_twitch_i = np.sum(m_sces[:, i])
             n_cell_twitch_j = np.sum(m_sces[:, j])
             common_part_twitch_i_twitch_j = len(np.intersect1d(np.where(m_sces[:, i])[0], np.where(m_sces[:, j])[0],

@@ -793,7 +793,7 @@ def plot_psth_over_event_time_correlation_graph_style(ms_to_analyse, event_str, 
 
     n_plots = len(ms_to_analyse)
 
-    max_n_lines = 5
+    max_n_lines = 2
     n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
     n_col = math.ceil(n_plots / n_lines)
 
@@ -1040,7 +1040,7 @@ def plot_all_long_mvt_psth_in_one_figure(ms_to_analyse, param, line_mode=True,
     else:
         n_plots = len(ms_to_analyse)
 
-    max_n_lines = 5
+    max_n_lines = 2
     n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
     n_col = math.ceil(n_plots / n_lines)
 
@@ -1100,7 +1100,7 @@ def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, use
     else:
         n_plots = len(ms_to_analyse)
 
-    max_n_lines = 5
+    max_n_lines = 2
     n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
     n_col = math.ceil(n_plots / n_lines)
 
@@ -4529,7 +4529,7 @@ def plot_twitch_ratio_activity(ms_to_analyse, param, time_around=20, save_format
 
     # we plot one distribution for each session with the ratio
     background_color = "black"
-    max_n_lines = 5
+    max_n_lines = 2
     n_lines = n_ms if n_ms <= max_n_lines else max_n_lines
     n_col = math.ceil(n_ms / n_lines)
     # for histogram all events
@@ -5008,7 +5008,7 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                                                            perc_threshold=perc_threshold,
                                                            n_surrogate=n_surrogate)
             print(f"{ms.description}: significant {len(significant_cells)}, all {len(ms.spike_struct.spike_nums)}")
-            if len(significant_cells) > 0:
+            if len(significant_cells) == 0:
                 continue
             plot_distrib_participation_to_event = True
             if plot_distrib_participation_to_event:
@@ -5854,8 +5854,10 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p60_20160506_gadcre01_01_ms"]
     # to test cilva
     # ms_str_to_load = ["p6_18_02_07_a002_ms"]
-    ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
     # ms_str_to_load = ["p5_19_03_25_a000_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # loading data
     # z_shifts_ms = ["p5_19_03_25_a000_ms",
     #                "p5_19_03_25_a001_ms",
@@ -5917,9 +5919,9 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   # "p21_19_04_10_a000_j3_ms",
     #                   "p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
-    ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
+    # ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
     # GAD-CRE with caiman Rois available
-    ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
+    # ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
     # 4 GAD-CRE
     ms_str_to_load = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
                       "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
@@ -6015,25 +6017,30 @@ def main():
 
     just_plot_all_basic_stats = False
     just_plot_all_sum_spikes_dur = False
+
+    just_do_stat_significant_time_period = False
+    just_fca_clustering_on_twitches_activity = False
+    just_plot_cell_assemblies_on_map = False
+    just_plot_all_cells_on_map = False
+    just_plot_all_cells_on_map_with_avg_on_bg = False
+
+    # --------- shift categories analyses
+    just_plot_raster_with_periods = False
+    just_plot_all_cell_assemblies_proportion_on_shift_categories = False
+    just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
+    just_plot_cells_that_fire_during_time_periods = False
+    just_plot_twitch_ratio_activity = False
     # number of cells active in each type of movement event (normalized by number of cells and length of movement)
     just_plot_movement_activity = False
     just_plot_psth_over_event_time_correlation_graph_style = False
     do_plot_psth_twitches = False
     # Add weight in legend of long mvt psth
     do_plot_psth_long_mvt = False
-    just_plot_all_time_correlation_graph_over_events = False
-    just_plot_raster_with_periods = True
-    just_do_stat_significant_time_period = False
-    just_plot_cells_that_fire_during_time_periods = False
-    just_plot_twitch_ratio_activity = False
     do_twitches_analysis = False
-    just_fca_clustering_on_twitches_activity = False
     just_save_stat_about_mvt_for_each_ms = False
-    just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = False
-    just_plot_all_cells_on_map_with_avg_on_bg = False
-    just_plot_all_cell_assemblies_proportion_on_shift_categories = False
-    just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
+    just_plot_all_time_correlation_graph_over_events = True
+
+    # ---------
     just_plot_jsd_correlation = False
     do_plot_graph = False
     do_stats_on_graph = False
@@ -6055,6 +6062,7 @@ def main():
 
     just_plot_raster_with_same_sum_activity_lim = False
     just_plot_raster = False
+    just_plot_traces_with_shifts = False
     just_plot_raster_with_z_shift_periods = False
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster_with_sce = False
@@ -6255,7 +6263,7 @@ def main():
         # and then all and then none (still)
         # "shift_twitch", "shift_long",
         #                                                                            "shift_unclassified"
-        plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys=["shift_twitch"], param=param,
+        plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys=["shift_twitch", "shift_long"], param=param,
                                                  perc_threshold=95, n_surrogate=1000)
         raise Exception("just_plot_cells_that_fire_during_time_periods")
 
@@ -6392,6 +6400,14 @@ def main():
                                save_formats=["pdf", "png"])
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("fifi")
+            continue
+
+        if just_plot_traces_with_shifts:
+
+            ms.plot_traces_with_shifts()
+
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_plot_traces_with_shifts")
             continue
 
         if just_plot_seq_from_pca_with_map:
@@ -6694,7 +6710,7 @@ def main():
         if do_plot_psth_twitches:
             line_mode = True
             duration_option = False
-            use_traces = True
+            use_traces = False
             plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode, use_traces=use_traces,
                                                duration_option=duration_option, save_formats="pdf")
             # ms.plot_psth_twitches(line_mode=line_mode)

@@ -163,7 +163,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     #     if load_movie:
     #         p5_19_03_20_a000_ms.load_tif_movie(path="p5/p5_19_03_20_a000")
 
-        ms_str_to_ms_dict["p5_19_03_20_a000_ms"] = p5_19_03_20_a000_ms
+        # ms_str_to_ms_dict["p5_19_03_20_a000_ms"] = p5_19_03_20_a000_ms
 
     if "p6_18_02_07_a001_ms" in ms_str_to_load:
         p6_18_02_07_a001_ms = MouseSession(age=6, session_id="18_02_07_a001", param=param,
@@ -1869,8 +1869,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms.load_graph_data(path_to_load=f"p{ms.age}/{ms.description.lower()}/")
 
         ms.load_raw_motion_translation_shift_data(path_to_load=f"p{ms.age}/{ms.description.lower()}/")
-
-
 
         if load_abf and (not ms.abf_loaded):
             # if sampling_rate is not 50000, load specific data for a session
