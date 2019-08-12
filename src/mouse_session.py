@@ -2767,16 +2767,20 @@ class MouseSession:
         #                        param=self.param, tight_x_range=True)
         # print(f"n_cells <= 2 {len(np.where(np.sum(self.spike_struct.spike_nums, axis=1) <= 0)[0])}")
         # raise Exception("STOP")
-        n_times = raw_traces.shape[1]
+
+        # n_times = raw_traces.shape[1]
+        n_times = 2000
 
         remove_low_firing_cells = True
         if remove_low_firing_cells:
             print(f"n cells before filtering: {len(raw_traces)}")
             cells_to_keep = np.where(np.sum(self.spike_struct.spike_nums, axis=1) > 2)[0]
-            raw_traces = raw_traces[cells_to_keep][100:500]
+            raw_traces = raw_traces[cells_to_keep][100:300, 0:n_times]
             print(f"n cells after filtering: {len(raw_traces)}")
 
-        twitches_frames_periods = get_continous_time_periods(self.shift_data_dict["shift_twitch"].astype("int8"))
+        shift_data_binary = self.shift_data_dict["shift_twitch"][:n_times]
+
+        twitches_frames_periods = get_continous_time_periods(shift_data_binary.astype("int8"))
         # n_stimulus * n_times, 1 if the stimulus is present at that time
         twitches_onsets = np.zeros((len(twitches_frames_periods), n_times))
         # twitches_onsets = np.zeros((1, n_times))
@@ -2784,6 +2788,16 @@ class MouseSession:
             # twitches_onsets[0, period[0]:period[1]+1] = 1
             twitches_onsets[period_index, period[0]] = 1
             # twitches_onsets[0, period[0]] = 1
+
+        try_fit_kernel_time_constants = False
+
+        if try_fit_kernel_time_constants:
+            tau_r, tau_d, errs = cilva_core.fit_kernel_time_constants(f=raw_traces, s=twitches_onsets, N=raw_traces.shape[0],
+                                      T=raw_traces.shape[1], K=len(twitches_frames_periods),
+                                      eta=0.1, num_iters=5, return_errs=True)
+            print(f"tau_r {tau_r}, tau_d {tau_d}, errs {errs}")
+            return
+
 
         # look if cilva has been run before
         # return True is it's the case and the analysis went trough
@@ -2797,8 +2811,8 @@ class MouseSession:
         # Default parameter values
         L = 3
         # used to be 40 and 40
-        num_iters = 5
-        iters_per_altern = 5
+        num_iters = 40
+        iters_per_altern = 60
         gamma = 1.00
         # Note: default rise and decay time constants are appropriate for our GCaMP6s zebrafish larvae.
         # They may not be suitable for other indicators or animal models.
@@ -3559,6 +3573,78 @@ class MouseSession:
                            traces_lw = 0.1,
                            save_formats=["pdf", "png"])
 
+    def plot_traces_on_raster(self, spike_nums_to_use=None, sce_times=None, with_run=True,
+                              display_spike_nums=False):
+        def norm01(data):
+            min_value = np.min(data)
+            max_value = np.max(data)
+
+            difference = max_value - min_value
+
+            data -= min_value
+
+            if difference > 0:
+                data = data / difference
+
+            return data
+
+        if spike_nums_to_use is None:
+            display_spike_nums = False
+        if not display_spike_nums:
+            without_activity_sum = True
+        else:
+            without_activity_sum = False
+
+        raw_traces = self.raw_traces
+
+        for i in np.arange(len(raw_traces)):
+            raw_traces[i] = (raw_traces[i] - np.mean(raw_traces[i]) / np.std(raw_traces[i]))
+            raw_traces[i] = norm01(raw_traces[i]) * 5
+
+        span_area_coords = []
+        span_area_colors = []
+        vertical_lines = None
+        vertical_lines_colors = None
+        vertical_lines_sytle = None
+        vertical_lines_linewidth = None
+        if sce_times is not None:
+            vertical_lines = sce_times
+            vertical_lines_colors = ['white'] * len(sce_times)
+            vertical_lines_sytle = "solid"
+            vertical_lines_linewidth = [0.2] * len(sce_times)
+        if (self.speed_by_frame is not None) and with_run:
+            binary_speed = np.zeros(len(self.speed_by_frame), dtype="int8")
+            binary_speed[self.speed_by_frame > 1] = 1
+            speed_periods = get_continous_time_periods(binary_speed)
+            span_area_coords.append(speed_periods)
+            span_area_colors.append("red")
+
+        plot_spikes_raster(spike_nums=spike_nums_to_use, param=self.param,
+                           display_spike_nums=display_spike_nums,
+                           traces_lw=0.1,
+                           traces=raw_traces,
+                           display_traces=True,
+                           spike_train_format=False,
+                           title="traces raster",
+                           file_name="traces raster",
+                           y_ticks_labels=np.arange(len(raw_traces)),
+                           y_ticks_labels_size=2,
+                           save_raster=True,
+                           show_raster=False,
+                           span_area_coords=span_area_coords,
+                           span_area_colors=span_area_colors,
+                           vertical_lines=vertical_lines,
+                           vertical_lines_colors=vertical_lines_colors,
+                           vertical_lines_sytle=vertical_lines_sytle,
+                           vertical_lines_linewidth=vertical_lines_linewidth,
+                           plot_with_amplitude=False,
+                           raster_face_color="black",
+                           show_sum_spikes_as_percentage=True,
+                           span_area_only_on_raster=False,
+                           spike_shape_size=0.5,
+                           without_activity_sum=without_activity_sum,
+                           save_formats=["png", "pdf"])
+
     def plot_raster_with_cells_assemblies_and_shifts(self, only_cell_assemblies=False):
         if self.sce_times_in_cell_assemblies is None:
             return
@@ -3689,7 +3775,7 @@ class MouseSession:
         # span_area_colors = None
         if self.speed_by_frame is not None:
             binary_speed = np.zeros(len(self.speed_by_frame), dtype="int8")
-            binary_speed[self.speed_by_frame > 0] = 1
+            binary_speed[self.speed_by_frame > 1] = 1
             speed_periods = get_continous_time_periods(binary_speed)
 
         # colors for movement periods

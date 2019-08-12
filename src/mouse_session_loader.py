@@ -1,7 +1,8 @@
 from mouse_session import MouseSession
 import numpy as np
 from pattern_discovery.tools.signal import smooth_convolve
-
+import os
+import hdf5storage
 
 def smooth_traces(traces):
     # smoothing the trace
@@ -1658,26 +1659,37 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "p60_a529_2015_02_25_ms" in ms_str_to_load:
         p60_a529_2015_02_25_ms = MouseSession(age=60, session_id="a529_2015_02_25",
                                               sampling_rate=10, param=param)
-        p60_a529_2015_02_25_ms.activity_threshold = 10
-        p60_a529_2015_02_25_ms.set_inter_neurons([])
+        p60_a529_2015_02_25_ms.activity_threshold = 8
+        # p60_a529_2015_02_25_ms.set_inter_neurons([])
         # duration of those interneurons:
-        variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
-                             "spike_nums": "filt_Bin100ms_spikedigital",
-                             "spike_durations": "LOC3"}
-        p60_a529_2015_02_25_ms.load_data_from_file(file_name_to_load=
-                                                   "p60/a529_2015_02_25/a529_2015_02_25_RasterDur.mat",
-                                                   variables_mapping=variables_mapping)
+        #
+        # variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+        #                      "spike_nums": "filt_Bin100ms_spikedigital",
+        #                      "spike_durations": "LOC3"}
+        # p60_a529_2015_02_25_ms.load_data_from_file(file_name_to_load=
+        #                                            "p60/p60_a529_2015_02_25/a529_2015_02_25_RasterDur.mat",
+        #                                            variables_mapping=variables_mapping)
+
         variables_mapping = {"raw_traces": "raw_traces"}
         p60_a529_2015_02_25_ms.load_data_from_file(file_name_to_load=
-                                                   "p60/a529_2015_02_25/MotCorre_529_15_02_25_raw_Traces.mat",
+                                                   "p60/p60_a529_2015_02_25/MotCorre_529_15_02_25_raw_Traces.mat",
                                                    variables_mapping=variables_mapping)
+
         variables_mapping = {"coord": "ContoursAll"}
         p60_a529_2015_02_25_ms.load_data_from_file(
-            file_name_to_load="p60/a529_2015_02_25/MotCorre_529_15_02_25_CellDetect.mat",
+            file_name_to_load="p60/p60_a529_2015_02_25/MotCorre_529_15_02_25_CellDetect.mat",
             variables_mapping=variables_mapping)
-        p60_a529_2015_02_25_ms.set_avg_cell_map_tif(file_name="p60/a529_2015_02_25/AVG_a529_2015_02_25.tif")
+
+        # TODO: LOAD SPEED
+        speed_file = os.path.join(param.path_data, "p60/p60_a529_2015_02_25",
+                                  "data_bonus", "Speed.mat")
+        speed_data = hdf5storage.loadmat(speed_file)
+        # print(f"speed_data {speed_data['Speed'][0].shape}")
+        # raise Exception("FAST & FURIOUS")
+        p60_a529_2015_02_25_ms.speed_by_frame = speed_data['Speed'][0]
+        # p60_a529_2015_02_25_ms.set_avg_cell_map_tif(file_name="p60/a529_2015_02_25/AVG_a529_2015_02_25.tif")
         if load_movie:
-            p60_a529_2015_02_25_ms.load_tif_movie(path="p60/a529_2015_02_25/")
+            p60_a529_2015_02_25_ms.load_tif_movie(path="p60/p60_a529_2015_02_25/")
         ms_str_to_ms_dict["p60_a529_2015_02_25_ms"] = p60_a529_2015_02_25_ms
 
     if "p60_a529_2015_02_25_v_arnaud_ms" in ms_str_to_load:
@@ -1840,8 +1852,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if ms.spike_struct.spike_nums_dur is None:
             prediction_threshold = 0.5
             # key that should be on the prediction file_name to be loaded
-            # prediction_key = "meso_v1_epoch_9" # "meso_v1_epoch_9"
-            prediction_key = "gad_cre_v1_epoch_15"
+            prediction_key = "meso_v2_epoch_19" # "meso_v1_epoch_9" meso_v2_epoch_19
+            # prediction_key = "gad_cre_v1_epoch_15"
             variables_mapping = {"predictions": "predictions"}
             ms.load_raster_dur_from_predictions(
                 path_name=f"p{ms.age}/{ms.description.lower()}/predictions/",

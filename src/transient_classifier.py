@@ -4002,15 +4002,15 @@ def train_model():
         ms_for_tiffs = ["p5_19_03_25_a001_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms",
                         "p16_18_11_01_a002_ms"]
         ms_for_tiffs = ["p10_19_02_21_a005_ms"]
-        ms_for_tiffs = ["p8_18_10_24_a005_ms"]
+        ms_for_tiffs = ["p60_a529_2015_02_25_ms"]
         # GAD-CRE
-        ms_for_tiffs = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
-                        "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
+        # ms_for_tiffs = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
+        #                 "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
 
         create_tiffs_for_data_generator(ms_to_use=ms_for_tiffs,
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
@@ -4029,6 +4029,7 @@ def train_model():
         #                     "p8_18_10_24_a006_ms": np.array([28, 32, 33])  # RD
         #                      }
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
+        ms_for_rnn_benchmarks = ["p60_a529_2015_02_25_ms"]
         # ms_for_rnn_benchmarks = ["p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
         # ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
@@ -4049,7 +4050,7 @@ def train_model():
         #                     "p13_18_10_29_a001_ms": np.array([77, 117])}
         # cells_to_predict = {"p11_17_11_24_a000_ms": np.array([3, 45]),
         #                     "p12_171110_a000_ms": np.array([9, 10])}
-        cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
+        # cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
 
         # Julien
         # ms_for_rnn_benchmarks = ["p9_19_03_14_a001_ms"]
@@ -4111,10 +4112,10 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33])}
 
         # ms_for_rnn_benchmarks = ms_for_gad_cre_benchmarks
-        # cells_to_predict = dict()
+        cells_to_predict = dict()
         # # predicting all cells
-        # for ms in ms_for_rnn_benchmarks:
-        #     cells_to_predict[ms] = None
+        for ms in ms_for_rnn_benchmarks:
+            cells_to_predict[ms] = None
         # cells_to_predict = cells_to_predict_gad_cre
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0.5,
@@ -4322,7 +4323,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         parallel_model = multi_gpu_model(model, gpus=n_gpus)
     else:
         parallel_model = model
-    raise Exception("YOU KNOW NOTHING JON SNOW")
+    # raise Exception("YOU KNOW NOTHING JON SNOW")
 
     # Save the model architecture
     with open(

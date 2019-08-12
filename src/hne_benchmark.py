@@ -847,7 +847,8 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
 
         data_dict["caiman"] = dict()
         data_dict["caiman"]["path"] = "p6/p6_19_02_18_a000"
-        data_dict["caiman"]["file_name_onsets"] = "caiman_matlab/p6_19_02_18_a000_MCMC_(6).mat"
+        #data_dict["caiman"]["file_name_onsets"] = "caiman_matlab/p6_19_02_18_a000_MCMC_(6).mat"
+        data_dict["caiman"]["file_name_onsets"] = "caiman_matlab/p6_19_02_18_a000_MCMC_new.mat"
         data_dict["caiman"]["onsets_var_name"] = "spikenums"
         data_dict["caiman"]["to_bin"] = True
         data_dict["caiman"]["caiman_fiji_mapping"] = "P6_19_02_18_a000_fiji_vs_caiman.npy"
@@ -881,7 +882,8 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
 
         data_dict["caiman"] = dict()
         data_dict["caiman"]["path"] = "p11/p11_19_04_30_a001"
-        data_dict["caiman"]["file_name_onsets"] = "caiman_matlab/p11_19_04_30_a001_MCMC_(5).mat"
+        #data_dict["caiman"]["file_name_onsets"] = "caiman_matlab/p11_19_04_30_a001_MCMC_(5).mat"
+        data_dict["caiman"]["file_name_onsets"] = "caiman_matlab/p11_19_04_30_a001_MCMC_new.mat"
         data_dict["caiman"]["onsets_var_name"] = "spikenums"
         data_dict["caiman"]["to_bin"] = True
         data_dict["caiman"]["caiman_fiji_mapping"] ="P11_19_04_30_a001_fiji_vs_caiman.npy"
