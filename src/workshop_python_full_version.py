@@ -216,6 +216,7 @@ class CoordClass:
                                                     edgecolor=edge_color,
                                                     zorder=z_order_cells)  # lw=2
                 ax.add_patch(cell_contour)
+
             for cell in np.arange(len(self.coord)):
                 xy = self.coord[cell].transpose()
                 if with_edge:
@@ -437,7 +438,7 @@ class CoordClass:
         else:
             plt.close()
 
-    def plot_text_cell(self, cell, cell_numbers_color):
+    def plot_text_cell(self, cell, cell_numbers_color, ax_to_use=None):
         fontsize = 6
         if cell >= 100:
             fontsize = 4
@@ -446,10 +447,14 @@ class CoordClass:
 
         c_x_c = self.center_coord[cell][0]
         c_y_c = self.center_coord[cell][1]
-
-        plt.text(x=c_x_c, y=c_y_c,
-                 s=f"{cell}", color=cell_numbers_color, zorder=22,
-                 ha='center', va="center", fontsize=fontsize + 2, fontweight='bold')
+        if ax_to_use is None:
+            plt.text(x=c_x_c, y=c_y_c,
+                     s=f"{cell}", color=cell_numbers_color, zorder=22,
+                     ha='center', va="center", fontsize=fontsize + 2, fontweight='bold')
+        else:
+            ax_to_use.text(x=c_x_c, y=c_y_c,
+                     s=f"{cell}", color=cell_numbers_color, zorder=22,
+                     ha='center', va="center", fontsize=fontsize + 2, fontweight='bold')
 
     def get_cell_new_coord_in_source(self, cell, minx, miny):
         coord = self.coord[cell]

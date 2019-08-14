@@ -171,6 +171,7 @@ class ChooseSessionFrame(tk.Frame):
 
         self.available_ms_str = ["artificial_ms",
                                  "p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+                                 "p5_19_03_20_a000_ms",
                                  "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
                                  "p6_19_02_18_a000_ms",
                                  "p7_171012_a000_ms",
@@ -239,11 +240,11 @@ class ChooseSessionFrame(tk.Frame):
         n_times = len(self.data_and_param.traces[0, :])
 
         keep_onsets_and_peaks_empty = False
-        if keep_onsets_and_peaks_empty:
+        if keep_onsets_and_peaks_empty and (self.data_and_param.peak_nums is None):
             self.data_and_param.peak_nums = np.zeros((n_cells, n_times), dtype="int8")
             self.data_and_param.spike_nums = np.zeros((n_cells, n_times), dtype="int8")
         elif (self.data_and_param.peak_nums is None) or (self.data_and_param.spike_nums is None):
-            using_existing_spike_nums_dur = False
+            using_existing_spike_nums_dur = True
             # look if spike_nums_dur exists
             if using_existing_spike_nums_dur and (self.data_and_param.ms.spike_struct.spike_nums_dur is not None):
                 self.data_and_param.ms.spike_struct.build_spike_nums_and_peak_nums()
@@ -482,15 +483,18 @@ class RemovePeakAction(ManualAction):
 
 
 class AgreePeakAction(ManualAction):
-    def __init__(self, agreed_peaks_index, agree_onset_action, **kwargs):
+    def __init__(self, agreed_peaks_index, agree_onset_action, agreed_peaks_values,
+                                                        peaks_added, **kwargs):
         super().__init__(**kwargs)
         self.agreed_peaks_index = agreed_peaks_index
         self.agree_onset_action = agree_onset_action
+        self.agreed_peaks_values = agreed_peaks_values
+        self.peaks_added = peaks_added
 
     def undo(self):
         super().undo()
-        self.session_frame.to_agree_peak_nums[self.neuron, self.agreed_peaks_index] = 1
-        self.session_frame.peak_nums[self.neuron, self.agreed_peaks_index] = 0
+        self.session_frame.to_agree_peak_nums[self.neuron, self.agreed_peaks_index] = self.agreed_peaks_values
+        self.session_frame.peak_nums[self.neuron, self.peaks_added] = 0
         if self.agree_onset_action is not None:
             self.agree_onset_action.undo()
         else:
@@ -499,7 +503,7 @@ class AgreePeakAction(ManualAction):
     def redo(self):
         super().redo()
         self.session_frame.to_agree_peak_nums[self.neuron, self.agreed_peaks_index] = 0
-        self.session_frame.peak_nums[self.neuron, self.agreed_peaks_index] = 1
+        self.session_frame.peak_nums[self.neuron, self.peaks_added] = 1
         if self.agree_onset_action is not None:
             self.agree_onset_action.redo()
         else:
@@ -507,14 +511,16 @@ class AgreePeakAction(ManualAction):
 
 
 class DontAgreePeakAction(ManualAction):
-    def __init__(self, not_agreed_peaks_index, dont_agree_onset_action, **kwargs):
+    def __init__(self, not_agreed_peaks_index, dont_agree_onset_action, not_agreed_peaks_values,
+                 **kwargs):
         super().__init__(**kwargs)
         self.not_agreed_peaks_index = not_agreed_peaks_index
         self.dont_agree_onset_action = dont_agree_onset_action
+        self.not_agreed_peaks_values = not_agreed_peaks_values
 
     def undo(self):
         super().undo()
-        self.session_frame.to_agree_peak_nums[self.neuron, self.not_agreed_peaks_index] = 1
+        self.session_frame.to_agree_peak_nums[self.neuron, self.not_agreed_peaks_index] = self.not_agreed_peaks_values
         if self.dont_agree_onset_action is not None:
             self.dont_agree_onset_action.undo()
         else:
@@ -530,13 +536,14 @@ class DontAgreePeakAction(ManualAction):
 
 
 class DontAgreeOnsetAction(ManualAction):
-    def __init__(self, not_agreed_onsets_index, **kwargs):
+    def __init__(self, not_agreed_onsets_index, not_agreed_onsets_values, **kwargs):
         super().__init__(**kwargs)
         self.not_agreed_onsets_index = not_agreed_onsets_index
+        self.not_agreed_onsets_values = not_agreed_onsets_values
 
     def undo(self):
         super().undo()
-        self.session_frame.to_agree_spike_nums[self.neuron, self.not_agreed_onsets_index] = 1
+        self.session_frame.to_agree_spike_nums[self.neuron, self.not_agreed_onsets_index] = self.not_agreed_onsets_values
         self.session_frame.update_to_agree_label()
 
     def redo(self):
@@ -546,22 +553,24 @@ class DontAgreeOnsetAction(ManualAction):
 
 
 class AgreeOnsetAction(ManualAction):
-    def __init__(self, agreed_onsets_index, **kwargs):
+    def __init__(self, agreed_onsets_index, agreed_onsets_values, onsets_added, **kwargs):
         super().__init__(**kwargs)
         self.agreed_onsets_index = agreed_onsets_index
+        self.onsets_added = onsets_added
+        self.agreed_onsets_values = agreed_onsets_values
 
     def undo(self):
         super().undo()
-        self.session_frame.to_agree_spike_nums[self.neuron, self.agreed_onsets_index] = 1
-        self.session_frame.onset_times[self.neuron, self.agreed_onsets_index] = 0
-        self.session_frame.spike_nums[self.neuron, self.agreed_onsets_index] = 0
+        self.session_frame.to_agree_spike_nums[self.neuron, self.agreed_onsets_index] = self.agreed_onsets_values
+        self.session_frame.onset_times[self.neuron, self.onsets_added] = 0
+        self.session_frame.spike_nums[self.neuron, self.onsets_added] = 0
         self.session_frame.update_to_agree_label()
 
     def redo(self):
         super().redo()
         self.session_frame.to_agree_spike_nums[self.neuron, self.agreed_onsets_index] = 0
-        self.session_frame.onset_times[self.neuron, self.agreed_onsets_index] = 1
-        self.session_frame.spike_nums[self.neuron, self.agreed_onsets_index] = 1
+        self.session_frame.onset_times[self.neuron, self.onsets_added] = 1
+        self.session_frame.spike_nums[self.neuron, self.onsets_added] = 1
         self.session_frame.update_to_agree_label()
 
 
@@ -1300,7 +1309,7 @@ class ManualOnsetFrame(tk.Frame):
 
         # plt.ion()
         if self.robin_mac:
-            self.fig = plt.figure(figsize=(8, 3))
+            self.fig = plt.figure(figsize=(10, 3))
         else:
             self.fig = plt.figure(figsize=(16, 8))  # 10, 4
         self.fig.patch.set_facecolor('black')
@@ -1975,9 +1984,9 @@ class ManualOnsetFrame(tk.Frame):
         # print(f"released keysym {event.keysym}, keycode {event.keycode}, keysym_num {event.keysym_num}, "
         #       f"state {event.state}")
         # print(f"event.keysym {event.keysym}")
-        if event.char in ["+"]:
+        if event.char in ["o", "O", "+"]:
             self.add_onset_switch_mode()
-        elif event.char in ["*"]:
+        elif event.char in ["p", "P", "*"]:
             self.add_peak_switch_mode()
         elif event.char in ["a", "A"]:
             self.move_zoom(to_the_left=False)
@@ -1989,7 +1998,7 @@ class ManualOnsetFrame(tk.Frame):
             self.toolbar.push_current()
         elif event.char in ["r", "R", "-"]:
             self.remove_all_switch_mode()
-        elif event.char in ["B", "P", "G"]:
+        elif event.char in ["B", "G"]:
             if self.display_michou is False:
                 self.display_michou = True
                 self.update_plot_map_img()
@@ -2001,9 +2010,9 @@ class ManualOnsetFrame(tk.Frame):
             if self.display_michou is True:
                 self.display_michou = False
                 self.update_plot_map_img(after_michou=True)
-        elif event.char in ["m", "M"]:
+        elif event.char in ["l", "LS"]:
             self.switch_magnifier()
-        elif event.char in ["p", "P"]:
+        elif event.char in ["i", "I"]:
             if self.n_michou_img > 0:
                 self.switch_michou()
         elif event.char in ["z", "Z"]:
@@ -2712,8 +2721,11 @@ class ManualOnsetFrame(tk.Frame):
             not_agreed_onsets_index = np.where((self.to_agree_spike_nums[self.current_neuron, x_from:x_to]))[0]
             if len(not_agreed_onsets_index) > 0:
                 not_agreed_onsets_index += x_from
+                not_agreed_onsets_values = np.copy(self.to_agree_spike_nums[self.current_neuron,
+                                                                            not_agreed_onsets_index])
                 self.to_agree_spike_nums[self.current_neuron, not_agreed_onsets_index] = 0
                 dont_agree_onset_action = DontAgreeOnsetAction(not_agreed_onsets_index=not_agreed_onsets_index,
+                                                               not_agreed_onsets_values=not_agreed_onsets_values,
                                                                session_frame=self,
                                                                neuron=self.current_neuron, is_saved=self.is_saved,
                                                                x_limits=(left_x_limit, right_x_limit),
@@ -2723,11 +2735,14 @@ class ManualOnsetFrame(tk.Frame):
             not_agreed_peaks_index = np.where((self.to_agree_peak_nums[self.current_neuron, x_from:x_to]))[0]
             if len(not_agreed_peaks_index) > 0:
                 not_agreed_peaks_index += x_from
+                not_agreed_peaks_values = np.copy(self.to_agree_peak_nums[self.current_neuron,
+                                                                          not_agreed_peaks_index])
                 self.to_agree_peak_nums[self.current_neuron, not_agreed_peaks_index] = 0
 
                 left_x_limit, right_x_limit = self.axe_plot.get_xlim()
                 bottom_limit, top_limit = self.axe_plot.get_ylim()
                 self.update_last_action(DontAgreePeakAction(not_agreed_peaks_index=not_agreed_peaks_index,
+                                                            not_agreed_peaks_values=not_agreed_peaks_values,
                                                             session_frame=self,
                                                             dont_agree_onset_action=dont_agree_onset_action,
                                                             neuron=self.current_neuron, is_saved=self.is_saved,
@@ -2780,10 +2795,24 @@ class ManualOnsetFrame(tk.Frame):
             agreed_onsets_index = np.where((self.to_agree_spike_nums[self.current_neuron, x_from:x_to]))[0]
             if len(agreed_onsets_index) > 0:
                 agreed_onsets_index += x_from
+                # then we keep only the one with the bigger value (represents the nb of person that agree)
+                agreed_onsets_values = np.copy(self.to_agree_spike_nums[self.current_neuron, agreed_onsets_index])
+                if len(agreed_onsets_index) > 1:
+                    index_max = np.argmax(self.to_agree_spike_nums[self.current_neuron,
+                                                                   agreed_onsets_index[::-1]])
+                    onsets_added = agreed_onsets_index[::-1][index_max]
+                    self.onset_times[self.current_neuron, agreed_onsets_index[::-1][index_max]] = 1
+                    self.spike_nums[self.current_neuron, agreed_onsets_index[::-1][index_max]] = 1
+                else:
+                    onsets_added = agreed_onsets_index
+                    self.onset_times[self.current_neuron, agreed_onsets_index] = 1
+                    self.spike_nums[self.current_neuron, agreed_onsets_index] = 1
+
                 self.to_agree_spike_nums[self.current_neuron, agreed_onsets_index] = 0
-                self.onset_times[self.current_neuron, agreed_onsets_index] = 1
-                self.spike_nums[self.current_neuron, agreed_onsets_index] = 1
-                agree_onset_action = AgreeOnsetAction(agreed_onsets_index=agreed_onsets_index, session_frame=self,
+                agree_onset_action = AgreeOnsetAction(agreed_onsets_index=agreed_onsets_index,
+                                                      agreed_onsets_values=agreed_onsets_values,
+                                                      onsets_added=onsets_added,
+                                                      session_frame=self,
                                                       neuron=self.current_neuron, is_saved=self.is_saved,
                                                       x_limits=(left_x_limit, right_x_limit),
                                                       y_limits=(bottom_limit, top_limit))
@@ -2792,12 +2821,22 @@ class ManualOnsetFrame(tk.Frame):
             agreed_peaks_index = np.where((self.to_agree_peak_nums[self.current_neuron, x_from:x_to]))[0]
             if len(agreed_peaks_index) > 0:
                 agreed_peaks_index += x_from
+                # then we keep only the ones with the bigger value (represents the nb of person that agree)
+                agreed_peaks_values = np.copy(self.to_agree_peak_nums[self.current_neuron, agreed_peaks_index])
+                if len(agreed_peaks_index) > 1:
+                    index_max = np.argmax(self.to_agree_peak_nums[self.current_neuron, agreed_peaks_index])
+                    peaks_added = agreed_peaks_index[index_max]
+                    self.peak_nums[self.current_neuron, agreed_peaks_index[index_max]] = 1
+                else:
+                    peaks_added = agreed_peaks_index
+                    self.peak_nums[self.current_neuron, agreed_peaks_index] = 1
                 self.to_agree_peak_nums[self.current_neuron, agreed_peaks_index] = 0
-                self.peak_nums[self.current_neuron, agreed_peaks_index] = 1
 
                 left_x_limit, right_x_limit = self.axe_plot.get_xlim()
                 bottom_limit, top_limit = self.axe_plot.get_ylim()
                 self.update_last_action(AgreePeakAction(agreed_peaks_index=agreed_peaks_index,
+                                                        agreed_peaks_values=agreed_peaks_values,
+                                                        peaks_added=peaks_added,
                                                         session_frame=self, agree_onset_action=agree_onset_action,
                                                         neuron=self.current_neuron, is_saved=self.is_saved,
                                                         x_limits=(left_x_limit, right_x_limit),
@@ -4587,7 +4626,20 @@ class ManualOnsetFrame(tk.Frame):
 
             # if we do imshow, then the size of the image will be the one of the square, with no zoom
             if i == -1:
-                self.last_img_displayed = self.axe_plot_map_img.imshow(frame_tiff,
+                high_contrast = True
+                if high_contrast:
+                    img = PIL.Image.new('1', tiff_array.shape, 1)
+                    xy_coords = self.cell_contour_movie.get_xy()
+                    xy_coords = [(xy_coords[pixel, 0], xy_coords[pixel, 1]) for pixel in np.arange(len(xy_coords))]
+                    ImageDraw.Draw(img).polygon(xy_coords, outline=0, fill=0)
+                    mask = np.array(img)
+                    max_value = np.max(tiff_array[mask])
+                    # max_value = np.mean(frame_tiff) + np.std(frame_tiff)*4
+                    self.last_img_displayed = self.axe_plot_map_img.imshow(frame_tiff,
+                                                                           cmap=plt.get_cmap('gray'),
+                                                                           vmax=max_value)
+                else:
+                    self.last_img_displayed = self.axe_plot_map_img.imshow(frame_tiff,
                                                                        cmap=plt.get_cmap('gray'))
                 self.last_img_displayed.set_array(tiff_array)
             else:
@@ -5019,7 +5071,8 @@ class ManualOnsetFrame(tk.Frame):
 
         if self.to_agree_spike_nums is not None:
             to_agree_onsets = np.where(self.to_agree_spike_nums[self.current_neuron, :])[0]
-            self.axe_plot.vlines(to_agree_onsets, min_value, max_value, color="red", linewidth=1.5,
+            self.axe_plot.vlines(to_agree_onsets, min_value, max_value, color="red",
+                                 linewidth=self.to_agree_spike_nums[self.current_neuron, to_agree_onsets],
                                  linestyles="dashed")
 
         # #################### DOUBTFUL FRAMES ####################
@@ -5177,6 +5230,8 @@ class ManualOnsetFrame(tk.Frame):
             peaks_amplitude = self.traces[self.current_neuron, to_agree_peaks]
             self.ax1_bottom_scatter = self.axe_plot.scatter(to_agree_peaks,
                                                             peaks_amplitude,
+                                                            linewidths=self.to_agree_peak_nums[self.current_neuron,
+                                                                                               to_agree_peaks],
                                                             marker='o', c="black",
                                                             edgecolors="red",
                                                             s=size_peak_scatter * 1.2, zorder=10)
@@ -5455,7 +5510,7 @@ def fusion_gui_selection(path_data):
     txt_to_read = None
     # merge close ones
     # if True merge spikes or peaks that are less then merging_threshold, taking the average value
-    merge_close_ones = True
+    merge_close_ones = False
     merging_threshold = 7
     # how many people did ground truth, useulf to merge close ones
     # should be superior to 1
@@ -5515,10 +5570,11 @@ def fusion_gui_selection(path_data):
 
     # in case if one of the file is a fusion file
     for index_data, data_file in enumerate(data_files):
+        cells_array = np.array(cells_by_file[index_data])
         if "to_agree_peak_nums" in data_file:
-            to_agree_peak_nums = data_file['to_agree_peak_nums'].astype(int)
+            to_agree_peak_nums[cells_array] = data_file['to_agree_peak_nums'].astype(int)[cells_array]
         if "to_agree_spike_nums" in data_file:
-            to_agree_spike_nums = data_file['to_agree_spike_nums'].astype(int)
+            to_agree_spike_nums[cells_array] = data_file['to_agree_spike_nums'].astype(int)[cells_array]
 
     for index_data, data_file in enumerate(data_files):
         if "inter_neurons" in data_file:
@@ -5545,7 +5601,7 @@ def fusion_gui_selection(path_data):
                 peaks_index = np.where(peak_nums[cell])[0]
                 peaks_index_to_agree = np.setxor1d(peaks_index_data, peaks_index, assume_unique=True)
                 peaks_index_agreed = np.intersect1d(peaks_index_data, peaks_index, assume_unique=True)
-                to_agree_peak_nums[cell, peaks_index_to_agree] = 1
+                to_agree_peak_nums[cell, peaks_index_to_agree] = to_agree_peak_nums[cell, peaks_index_to_agree] + 1
                 peak_nums[cell, peaks_index_to_agree] = 0
                 peak_nums[cell, peaks_index_agreed] = 1
 
@@ -5556,7 +5612,7 @@ def fusion_gui_selection(path_data):
                 onsets_index = np.where(spike_nums[cell])[0]
                 onsets_index_to_agree = np.setxor1d(onsets_index_data, onsets_index, assume_unique=True)
                 onsets_index_agreed = np.intersect1d(onsets_index_data, onsets_index, assume_unique=True)
-                to_agree_spike_nums[cell, onsets_index_to_agree] = 1
+                to_agree_spike_nums[cell, onsets_index_to_agree] = to_agree_spike_nums[cell, onsets_index_to_agree] + 1
                 spike_nums[cell, onsets_index_to_agree] = 0
                 spike_nums[cell, onsets_index_agreed] = 1
 
@@ -5581,8 +5637,10 @@ def fusion_gui_selection(path_data):
                 merge_close_values(raster=to_agree_spike_nums, raster_to_fill=spike_nums,
                                    cell=cell, merging_threshold=merging_threshold)
 
+
     # now we want to fill the cells that didn't have to be fusionned, using one the data file
     cells_to_fill = np.setxor1d(cells_fusioned, np.arange(n_cells), assume_unique=True)
+
     for cell in cells_to_fill:
         peak_nums_data = data_files[0]['LocPeakMatrix_Python'].astype(int)
         spike_nums_data = data_files[0]['Bin100ms_spikedigital_Python'].astype(int)

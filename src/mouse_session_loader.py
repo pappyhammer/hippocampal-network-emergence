@@ -1,7 +1,8 @@
 from mouse_session import MouseSession
 import numpy as np
 from pattern_discovery.tools.signal import smooth_convolve
-
+import os
+import hdf5storage
 
 def smooth_traces(traces):
     # smoothing the trace
@@ -97,6 +98,20 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["artificial_ms_3"] = artificial_ms
 
+    # GAD-CRE
+    if "p5_19_03_20_a000_ms" in ms_str_to_load:
+        p5_19_03_20_a000_ms = MouseSession(age=5, session_id="19_03_20_a000",
+                                           sampling_rate=8, param=param, weight=3.75)
+        p5_19_03_20_a000_ms.use_suite_2p = False
+
+        if not p5_19_03_20_a000_ms.use_suite_2p:
+            variables_mapping = {"coord": "ContoursAll"}
+            p5_19_03_20_a000_ms.load_data_from_file(
+                file_name_to_load="p5/p5_19_03_20_a000/p5_19_03_20_a000_CellDetect_fiji.mat",
+                variables_mapping=variables_mapping, from_fiji=True)
+
+        ms_str_to_ms_dict["p5_19_03_20_a000_ms"] = p5_19_03_20_a000_ms
+
     if "p5_19_03_25_a000_ms" in ms_str_to_load:
         p5_19_03_25_a000_ms = MouseSession(age=5, session_id="19_03_25_a000",
                                            sampling_rate=8, param=param, weight=3.75)
@@ -133,23 +148,23 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms_str_to_ms_dict["p5_19_03_25_a001_ms"] = p5_19_03_25_a001_ms
 
     # GAD CRE
-    if "p5_19_03_20_a000_ms" in ms_str_to_load:
-        p5_19_03_20_a000_ms = MouseSession(age=5, session_id="19_03_20_a000", sampling_rate=8,
-                                           param=param, weight=3.9)
+    # if "p5_19_03_20_a000_ms" in ms_str_to_load:
+    #     p5_19_03_20_a000_ms = MouseSession(age=5, session_id="19_03_20_a000", sampling_rate=8,
+    #                                        param=param, weight=3.9)
+    #
+    #     variables_mapping = {"global_roi": "global_roi"}
+    #     p5_19_03_20_a000_ms.load_data_from_file(file_name_to_load=
+    #                                             "p5/p5_19_03_20_a000/p5_19_03_20_a000_global_roi.mat",
+    #                                             variables_mapping=variables_mapping)
+    #     variables_mapping = {"xshifts": "xshifts",
+    #                          "yshifts": "yshifts"}
+    #     p5_19_03_20_a000_ms.load_data_from_file(file_name_to_load=
+    #                                             "p5/p5_19_03_20_a000/MichelMotC_p5_19_03_20_a000_params.mat",
+    #                                             variables_mapping=variables_mapping)
+    #     if load_movie:
+    #         p5_19_03_20_a000_ms.load_tif_movie(path="p5/p5_19_03_20_a000")
 
-        variables_mapping = {"global_roi": "global_roi"}
-        p5_19_03_20_a000_ms.load_data_from_file(file_name_to_load=
-                                                "p5/p5_19_03_20_a000/p5_19_03_20_a000_global_roi.mat",
-                                                variables_mapping=variables_mapping)
-        variables_mapping = {"xshifts": "xshifts",
-                             "yshifts": "yshifts"}
-        p5_19_03_20_a000_ms.load_data_from_file(file_name_to_load=
-                                                "p5/p5_19_03_20_a000/MichelMotC_p5_19_03_20_a000_params.mat",
-                                                variables_mapping=variables_mapping)
-        if load_movie:
-            p5_19_03_20_a000_ms.load_tif_movie(path="p5/p5_19_03_20_a000")
-
-        ms_str_to_ms_dict["p5_19_03_20_a000_ms"] = p5_19_03_20_a000_ms
+        # ms_str_to_ms_dict["p5_19_03_20_a000_ms"] = p5_19_03_20_a000_ms
 
     if "p6_18_02_07_a001_ms" in ms_str_to_load:
         p6_18_02_07_a001_ms = MouseSession(age=6, session_id="18_02_07_a001", param=param,
@@ -239,16 +254,31 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["p6_18_02_07_a002_ms"] = p6_18_02_07_a002_ms
 
+    # GAD-Cre
     if "p6_19_02_18_a000_ms" in ms_str_to_load:
         p6_19_02_18_a000_ms = MouseSession(age=6, session_id="19_02_18_a000", sampling_rate=8, param=param,
                                            weight=None)
         p6_19_02_18_a000_ms.use_suite_2p = False
+        if for_transient_classifier:
+            p6_19_02_18_a000_ms.use_suite_2p = False
         # calculated with 99th percentile on raster dur
         # p6_19_02_18_a000_ms.activity_threshold = 2
 
         if not p6_19_02_18_a000_ms.use_suite_2p:
+            if for_transient_classifier:
+                variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                     "peak_nums": "LocPeakMatrix_Python",
+                                     "cells_to_remove": "cells_to_remove",
+                                     "inter_neurons_from_gui": "inter_neurons",
+                                     "doubtful_frames_nums": "doubtful_frames_nums"}
+                p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load=
+                                                         "p6/p6_19_02_18_a000/p6_19_02_18_a000_ground_truth_cell_0_1_2_3.mat",
+                                                         variables_mapping=variables_mapping,
+                                                         from_gui=True)
+                p6_19_02_18_a000_ms.build_spike_nums_dur()
+
             variables_mapping = {"coord": "ContoursAll"}
-            p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_CellDetect.mat",
+            p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_CellDetect_fiji.mat",
                                                     variables_mapping=variables_mapping, from_fiji=True)
 
             p6_19_02_18_a000_ms.load_tif_movie(path="p6/p6_19_02_18_a000/")
@@ -264,6 +294,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p7_171012_a000_ms = MouseSession(age=7, session_id="17_10_12_a000", sampling_rate=10, param=param,
                                          weight=None)
         p7_171012_a000_ms.use_suite_2p = True
+        if for_transient_classifier or for_cell_classifier:
+            p7_171012_a000_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         # p7_171012_a000_ms.activity_threshold =
@@ -668,6 +700,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # if True will  use the coord from suite2p, if False, will just load the info concerning suite2p in
         # if the dict suit2p_data in mouse_session
         p8_18_10_24_a005_ms.use_suite_2p = True
+        if for_transient_classifier:
+            p8_18_10_24_a005_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         # p8_18_10_24_a005_ms.activity_threshold =
@@ -721,6 +755,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         # oriens field, using Caiman
         p8_18_10_24_a006_ms.use_suite_2p = True
+        if for_transient_classifier:
+            p8_18_10_24_a006_ms.use_suite_2p = False
 
         if not p8_18_10_24_a006_ms.use_suite_2p:
             if for_cell_classifier or for_transient_classifier:
@@ -730,7 +766,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "inter_neurons_from_gui": "inter_neurons",
                                      "doubtful_frames_nums": "doubtful_frames_nums"}
                 p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load=
-                                                        "p8/p8_18_10_24_a006/p8_18_10_24_a006_fusion_validation.mat",
+                                                        "p8/p8_18_10_24_a006/p8_18_10_24_a006_GUI_transients_RD.mat",
                                                         variables_mapping=variables_mapping,
                                                         from_gui=True)
                 # used for training before: p8_18_10_24_a006_GUI_transients_RD.mat p8_18_10_24_a006_fusion_validation.mat
@@ -825,6 +861,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                            weight=6.65)
 
         p9_18_09_27_a003_ms.use_suite_2p = True
+        if for_cell_classifier:
+            p9_18_09_27_a003_ms.use_suite_2p = False
 
         # calculated with 95th percentile on raster dur
         p9_18_09_27_a003_ms.activity_threshold = 13
@@ -1048,6 +1086,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                             weight=6.7)
 
         p11_17_11_24_a000_ms.use_suite_2p = True
+        if for_transient_classifier:
+            p11_17_11_24_a000_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         # p11_17_11_24_a000_ms.activity_threshold = 11
@@ -1153,11 +1193,25 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                             sampling_rate=8, param=param)
 
         p11_19_04_30_a001_ms.use_suite_2p = False
+        if for_transient_classifier:
+            p11_19_04_30_a001_ms.use_suite_2p = False
 
         if not p11_19_04_30_a001_ms.use_suite_2p:
+            if for_transient_classifier:
+                variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                     "peak_nums": "LocPeakMatrix_Python",
+                                     "cells_to_remove": "cells_to_remove",
+                                     "inter_neurons_from_gui": "inter_neurons",
+                                     "doubtful_frames_nums": "doubtful_frames_nums"}
+                p11_19_04_30_a001_ms.load_data_from_file(file_name_to_load=
+                                                         "p11/p11_19_04_30_a001/p11_19_04_30_a001_gound_truth.mat",
+                                                         variables_mapping=variables_mapping,
+                                                         from_gui=True)
+                p11_19_04_30_a001_ms.build_spike_nums_dur()
+
             variables_mapping = {"coord": "ContoursAll"}
             p11_19_04_30_a001_ms.load_data_from_file(
-                file_name_to_load="p11/p11_19_04_30_a001/p11_19_04_30_a001_CellDetect.mat",
+                file_name_to_load="p11/p11_19_04_30_a001/p11_19_04_30_a001_CellDetect_fiji.mat",
                 variables_mapping=variables_mapping)
             p11_19_04_30_a001_ms.load_tif_movie(path="p11/p11_19_04_30_a001/")
             # p11_19_04_30_a001_ms.load_caiman_results(path_data="p11/p11_19_04_30_a001/")
@@ -1169,6 +1223,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                           weight=7)
 
         p12_171110_a000_ms.use_suite_2p = True
+        if for_transient_classifier or for_cell_classifier:
+            p12_171110_a000_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         p12_171110_a000_ms.activity_threshold = 13
@@ -1274,13 +1330,19 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["p12_17_11_10_a002_ms"] = p12_17_11_10_a002_ms
 
-    # Gad cre
+    # GAD-cre
     if "p12_19_02_08_a000_ms" in ms_str_to_load:
         p12_19_02_08_a000_ms = MouseSession(age=12, session_id="19_02_08_a000",
                                             sampling_rate=8, param=param,
                                             weight=7.55)
 
-        p12_19_02_08_a000_ms.use_suite_2p = True
+        p12_19_02_08_a000_ms.use_suite_2p = False
+
+        if not p12_19_02_08_a000_ms.use_suite_2p:
+            variables_mapping = {"coord": "ContoursAll"}
+            p12_19_02_08_a000_ms.load_data_from_file(
+                file_name_to_load="p12/p12_19_02_08_a000/p12_19_02_08_a000_CellDetect_fiji.mat",
+                variables_mapping=variables_mapping, from_fiji=True)
 
         ms_str_to_ms_dict["p12_19_02_08_a000_ms"] = p12_19_02_08_a000_ms
 
@@ -1326,6 +1388,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                             weight=9.4)
 
         p13_18_10_29_a001_ms.use_suite_2p = True
+        if for_transient_classifier:
+            p13_18_10_29_a001_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         # p13_18_10_29_a001_ms.activity_threshold =
@@ -1338,7 +1402,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "inter_neurons_from_gui": "inter_neurons",
                                      "doubtful_frames_nums": "doubtful_frames_nums"}
                 p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
-                                                         "p13/p13_18_10_29_a001/p13_18_10_29_a001_fusion_validation.mat",
+                                                         "p13/p13_18_10_29_a001/p13_18_10_29_a001_GUI_transients_RD.mat",
                                                          variables_mapping=variables_mapping,
                                                          from_gui=True)
                 # p13_18_10_29_a001_GUI_transients_RD.mat p13_18_10_29_a001_fusion_validation.mat
@@ -1358,7 +1422,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                     variables_mapping=variables_mapping)
                 variables_mapping = {"raw_traces": "raw_traces"}
                 p13_18_10_29_a001_ms.load_data_from_file(
-                    file_name_to_load="p13/p13_18_10_29_a001/p13_2018_10_29_a001_raw_Traces.mat",
+                    file_name_to_load="p13/p13_18_10_29_a001/p13_18_10_29_a001_raw_Traces.mat",
                     variables_mapping=variables_mapping)
             variables_mapping = {"coord": "ContoursAll"}
             p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
@@ -1595,26 +1659,37 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "p60_a529_2015_02_25_ms" in ms_str_to_load:
         p60_a529_2015_02_25_ms = MouseSession(age=60, session_id="a529_2015_02_25",
                                               sampling_rate=10, param=param)
-        p60_a529_2015_02_25_ms.activity_threshold = 10
-        p60_a529_2015_02_25_ms.set_inter_neurons([])
+        p60_a529_2015_02_25_ms.activity_threshold = 8
+        # p60_a529_2015_02_25_ms.set_inter_neurons([])
         # duration of those interneurons:
-        variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
-                             "spike_nums": "filt_Bin100ms_spikedigital",
-                             "spike_durations": "LOC3"}
-        p60_a529_2015_02_25_ms.load_data_from_file(file_name_to_load=
-                                                   "p60/a529_2015_02_25/a529_2015_02_25_RasterDur.mat",
-                                                   variables_mapping=variables_mapping)
+        #
+        # variables_mapping = {"spike_nums_dur": "rasterdur", "traces": "C_df",
+        #                      "spike_nums": "filt_Bin100ms_spikedigital",
+        #                      "spike_durations": "LOC3"}
+        # p60_a529_2015_02_25_ms.load_data_from_file(file_name_to_load=
+        #                                            "p60/p60_a529_2015_02_25/a529_2015_02_25_RasterDur.mat",
+        #                                            variables_mapping=variables_mapping)
+
         variables_mapping = {"raw_traces": "raw_traces"}
         p60_a529_2015_02_25_ms.load_data_from_file(file_name_to_load=
-                                                   "p60/a529_2015_02_25/MotCorre_529_15_02_25_raw_Traces.mat",
+                                                   "p60/p60_a529_2015_02_25/MotCorre_529_15_02_25_raw_Traces.mat",
                                                    variables_mapping=variables_mapping)
+
         variables_mapping = {"coord": "ContoursAll"}
         p60_a529_2015_02_25_ms.load_data_from_file(
-            file_name_to_load="p60/a529_2015_02_25/MotCorre_529_15_02_25_CellDetect.mat",
+            file_name_to_load="p60/p60_a529_2015_02_25/MotCorre_529_15_02_25_CellDetect.mat",
             variables_mapping=variables_mapping)
-        p60_a529_2015_02_25_ms.set_avg_cell_map_tif(file_name="p60/a529_2015_02_25/AVG_a529_2015_02_25.tif")
+
+        # TODO: LOAD SPEED
+        speed_file = os.path.join(param.path_data, "p60/p60_a529_2015_02_25",
+                                  "data_bonus", "Speed.mat")
+        speed_data = hdf5storage.loadmat(speed_file)
+        # print(f"speed_data {speed_data['Speed'][0].shape}")
+        # raise Exception("FAST & FURIOUS")
+        p60_a529_2015_02_25_ms.speed_by_frame = speed_data['Speed'][0]
+        # p60_a529_2015_02_25_ms.set_avg_cell_map_tif(file_name="p60/a529_2015_02_25/AVG_a529_2015_02_25.tif")
         if load_movie:
-            p60_a529_2015_02_25_ms.load_tif_movie(path="p60/a529_2015_02_25/")
+            p60_a529_2015_02_25_ms.load_tif_movie(path="p60/p60_a529_2015_02_25/")
         ms_str_to_ms_dict["p60_a529_2015_02_25_ms"] = p60_a529_2015_02_25_ms
 
     if "p60_a529_2015_02_25_v_arnaud_ms" in ms_str_to_load:
@@ -1764,7 +1839,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         ms.load_suite2p_data(data_path=f"p{ms.age}/{ms.description.lower()}/suite2p/", with_coord=ms.use_suite_2p)
 
         if load_traces:
-            if ms.use_suite_2p:
+            if ms.use_suite_2p or (ms.raw_traces is None):
                 raw_traces_loaded = ms.load_raw_traces_from_npy(path=f"p{ms.age}/{ms.description.lower()}/")
                 if not raw_traces_loaded:
                     ms.load_tiff_movie_in_memory()
@@ -1777,7 +1852,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if ms.spike_struct.spike_nums_dur is None:
             prediction_threshold = 0.5
             # key that should be on the prediction file_name to be loaded
-            prediction_key = "meso_v1_epoch_9" # "meso_v1_epoch_9"
+            prediction_key = "meso_v2_epoch_19" # "meso_v1_epoch_9" meso_v2_epoch_19
+            # prediction_key = "gad_cre_v1_epoch_15"
             variables_mapping = {"predictions": "predictions"}
             ms.load_raster_dur_from_predictions(
                 path_name=f"p{ms.age}/{ms.description.lower()}/predictions/",
@@ -1804,7 +1880,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms.load_graph_data(path_to_load=f"p{ms.age}/{ms.description.lower()}/")
 
-
+        ms.load_raw_motion_translation_shift_data(path_to_load=f"p{ms.age}/{ms.description.lower()}/")
 
         if load_abf and (not ms.abf_loaded):
             # if sampling_rate is not 50000, load specific data for a session

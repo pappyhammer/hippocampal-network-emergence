@@ -8,6 +8,7 @@
 # matplotlib.use("Agg")
 
 from tensorflow.python.client import device_lib
+
 print(f"device_lib.list_local_devices(): {device_lib.list_local_devices()}")
 
 import tensorflow as tf
@@ -1153,7 +1154,8 @@ class StratificationDataProcessor:
                 n_movie_patch = camembert.n_movie_patch
                 # list of potential movie patches in this session depending on the augmentation factor
                 # from 1 (no transformation added) to (self.n_transformations_for_session + 1)
-                n_movie_patch_options = [n_movie_patch * x for x in np.arange(1, (self.n_transformations_for_session + 2))]
+                n_movie_patch_options = [n_movie_patch * x for x in
+                                         np.arange(1, (self.n_transformations_for_session + 2))]
                 n_movie_patch_options = np.array(n_movie_patch_options)
                 idx = (np.abs(n_movie_patch_options - max_movie_patch)).argmin()
                 if idx > 0:
@@ -2504,7 +2506,8 @@ def get_source_profile_frames(ms, frames, coords):
         source_profile = ms.tiff_movie_normalized[frames, miny:maxy + 1, minx:maxx + 1]
     else:
         if ms.tiff_movie_mean is None:
-            mean_value = np.load(os.path.join(ms.tiffs_for_transient_classifier_path, ms.description.lower(), "mean.npy"))
+            mean_value = np.load(
+                os.path.join(ms.tiffs_for_transient_classifier_path, ms.description.lower(), "mean.npy"))
             ms.tiff_movie_mean = mean_value
         else:
             mean_value = ms.tiff_movie_mean
@@ -2531,6 +2534,8 @@ def get_source_profile_frames(ms, frames, coords):
 def find_all_onsets_and_peaks_on_traces(ms, cell, threshold_factor=0.5):
     # print(f"find_all_onsets_and_peaks_on_traces ms.description {ms.description}, cell {cell}")
     # trace = ms.traces[cell]
+    if ms.smooth_traces is None:
+        ms.create_smooth_traces()
     trace = ms.smooth_traces[cell]
     # print(f"trace {trace.shape}, np.mean(trace) {np.mean(trace)}")
     n_frames = trace.shape[0]
@@ -2597,8 +2602,9 @@ def cell_encoding(ms, cell):
     :param cell:
     :return:
     """
+    # print(f"cell_encoding {ms.description}")
     # so far we need ms.traces
-    n_frames = ms.smooth_traces.shape[1]
+    n_frames = ms.raw_traces.shape[1]
     encoded_frames = np.zeros(n_frames, dtype="int16")
     decoding_frame_dict = dict()
     # zero will be the Neuropil
@@ -2703,10 +2709,17 @@ def add_segment_of_cells_for_training(param,
     raster_dur_by_cells_and_session = dict()
 
     dir_to_load = []
+    # CAIMAN version
     dir_to_load.append(os.path.join(param.path_data, "p7", "p7_17_10_12_a000", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data,  "p8", "p8_18_10_24_a005", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p8", "p8_18_10_24_a005", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p11", "p11_17_11_24_a000", "transients_to_add_for_rnn"))
 
+    # SUITE2P version
+    dir_to_load.append(os.path.join(param.path_data, "p10", "p10_19_02_21_a005", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_03_25_a001", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_05_a000", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_27_a000", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p16", "p16_18_11_01_a002", "transients_to_add_for_rnn"))
 
     file_names_to_load = []
     dir_of_files = []
@@ -2757,7 +2770,6 @@ def add_segment_of_cells_for_training(param,
 
     # print(f"debug_dict {debug_dict}")
 
-
     return cells_segments_by_session, raster_dur_by_cells_and_session
 
 
@@ -2793,7 +2805,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     use_cnn_to_select_cells = False
     use_small_sample = False
     use_triple_blinded_data = False
-    use_test_sample = True
+    use_test_sample = False
+    use_gad_cre_sample = True
     # used for counting how many cells and transients available
     load_them_all = False
 
@@ -2895,6 +2908,25 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         p12_171110_a000_ms: 9, 10
         p13_18_10_29_a001_ms: 77, 117 (need to be done by JD before triple blind) 
         """
+    elif use_gad_cre_sample:
+        ms_to_remove_from_test.append("artificial_ms_1")
+        ms_to_remove_from_validation.append("artificial_ms_1")
+        # ms_to_remove_from_test.append("artificial_ms_2")
+        # ms_to_remove_from_validation.append("artificial_ms_2")
+
+        ms_to_use = ["artificial_ms_1", "p8_18_10_24_a006_ms", "p11_19_04_30_a001_ms", "p6_19_02_18_a000_ms"]
+        cell_to_load_by_ms = {"artificial_ms_1":
+                              np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
+                              "p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
+                              "p11_19_04_30_a001_ms": np.array([0, 2, 3]),
+                              "p6_19_02_18_a000_ms": np.array([0, 1, 2]),
+                              }
+        """
+        For benchmark:
+         "p11_19_04_30_a001_ms" -> cell 4
+         "p6_19_02_18_a000_ms" -> cell 3
+         
+        """
     elif use_test_sample:
         ms_to_use = ["p12_171110_a000_ms"]
         cell_to_load_by_ms = {"p12_171110_a000_ms": np.arange(0, 6)}
@@ -2923,8 +2955,6 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                                             load_traces=True, load_abf=False,
                                             for_transient_classifier=True)
 
-
-
     total_n_cells = 0
     # n_movies = 0
 
@@ -2943,6 +2973,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     # filtering the cells, to keep only the one not removed or with a good source profile according to cell classifier
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
+        print(f"load_data_generator filtering the cells {ms.description}")
         # indicating where to find the frames tiffs
         ms.tiffs_for_transient_classifier_path = tiffs_for_transient_classifier_path
         spike_nums_dur = ms.spike_struct.spike_nums_dur
@@ -2966,6 +2997,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                 raster_dict = raster_dur_by_cells_and_session[ms_str]
                 # modifying the raster for the cell segments
                 # important a cell is either composed of segments or all the frames are included
+                # print(f"ms_str {ms_str}")
                 for cell, raster in raster_dict.items():
                     if cell in original_cell_indices_mapping:
                         # re-mapping the cell
@@ -3137,8 +3169,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                         # if some frames have been marked as doubtful, we remove them of the training dataset
                         if (ms.doubtful_frames_nums is not None) and (segments is None):
                             if (np.sum(ms.doubtful_frames_nums[cell,
-                                                                np.arange(first_frame,
-                                                                          first_frame + sliding_window_len)]) > 0):
+                                                               np.arange(first_frame,
+                                                                         first_frame + sliding_window_len)]) > 0):
                                 continue
                         # if segments is not None:
                         #     print("segments is not None")
@@ -3590,7 +3622,7 @@ def transients_prediction_from_movie(ms_to_use, param, tiffs_for_transient_class
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
         ms.tiffs_for_transient_classifier_path = tiffs_for_transient_classifier_path
-
+        print(f"ms.description cell: {ms.description}")
         n_cells = len(ms.coord)
         print(f"ms {ms_str}")
         print(f"n_cells {n_cells}")
@@ -3963,10 +3995,19 @@ def train_model():
     go_create_tiffs_for_data_generator = False
     if go_create_tiffs_for_data_generator:
         # use to create a single tiff for each frame, then use by data_generator during training of the RNN
-        # ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms",
-        #  "p12_171110_a000_ms",
-        #  "p13_18_10_29_a001_ms", "artificial_ms_1"]
-        create_tiffs_for_data_generator(ms_to_use=["p6_19_02_18_a000_ms"],
+        # ms_for_tiffs = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
+        #                 "p11_17_11_24_a000_ms", "p12_171110_a000_ms", "p10_19_02_21_a005_ms",
+        #                 "p5_19_03_25_a001_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms",
+        #                 "p16_18_11_01_a002_ms", "p13_18_10_29_a001_ms", "artificial_ms_1", "artificial_ms_2"]
+        ms_for_tiffs = ["p5_19_03_25_a001_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms",
+                        "p16_18_11_01_a002_ms"]
+        ms_for_tiffs = ["p10_19_02_21_a005_ms"]
+        ms_for_tiffs = ["p60_a529_2015_02_25_ms"]
+        # GAD-CRE
+        # ms_for_tiffs = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
+        #                 "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
+
+        create_tiffs_for_data_generator(ms_to_use=ms_for_tiffs,
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
     go_predict_from_movie = True
@@ -3980,9 +4021,18 @@ def train_model():
         ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
                                  "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms", "p12_171110_a000_ms"]
+        ms_for_gad_cre_benchmarks = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
+                                     "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
+        # oriens: "p8_18_10_24_a006_ms"
+        # cells_to_predict_gad_cre = {"p6_19_02_18_a000_ms": np.array([3]),
+        #                     "p11_19_04_30_a001_ms": np.array([4]),
+        #                     "p8_18_10_24_a006_ms": np.array([28, 32, 33])  # RD
+        #                      }
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
-        ms_for_rnn_benchmarks = ["p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
+        ms_for_rnn_benchmarks = ["p60_a529_2015_02_25_ms"]
+        # ms_for_rnn_benchmarks = ["p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
         # ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
+        # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         # cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
         #                     "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
@@ -4005,7 +4055,7 @@ def train_model():
         # Julien
         # ms_for_rnn_benchmarks = ["p9_19_03_14_a001_ms"]
         # ms_for_rnn_benchmarks = ["p8_18_10_17_a000_ms"]
-        ms_for_rnn_benchmarks = ["p6_19_02_18_a000_ms"]
+        # ms_for_rnn_benchmarks = ["p6_19_02_18_a000_ms"]
         # p10_19_02_21_a003_ms -> cell 314, 315, 355,373, 660, 722, 824 not predicted
         """
           File "/home/julien/.local/lib/python3.6/site-packages/PIL/Image.py", line 2342, in _check_size
@@ -4040,11 +4090,11 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         #                 "p41_19_04_30_a000_ms"]
         # mesocentre
         # ms_for_rnn_benchmarks = ["p12_171110_a000_ms"]
-        cells_to_predict = dict()
-        # predicting all cells
-
-        for ms in ms_for_rnn_benchmarks:
-            cells_to_predict[ms] = None
+        # cells_to_predict = dict()
+        # # predicting all cells
+        #
+        # for ms in ms_for_rnn_benchmarks:
+        #     cells_to_predict[ms] = None
         # cells_p9_19_03_14_a001_ms = np.arange(834)
         # cells_p9_19_03_14_a001_ms = np.setdiff1d(cells_p9_19_03_14_a001_ms, np.array([613, 677, 748]))
         # cells_to_predict["p9_19_03_14_a001_ms"] = cells_p9_19_03_14_a001_ms
@@ -4058,14 +4108,21 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # cells_p8_18_10_17_a000_ms = np.setdiff1d(cells_p8_18_10_17_a000_ms, np.array([538]))
         # cells_to_predict["p8_18_10_17_a000_ms"] = cells_p8_18_10_17_a000_ms
 
-
         # ms_for_rnn_benchmarks = ["p8_18_10_24_a006_ms"]
         # cells_to_predict = {"p8_18_10_24_a006_ms": np.array([28, 32, 33])}
+
+        # ms_for_rnn_benchmarks = ms_for_gad_cre_benchmarks
+        cells_to_predict = dict()
+        # # predicting all cells
+        for ms in ms_for_rnn_benchmarks:
+            cells_to_predict[ms] = None
+        # cells_to_predict = cells_to_predict_gad_cre
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0.5,
                                          use_data_augmentation=False, using_cnn_predictions=False,
-                                         cells_to_predict=cells_to_predict, file_name_bonus_str="meso_v1_epoch_9",
+                                         cells_to_predict=cells_to_predict, file_name_bonus_str="meso_v2_epoch_19",
                                          tiffs_for_transient_classifier_path=path_for_tiffs)
+        # "rnn_gad_cre_epoch_9"
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
         # "p13_18_10_29_a001_ms"
         # np.array([0, 5, 12, 13, 31, 42, 44, 48, 51, 77, 117])
@@ -4104,23 +4161,23 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     """
     n_gpus = 1
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 20 # TODO: 30
+    n_epochs = 30  # TODO: 30
     # multiplying by the number of gpus used as batches will be distributed to each GPU
-    batch_size = 8*n_gpus
-    window_len = 100 # TODO: 100
+    batch_size = 8 * n_gpus
+    window_len = 100  # TODO: 100
     max_width = 25
     max_height = 25
-    overlap_value = 0.9 # TODO: 0.9
+    overlap_value = 0.9  # TODO: 0.9
     dropout_value = 0.5
     dropout_value_rnn = 0.5
     dropout_at_the_end = 0
     with_batch_normalization = False
-    max_n_transformations = 6 # TODO: 6
+    max_n_transformations = 6  # TODO: 6
     pixels_around = 0
     with_augmentation_for_training_data = True
     buffer = 1
     # between training, validation and test data
-    split_values = [0.75, 0.25, 0]
+    split_values = [0.8, 0.2, 0]
     optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
     activation_fct = "swish"
     if using_multi_class > 1:
@@ -4133,8 +4190,8 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     # TODO: try 256, 256, 256
     lstm_layers_size = [128, 256]  # TODO: 128, 256 # 128, 256, 512
     bin_lstm_size = 256
-    use_bin_at_al_version = True # TODO: True
-    apply_attention = True # TODO: True
+    use_bin_at_al_version = True  # TODO: True
+    apply_attention = True  # TODO: True
     apply_attention_before_lstm = True
     use_single_attention_vector = False
     with_early_stopping = True
@@ -4147,7 +4204,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     crop_non_crop_ratio_balance = (-1, -1)  # (0.8, 0.2)
     non_crop_ratio_balance = (-1, -1)  # (0.85, 0.15)
     # Maximum number of processes to spin up when using process-based threading
-    workers = 5
+    workers = 10
 
     movie_patch_generator_choices = dict()
     movie_patch_generator_choices["MaskedAndGlobal"] = \
@@ -4266,7 +4323,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         parallel_model = multi_gpu_model(model, gpus=n_gpus)
     else:
         parallel_model = model
-    raise Exception("YOU KNOW NOTHING JON SNOW")
+    # raise Exception("YOU KNOW NOTHING JON SNOW")
 
     # Save the model architecture
     with open(
@@ -4292,8 +4349,8 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     # precision = PPV and recall = sensitiviy but in our case just concerning the active frames
     # the sensitivity and specificity otherwise refers to non-active and active frames classifier
     parallel_model.compile(optimizer=optimizer,
-                  loss=loss_fct,
-                  metrics=['accuracy', sensitivity, specificity, precision])
+                           loss=loss_fct,
+                           metrics=['accuracy', sensitivity, specificity, precision])
     # sample_weight_mode="temporal",
 
     # Set a learning rate annealer
@@ -4335,11 +4392,11 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     start_time = time.time()
 
     history = parallel_model.fit_generator(generator=training_generator,
-                                  validation_data=validation_generator,
-                                  epochs=n_epochs,
-                                  use_multiprocessing=True,
-                                  workers=workers,
-                                  callbacks=callbacks_list, verbose=2) #TODO: Verbose=2
+                                           validation_data=validation_generator,
+                                           epochs=n_epochs,
+                                           use_multiprocessing=True,
+                                           workers=workers,
+                                           callbacks=callbacks_list, verbose=2)  # TODO: Verbose=2
 
     print(f"history.history.keys() {history.history.keys()}")
     stop_time = time.time()

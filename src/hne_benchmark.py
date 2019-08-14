@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 import scipy.io as sio
 import scipy.signal as signal
 from pattern_discovery.tools.misc import get_continous_time_periods
-from pattern_discovery.display.raster import plot_spikes_raster
-
-from matplotlib.figure import SubplotParams
-import matplotlib.gridspec as gridspec
+# from pattern_discovery.display.raster import plot_spikes_raster
+#
+# from matplotlib.figure import SubplotParams
+# import matplotlib.gridspec as gridspec
 from sortedcontainers import SortedDict
 from pattern_discovery.tools.signal import smooth_convolve
 
@@ -137,26 +137,26 @@ class BenchmarkRasterDur:
         # first we compute for each cell, the lowest peak predicted, in order to fix a low threshold for
         # for transients used for benchmarks (possible transients), transients below the threshold are not considered
         traces_threshold = None
-        if self.traces is not None:
-            traces_threshold = np.zeros(len(self.traces))
-            rd_list = []
-            rd_list.append(self.ground_truth_raster_dur)
-            for key, raster_dur in self.predicted_raster_dur_dict.items():
-                rd_list.append(raster_dur)
-            for cell in np.arange(len(self.traces)):
-                min_value = None
-                for raster_dur in rd_list:
-                    periods = get_continous_time_periods(raster_dur[cell])
-                    for period in periods:
-                        if period[0] == period[1]:
-                            peak_amplitude = self.traces[cell, period[0]:period[1]+1]
-                        else:
-                            peak_amplitude = np.max(self.traces[cell, period[0]:period[1]+1])
-                        if min_value is None:
-                            min_value = peak_amplitude
-                        else:
-                            min_value = min(peak_amplitude, min_value)
-                traces_threshold[cell] = min_value
+        # if self.traces is not None:
+        #     traces_threshold = np.zeros(len(self.traces))
+        #     rd_list = []
+        #     rd_list.append(self.ground_truth_raster_dur)
+        #     for key, raster_dur in self.predicted_raster_dur_dict.items():
+        #         rd_list.append(raster_dur)
+        #     for cell in np.arange(len(self.traces)):
+        #         min_value = None
+        #         for raster_dur in rd_list:
+        #             periods = get_continous_time_periods(raster_dur[cell])
+        #             for period in periods:
+        #                 if period[0] == period[1]:
+        #                     peak_amplitude = self.traces[cell, period[0]:period[1]+1]
+        #                 else:
+        #                     peak_amplitude = np.max(self.traces[cell, period[0]:period[1]+1])
+        #                 if min_value is None:
+        #                     min_value = peak_amplitude
+        #                 else:
+        #                     min_value = min(peak_amplitude, min_value)
+        #         traces_threshold[cell] = min_value
 
 
         for cell in self.cells:
@@ -273,7 +273,7 @@ class BenchmarkRasterDur:
             ax.xaxis.set_ticks_position('none')
             ax.xaxis.label.set_color(text_color)
             ax.tick_params(axis='x', colors=text_color)
-            ax.xaxis.set_tick_params(labelsize=10)
+            ax.xaxis.set_tick_params(labelsize=3)
             ax.yaxis.label.set_color(text_color)
             ax.tick_params(axis='y', colors=text_color)
             # ax.set_xticklabels([])
@@ -313,7 +313,8 @@ class BenchmarkRasterDur:
 
             colorfull = True
             outliers = dict(markerfacecolor='white', marker='D')
-
+            # if not for_frames:
+            #     print(f"plot_boxplots_full_stat: {stat_name}: values_by_prediction {values_by_prediction}")
             bplot = ax.boxplot(values_by_prediction, patch_artist=colorfull,
                                flierprops=outliers,  widths=[0.7]*len(values_by_prediction),
                                labels=labels, sym='', zorder=1)  # whis=[5, 95], sym='+'
@@ -782,7 +783,7 @@ def clean_raster_at_concatenation(spike_nums_dur):
         spike_nums_dur[:, mask_frames] = 0
     # if peak_nums is not None:
     #     peak_nums[:, mask_frames] = 0
-    print("clean_raster_at_concatenation done")
+    # print("clean_raster_at_concatenation done")
 
 
 def load_data_dict(ms_to_benchmark, data_dict, version=None):
@@ -798,7 +799,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["gt"]["gt_file"] = "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt"
         # data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P12_17_11_10_a000.txt"
         # data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.array([0, 3, 6, 7, 9, 10, 12, 14, 15, 19])
+        data_dict["gt"]["cells"] = np.array([9, 10])
         # 9, 10np.array([0, 3, 6, 7, 9, 10, 12, 14, 15, 19]) [9, 10]
 
         data_dict["caiman"] = dict()
@@ -835,14 +836,68 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["caiman_filt"]["file_name_onsets"] = "robin_28_01_19/p12_17_11_10_a000_Bin100ms_spikedigital.mat"
         # data_dict["caiman_filt"]["onsets_var_name"] = "Bin100ms_spikedigital"
         # data_dict["caiman_filt"]["var_name"] = "rasterdur"
+    elif ms_to_benchmark == "p6_19_02_18_a000_ms":
+        data_dict["gt"] = dict()
+        data_dict["gt"]["path"] = "p6/p6_19_02_18_a000"
+        # single expert labeling
+        data_dict["gt"]["gui_file"] = "p6_19_02_18_a000_ground_truth_cell_0_1_2_3.mat"
+        data_dict["gt"]["cells"] = np.array([0, 1, 2, 3]) # 3 not seen by the network
+        data_dict["gt"]["trace_file_name"] = "p6_19_02_18_a000_raw_traces.npy"
+        data_dict["gt"]["trace_var_name"] = "raw_traces"
+
+        data_dict["caiman"] = dict()
+        data_dict["caiman"]["path"] = "p6/p6_19_02_18_a000"
+        #data_dict["caiman"]["file_name_onsets"] = "caiman_matlab/p6_19_02_18_a000_MCMC_(6).mat"
+        data_dict["caiman"]["file_name_onsets"] = "caiman_matlab/p6_19_02_18_a000_MCMC_new.mat"
+        data_dict["caiman"]["onsets_var_name"] = "spikenums"
+        data_dict["caiman"]["to_bin"] = True
+        data_dict["caiman"]["caiman_fiji_mapping"] = "P6_19_02_18_a000_fiji_vs_caiman.npy"
+        data_dict["caiman"]["trace_file_name"] = "caiman_matlab/p6_19_02_18_a000_Traces.mat"
+        data_dict["caiman"]["trace_var_name"] = "C_df"
+
+        # data_dict["MP"] = dict()
+        # data_dict["MP"]["path"] = "p6/p6_19_02_18_a000/"
+        # data_dict["MP"]["gui_file"] = "p6_19_02_18_a000_Transient MP.mat"
+        #
+        # data_dict["EQ"] = dict()
+        # data_dict["EQ"]["path"] = "p6/p6_19_02_18_a000/"
+        # data_dict["EQ"]["gui_file"] = "p6_19_02_18_a000_ground_truth_ele.mat"
+        #
+        # data_dict["RD"] = dict()
+        # data_dict["RD"]["path"] = "p6/p6_19_02_18_a000/"
+        # data_dict["RD"]["gui_file"] = "p6_19_02_18_a000_Transients_selection_RD.mat"
+        #
+        # data_dict["JD"] = dict()
+        # data_dict["JD"]["path"] = "p6/p6_19_02_18_a000/"
+        # data_dict["JD"]["gui_file"] = "p6_19_02_18_a000_ground_truth_JD.mat"
+
+    elif ms_to_benchmark == "p11_19_04_30_a001_ms":
+        data_dict["gt"] = dict()
+        data_dict["gt"]["path"] = "p11/p11_19_04_30_a001"
+        # single expert labeling
+        data_dict["gt"]["gui_file"] = "p11_19_04_30_a001_gound_truth.mat"
+        data_dict["gt"]["cells"] = np.array([0, 2, 3, 4]) # 4 not seen by the network
+        data_dict["gt"]["trace_file_name"] = "p11_19_04_30_a001_raw_traces.npy"
+        data_dict["gt"]["trace_var_name"] = "raw_traces"
+
+        data_dict["caiman"] = dict()
+        data_dict["caiman"]["path"] = "p11/p11_19_04_30_a001"
+        #data_dict["caiman"]["file_name_onsets"] = "caiman_matlab/p11_19_04_30_a001_MCMC_(5).mat"
+        data_dict["caiman"]["file_name_onsets"] = "caiman_matlab/p11_19_04_30_a001_MCMC_new.mat"
+        data_dict["caiman"]["onsets_var_name"] = "spikenums"
+        data_dict["caiman"]["to_bin"] = True
+        data_dict["caiman"]["caiman_fiji_mapping"] ="P11_19_04_30_a001_fiji_vs_caiman.npy"
+        data_dict["caiman"]["trace_file_name"] = "caiman_matlab/p11_19_04_30_a001_Traces.mat"
+        data_dict["caiman"]["trace_var_name"] = "C_df"
+
 
     elif ms_to_benchmark == "p8_18_10_24_a006_ms":
         data_dict["gt"] = dict()
         data_dict["gt"]["path"] = "p8/p8_18_10_24_a006"
         # single expert labeling
-        data_dict["gt"]["gui_file"] = "p8_18_10_24_a006_fusion_validation.mat"
-        # "p8_18_10_24_a006_GUI_transients_RD.mat"
-        data_dict["gt"]["cells"] = np.array([6, 7, 9, 10, 11, 18, 24])
+        data_dict["gt"]["gui_file"] = "p8_18_10_24_a006_GUI_transients_RD.mat"
+        # "p8_18_10_24_a006_GUI_transients_RD.mat" "p8_18_10_24_a006_fusion_validation.mat"
+        data_dict["gt"]["cells"] = np.array([28, 32, 33])
         # np.array([6, 7, 9, 10, 11, 18, 24, 28, 32, 33]) 28, 32, 33
         data_dict["gt"]["trace_file_name"] = "p8_18_10_24_a006_raw_Traces.mat"
         data_dict["gt"]["trace_var_name"] = "raw_traces"
@@ -869,7 +924,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["gt"]["trace_file_name"] = "p11_17_11_24_a000_raw_Traces.mat"
         data_dict["gt"]["trace_var_name"] = "raw_traces"
         # "p11_17_11_24_a000_GUI_transientsRD.mat" "p11_17_11_24_a000_fusion_validation.mat"
-        data_dict["gt"]["cells"] = np.array([3, 17, 22, 24, 25, 29, 30, 33, 45]) # np.array([3, 45])
+        data_dict["gt"]["cells"] = np.array([3, 45]) # np.array([3, 17, 22, 24, 25, 29, 30, 33, 45]) # np.array([3, 45])
 
         # data_dict["caiman"] = dict()
         # data_dict["caiman"]["path"] = "p11/p11_17_11_24_a000"
@@ -956,7 +1011,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["gt"]["gt_file"] = "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt"
         # data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P7_17_10_12_a000.txt"
         # data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.array([2, 3, 8, 11, 12, 14, 17, 18, 24, 25])  #  np.arange(117) np.array([2, 25])
+        data_dict["gt"]["cells"] = np.array([2, 25]) # np.array([2, 3, 8, 11, 12, 14, 17, 18, 24, 25])  #  np.arange(117)
         # data_dict["gt"]["cells_to_remove"] = np.array([52, 75])
 
         data_dict["caiman"] = dict()
@@ -1068,6 +1123,12 @@ def main_benchmark():
     # ms_to_benchmarks = ["p7_17_10_12_a000"]
     # ms_to_benchmarks = ["p11_17_11_24_a000_ms"]
     # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
+    # gad-cre + oriens
+    ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p8_18_10_24_a006_ms",
+                        "p11_19_04_30_a001_ms"]
+    # gad-cre
+    ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
+    # ms_to_benchmarks = ["p6_19_02_18_a000_ms"]
     do_onsets_benchmarks = False
     do_plot_roc_predictions = False
     produce_separate_benchmarks = True
@@ -1080,7 +1141,12 @@ def main_benchmark():
 
     # predictions_to_load = ["epoch_11", "meso_2", "meso_3", "meso_4", "meso_8", "meso_6", "meso_7", "meso_8", "meso_9",
     #                        "meso_10", "meso_11", "meso_12", "meso_13", "meso_14"]
-    # predictions_to_load = ["meso_v1_epoch_9"]
+    predictions_to_load = ["meso_9", "v2_epoch_8", "v2_epoch_12", "v2_epoch_14",
+                           "v2_epoch_17", "v2_epoch_19"]
+    # gad-cre
+    predictions_to_load = ["meso_9", "cre_v1_epoch_10", "cre_v1_epoch_15", "cre_v1_epoch_19",
+                           "cre_v1_epoch_22", "cre_v1_epoch_23"]
+    # predictions_to_load = ["meso_9"]
     predictions_to_load = []
     for ms_to_benchmark in ms_to_benchmarks:
         print(f"ms_to_benchmark {ms_to_benchmark}")
@@ -1090,9 +1156,14 @@ def main_benchmark():
         data_file = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"], data_dict["gt"]["gui_file"]))
         peak_nums = data_file['LocPeakMatrix_Python'].astype(int)
         spike_nums = data_file['Bin100ms_spikedigital_Python'].astype(int)
-        data_file_traces = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"],
-                                                            data_dict["gt"]["trace_file_name"]))
-        traces = data_file_traces[data_dict["gt"]['trace_var_name']]
+        if data_dict["gt"]["trace_file_name"].endswith(".mat"):
+            data_file_traces = hdf5storage.loadmat(os.path.join(path_data, data_dict["gt"]["path"],
+                                                                data_dict["gt"]["trace_file_name"]))
+            traces = data_file_traces[data_dict["gt"]['trace_var_name']]
+        else:
+            # npy format
+            traces = np.load((os.path.join(path_data, data_dict["gt"]["path"],
+                                                                data_dict["gt"]["trace_file_name"])))
         print(f"{ms_to_benchmark} traces.shape {traces.shape}")
         # inter_neurons = data_file['inter_neurons'].astype(int)
         if 'cells_to_remove' in data_file:
@@ -1300,9 +1371,17 @@ def main_benchmark():
                     # onsets
                     data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["file_name_onsets"]))
                     caiman_spike_nums = data_file[value['onsets_var_name']].astype(int)
-                    data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"], value["trace_file_name"]))
-                    traces_caiman = data_file[value['trace_var_name']]
-                    raster_dur = get_raster_dur_from_caiman_25000_frames_onsets_new_version(caiman_spike_nums, traces_caiman)
+                    if value["trace_file_name"].endswith(".mat"):
+                        data_file = hdf5storage.loadmat(os.path.join(path_data, value["path"],
+                                                                     value["trace_file_name"]))
+                        traces_caiman = data_file[value['trace_var_name']]
+                    else:
+                        # npy
+                        traces_caiman = np.load(os.path.join(path_data, value["path"],
+                                                                     value["trace_file_name"]))
+
+                    raster_dur = get_raster_dur_from_caiman_25000_frames_onsets_new_version(caiman_spike_nums,
+                                                                                            traces_caiman)
                     predicted_raster_dur_dict[key] = raster_dur
                     # removing predictions around concatenations
                     clean_raster_at_concatenation(predicted_raster_dur_dict[key])
@@ -1326,6 +1405,32 @@ def main_benchmark():
 
                     # removing predictions around concatenations
                     clean_raster_at_concatenation(predicted_raster_dur_dict[key])
+
+                # mapping fiji coord to caiman coord if necessary
+                if "caiman_fiji_mapping" in value:
+                    # print("caiman_fiji_mapping in value")
+                    caiman_fiji_mapping = np.load(
+                        os.path.join(path_data, value["path"], value["caiman_fiji_mapping"]))
+                    caiman_raster_dur = np.zeros((n_cells, n_frames), dtype="int8")
+                    cells_mapped = []
+                    # caiman_fiji_mapping take a cell index from caiman segmentation
+                    # and return a value > 0 if a cell of Fiji matches (the value is the index of this cell in fiji)
+                    # -1 otherwise
+                    for cell in np.arange(predicted_raster_dur_dict[key].shape[0]):
+                        if caiman_fiji_mapping[cell] >= 0:
+                            # print(f"{ms_to_benchmark}: Cell {cell} -> {caiman_fiji_mapping[cell]}")
+                            map_cell = caiman_fiji_mapping[cell]
+                            # using deconvolution value, cell is active if value > 0
+                            caiman_raster_dur[map_cell] = predicted_raster_dur_dict[key][cell]
+                            cells_mapped.append(map_cell)
+                    predicted_raster_dur_dict[key] = caiman_raster_dur
+                    cells_to_keep = []
+                    for cell in cells_for_benchmark:
+                        if cell not in cells_mapped: # caiman_fiji_mapping:
+                            print(f"Cell {cell} has no match in caiman segmentation")
+                        else:
+                            cells_to_keep.append(cell)
+                    cells_for_benchmark = np.array(cells_to_keep)
 
         benchmarks = BenchmarkRasterDur(description=ms_to_benchmark, ground_truth_raster_dur=ground_truth_raster_dur,
                                         predicted_raster_dur_dict=predicted_raster_dur_dict, cells=cells_for_benchmark,

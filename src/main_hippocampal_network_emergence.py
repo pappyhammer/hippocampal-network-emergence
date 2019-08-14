@@ -1,4 +1,4 @@
-max_threads = '5'
+max_threads = '10'
 import os
 # Configure threading
 os.environ["MKL_NUM_THREADS"] = max_threads
@@ -13,6 +13,7 @@ import scipy.io as sio
 import scipy.stats as scipy_stats
 import seaborn as sns
 from bisect import bisect
+from pattern_discovery.display.cells_map_module import CoordClass
 # important to avoid a bug when using virtualenv
 # matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -792,7 +793,7 @@ def plot_psth_over_event_time_correlation_graph_style(ms_to_analyse, event_str, 
 
     n_plots = len(ms_to_analyse)
 
-    max_n_lines = 5
+    max_n_lines = 2
     n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
     n_col = math.ceil(n_plots / n_lines)
 
@@ -1039,7 +1040,7 @@ def plot_all_long_mvt_psth_in_one_figure(ms_to_analyse, param, line_mode=True,
     else:
         n_plots = len(ms_to_analyse)
 
-    max_n_lines = 5
+    max_n_lines = 2
     n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
     n_col = math.ceil(n_plots / n_lines)
 
@@ -1071,7 +1072,8 @@ def plot_all_long_mvt_psth_in_one_figure(ms_to_analyse, param, line_mode=True,
     plt.close()
 
 
-def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, duration_option=False, save_formats="pdf"):
+def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, use_traces=False,
+                                       duration_option=False, save_formats="pdf"):
     """
     Will plot in one plot with subplots all twitches PSTH
     :param ms_to_analyse:
@@ -1098,7 +1100,7 @@ def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, dur
     else:
         n_plots = len(ms_to_analyse)
 
-    max_n_lines = 5
+    max_n_lines = 2
     n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
     n_col = math.ceil(n_plots / n_lines)
 
@@ -1116,7 +1118,8 @@ def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, dur
         ms = ms_to_analyse[ax_index]
         print(f"{ms.description} plot_all_twitch_psth_in_one_figure")
         ms.plot_psth_twitches(line_mode=line_mode, ax_to_use=ax, put_mean_line_on_plt=line_mode,
-                              color_to_use=colors[ax_index % len(colors)], duration_option=duration_option)
+                              color_to_use=colors[ax_index % len(colors)], duration_option=duration_option,
+                              use_traces=use_traces)
     bonus_file_name = ""
     if duration_option:
         bonus_file_name = "_duration"
@@ -1266,6 +1269,23 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
                          filename="transient_amplitude_by_age_avg_by_cell",
                          y_label="Avg amplitude (DF/F) of transients by cell", colors=colors,
                          param=param, save_formats=save_formats)
+
+def merge_coords_map(ms, param):
+    if ms.description.lower() not in ["p6_19_02_18_a000", "p11_19_04_30_a001"]:
+        print(f"merge_coords_map not available for {ms.description}")
+        return
+    # specific fonction to match segmentation from Fiji to the one with Caiman on matlab
+    caiman_mat_file_name = os.path.join(param.path_data, f"p{ms.age}", ms.description.lower(),
+                                       "caiman_matlab", f"{ms.description.lower()}_CellDetect.mat")
+    data = hdf5storage.loadmat(caiman_mat_file_name)
+    coord = data["ContoursAll"][0]
+    coord_obj = CoordClass(coord=coord, nb_col=200,
+                                nb_lines=200, from_fiji=False)
+
+    caiman_suite2p_mapping = ms.coord_obj.match_cells_indices(coord_obj, param=param,
+                                                                plot_title_opt=f"{ms.description}_fiji_vs_caiman")
+    np.save(os.path.join(param.path_results, f"{ms.description}_fiji_vs_caiman.npy"),
+            caiman_suite2p_mapping)
 
 
 def cluster_using_grid(ms, param):
@@ -2028,7 +2048,7 @@ def correlate_global_roi_and_shift(path_data, param):
                             data_dict[parent_dir]["yshifts"] = mvt_x_y['yshifts'][0]
                     if file_name.endswith(".npy"):
                         if "params" in file_name.lower():
-                            ops = np.load(os.path.join(dir_path, file_name))
+                            ops = np.load(os.path.join(dir_path, file_name), allow_pickle=True)
                             ops = ops.item()
                             data_dict[parent_dir]["xshifts"] = ops['xoff']
                             data_dict[parent_dir]["yshifts"] = ops['yoff']
@@ -2049,13 +2069,13 @@ def correlate_global_roi_and_shift(path_data, param):
             # then we load the movie, measure to global roi, put it in the data_dict[key] and save it for future
             # loading
             use_scan_tiff_reader = False
-            if use_scan_tiff_reader:
+            try:
                 start_time = time.time()
                 tiff_movie = ScanImageTiffReader(os.path.join(value["dirpath"], value["tiff_file"])).data()
                 stop_time = time.time()
                 print(f"Time for loading movie {value['tiff_file']} with scan_image_tiff: "
                       f"{np.round(stop_time - start_time, 3)} s")
-            else:
+            except Exception:
                 start_time = time.time()
                 im = PIL.Image.open(os.path.join(value["dirpath"], value["tiff_file"]))
                 n_frames = len(list(ImageSequence.Iterator(im)))
@@ -3995,7 +4015,9 @@ def test_seq_detect(ms, span_area_coords=None, span_area_colors=None):
 
 
 def find_hubs(graph, ms):
+    # TODO: find hubs, but use a list of ms and calculate the thresholds using all data
     n_cells = ms.spike_struct.n_cells
+    # print(f"{ms.description}: graph hubs: {n_cells} vs {len(graph)}")
     # first selecting cells conencted to more than 5% cells
     cells_connectivity_perc_threshold = 5
     # step 1
@@ -4507,7 +4529,7 @@ def plot_twitch_ratio_activity(ms_to_analyse, param, time_around=20, save_format
 
     # we plot one distribution for each session with the ratio
     background_color = "black"
-    max_n_lines = 5
+    max_n_lines = 2
     n_lines = n_ms if n_ms <= max_n_lines else max_n_lines
     n_col = math.ceil(n_ms / n_lines)
     # for histogram all events
@@ -4986,7 +5008,7 @@ def plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys, param, p
                                                            perc_threshold=perc_threshold,
                                                            n_surrogate=n_surrogate)
             print(f"{ms.description}: significant {len(significant_cells)}, all {len(ms.spike_struct.spike_nums)}")
-            if len(significant_cells) > 0:
+            if len(significant_cells) == 0:
                 continue
             plot_distrib_participation_to_event = True
             if plot_distrib_participation_to_event:
@@ -5763,13 +5785,13 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
     ## all the ms separated in 5 groups
 
-    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-    #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-    #                   "p7_171012_a000_ms",
-    #                   "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-    #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-    #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-    #                   "p7_19_03_05_a000_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_171012_a000_ms",
+                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+                      "p7_19_03_05_a000_ms"]
     # # #
     # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
     #                   "p7_19_03_27_a002_ms",
@@ -5816,7 +5838,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p14_18_10_30_a001_ms"] #                       "p14_18_10_30_a001_ms"]
 
     # ms_str_to_load = ["richard_028_D1_P1_ms"]
-    # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
+    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
@@ -5826,12 +5848,17 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                            "p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms",
     #                            "p11_17_11_24_a000_ms"]
     # Eleonora gad cre
-    ms_str_to_load = ["p6_19_02_18_a000_ms"]
-    ms_str_to_load = ["p11_19_04_30_a001_ms"]
+    # ms_str_to_load = ["p6_19_02_18_a000_ms"]
+    # ms_str_to_load = ["p11_19_04_30_a001_ms"]
     # ms_str_to_load = ["p7_19_03_05_a000_ms"]
-    ms_str_to_load = ["p60_20160506_gadcre01_01_ms"]
+    # ms_str_to_load = ["p60_20160506_gadcre01_01_ms"]
     # to test cilva
-    ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a001_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a001_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+    #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # loading data
     # z_shifts_ms = ["p5_19_03_25_a000_ms",
     #                "p5_19_03_25_a001_ms",
@@ -5893,6 +5920,17 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   # "p21_19_04_10_a000_j3_ms",
     #                   "p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
+    # ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
+    # GAD-CRE with caiman Rois available
+    # ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
+    # 4 GAD-CRE
+    # ms_str_to_load = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
+    #                   "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_20_a000_ms", "p12_19_02_08_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_20_a000_ms"]
+    # ms_str_to_load = ["p6_19_02_18_a000_ms"]
+    # ms_str_to_load = ["p11_19_04_30_a001_ms"]
+    # ms_str_to_load = ["p12_19_02_08_a000_ms"]
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
@@ -5980,26 +6018,32 @@ def main():
 
     just_plot_all_basic_stats = False
     just_plot_all_sum_spikes_dur = False
+
+    just_do_stat_significant_time_period = False
+    just_fca_clustering_on_twitches_activity = False
+    just_plot_cell_assemblies_on_map = False
+    just_plot_all_cells_on_map = False
+    just_plot_all_cells_on_map_with_avg_on_bg = False
+
+    # --------- shift categories analyses
+    just_plot_raster_with_periods = False
+    just_plot_all_cell_assemblies_proportion_on_shift_categories = False
+    just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
+    just_plot_cells_that_fire_during_time_periods = False
+    just_plot_twitch_ratio_activity = False
     # number of cells active in each type of movement event (normalized by number of cells and length of movement)
     just_plot_movement_activity = False
     just_plot_psth_over_event_time_correlation_graph_style = False
     do_plot_psth_twitches = False
     # Add weight in legend of long mvt psth
     do_plot_psth_long_mvt = False
-    just_plot_all_time_correlation_graph_over_events = False
-    just_plot_raster_with_periods = False
-    just_do_stat_significant_time_period = False
-    just_plot_cells_that_fire_during_time_periods = False
-    just_plot_twitch_ratio_activity = False
     do_twitches_analysis = False
-    just_fca_clustering_on_twitches_activity = False
     just_save_stat_about_mvt_for_each_ms = False
-    just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = False
-    just_plot_all_cells_on_map_with_avg_on_bg = False
-    just_plot_all_cell_assemblies_proportion_on_shift_categories = False
-    just_plot_nb_transients_in_mvt_vs_nb_total_transients = False
+    just_plot_all_time_correlation_graph_over_events = False
+
+    # ---------
     just_plot_jsd_correlation = False
+    # connectivty graph
     do_plot_graph = False
     do_stats_on_graph = False
     just_plot_cell_assemblies_clusters = False
@@ -6014,17 +6058,22 @@ def main():
     just_use_rastermap_for_pca = False
     just_do_stat_on_pca = False
     just_analyse_lfp = False
-    just_run_cilva = True
+    just_run_cilva = False
+
+    just_merge_coords_map = False
 
     just_plot_raster_with_same_sum_activity_lim = False
     just_plot_raster = False
+    just_plot_traces_with_shifts = False
     just_plot_raster_with_z_shift_periods = False
     just_do_stat_on_event_detection_parameters = False
     just_plot_raster_with_sce = False
     # periods such as twitch etc...
+    # next one seems to be an old code
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
+    # this one works properly
     just_plot_raster_with_cells_assemblies_and_shifts = False
-    just_plot_traces_raster = False
+    just_plot_traces_raster = True
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_do_seqnmf = False
@@ -6058,7 +6107,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = False
+    do_clustering = True
     do_detect_sce_on_traces = False
     do_detect_sce_based_on_peaks_finder = False
     use_hdbscan = False
@@ -6076,11 +6125,21 @@ def main():
         # filtering spike_nums_dur using speed info if available
         for ms in ms_to_analyse:
             remove_frames_with_low_speed = False
-            if remove_frames_with_low_speed:
-                if ms.speed_by_frame is not None:
-                    ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, ms.speed_by_frame < 0.5]
-                    print(f"Using speed_by_frame {len(ms.spike_struct.spike_nums_dur)}")
-                    ms.spike_struct.build_spike_nums_and_peak_nums()
+            if remove_frames_with_low_speed and (ms.speed_by_frame is not None):
+                frames_selected = np.where(ms.speed_by_frame >= 1)[0]
+                # now we want to fusion frames that are close to each other
+                frames_diff = np.diff(frames_selected)
+                fusion_thr = 50
+                for frame_index in np.arange(len(frames_diff)):
+                    if 1 < frames_diff[frame_index] < fusion_thr:
+                        frames_selected = np.concatenate(
+                            (frames_selected, np.arange(frames_selected[frame_index] + 1,
+                                                        frames_selected[frame_index + 1])))
+                frames_selected = np.unique(frames_selected)
+                frames_to_keep = np.setdiff1d(np.arange(len(ms.speed_by_frame)), frames_selected)
+                ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, frames_to_keep]
+                print(f"Using speed_by_frame {ms.spike_struct.spike_nums_dur.shape}")
+                ms.spike_struct.build_spike_nums_and_peak_nums()
 
         for ms in ms_to_analyse:
             # if not None, filter the frame keeping the kind of mouvements choosen, if available
@@ -6157,7 +6216,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(2, 10)
+    range_n_clusters_k_mean = np.arange(3, 6)
     # range_n_clusters_k_mean = np.array([7])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
@@ -6216,7 +6275,7 @@ def main():
         # and then all and then none (still)
         # "shift_twitch", "shift_long",
         #                                                                            "shift_unclassified"
-        plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys=["shift_twitch"], param=param,
+        plot_cells_that_fire_during_time_periods(ms_to_analyse, shift_keys=["shift_twitch", "shift_long"], param=param,
                                                  perc_threshold=95, n_surrogate=1000)
         raise Exception("just_plot_cells_that_fire_during_time_periods")
 
@@ -6353,6 +6412,14 @@ def main():
                                save_formats=["pdf", "png"])
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("fifi")
+            continue
+
+        if just_plot_traces_with_shifts:
+
+            ms.plot_traces_with_shifts()
+
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_plot_traces_with_shifts")
             continue
 
         if just_plot_seq_from_pca_with_map:
@@ -6514,6 +6581,14 @@ def main():
                 raise Exception("just_cluster_using_grid")
             continue
 
+        if just_merge_coords_map:
+            # code to merge to map cells coords, useful to map cells from different segmentation
+            # code valid for just some sessions
+            merge_coords_map(ms, param)
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_merge_coords_map")
+            continue
+
         if just_plot_raster_with_z_shift_periods:
             # spike_shape = '|' if use_raster_dur else 'o'
             spike_shape = 'o'
@@ -6564,7 +6639,7 @@ def main():
             span_area_colors = None
             with_mvt_periods = True
             spike_nums_dur = ms.spike_struct.spike_nums_dur
-            spike_nums_dur = tools_misc.bin_raster(raster=spike_nums_dur, bin_size=12, keep_same_dimension=True)
+            # spike_nums_dur = tools_misc.bin_raster(raster=spike_nums_dur, bin_size=12, keep_same_dimension=True)
             # if ms.pca_seq_cells_order is not None:
             #     spike_nums_dur = spike_nums_dur[ms.pca_seq_cells_order]
             #     with_mvt_periods = False
@@ -6646,8 +6721,9 @@ def main():
 
         if do_plot_psth_twitches:
             line_mode = True
-            duration_option = True
-            plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode,
+            duration_option = False
+            use_traces = False
+            plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode, use_traces=use_traces,
                                                duration_option=duration_option, save_formats="pdf")
             # ms.plot_psth_twitches(line_mode=line_mode)
             # ms.plot_psth_twitches(twitches_group=1, line_mode=line_mode)
@@ -6663,7 +6739,7 @@ def main():
             # frames_selected = frames_selected[frames_selected < ms.spike_struct.spike_nums_dur.shape[1]]
             # ms.spike_struct.spike_nums_dur = ms.spike_struct.spike_nums_dur[:, frames_selected]
             ms.plot_raster_with_periods(ms.shift_data_dict, with_periods=True,
-                                        with_cell_assemblies=False, only_cell_assemblies=False)
+                                        with_cell_assemblies=True, only_cell_assemblies=False)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("The Lannisters always pay their debts")
             continue
@@ -6910,54 +6986,16 @@ def main():
             continue
 
         if just_plot_raster_with_cells_assemblies_and_shifts:
-            ms.plot_raster_with_cells_assemblies_and_shifts(only_cell_assemblies=True)
+            ms.plot_raster_with_cells_assemblies_and_shifts(only_cell_assemblies=False)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("momo")
             continue
 
         if just_plot_traces_raster:
             print("just_plot_traces_raster")
-            raw_traces = ms.raw_traces
-            for i in np.arange(len(raw_traces)):
-                raw_traces[i] = (raw_traces[i] - np.mean(raw_traces[i]) / np.std(raw_traces[i]))
-                raw_traces[i] = norm01(raw_traces[i]) * 5
+            ms.plot_traces_on_raster(spike_nums_to_use=spike_nums_to_use,
+                                     sce_times=None, with_run=True, display_spike_nums=False)
 
-            span_area_coords = []
-            span_area_colors = []
-            if (not ms.with_run) and (ms.twitches_frames_periods is not None):
-                span_area_coords.append(ms.twitches_frames_periods)
-                span_area_colors.append("blue")
-                span_area_coords.append(ms.complex_mvt_frames_periods)
-                span_area_colors.append("red")
-                span_area_coords.append(ms.intermediate_behavourial_events_frames_periods)
-                span_area_colors.append("red")
-                span_area_coords.append(ms.short_lasting_mvt_frames_periods)
-                span_area_colors.append("black")
-            plot_spikes_raster(spike_nums=spike_nums_to_use, param=ms.param,
-                               traces=raw_traces,
-                               display_traces=True,
-                               spike_train_format=False,
-                               title="traces raster",
-                               file_name="traces raster",
-                               y_ticks_labels=np.arange(len(raw_traces)),
-                               y_ticks_labels_size=2,
-                               save_raster=True,
-                               show_raster=True,
-                               span_area_coords=span_area_coords,
-                               span_area_colors=span_area_colors,
-                               plot_with_amplitude=False,
-                               activity_threshold=ms.spike_struct.activity_threshold,
-                               raster_face_color="white",
-                               # 500 ms window
-                               sliding_window_duration=sliding_window_duration,
-                               show_sum_spikes_as_percentage=True,
-                               # vertical_lines=SCE_times,
-                               # vertical_lines_colors=['white'] * len(SCE_times),
-                               # vertical_lines_sytle="solid",
-                               # vertical_lines_linewidth=[0.2] * len(SCE_times),
-                               span_area_only_on_raster=False,
-                               spike_shape_size=0.5,
-                               save_formats="png")
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_plot_traces_raster exception")
             continue
@@ -7731,7 +7769,7 @@ def main():
             # removing frames over the number of frames in the raster dur
             frames_selected = frames_selected[frames_selected < spike_nums_to_use.shape[1]]
             spike_nums_to_use = spike_nums_to_use[:, frames_selected]
-            print(f"spike_nums_to_use n_frames after: {spike_nums_to_use.shape[1]}")
+            # print(f"spike_nums_to_use n_frames after: {spike_nums_to_use.shape[1]}")
             # raise Exception("test richard")
 
         if ((ms.activity_threshold is None) or use_richard_option) and (not do_detect_sce_based_on_peaks_finder) \
@@ -7741,7 +7779,7 @@ def main():
             # for pc_number, pca_seq_cells_order in ms.pca_seq_cells_order.items():
             #     cells_to_keep = pca_seq_cells_order
 
-            activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use[pca_seq_cells_order],
+            activity_threshold = get_sce_detection_threshold(spike_nums=spike_nums_to_use,
                                                              window_duration=sliding_window_duration,
                                                              spike_train_mode=False,
                                                              n_surrogate=n_surrogate_activity_threshold,
@@ -7795,6 +7833,9 @@ def main():
             print(f"spike_nums_to_use.shape[1] {spike_nums_to_use.shape[1]}")
             sce_times_bool[sce_loc] = True
             SCE_times = get_continous_time_periods(sce_times_bool)
+            ms.plot_traces_on_raster(spike_nums_to_use=spike_nums_to_use, sce_times=SCE_times, with_run=True,
+                                     display_spike_nums=True)
+
             sce_times_numbers = np.ones(spike_nums_to_use.shape[1], dtype="int16")
             sce_times_numbers *= -1
             for period_index, period in enumerate(SCE_times):
@@ -7844,6 +7885,14 @@ def main():
             ms.sce_times_numbers = sce_times_numbers
             ms.SCE_times = SCE_times
 
+        span_area_coords = []
+        span_area_colors = []
+        if ms.speed_by_frame is not None:
+            binary_speed = np.zeros(len(ms.speed_by_frame), dtype="int8")
+            binary_speed[ms.speed_by_frame > 1] = 1
+            speed_periods = get_continous_time_periods(binary_speed)
+            span_area_coords.append(speed_periods)
+            span_area_colors.append("cornflowerblue")
         plot_spikes_raster(spike_nums=ms.spike_struct.spike_nums_dur[cells_to_keep],
                            param=param,
                            spike_train_format=False,
@@ -7856,8 +7905,12 @@ def main():
                            plot_with_amplitude=False,
                            raster_face_color='black',
                            cell_spikes_color='white',
-                           span_area_coords=[SCE_times],
-                           span_area_colors=['white'],
+                           span_area_coords=span_area_coords,
+                           span_area_colors=span_area_colors,
+                           vertical_lines=SCE_times,
+                           vertical_lines_colors = ['red'] * len(SCE_times),
+                           vertical_lines_sytle = "solid",
+                           vertical_lines_linewidth = [0.2] * len(SCE_times),
                            alpha_span_area=0.8,
                            span_area_only_on_raster=False,
                            show_sum_spikes_as_percentage=True,
@@ -7867,6 +7920,7 @@ def main():
                            SCE_times=SCE_times)
 
         print(f"Nb SCE: {cellsinpeak.shape}")
+        # raise Exception("just trying")
         # print(f"Nb spikes by SCE: {np.sum(cellsinpeak, axis=0)}")
         display_isi_info = False
         if display_isi_info:

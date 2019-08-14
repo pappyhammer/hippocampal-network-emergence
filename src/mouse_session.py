@@ -3,7 +3,10 @@ from scipy import signal
 # important to avoid a bug when using virtualenv
 # import matplotlib
 # matplotlib.use('TkAgg')
+# to comment for mesocentre
 import matplotlib.pyplot as plt
+import seaborn as sns
+import hdbscan
 import numpy as np
 import hdf5storage
 import time
@@ -11,7 +14,6 @@ import os
 import pyabf
 import matplotlib.image as mpimg
 import networkx as nx
-import seaborn as sns
 from pattern_discovery.graph.misc import welsh_powell
 # to add homemade package, go to preferences, then project interpreter, then click on the wheel symbol
 # then show all, then select the interpreter and lick on the more right icon to display a list of folder and
@@ -23,7 +25,8 @@ from pattern_discovery.display.raster import plot_spikes_raster, plot_with_imsho
 from pattern_discovery.display.misc import time_correlation_graph, plot_hist_distribution, plot_scatters
 from pattern_discovery.display.cells_map_module import CoordClass
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import CellAssembliesStruct
-import pattern_discovery.cilva.analysis as cilva_analysis, cilva_core
+import pattern_discovery.cilva.analysis as cilva_analysis
+import pattern_discovery.cilva.core as cilva_core
 from sortedcontainers import SortedDict
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
@@ -42,6 +45,7 @@ import itertools
 from pattern_discovery.tools.lfp_analysis_tools import WaveletParameters, spectral_analysis_on_time_segment, \
     butter_bandpass_filter, plot_wavelet_heatmap
 import scipy.signal
+import scipy.stats as stats
 
 
 class MouseSession:
@@ -394,20 +398,40 @@ class MouseSession:
                 self.tiff_movie_normalized = self.tiff_movie_normalized / np.std(self.tiff_movie)
                 # self.tiff_movie_normalized = np.copy(self.tiff_movie)
                 print("movie normalization done")
+    def create_smooth_traces(self):
+        if self.raw_traces is None:
+            print(f"create_smooth_traces for {self.description}, raw_traces is None")
+            return
+        if self.smooth_traces is not None:
+            return
+
+        self.smooth_traces = np.copy(self.raw_traces)
+        # smoothing the trace
+        windows = ['hanning', 'hamming', 'bartlett', 'blackman']
+        i_w = 1
+        window_length = 11
+        for i in np.arange(self.raw_traces.shape[0]):
+            smooth_signal = smooth_convolve(x=self.smooth_traces[i], window_len=window_length,
+                                            window=windows[i_w])
+            beg = (window_length - 1) // 2
+            self.smooth_traces[i] = smooth_signal[beg:-beg]
 
     def normalize_traces(self):
-        n_cells = self.traces.shape[0]
-        self.z_score_traces = np.zeros(self.traces.shape)
+        n_cells = self.raw_traces.shape[0]
+        self.z_score_traces = np.zeros(self.raw_traces.shape)
         self.z_score_raw_traces = np.zeros(self.raw_traces.shape)
+        if self.smooth_traces is None:
+            self.create_smooth_traces()
         self.z_score_smooth_traces = np.zeros(self.smooth_traces.shape)
         # z_score traces
         for i in np.arange(n_cells):
-            self.z_score_traces[i, :] = (self.traces[i, :] - np.mean(self.traces[i, :])) / np.std(self.traces[i, :])
+            if self.traces is not None:
+                self.z_score_traces[i, :] = (self.traces[i, :] - np.mean(self.traces[i, :])) / np.std(self.traces[i, :])
             if self.raw_traces is not None:
                 self.z_score_raw_traces[i, :] = (self.raw_traces[i, :] - np.mean(self.raw_traces[i, :])) \
                                                 / np.std(self.raw_traces[i, :])
-                self.z_score_smooth_traces[i, :] = (self.smooth_traces[i, :] - np.mean(self.smooth_traces[i, :])) \
-                                                   / np.std(self.smooth_traces[i, :])
+            self.z_score_smooth_traces[i, :] = (self.smooth_traces[i, :] - np.mean(self.smooth_traces[i, :])) \
+                                                       / np.std(self.smooth_traces[i, :])
 
     def plot_psth_over_event_time_correlation_graph_style(self, event_str, time_around_events=10,
                                                           ax_to_use=None, color_to_use=None,
@@ -1354,13 +1378,18 @@ class MouseSession:
                np.array(median_values), np.array(low_values), np.array(high_values), np.array(std_values)
 
     def get_spikes_values_around_twitches(self, sce_bool=None, time_around=100,
-                                          twitches_group=0, low_percentile=25, high_percentile=75):
+                                          twitches_group=0, low_percentile=25, high_percentile=75,
+                                          use_traces=False):
         if self.spike_struct.spike_nums_dur is None:
             return
 
         spike_nums_dur = self.spike_struct.spike_nums_dur
         # spike_nums = self.spike_struct.spike_nums
-        spike_nums_to_use = spike_nums_dur
+        if use_traces:
+            # print(f"get_spikes_values_around_twitches use_traces")
+            spike_nums_to_use = self.raw_traces
+        else:
+            spike_nums_to_use = spike_nums_dur
 
         n_cells = len(spike_nums_dur)
 
@@ -1386,7 +1415,7 @@ class MouseSession:
         time_x_values = np.arange(-1 * time_around, time_around + 1)
         for time, nb_spikes_at_time in spike_sum_of_sum_at_time_dict.items():
             # print(f"time {time}")
-            distribution.extend([time] * nb_spikes_at_time)
+            distribution.extend([time] * int(nb_spikes_at_time))
             # mean percentage of cells at each twitch
         for time_value in time_x_values:
             if time_value in spike_sum_of_sum_at_time_dict:
@@ -1607,6 +1636,7 @@ class MouseSession:
                            color_to_use=None,
                            with_other_ms=None,
                            duration_option=False,
+                           use_traces=False,
                            save_formats="pdf"):
         """
         Not using groups anymore
@@ -1639,7 +1669,7 @@ class MouseSession:
         else:
             results = \
                 self.get_spikes_values_around_twitches(sce_bool=sce_bool, time_around=time_around,
-                                                       twitches_group=twitches_group)
+                                                       twitches_group=twitches_group, use_traces=use_traces)
 
         if results is None:
             return
@@ -2364,24 +2394,29 @@ class MouseSession:
         plt.close()
 
     def load_and_analyse_cilva_results(self, f, s, path_cilva_data):
+        print("load_and_analyse_cilva_results")
         file_names = []
 
         # look for filenames in the first directory, if we don't break, it will go through all directories
         for (dirpath, dirnames, local_filenames) in os.walk(self.param.path_data + path_cilva_data):
-            file_names.extend(local_filenames)
+            file_names.extend(dirnames)
             break
 
         cilva_file_name = None
         for file_name in file_names:
             if "cilva" not in file_name:
                 continue
-            if self.descrption.lower() not in file_name.lower():
+            if self.description.lower() not in file_name.lower():
                 continue
             cilva_file_name = file_name
+            print(f"cilva_file_name {cilva_file_name}")
             break
 
         if cilva_file_name is None:
             return False
+
+        plot_ea_vs_sa = True
+        plot_fit = True
 
         #### Load and compare model fits
         alpha, beta, w, b, x, sigma, tau_r, tau_d, gamma, L = cilva_analysis.load_fit(
@@ -2390,35 +2425,67 @@ class MouseSession:
 
         N, T = f.shape
 
+        n_cells = N
+
+        if len(w.shape) == 1:
+            # print(f'w {w}')
+            w = np.reshape(w, [w.shape[0], 1])
+            # print(f'w_reshape {w}')
+
         kernel = cilva_core.calcium_kernel(tau_r, tau_d, T)
         f_hat = cilva_analysis.reconstruction(alpha, beta, w, b, x, kernel, s)
+        print(f"f_hat.shape {f_hat.shape}")
         corr_coefs = np.array([np.corrcoef(f[n], f_hat[n])[0, 1] for n in range(N)])
         inds = np.argsort(corr_coefs)[::-1]
 
-        for cell in range(10):
-            fig, ax = plt.subplots(nrows=1, ncols=1,
-                                   gridspec_kw={'height_ratios': [1]},
-                                   figsize=(15, 0.75))
-            ax.plot(f[inds[cell]], color='k', linewidth=1)
-            ax.plot(f_hat[inds[cell]], color='g', linewidth=2)
-            plt.axis('off')
-            ax.xlim([0, T])
-            save_formats = "pdf"
-            if isinstance(save_formats, str):
-                save_formats = [save_formats]
+        n_cells_by_plot = 30
+        max_n_lines = 10
 
-            for save_format in save_formats:
-                fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_fit_cell_{cell}'
-                            f'_{self.param.time_str}.{save_format}',
-                            format=f"{save_format}",
-                            facecolor=fig.get_facecolor())
+        if plot_fit:
+            # TODO: Compute pearson correlation between the fit and the original traces and plot the distribution
+            for index_first_cell in range(0, n_cells, n_cells_by_plot):
+                n_cells_in_this_plot = min(n_cells_by_plot, n_cells - index_first_cell)
+                n_lines = n_cells_in_this_plot if n_cells_in_this_plot <= max_n_lines else max_n_lines
+                n_col = math.ceil(n_cells_in_this_plot / n_lines)
+                # for histogram all events
+                fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                                         gridspec_kw={'width_ratios': [1] * n_col,
+                                                      'height_ratios': [1] * n_lines},
+                                         figsize=(30, 25))
+                fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+                # fig.patch.set_facecolor(background_color)
+                axes = axes.flatten()
+                for cell_index, cell in enumerate(np.arange(index_first_cell, index_first_cell + n_cells_in_this_plot)):
+                    axes[cell_index].plot(f[inds[cell]], color='k', linewidth=1)
+                    axes[cell_index].plot(f_hat[inds[cell]], color='g', linewidth=0.8)
+                    pearson_corr = stats.pearsonr(f[inds[cell]], f_hat[inds[cell]])[0]
+                    axes[cell_index].text(x=len(f[inds[cell]]) - 500,
+                                          y=np.mean(f[inds[cell]]) + 6*np.std(f[inds[cell]]),
+                                          s=f"r={np.round(corr_coefs[inds[cell]], 2)}", color="black", zorder=22,
+                                          ha='center', va="center", fontsize=10, fontweight='bold')
+                    axes[cell_index].set_xlim([0, T])
+                    axes[cell_index].set_frame_on(False)
+
+                    # axes[cell_index].get_xaxis().set_visible(True)
+                    # axes[cell_index].get_yaxis().set_visible(False)
+
+                save_formats = "pdf"
+                if isinstance(save_formats, str):
+                    save_formats = [save_formats]
+
+                for save_format in save_formats:
+                    fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_fit_'
+                                f'cell_{index_first_cell}-{index_first_cell + n_cells_in_this_plot}'
+                                f'_{self.param.time_str}.{save_format}',
+                                format=f"{save_format}",
+                                facecolor=fig.get_facecolor())
 
         ##### Correlation coefficient vs count
         fig, ax = plt.subplots(nrows=1, ncols=1,
                                gridspec_kw={'height_ratios': [1]},
                                figsize=(2, 2))
         ax.hist(corr_coefs, color='firebrick')
-        ax.xlim([-0.15, 1])
+        plt.xlim([-0.15, 1])
         plt.gca().spines['top'].set_visible(False)
         plt.gca().spines['right'].set_visible(False)
         plt.xlabel('Correlation coefficient')
@@ -2436,38 +2503,72 @@ class MouseSession:
         ##### Decouple evoked and (low dimensional) spontaneous components
         f_evoked, f_spont = cilva_analysis.decouple_traces(alpha, beta, w, b, x, kernel, s)
 
-        for cell in range(10):
-            fig, ax = plt.subplots(nrows=1, ncols=1,
-                                   gridspec_kw={'height_ratios': [1]},
-                                   figsize=(15, 0.75))
-            ax.plot(f[inds[cell]], color='k', linewidth=1)
-            ax.plot(f_evoked[inds[cell]], color='firebrick', linewidth=2)
-            ax.plot(f_spont[inds[cell]], color='C0', linewidth=2)
-            plt.axis('off')
-            ax.xlim([0, T])
-            save_formats = "pdf"
-            if isinstance(save_formats, str):
-                save_formats = [save_formats]
+        if plot_ea_vs_sa:
+            span_area_coords = None
+            span_area_colors = None
+            if self.shift_data_dict is not None:
+                colors = ["red", "green", "blue", "pink", "orange"]
+                i = 0
+                span_area_coords = []
+                span_area_colors = []
+                for name_period, period in self.shift_data_dict.items():
+                    span_area_coords.append(get_continous_time_periods(period.astype("int8")))
+                    span_area_colors.append(colors[i % len(colors)])
+                    print(f"Period {name_period} -> {colors[i]}")
+                    i += 1
 
-            for save_format in save_formats:
-                fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_EA_vs_SA_cell_{cell}'
-                            f'_{self.param.time_str}.{save_format}',
-                            format=f"{save_format}",
-                            facecolor=fig.get_facecolor())
+            for index_first_cell in range(0, n_cells, n_cells_by_plot):
+                n_cells_in_this_plot = min(n_cells_by_plot, n_cells - index_first_cell)
+                n_lines = n_cells_in_this_plot if n_cells_in_this_plot <= max_n_lines else max_n_lines
+                n_col = math.ceil(n_cells_in_this_plot / n_lines)
+                # for histogram all events
+                fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                                         gridspec_kw={'width_ratios': [1] * n_col,
+                                                      'height_ratios': [1] * n_lines},
+                                         figsize=(30, 25))
+                fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+                # fig.patch.set_facecolor(background_color)
+                axes = axes.flatten()
+                alpha_span_area = 0.5
 
+                for cell_index, cell in enumerate(np.arange(index_first_cell, index_first_cell + n_cells_in_this_plot)):
+                    axes[cell_index].plot(f[inds[cell]], color='k', linewidth=0.8)
+                    axes[cell_index].plot(f_spont[inds[cell]], color='C0', linewidth=0.7, ls='--')
+                    axes[cell_index].plot(f_evoked[inds[cell]], color='firebrick', linewidth=0.6)
+                    axes[cell_index].set_xlim([0, T])
+                    axes[cell_index].set_frame_on(False)
+                    for index, span_area_coord in enumerate(span_area_coords):
+                        for coord in span_area_coord:
+                            if span_area_colors is not None:
+                                color = span_area_colors[index]
+                            else:
+                                color = "lightgrey"
+                            axes[cell_index].axvspan(coord[0], coord[1],
+                                                     alpha=alpha_span_area, facecolor=color, zorder=1)
+                save_formats = "pdf"
+                if isinstance(save_formats, str):
+                    save_formats = [save_formats]
+
+                for save_format in save_formats:
+                    fig.savefig(f'{self.param.path_results}/{self.description}_cilva_trace_EA_vs_SA_'
+                                f'cell_{index_first_cell}-{index_first_cell + n_cells_in_this_plot}'
+                                f'_{self.param.time_str}.{save_format}',
+                                format=f"{save_format}",
+                                facecolor=fig.get_facecolor())
+                plt.close()
         ##### Tuning curves
 
         kmax = np.max(kernel)
-        tuning_curves = (kmax * alpha[:, None] * w)[:, 2:]  # First two stimuli not presented
-
+        tuning_curves = (kmax * alpha[:, None] * w)  # First two stimuli not presented
+        print(f"tuning_curves {tuning_curves}")
         fig, axes = plt.subplots(figsize=(4, 4), sharex=True, sharey=False, ncols=4, nrows=4)
+        axes = axes.flatten()
         for n in range(16):
-            plt.subplot(4, 4, n + 1)
-            plt.plot(tuning_curves[n, :], color='firebrick', linewidth=2)
-            plt.gca().set_xticklabels([])
-            plt.gca().set_yticklabels([])
-            plt.xticks([])
-            plt.yticks([])
+            # print(f'{n}: tuning_curves[n, :] {tuning_curves[n, :]}')
+            axes[n].plot(tuning_curves[n, :], color='firebrick', linewidth=1)
+            # axes[n].scatter([0], tuning_curves[n, :], color='firebrick')
+            axes[n].get_xaxis().set_visible(False)
+            axes[n].get_yaxis().set_visible(False)
         fig.text(0.5, 0.04, 'Stimulus', ha='center')
         fig.text(0.04, 0.5, 'Response', va='center', rotation='vertical')
         save_formats = "pdf"
@@ -2479,6 +2580,83 @@ class MouseSession:
                         f'_{self.param.time_str}.{save_format}',
                         format=f"{save_format}",
                         facecolor=fig.get_facecolor())
+        plt.close()
+
+        # cross-corr between tuning curves
+        tuning_curves_matrix = np.zeros((n_cells, n_cells))
+        for cell in np.arange(n_cells):
+            for cell_2 in np.arange(n_cells):
+                if cell == cell_2:
+                    tuning_curves_matrix[cell, cell_2] = 1
+                tuning_curves_matrix[cell, cell_2] = stats.pearsonr(tuning_curves[cell], tuning_curves[cell_2])[0]
+
+        fig, ax = plt.subplots(nrows=1, ncols=1,
+                               gridspec_kw={'height_ratios': [1]},
+                               figsize=(2, 2))
+        ax = sns.heatmap(tuning_curves_matrix)
+        # fig = ax.get_figure()
+
+        save_formats = ["pdf"]
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+
+        for save_format in save_formats:
+            fig.savefig(
+                f'{self.param.path_results}/{self.description}_cilva_tuning_curves_heatmap'
+                        f'_{self.param.time_str}.{save_format}',
+                format=f"{save_format}",
+                facecolor=fig.get_facecolor())
+        plt.close()
+
+        # DO HDBSCAN ON DISTANCES MATRIX - CONSIDER PRECOMPUTED DISTANCES
+        clusterer = hdbscan.HDBSCAN(algorithm='best', alpha=1.0, approx_min_span_tree=True,
+                                    gen_min_span_tree=False, leaf_size=40,
+                                    metric='precomputed', min_cluster_size=2, min_samples=None, p=None)
+        # metric='precomputed' euclidean
+
+        clusterer.fit(tuning_curves_matrix)
+
+        labels = clusterer.labels_
+        # print(f"labels.shape: {labels.shape}")
+        print(f"N clusters hdbscan: {labels.max() + 1}")
+        print(f"labels: {labels}")
+        print(f"With no clusters hdbscan: {len(np.where(labels == -1)[0])}")
+        n_clusters = 0
+        if labels.max() + 1 > 0:
+            n_clusters = labels.max() + 1
+
+        if n_clusters > 0:
+            n_epoch_by_cluster = [[len(np.where(labels == x)[0])] for x in np.arange(n_clusters)]
+            print(f"Number of epochs by clusters hdbscan: {' '.join(map(str, n_epoch_by_cluster))}")
+
+        tuning_curves_matrix_order = np.copy(tuning_curves_matrix)
+        labels_indices_sorted = np.argsort(labels)
+        tuning_curves_matrix_order = tuning_curves_matrix_order[labels_indices_sorted, :]
+        tuning_curves_matrix_order = tuning_curves_matrix_order[:, labels_indices_sorted]
+
+        # Generate figure: dissimilarity matrice ordered by cluster
+        # Replace Inf values by NaN for better visualization
+        # tuning_curves_matrix_order[np.where(np.isinf(tuning_curves_matrix_order))] = np.nan
+        # svm = sns.heatmap(distances_order, annot=True)  # if you want the value
+        fig, ax = plt.subplots(nrows=1, ncols=1,
+                               gridspec_kw={'height_ratios': [1]},
+                               figsize=(2, 2))
+        svm = sns.heatmap(tuning_curves_matrix_order)
+        svm.set_yticklabels(labels_indices_sorted)
+        svm.set_xticklabels(labels_indices_sorted)
+        # fig = svm.get_figure()
+        # plt.show()
+        save_formats = ["pdf"]
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+
+        for save_format in save_formats:
+            fig.savefig(
+                f'{self.param.path_results}/{self.description}_cilva_tuning_curves_heatmap_cluster'
+                        f'_{self.param.time_str}.{save_format}',
+                        format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
+        plt.close()
 
         '''
 
@@ -2510,7 +2688,7 @@ class MouseSession:
             save_formats = [save_formats]
 
         for save_format in save_formats:
-            fig.savefig(f'{self.param.path_results}/{self.description}_cilva_tuning_curves'
+            fig.savefig(f'{self.param.path_results}/{self.description}_factor_loading_matrix'
                         f'_{self.param.time_str}.{save_format}',
                         format=f"{save_format}",
                         facecolor=fig.get_facecolor())
@@ -2554,10 +2732,12 @@ class MouseSession:
             save_formats = [save_formats]
 
         for save_format in save_formats:
-            fig.savefig(f'{self.param.path_results}/{self.description}_cilva_tuning_curves'
+            fig.savefig(f'{self.param.path_results}/{self.description}_decomposition_of_variance'
                         f'_{self.param.time_str}.{save_format}',
                         format=f"{save_format}",
                         facecolor=fig.get_facecolor())
+
+        return True
 
     def run_cilva(self, path_cilva_data="cilva_data"):
         """
@@ -2567,28 +2747,61 @@ class MouseSession:
 
         if self.shift_data_dict is None:
             print("run_cilva no twitches informations")
-            return
+            return False
         if self.raw_traces is None:
             print("run_cilva no raw_traces")
-            return
+            return False
 
-        z_score_raw_traces = np.zeros(self.raw_traces.shape)
+        # variances = []
+        raw_traces = np.zeros(self.raw_traces.shape)
         # z_score traces
         for i in np.arange(self.raw_traces.shape[0]):
-            z_score_raw_traces[i, :] = (self.raw_traces[i, :] - np.mean(self.raw_traces[i, :])) \
-                                       / np.std(self.raw_traces[i, :])
+            raw_traces[i, :] = self.raw_traces[i, :] - np.median(self.raw_traces[i, :])
+            raw_traces[i, raw_traces[i, :] < 0] = 0
+            # raw_traces[i, :] = self.raw_traces[i, :] - np.min(self.raw_traces[i, :])
+            raw_traces[i, :] = raw_traces[i, :] / np.max(raw_traces[i, :])
+            # variances.append(np.var(raw_traces[i, :]))
 
-        twitches_frames_periods = get_continous_time_periods(self.shift_data_dict["shift_twitch"].astype("int8"))
-        twitches_onsets = []
-        for period in twitches_frames_periods:
-            twitches_onsets.append(period[0])
-        twitches_onsets = np.array(twitches_onsets)
-        # need to be 2-dimensions
-        twitches_onsets = np.reshape(twitches_onsets, (twitches_onsets.shape[0], 1))
+        # plot_hist_distribution(distribution_data=variances,
+        #                        description=f"{self.description}_traces_variances",
+        #                        param=self.param, tight_x_range=True)
+        # print(f"n_cells <= 2 {len(np.where(np.sum(self.spike_struct.spike_nums, axis=1) <= 0)[0])}")
+        # raise Exception("STOP")
+
+        # n_times = raw_traces.shape[1]
+        n_times = 2000
+
+        remove_low_firing_cells = True
+        if remove_low_firing_cells:
+            print(f"n cells before filtering: {len(raw_traces)}")
+            cells_to_keep = np.where(np.sum(self.spike_struct.spike_nums, axis=1) > 2)[0]
+            raw_traces = raw_traces[cells_to_keep][100:300, 0:n_times]
+            print(f"n cells after filtering: {len(raw_traces)}")
+
+        shift_data_binary = self.shift_data_dict["shift_twitch"][:n_times]
+
+        twitches_frames_periods = get_continous_time_periods(shift_data_binary.astype("int8"))
+        # n_stimulus * n_times, 1 if the stimulus is present at that time
+        twitches_onsets = np.zeros((len(twitches_frames_periods), n_times))
+        # twitches_onsets = np.zeros((1, n_times))
+        for period_index, period in enumerate(twitches_frames_periods):
+            # twitches_onsets[0, period[0]:period[1]+1] = 1
+            twitches_onsets[period_index, period[0]] = 1
+            # twitches_onsets[0, period[0]] = 1
+
+        try_fit_kernel_time_constants = False
+
+        if try_fit_kernel_time_constants:
+            tau_r, tau_d, errs = cilva_core.fit_kernel_time_constants(f=raw_traces, s=twitches_onsets, N=raw_traces.shape[0],
+                                      T=raw_traces.shape[1], K=len(twitches_frames_periods),
+                                      eta=0.1, num_iters=5, return_errs=True)
+            print(f"tau_r {tau_r}, tau_d {tau_d}, errs {errs}")
+            return
+
 
         # look if cilva has been run before
         # return True is it's the case and the analysis went trough
-        cilva_loaded = self.load_and_analyse_cilva_results(path_cilva_data=path_cilva_data, f=z_score_raw_traces,
+        cilva_loaded = self.load_and_analyse_cilva_results(path_cilva_data=path_cilva_data, f=raw_traces,
                                                            s=twitches_onsets)
         if cilva_loaded:
             return
@@ -2598,15 +2811,17 @@ class MouseSession:
         # Default parameter values
         L = 3
         # used to be 40 and 40
-        num_iters = 10
-        iters_per_altern = 10
+        num_iters = 40
+        iters_per_altern = 60
         gamma = 1.00
         # Note: default rise and decay time constants are appropriate for our GCaMP6s zebrafish larvae.
         # They may not be suitable for other indicators or animal models.
         # default_tau_r = 5.681 / imrate
         # default_tau_d = 11.551 / imrate
-        tau_r = 6.5 / imrate
-        tau_d = 13.25 / imrate
+        # tau_r and tau_d are in seconds
+        tau_r = 25 / imrate
+        tau_d = 150 / imrate # up to 200
+        convert_stim = False
 
 
         # Importing numpy and model must be performed *after* multithreading is configured.
@@ -2614,7 +2829,7 @@ class MouseSession:
 
         # Train model
         print('Fitting the Calcium Imaging Latent Variable Analysis model...')
-        learned_params = cilva_model.train(z_score_raw_traces, twitches_onsets, convert_stim,
+        learned_params = cilva_model.train(raw_traces, twitches_onsets, convert_stim,
                                            L, num_iters, iters_per_altern, gamma, tau_r,
                                            tau_d, imrate)
         learned_params += [[tau_r], [tau_d], [gamma], [L]]
@@ -3282,6 +3497,154 @@ class MouseSession:
                            without_activity_sum=False,
                            size_fig=(15, 6))
 
+    def plot_traces_with_shifts(self, organized_by_cell_assemblies=True):
+        if self.sce_times_in_cell_assemblies is None:
+            organized_by_cell_assemblies = False
+
+        new_cell_order = np.arange(len(self.raw_traces))
+        y_ticks_labels_color = "white"
+        if organized_by_cell_assemblies:
+            y_ticks_labels_color = []
+            n_cells = len(self.spike_struct.spike_nums_dur)
+            n_cell_assemblies = len(self.cell_assemblies)
+            n_cells_in_assemblies = 0
+            for cell_assembly in self.cell_assemblies:
+                n_cells_in_assemblies += len(cell_assembly)
+
+            new_cell_order = np.zeros(n_cells, dtype="uint16")
+
+            cells_in_assemblies = []
+            last_group_index = 0
+            for cell_assembly_index, cell_assembly in enumerate(self.cell_assemblies):
+                color = cm.nipy_spectral(float(cell_assembly_index + 1) / (n_cell_assemblies + 1))
+                y_ticks_labels_color.extend([color] * len(cell_assembly))
+
+                new_cell_order[last_group_index:last_group_index + len(cell_assembly)] = \
+                    np.array(cell_assembly).astype("uint16")
+                last_group_index += len(cell_assembly)
+                cells_in_assemblies.extend(list(cell_assembly))
+
+            other_cells = np.setdiff1d(np.arange(n_cells), cells_in_assemblies)
+            y_ticks_labels_color.extend([(1, 1, 1, 1.0)] * len(other_cells))
+            new_cell_order[last_group_index:] = other_cells
+
+        shifts = np.abs(self.x_shifts) + np.abs(self.y_shifts)
+        # shifts = signal.detrend(shifts)
+        # normalization
+        shifts = (shifts - np.mean(shifts)) / np.std(shifts)
+        if np.min(shifts) < 0:
+            shifts -= np.min(shifts)
+
+        def norm01(data):
+            min_value = np.min(data)
+            max_value = np.max(data)
+
+            difference = max_value - min_value
+
+            data -= min_value
+
+            if difference > 0:
+                data = data / difference
+
+            return data
+
+        raw_traces = np.copy(self.raw_traces)
+        for i in np.arange(len(raw_traces)):
+            raw_traces[i] = (raw_traces[i] - np.mean(raw_traces[i]) / np.std(raw_traces[i]))
+            raw_traces[i] = norm01(raw_traces[i])
+            raw_traces[i] = norm01(raw_traces[i]) * 5
+
+        plot_spikes_raster(param=self.param,
+                           spike_train_format=False,
+                           display_spike_nums=False,
+                           traces=raw_traces,
+                           display_traces=True,
+                           y_ticks_labels_color=y_ticks_labels_color,
+                           use_brewer_colors_for_traces=True,
+                           file_name=f"{self.description}_traces_shift",
+                           y_ticks_labels=new_cell_order,
+                           y_ticks_labels_size=2,
+                           save_raster=True,
+                           show_raster=False,
+                           plot_with_amplitude=False,
+                           without_activity_sum=False,
+                           spikes_sum_to_use=shifts,
+                           span_area_only_on_raster=False,
+                           traces_lw = 0.1,
+                           save_formats=["pdf", "png"])
+
+    def plot_traces_on_raster(self, spike_nums_to_use=None, sce_times=None, with_run=True,
+                              display_spike_nums=False):
+        def norm01(data):
+            min_value = np.min(data)
+            max_value = np.max(data)
+
+            difference = max_value - min_value
+
+            data -= min_value
+
+            if difference > 0:
+                data = data / difference
+
+            return data
+
+        if spike_nums_to_use is None:
+            display_spike_nums = False
+        if not display_spike_nums:
+            without_activity_sum = True
+        else:
+            without_activity_sum = False
+
+        raw_traces = self.raw_traces
+
+        for i in np.arange(len(raw_traces)):
+            raw_traces[i] = (raw_traces[i] - np.mean(raw_traces[i]) / np.std(raw_traces[i]))
+            raw_traces[i] = norm01(raw_traces[i]) * 5
+
+        span_area_coords = []
+        span_area_colors = []
+        vertical_lines = None
+        vertical_lines_colors = None
+        vertical_lines_sytle = None
+        vertical_lines_linewidth = None
+        if sce_times is not None:
+            vertical_lines = sce_times
+            vertical_lines_colors = ['white'] * len(sce_times)
+            vertical_lines_sytle = "solid"
+            vertical_lines_linewidth = [0.2] * len(sce_times)
+        if (self.speed_by_frame is not None) and with_run:
+            binary_speed = np.zeros(len(self.speed_by_frame), dtype="int8")
+            binary_speed[self.speed_by_frame > 1] = 1
+            speed_periods = get_continous_time_periods(binary_speed)
+            span_area_coords.append(speed_periods)
+            span_area_colors.append("red")
+
+        plot_spikes_raster(spike_nums=spike_nums_to_use, param=self.param,
+                           display_spike_nums=display_spike_nums,
+                           traces_lw=0.1,
+                           traces=raw_traces,
+                           display_traces=True,
+                           spike_train_format=False,
+                           title="traces raster",
+                           file_name="traces raster",
+                           y_ticks_labels=np.arange(len(raw_traces)),
+                           y_ticks_labels_size=2,
+                           save_raster=True,
+                           show_raster=False,
+                           span_area_coords=span_area_coords,
+                           span_area_colors=span_area_colors,
+                           vertical_lines=vertical_lines,
+                           vertical_lines_colors=vertical_lines_colors,
+                           vertical_lines_sytle=vertical_lines_sytle,
+                           vertical_lines_linewidth=vertical_lines_linewidth,
+                           plot_with_amplitude=False,
+                           raster_face_color="black",
+                           show_sum_spikes_as_percentage=True,
+                           span_area_only_on_raster=False,
+                           spike_shape_size=0.5,
+                           without_activity_sum=without_activity_sum,
+                           save_formats=["png", "pdf"])
+
     def plot_raster_with_cells_assemblies_and_shifts(self, only_cell_assemblies=False):
         if self.sce_times_in_cell_assemblies is None:
             return
@@ -3412,7 +3775,7 @@ class MouseSession:
         # span_area_colors = None
         if self.speed_by_frame is not None:
             binary_speed = np.zeros(len(self.speed_by_frame), dtype="int8")
-            binary_speed[self.speed_by_frame > 0] = 1
+            binary_speed[self.speed_by_frame > 1] = 1
             speed_periods = get_continous_time_periods(binary_speed)
 
         # colors for movement periods
@@ -3439,7 +3802,7 @@ class MouseSession:
                     print(f"  Period {name_period} -> {colors[i]}")
                     i += 1
             else:
-                print(f"no mvt info for {ms.description}")
+                print(f"no mvt info for {self.description}")
 
         # colors = ["red", "green", "blue", "pink", "orange"]
         # i = 0
@@ -3501,24 +3864,27 @@ class MouseSession:
             return
 
         self.suite2p_data = dict()
-        if os.path.isfile(os.path.join(self.param.path_data, data_path, 'F.npy')):
-            f = np.load(os.path.join(self.param.path_data, data_path, 'F.npy'), allow_pickle=True)
-            self.suite2p_data["F"] = f
-        if os.path.isfile(os.path.join(self.param.path_data, data_path, 'Fneu.npy')):
-            f_neu = np.load(os.path.join(self.param.path_data, data_path, 'Fneu.npy'), allow_pickle=True)
-            self.suite2p_data["Fneu"] = f_neu
-        if os.path.isfile(os.path.join(self.param.path_data, data_path, 'spks.npy')):
-            spks = np.load(os.path.join(self.param.path_data, data_path, 'spks.npy'), allow_pickle=True)
-            self.suite2p_data["spks"] = spks
+        # commented due to mesocentre
+        # if os.path.isfile(os.path.join(self.param.path_data, data_path, 'F.npy')):
+        #     f = np.load(os.path.join(self.param.path_data, data_path, 'F.npy'), allow_pickle=True)
+        #     self.suite2p_data["F"] = f
+        # if os.path.isfile(os.path.join(self.param.path_data, data_path, 'Fneu.npy')):
+        #     f_neu = np.load(os.path.join(self.param.path_data, data_path, 'Fneu.npy'), allow_pickle=True)
+        #     self.suite2p_data["Fneu"] = f_neu
+        # if os.path.isfile(os.path.join(self.param.path_data, data_path, 'spks.npy')):
+        #     spks = np.load(os.path.join(self.param.path_data, data_path, 'spks.npy'), allow_pickle=True)
+        #     self.suite2p_data["spks"] = spks
         # print(f"spks.shape {spks}")
+
         stat = np.load(os.path.join(self.param.path_data, data_path, 'stat.npy'), allow_pickle=True)
         self.suite2p_data["stat"] = stat
         # print(f"len(stat) {len(stat)}")
         # stat = stat[0]
-        if os.path.isfile(os.path.join(self.param.path_data, data_path, 'ops.npy')):
-            ops = np.load(os.path.join(self.param.path_data, data_path, 'ops.npy'), allow_pickle=True)
-            ops = ops.item()
-            self.suite2p_data["ops"] = ops
+
+        # if os.path.isfile(os.path.join(self.param.path_data, data_path, 'ops.npy')):
+        #     ops = np.load(os.path.join(self.param.path_data, data_path, 'ops.npy'), allow_pickle=True)
+        #     ops = ops.item()
+        #     self.suite2p_data["ops"] = ops
 
         is_cell = np.load(os.path.join(self.param.path_data, data_path, 'iscell.npy'), allow_pickle=True)
         self.suite2p_data["is_cell"] = is_cell
@@ -3869,10 +4235,10 @@ class MouseSession:
             # print(f"cm.nipy_spectral(float(i + 1) / (n_assemblies + 1)) "
             #       f"{cm.nipy_spectral(float(i + 1) / (n_assemblies + 1))}")
             color = cm.nipy_spectral(float(i + 1) / (n_assemblies + 1))
-            if i == 0:
-                color = (100 / 255, 215 / 255, 247 / 255, 1)  # #64D7F7"
-            else:
-                color = (213 / 255, 38 / 255, 215 / 255, 1)  # #D526D7
+            # if i == 0:
+            #     color = (100 / 255, 215 / 255, 247 / 255, 1)  # #64D7F7"
+            # else:
+            #     color = (213 / 255, 38 / 255, 215 / 255, 1)  # #D526D7
             cells_groups_colors.append(color)
         # print(f"cells_groups_colors {cells_groups_colors}")
         # self.coord_obj.compute_center_coord(cells_groups=self.cell_assemblies,
@@ -3880,8 +4246,8 @@ class MouseSession:
         #                                     dont_fill_cells_not_in_groups=True)
 
         self.coord_obj.plot_cells_map(param=self.param,
-                                      data_id=self.description, show_polygons=False,
-                                      fill_polygons=False,
+                                      data_id=self.description, show_polygons=True,
+                                      fill_polygons=True,
                                       title_option="cell_assemblies", connections_dict=None,
                                       with_edge=True,
                                       cells_groups=self.cell_assemblies,
@@ -5180,6 +5546,38 @@ class MouseSession:
             return
         np.save(os.path.join(self.param.path_data, path, f"{self.description}_raw_traces.npy".lower()),
                 self.raw_traces)
+
+    def load_raw_motion_translation_shift_data(self, path_to_load):
+        """
+        Load data from xy_translation after motion correction
+        :param path_to_load:
+        :return:
+        """
+        if path_to_load is None:
+            print(f"{self.description} load_raw_motion_translation_shift_data "
+                  f"path_to_load is None")
+            return
+
+        for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data, path_to_load)):
+            for file_name in local_filenames:
+                if (("params" in file_name.lower()) and (self.description.lower() in file_name.lower())) \
+                        and file_name.endswith(".mat"):
+                    data = hdf5storage.loadmat(os.path.join(self.param.path_data, path_to_load, file_name))
+                    variables_mapping = {"xshifts": "xshifts",
+                                         "yshifts": "yshifts"}
+                    self.x_shifts = data[variables_mapping["xshifts"]][0]
+                    self.y_shifts = data[variables_mapping["yshifts"]][0]
+                elif (("params" in file_name.lower()) and (self.description.lower() in file_name.lower())) \
+                        and file_name.endswith(".npy"):
+
+                    ops = np.load(os.path.join(self.param.path_data, path_to_load, file_name), allow_pickle=True)
+                    data = ops.item()
+
+                    variables_mapping = {"xshifts": "xoff",
+                                         "yshifts": "yoff"}
+                    self.x_shifts = data[variables_mapping["xshifts"]]
+                    self.y_shifts = data[variables_mapping["yshifts"]]
+            break
 
     def load_graph_data(self, path_to_load):
         """
