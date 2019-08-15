@@ -230,7 +230,7 @@ class BenchmarkRasterDur:
                     print("")
 
     def plot_boxplots_full_stat(self, path_results, description, time_str, for_frames=True, with_cells=False,
-                                save_formats="pdf"):
+                                save_formats="pdf", dpi=500):
         """
 
         :param path_results:
@@ -249,20 +249,26 @@ class BenchmarkRasterDur:
         colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
                   '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#ffffd9', '#edf8b1', '#c7e9b4',
                   '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']
-        colors = colors[3:]
+        colors = ['cornflowerblue'] + colors[3:]
 
         stat_fig, axes = plt.subplots(nrows=2, ncols=2, squeeze=True,
                                       gridspec_kw={'height_ratios': [0.5, 0.5],
                                                    'width_ratios': [0.5, 0.5]},
-                                      figsize=(10, 10))
+                                      figsize=(10, 10), dpi=dpi)
 
         stat_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
         axes = np.ndarray.flatten(axes)
         fig_patch = stat_fig.patch
+        black_and_white_skin = True
         # rgba = c_map(0)
-        face_color = "black"
-        text_color = "white"
-        title_color = "red"
+        if black_and_white_skin:
+            face_color = "white"
+            text_color = "black"
+            title_color = "black"
+        else:
+            face_color = "black"
+            text_color = "white"
+            title_color = "red"
         fig_patch.set_facecolor(face_color)
 
         for stat_index, stat_name in enumerate(stats_to_show):
@@ -270,16 +276,6 @@ class BenchmarkRasterDur:
             n_cells = len(self.results_frames_dict_by_cell)
 
             ax.set_facecolor(face_color)
-            ax.xaxis.set_ticks_position('none')
-            ax.xaxis.label.set_color(text_color)
-            ax.tick_params(axis='x', colors=text_color)
-            ax.xaxis.set_tick_params(labelsize=3)
-            ax.yaxis.label.set_color(text_color)
-            ax.tick_params(axis='y', colors=text_color)
-            # ax.set_xticklabels([])
-            # ax.set_yticklabels([])
-            # ax.get_yaxis().set_visible(False)
-            # ax.get_xaxis().set_visible(False)
 
             ax.set_frame_on(False)
             n_box_plots = None
@@ -302,10 +298,14 @@ class BenchmarkRasterDur:
                         x_pos = 1 + label_index + ((np.random.random_sample() - 0.5) * 0.8)
                         y_pos = result_dict_to_use[cell_to_display][label][stat_name]
                         font_size = 3
+                        if black_and_white_skin:
+                            edgecolors = "black"
+                        else:
+                            edgecolors = "21"
                         ax.scatter(x_pos, y_pos,
                                     color=colors[label_index%len(colors)],
                                     marker="o",
-                                    edgecolors="white",
+                                    edgecolors=edgecolors,
                                     s=60, zorder=21)
                         ax.text(x=x_pos, y=y_pos,
                                 s=f"{cell_to_display}", color="black", zorder=22,
@@ -320,24 +320,54 @@ class BenchmarkRasterDur:
                                labels=labels, sym='', zorder=1)  # whis=[5, 95], sym='+'
 
             for element in ['boxes', 'whiskers', 'fliers', 'caps']:
-                plt.setp(bplot[element], color="white")
+                if black_and_white_skin:
+                    plt.setp(bplot[element], color="black")
+                else:
+                    plt.setp(bplot[element], color="white")
 
             for element in ['means', 'medians']:
-                plt.setp(bplot[element], color="silver")
+                if black_and_white_skin:
+                    plt.setp(bplot[element], color="black")
+                else:
+                    plt.setp(bplot[element], color="silver")
 
             if colorfull:
                 colors = colors[:n_box_plots]
                 for patch, color in zip(bplot['boxes'], colors):
                     patch.set_facecolor(color)
 
+            ax.xaxis.set_ticks_position('none')
+            ax.xaxis.label.set_color(text_color)
+            ax.tick_params(axis='x', colors=text_color)
+            if n_box_plots <= 2:
+                ax.xaxis.set_tick_params(labelsize=15)
+            elif n_box_plots <= 6:
+                ax.xaxis.set_tick_params(labelsize=10)
+            else:
+                ax.xaxis.set_tick_params(labelsize=3)
+            ax.yaxis.label.set_color(text_color)
+            ax.tick_params(axis='y', colors=text_color)
+            # ax.set_xticklabels([])
+            # ax.set_yticklabels([])
+            # ax.get_yaxis().set_visible(False)
+            # ax.get_xaxis().set_visible(False)
             # ax.set_ylabel(f"proportion")
             # ax.set_xlabel("age")
             xticks = np.arange(1, n_box_plots + 1)
             ax.set_xticks(xticks)
             # sce clusters labels
             ax.set_xticklabels(labels)
+            # fixing the limits
+            if stat_name == "sensitivity":
+                ax.set_ylim(0, 1.1)
+            elif stat_name == "specificity":
+                ax.set_ylim(0.85, 1)
+            elif stat_name == "PPV":
+                ax.set_ylim(0, 1.1)
+            elif stat_name == "NPV":
+                ax.set_ylim(0.6, 1.1)
 
-            ax.set_title(stat_name, color=title_color, pad=20)
+            ax.set_title(stat_name, color=title_color, pad=20, fontsize=20)
 
         str_details = "frames"
         if not for_frames:
@@ -842,6 +872,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # single expert labeling
         data_dict["gt"]["gui_file"] = "p6_19_02_18_a000_ground_truth_cell_0_1_2_3.mat"
         data_dict["gt"]["cells"] = np.array([0, 1, 2, 3]) # 3 not seen by the network
+        # data_dict["gt"]["cells"] = np.array([3])
         data_dict["gt"]["trace_file_name"] = "p6_19_02_18_a000_raw_traces.npy"
         data_dict["gt"]["trace_var_name"] = "raw_traces"
 
@@ -877,6 +908,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # single expert labeling
         data_dict["gt"]["gui_file"] = "p11_19_04_30_a001_gound_truth.mat"
         data_dict["gt"]["cells"] = np.array([0, 2, 3, 4]) # 4 not seen by the network
+        # data_dict["gt"]["cells"] = np.array([4])  # 4 not seen by the network
         data_dict["gt"]["trace_file_name"] = "p11_19_04_30_a001_raw_traces.npy"
         data_dict["gt"]["trace_var_name"] = "raw_traces"
 
@@ -1124,10 +1156,11 @@ def main_benchmark():
     # ms_to_benchmarks = ["p11_17_11_24_a000_ms"]
     # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
     # gad-cre + oriens
-    ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p8_18_10_24_a006_ms",
-                        "p11_19_04_30_a001_ms"]
-    # gad-cre
+    # ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p8_18_10_24_a006_ms",
+    #                     "p11_19_04_30_a001_ms"]
     ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
+    # gad-cre
+    # ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
     # ms_to_benchmarks = ["p6_19_02_18_a000_ms"]
     do_onsets_benchmarks = False
     do_plot_roc_predictions = False
@@ -1441,10 +1474,10 @@ def main_benchmark():
             benchmarks.compute_stats()
             benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
                                                       path_results=path_results, with_cells=True,
-                                                      for_frames=True, save_formats="pdf")
+                                                      for_frames=True, save_formats=["pdf", "png"])
             benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
                                                       path_results=path_results, with_cells=True,
-                                                      for_frames=False, save_formats="pdf")
+                                                      for_frames=False, save_formats=["pdf", "png"])
         if global_benchmarks is None:
             global_benchmarks = benchmarks
         else:
@@ -1456,9 +1489,9 @@ def main_benchmark():
         # print(f"GLOBAL BENCH {global_benchmarks.description}")
         global_benchmarks.compute_stats()
         global_benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
-                                           for_frames=True, save_formats="pdf", with_cells=True)
+                                           for_frames=True, save_formats=["pdf", "png"], with_cells=True)
         global_benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
-                                           for_frames=False, save_formats="pdf", with_cells=True)
+                                           for_frames=False, save_formats=["pdf", "png"], with_cells=True)
     # benchmarks.plot_boxplots_for_transients_stat(description=description, time_str=time_str,
     #                                              path_results=path_results,
     #                                              save_formats="pdf")

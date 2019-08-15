@@ -6073,7 +6073,7 @@ def main():
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     # this one works properly
     just_plot_raster_with_cells_assemblies_and_shifts = False
-    just_plot_traces_raster = True
+    just_plot_traces_raster = False
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_do_seqnmf = False
@@ -6108,7 +6108,7 @@ def main():
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
     do_clustering = True
-    do_detect_sce_on_traces = False
+    do_detect_sce_on_traces = True
     do_detect_sce_based_on_peaks_finder = False
     use_hdbscan = False
     # to add in the file title
@@ -7834,7 +7834,7 @@ def main():
             sce_times_bool[sce_loc] = True
             SCE_times = get_continous_time_periods(sce_times_bool)
             ms.plot_traces_on_raster(spike_nums_to_use=spike_nums_to_use, sce_times=SCE_times, with_run=True,
-                                     display_spike_nums=True)
+                                     display_spike_nums=True, cellsinpeak=cellsinpeak)
 
             sce_times_numbers = np.ones(spike_nums_to_use.shape[1], dtype="int16")
             sce_times_numbers *= -1

@@ -3574,7 +3574,9 @@ class MouseSession:
                            save_formats=["pdf", "png"])
 
     def plot_traces_on_raster(self, spike_nums_to_use=None, sce_times=None, with_run=True,
-                              display_spike_nums=False):
+                              display_spike_nums=False, cellsinpeak=None):
+        # cellsinpeak: 2d array, binary, 1st dim matches the
+        # number of cells, 2nd dim matches the size of sce_times
         def norm01(data):
             min_value = np.min(data)
             max_value = np.max(data)
@@ -3619,6 +3621,13 @@ class MouseSession:
             span_area_coords.append(speed_periods)
             span_area_colors.append("red")
 
+        scatters_on_traces = None
+        if (cellsinpeak is not None) and (sce_times is not None):
+            scatters_on_traces = np.zeros(raw_traces.shape, dtype="int8")
+            for sce_index, sce_period in enumerate(sce_times):
+                frame_index = (sce_period[0] + sce_period[1]) // 2
+                scatters_on_traces[:, frame_index] = cellsinpeak[:, sce_index]
+
         plot_spikes_raster(spike_nums=spike_nums_to_use, param=self.param,
                            display_spike_nums=display_spike_nums,
                            traces_lw=0.1,
@@ -3641,9 +3650,13 @@ class MouseSession:
                            raster_face_color="black",
                            show_sum_spikes_as_percentage=True,
                            span_area_only_on_raster=False,
-                           spike_shape_size=0.5,
+                           spike_shape_size=0.05,
+                           scatters_on_traces=scatters_on_traces,
+                           scatters_on_traces_marker="*",
+                           scatters_on_traces_size=0.2,
                            without_activity_sum=without_activity_sum,
-                           save_formats=["png", "pdf"])
+                           save_formats=["png", "pdf"], dpi=500)
+        raise Exception("NOT TODAY")
 
     def plot_raster_with_cells_assemblies_and_shifts(self, only_cell_assemblies=False):
         if self.sce_times_in_cell_assemblies is None:
