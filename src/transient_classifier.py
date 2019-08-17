@@ -43,6 +43,7 @@ import tifffile
 from pattern_discovery.tools.signal import smooth_convolve
 from tensorflow.python.client import device_lib
 from alt_model_checkpoint import AltModelCheckpoint
+from keras_radam import RAdam
 
 device_lib.list_local_devices()
 
@@ -2909,15 +2910,16 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         p13_18_10_29_a001_ms: 77, 117 (need to be done by JD before triple blind) 
         """
     elif use_gad_cre_sample:
-        ms_to_remove_from_test.append("artificial_ms_1")
-        ms_to_remove_from_validation.append("artificial_ms_1")
+        # ms_to_remove_from_test.append("artificial_ms_1")
+        # ms_to_remove_from_validation.append("artificial_ms_1")
         # ms_to_remove_from_test.append("artificial_ms_2")
         # ms_to_remove_from_validation.append("artificial_ms_2")
-
-        ms_to_use = ["artificial_ms_1", "p8_18_10_24_a006_ms", "p11_19_04_30_a001_ms", "p6_19_02_18_a000_ms"]
-        cell_to_load_by_ms = {"artificial_ms_1":
-                              np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
-                              "p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
+        """
+        "artificial_ms_1":
+                              np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136])
+        """
+        ms_to_use = ["p8_18_10_24_a006_ms", "p11_19_04_30_a001_ms", "p6_19_02_18_a000_ms"]
+        cell_to_load_by_ms = {"p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
                               "p11_19_04_30_a001_ms": np.array([0, 2, 3]),
                               "p6_19_02_18_a000_ms": np.array([0, 1, 2]),
                               }
@@ -4010,7 +4012,7 @@ def train_model():
         create_tiffs_for_data_generator(ms_to_use=ms_for_tiffs,
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
@@ -4178,7 +4180,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     buffer = 1
     # between training, validation and test data
     split_values = [0.8, 0.2, 0]
-    optimizer_choice = "RMSprop"  # "SGD"  "RMSprop"  "adam", SGD
+    optimizer_choice = "radam"  # "SGD"  used to be "RMSprop"  "adam", SGD
     activation_fct = "swish"
     if using_multi_class > 1:
         loss_fct = 'categorical_crossentropy'
@@ -4340,6 +4342,8 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     elif optimizer_choice == "SGD":
         # default parameters: lr=0.01, momentum=0.0, decay=0.0, nesterov=False
         optimizer = SGD(lr=0.01, momentum=0.0, decay=0.0, nesterov=False)
+    elif optimizer_choice == "radam":
+        optimizer = RAdam(total_steps=10000, warmup_proportion=0.1, min_lr=1e-5)
     else:
         # default parameters: lr=0.001, rho=0.9, epsilon=None, decay=0.0
         optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=None, decay=0.0)
@@ -4360,7 +4364,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
                                                 verbose=1,
                                                 factor=0.5,
                                                 mode='max',
-                                                min_lr=0.0001)  # used to be: 0.00001
+                                                min_lr=1e-8)  # used to be: 1e-4 and before 1e-5
 
     # callbacks to be execute during training
     # A callback is a set of functions to be applied at given stages of the training procedure.
