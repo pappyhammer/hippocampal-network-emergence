@@ -55,9 +55,9 @@ class Cleaner:
         # will earse first_name, name and birth_date columns
         # we will keep only the graft year
         self.df_clean.drop(columns=['prenom', 'nom', "date_naissance"], inplace=True)
-        for index, value in enumerate(self.df_clean.loc[:, "date_greffe"]):
-            date_time = datetime.strptime(value, '%d/%m/%Y')
-            self.df_clean.at[index, "date_greffe"] = date_time.year
+        # for index, value in enumerate(self.df_clean.loc[:, "date_greffe"]):
+        #     date_time = datetime.strptime(value, '%d/%m/%Y')
+        #     self.df_clean.at[index, "date_greffe"] = date_time.year
 
     def clean(self):
         # first we change the name of the columns
@@ -100,7 +100,7 @@ class Cleaner:
 
 
 class CleanerCoder(Cleaner):
-    def __init__(self, df_data, keep_original):
+    def __init__(self, df_data, keep_original, path_results):
         """
 
         :param df_data:
@@ -109,6 +109,7 @@ class CleanerCoder(Cleaner):
         """
         super().__init__(df_data=df_data)
 
+        self.path_results = path_results
         self.keep_original = keep_original
         self.mapping_dict = dict()
 
@@ -633,6 +634,17 @@ scleromalacie/ dellen post pterygion / plaie cornee / 37 -> reouverture plaie/ c
             self.clean_column_with_reg_exp(column_name=column_name, map_dict=dict_list[0],
                                            pattern_dict=dict_list[1])
 
+    def get_duration_bw_first_grafts(self, df):
+        graft_dates_list = []
+        for index, value in enumerate(df.loc[:, "date_greffe"]):
+            date_time = datetime.strptime(value, '%d/%m/%Y')
+            graft_dates_list.append(date_time)
+            # self.df_clean.at[index, "date_greffe"] = date_time.year
+        graft_dates_list.sort()
+        # number of days of difference between the 2 first grafts
+        delta = graft_dates_list[1] - graft_dates_list[0]
+        return delta.days
+
     def produce_stats(self, file_name):
         # df.loc[df['column_name'] == some_value]
         with open(file_name, "w", encoding='UTF-8') as file:
@@ -777,6 +789,7 @@ scleromalacie/ dellen post pterygion / plaie cornee / 37 -> reouverture plaie/ c
             indices_found = []
             # key represent the number of grafts, value the number of patients with this number of grafts
             patients_count = SortedDict()
+            durations_bw_1_st_2nd_graft_in_days = []
             for index, value in enumerate(self.df_clean.loc[:, "nom"]):
                 if index in indices_found:
                     # patients already counted
@@ -785,12 +798,31 @@ scleromalacie/ dellen post pterygion / plaie cornee / 37 -> reouverture plaie/ c
                 first_name = self.df_clean.loc[index, "prenom"]
                 birth_date = self.df_clean.loc[index, "date_naissance"]
                 # getting the list of indices
-                patients_indices = self.df_clean.loc[(self.df_clean['nom'] == last_name) &
+                df_filter = self.df_clean.loc[(self.df_clean['nom'] == last_name) &
                                                      (self.df_clean['prenom'] == first_name) &
-                                                     (self.df_clean['date_naissance'] == birth_date)].index
+                                                     (self.df_clean['date_naissance'] == birth_date)]
+                patients_indices = df_filter.index
+                if len(patients_indices) > 1:
+                    durations_bw_1_st_2nd_graft_in_days.append(self.get_duration_bw_first_grafts(df_filter))
+
                 n_grafts = len(patients_indices)
                 patients_count[n_grafts] = patients_count.get(n_grafts, 0) + 1
                 indices_found.extend(patients_indices)
+
+            file.write(f"Mean & std duration between the 2 first grafts: {np.mean(durations_bw_1_st_2nd_graft_in_days)} "
+                       f"days, {np.std(durations_bw_1_st_2nd_graft_in_days)} days"
+                       f" ({len(durations_bw_1_st_2nd_graft_in_days)} patients)\n")
+
+            # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
+            # + 11 diverting
+            colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+                      '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
+                      '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
+                      '#74add1', '#4575b4', '#313695']
+            filename = "delai_2_premiere_greffes"
+            plot_box_plot_data(data_dict={"": durations_bw_1_st_2nd_graft_in_days}, filename=filename,
+                               path_results=self.path_results,
+                               y_label="Delai (jours)", colors=colors, with_scatters=True)
 
             total_unique_patients = 0
             for value in patients_count.values():
@@ -890,6 +922,169 @@ class CleanerMulti(Cleaner):
                                        pattern_dict=self.etiology_patterns)
 """
 
+def plot_box_plot_data(data_dict, filename,
+                         y_label, path_results, colors=None,
+                         y_lim=None,
+                         x_label=None, with_scatters=True,
+                         y_log=False,
+                         title=None,
+                         scatters_with_same_colors=None,
+                         scatter_size=20,
+                         scatter_alpha=0.5,
+                         n_sessions_dict=None,
+                         background_color="black",
+                         link_medians=True,
+                         color_link_medians="red",
+                         labels_color="white",
+                         with_y_jitter=None,
+                         x_labels_rotation=None,
+                         fliers_symbol=None,
+                         save_formats="pdf"):
+    """
+
+    :param data_dict:
+    :param n_sessions_dict: should be the same keys as data_dict, value is an int reprenseing the number of sessions
+    that gave those data (N), a n will be display representing the number of poins in the boxplots if n != N
+    :param title:
+    :param filename:
+    :param y_label:
+    :param y_lim: tuple of int,
+    :param scatters_with_same_colors: scatter that have the same index in the data_dict,, will be colors
+    with the same colors, using the list of colors given by scatters_with_same_colors
+    :param param: Contains a field name colors used to color the boxplot
+    :param save_formats:
+    :return:
+    """
+    fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                            gridspec_kw={'height_ratios': [1]},
+                            figsize=(12, 12))
+    colorfull = (colors is not None)
+
+    median_color = background_color if colorfull else labels_color
+
+    ax1.set_facecolor(background_color)
+
+    fig.patch.set_facecolor(background_color)
+
+    labels = []
+    data_list = []
+    medians_values = []
+    for age, data in data_dict.items():
+        data_list.append(data)
+        # print(f"data {data}")
+        medians_values.append(np.median(data))
+        label = age
+        if n_sessions_dict is None:
+            # label += f"\n(n={len(data)})"
+            pass
+        else:
+            n_sessions = n_sessions_dict[age]
+            if n_sessions != len(data):
+                label += f"\n(N={n_sessions}, n={len(data)})"
+            else:
+                label += f"\n(N={n_sessions})"
+        labels.append(label)
+    sym = ""
+    if fliers_symbol is not None:
+        sym = fliers_symbol
+    bplot = plt.boxplot(data_list, patch_artist=colorfull,
+                        labels=labels, sym=sym, zorder=30)  # whis=[5, 95], sym='+'
+    # color=["b", "cornflowerblue"],
+    # fill with colors
+
+    # edge_color="silver"
+
+    for element in ['boxes', 'whiskers', 'fliers', 'caps']:
+        plt.setp(bplot[element], color="white")
+
+    for element in ['means', 'medians']:
+        plt.setp(bplot[element], color=median_color)
+
+    if colorfull:
+        if colors is None:
+            colors = param.colors[:len(data_dict)]
+        else:
+            while len(colors) < len(data_dict):
+                colors.extend(colors)
+            colors = colors[:len(data_dict)]
+        for patch, color in zip(bplot['boxes'], colors):
+            patch.set_facecolor(color)
+            r, g, b, a = patch.get_facecolor()
+            # for transparency purpose
+            patch.set_facecolor((r, g, b, 0.8))
+
+    if with_scatters:
+        for data_index, data in enumerate(data_list):
+            # Adding jitter
+            x_pos = [1 + data_index + ((np.random.random_sample() - 0.5) * 0.5) for x in np.arange(len(data))]
+
+            if with_y_jitter is not None:
+                y_pos = [value + (((np.random.random_sample() - 0.5) * 2) * with_y_jitter) for value in data]
+            else:
+                y_pos = data
+            font_size = 3
+            colors_scatters = []
+            if scatters_with_same_colors is not None:
+                while len(colors_scatters) < len(y_pos):
+                    colors_scatters.extend(scatters_with_same_colors)
+            else:
+                colors_scatters = [colors[data_index]]
+            ax1.scatter(x_pos, y_pos,
+                        color=colors_scatters[:len(y_pos)],
+                        alpha=scatter_alpha,
+                        marker="o",
+                        edgecolors=background_color,
+                        s=scatter_size, zorder=1)
+    if link_medians:
+        ax1.plot(np.arange(1, len(medians_values) + 1), medians_values, zorder=36, color=color_link_medians,
+                 linewidth=2)
+
+    # plt.xlim(0, 100)
+    if title:
+        plt.title(title)
+
+    ax1.set_ylabel(f"{y_label}", fontsize=30, labelpad=20)
+    if y_lim is not None:
+        ax1.set_ylim(y_lim[0], y_lim[1])
+    if x_label is not None:
+        ax1.set_xlabel(x_label, fontsize=30, labelpad=20)
+    ax1.xaxis.label.set_color(labels_color)
+    ax1.yaxis.label.set_color(labels_color)
+    if y_log:
+        ax1.set_yscale("log")
+
+    ax1.yaxis.set_tick_params(labelsize=20)
+    ax1.xaxis.set_tick_params(labelsize=20)
+    ax1.tick_params(axis='y', colors=labels_color)
+    ax1.tick_params(axis='x', colors=labels_color)
+    xticks = np.arange(1, len(data_dict) + 1)
+    ax1.set_xticks(xticks)
+    # removing the ticks but not the labels
+    ax1.xaxis.set_ticks_position('none')
+    # sce clusters labels
+    ax1.set_xticklabels(labels)
+    if x_labels_rotation is not None:
+        for tick in ax1.get_xticklabels():
+            tick.set_rotation(x_labels_rotation)
+
+    # padding between ticks label and  label axis
+    # ax1.tick_params(axis='both', which='major', pad=15)
+    fig.tight_layout()
+    # adjust the space between axis and the edge of the figure
+    # https://matplotlib.org/faq/howto_faq.html#move-the-edge-of-an-axes-to-make-room-for-tick-labels
+    # fig.subplots_adjust(left=0.2)
+
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+
+    for save_format in save_formats:
+        fig.savefig(f'{path_results}/{filename}'
+                    f'.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+
+    plt.close()
+
 
 def main():
     root_path = "/Users/pappyhammer/Documents/academique/these_inmed/"
@@ -963,8 +1158,8 @@ def main():
     # print(f"columns: {df_data.columns}")
     use_multi_cleaner = False
 
-    cleaner_coder_with_original = CleanerCoder(df_data=df_data.copy(), keep_original=True)
-    cleaner_coder_without_original = CleanerCoder(df_data=df_data.copy(), keep_original=False)
+    cleaner_coder_with_original = CleanerCoder(df_data=df_data.copy(), keep_original=True, path_results=path_results)
+    cleaner_coder_without_original = CleanerCoder(df_data=df_data.copy(), keep_original=False, path_results=path_results)
 
     # if use_multi_cleaner:
     #     cleaner_multi = CleanerMulti(df_data=df_data.copy())
@@ -976,7 +1171,7 @@ def main():
     #     print(f"columns multi: {cleaner_multi.df_clean.columns}")
 
 
-    do_regression = True
+    do_regression = False
 
     if do_regression:
         RegressionAnalysis(cleaner_coder_without_original.df_clean, path_results, time_str)
