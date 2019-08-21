@@ -4,7 +4,12 @@ from scipy import signal
 # import matplotlib
 # matplotlib.use('TkAgg')
 # to comment for mesocentre
+import tifffile
 import matplotlib.pyplot as plt
+from matplotlib.figure import SubplotParams
+from matplotlib import patches
+import matplotlib.gridspec as gridspec
+from matplotlib.colors import LinearSegmentedColormap
 import seaborn as sns
 import hdbscan
 import numpy as np
@@ -22,7 +27,7 @@ import pattern_discovery.tools.misc as tools_misc
 from pattern_discovery.tools.misc import get_time_correlation_data
 from pattern_discovery.tools.misc import get_continous_time_periods, give_unique_id_to_each_transient_of_raster_dur
 from pattern_discovery.display.raster import plot_spikes_raster, plot_with_imshow
-from pattern_discovery.display.misc import time_correlation_graph, plot_hist_distribution, plot_scatters
+from pattern_discovery.display.misc import time_correlation_graph, plot_hist_distribution, plot_scatters, plot_box_plots
 from pattern_discovery.display.cells_map_module import CoordClass
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import CellAssembliesStruct
 import pattern_discovery.cilva.analysis as cilva_analysis
@@ -153,6 +158,9 @@ class MouseSession:
         # list of tuple of int (gather data from sce_times_in_single_cell_assemblies and
         # sce_times_in_multiple_cell_assemblies)
         self.sce_times_in_cell_assemblies = None
+        # for each cell, list of list, each correspond to tuples (first and last index of the SCE in frames)
+        # in which the cell is supposed to be active for the single cell assemblie to which it belongs
+        self.sce_times_in_cell_assemblies_by_cell = None
 
         if (self.param is not None) and (self.param.cell_assemblies_data_path is not None):
             self.load_cell_assemblies_data()
@@ -1911,6 +1919,10 @@ class MouseSession:
             self.sce_times_in_multiple_cell_assemblies = []
             # list of list, each list correspond to tuples (first and last index of the SCE in frames)
             self.sce_times_in_cell_assemblies = []
+            # for each cell, list of list, each correspond to tuples (first and last index of the SCE in frames)
+            # in which the cell is supposed to be active for the single cell assemblie to which it belongs
+            self.sce_times_in_cell_assemblies_by_cell = dict()
+
             with open(self.param.cell_assemblies_data_path + file_name_original, "r", encoding='UTF-8') as file:
                 param_section = False
                 cell_ass_section = False
@@ -1928,7 +1940,7 @@ class MouseSession:
                             line_list = line.split(':')
                             cells = line_list[2].split(" ")
                             self.cell_assemblies.append([int(cell) for cell in cells])
-                        if line.startswith("single_sce_in_ca"):
+                        elif line.startswith("single_sce_in_ca"):
                             line_list = line.split(':')
                             ca_index = int(line_list[1])
                             self.sce_times_in_single_cell_assemblies[ca_index] = []
@@ -1937,13 +1949,22 @@ class MouseSession:
                                 times = couple_of_time.split(" ")
                                 self.sce_times_in_single_cell_assemblies[ca_index].append([int(t) for t in times])
                                 self.sce_times_in_cell_assemblies.append([int(t) for t in times])
-                        if line.startswith("multiple_sce_in_ca"):
+                        elif line.startswith("multiple_sce_in_ca"):
                             line_list = line.split(':')
                             sces_times = line_list[1].split("#")
                             for sce_time in sces_times:
                                 times = sce_time.split(" ")
                                 self.sce_times_in_multiple_cell_assemblies.append([int(t) for t in times])
                                 self.sce_times_in_cell_assemblies.append([int(t) for t in times])
+                        elif line.startswith("cell"):
+                            line_list = line.split(':')
+                            cell = int(line_list[1])
+                            self.sce_times_in_cell_assemblies_by_cell[cell] = []
+                            sces_times = line_list[2].split("#")
+                            for sce_time in sces_times:
+                                times = sce_time.split()
+                                self.sce_times_in_cell_assemblies_by_cell[cell].append([int(t) for t in times])
+
                 # print(f"self.sce_times_in_single_cell_assemblies {self.sce_times_in_single_cell_assemblies}")
                 # print(f"self.sce_times_in_multiple_cell_assemblies {self.sce_times_in_multiple_cell_assemblies}")
                 # print(f"self.sce_times_in_cell_assemblies {self.sce_times_in_cell_assemblies}")
@@ -3656,7 +3677,255 @@ class MouseSession:
                            scatters_on_traces_size=0.2,
                            without_activity_sum=without_activity_sum,
                            save_formats=["png", "pdf"], dpi=500)
-        raise Exception("NOT TODAY")
+        # raise Exception("NOT TODAY")
+
+    def square_coord_around_cell(self, cell, size_square, x_len_max, y_len_max):
+        """
+        For a given cell, give the coordinates of the square surrounding the cell.
+
+        :param cell:
+        :param size_square:
+        :param x_len_max:
+        :param y_len_max:
+        :return: (x_beg, x_end, y_beg, y_end)
+        """
+        c_x, c_y = self.coord_obj.center_coord[cell]
+        # c_y correspond to
+        c_y = int(c_y)
+        c_x = int(c_x)
+        # print(f"len_x {len_x} len_y {len_y}")
+        # print(f"c_x {c_x} c_y {c_y}")
+        # limit of the new frame, should make a square
+        x_beg_movie = max(0, c_x - (size_square // 2))
+        x_end_movie = min(x_len_max, c_x + (size_square // 2) + 1)
+        # means the cell is near a border
+        if (x_end_movie - x_beg_movie) < (size_square + 1):
+            if (c_x - x_beg_movie) < (x_end_movie - c_x - 1):
+                x_end_movie += ((size_square + 1) - (x_end_movie - x_beg_movie))
+            else:
+                x_beg_movie -= ((size_square + 1) - (x_end_movie - x_beg_movie))
+
+        y_beg_movie = max(0, c_y - (size_square // 2))
+        y_end_movie = min(y_len_max, c_y + (size_square // 2) + 1)
+        if (y_end_movie - y_beg_movie) < (size_square + 1):
+            if (c_y - y_beg_movie) < (y_end_movie - c_y - 1):
+                y_end_movie += ((size_square + 1) - (y_end_movie - y_beg_movie))
+            else:
+                y_beg_movie -= ((size_square + 1) - (y_end_movie - y_beg_movie))
+
+        return x_beg_movie, x_end_movie, y_beg_movie, y_end_movie
+
+    def produce_cell_assemblies_verification(self):
+        """
+        Produce a movie for each sce
+        :return:
+        """
+        self.load_tiff_movie_in_memory()
+        len_x = self.tiff_movie.shape[2]
+        len_y = self.tiff_movie.shape[1]
+        size_square = 80
+        n_times = self.tiff_movie.shape[0]
+
+        produce_movies = False
+        produce_cell_transients_profile = True
+        if produce_movies:
+            # number of frames to display before and after SCE
+            time_around = 10
+            path_results = self.param.path_results
+            # plotting cells map
+            cells_groups = []
+            cells_groups_edge_colors = []
+            cells_groups_alpha = []
+            cells_groups_colors = []
+            cells_groups_alpha.append(0.5)
+            # white, http://doc.instantreality.org/tools/color_calculator/
+            # white: 1, 1, 1
+            # red: 1, 0, 0
+            cells_groups_edge_colors.append((1, 1, 1, 1.0))
+            cells_groups_colors.append((1, 0, 0, 1.0))
+            cells_groups.append(list(self.sce_times_in_cell_assemblies_by_cell.keys()))
+            avg_cell_map_img = np.mean(self.tiff_movie, axis=0)
+            fig = self.coord_obj.plot_cells_map(param=self.param,
+                                                data_id="", show_polygons=False,
+                                                fill_polygons=False,
+                                                 connections_dict=None,
+                                                cells_groups=cells_groups,
+                                                img_on_background=avg_cell_map_img,
+                                                cells_groups_colors=cells_groups_colors,
+                                                cells_groups_edge_colors=cells_groups_edge_colors,
+                                                with_edge=True, cells_groups_alpha=cells_groups_alpha,
+                                                dont_fill_cells_not_in_groups=True,
+                                                with_cell_numbers=True, save_formats=["png", "pdf"],
+                                                save_plot=True, return_fig=False)
+
+            for cell, sce_times_list in self.sce_times_in_cell_assemblies_by_cell.items():
+                x_beg_movie, x_end_movie, y_beg_movie, y_end_movie = \
+                    self.square_coord_around_cell(cell=cell, size_square=size_square,
+                                                  x_len_max=len_x, y_len_max=len_y)
+                for sce_times in sce_times_list:
+                    file_name = os.path.join(path_results, f"ca_{cell}_{sce_times[0]}_{sce_times[1]}.tiff")
+                    first_frame = max(0, sce_times[0]-time_around)
+                    last_frame = min(sce_times[1]+time_around+1, n_times)
+                    with tifffile.TiffWriter(file_name) as tiff_writer:
+                        for frame in np.arange(first_frame, last_frame):
+                            frame_tiff = self.tiff_movie[frame]
+                            tiff_array = frame_tiff[y_beg_movie:y_end_movie,
+                                         x_beg_movie:x_end_movie]
+                            tiff_writer.save(tiff_array, compress=0)
+
+        if produce_cell_transients_profile:
+            c_map = plt.get_cmap('gray')
+            # if key_cmap is not None:
+            #     if key_cmap is "P":
+            #         c_map = self.parula_map
+            #     if key_cmap is "B":
+            #         c_map = plt.get_cmap('Blues')
+            cm_data = [[0.2081, 0.1663, 0.5292], [0.2116238095, 0.1897809524, 0.5776761905],
+                       [0.212252381, 0.2137714286, 0.6269714286], [0.2081, 0.2386, 0.6770857143],
+                       [0.1959047619, 0.2644571429, 0.7279], [0.1707285714, 0.2919380952,
+                                                              0.779247619], [0.1252714286, 0.3242428571, 0.8302714286],
+                       [0.0591333333, 0.3598333333, 0.8683333333], [0.0116952381, 0.3875095238,
+                                                                    0.8819571429],
+                       [0.0059571429, 0.4086142857, 0.8828428571],
+                       [0.0165142857, 0.4266, 0.8786333333], [0.032852381, 0.4430428571,
+                                                              0.8719571429], [0.0498142857, 0.4585714286, 0.8640571429],
+                       [0.0629333333, 0.4736904762, 0.8554380952], [0.0722666667, 0.4886666667,
+                                                                    0.8467], [0.0779428571, 0.5039857143, 0.8383714286],
+                       [0.079347619, 0.5200238095, 0.8311809524], [0.0749428571, 0.5375428571,
+                                                                   0.8262714286],
+                       [0.0640571429, 0.5569857143, 0.8239571429],
+                       [0.0487714286, 0.5772238095, 0.8228285714], [0.0343428571, 0.5965809524,
+                                                                    0.819852381], [0.0265, 0.6137, 0.8135],
+                       [0.0238904762, 0.6286619048,
+                        0.8037619048], [0.0230904762, 0.6417857143, 0.7912666667],
+                       [0.0227714286, 0.6534857143, 0.7767571429], [0.0266619048, 0.6641952381,
+                                                                    0.7607190476],
+                       [0.0383714286, 0.6742714286, 0.743552381],
+                       [0.0589714286, 0.6837571429, 0.7253857143],
+                       [0.0843, 0.6928333333, 0.7061666667], [0.1132952381, 0.7015, 0.6858571429],
+                       [0.1452714286, 0.7097571429, 0.6646285714], [0.1801333333, 0.7176571429,
+                                                                    0.6424333333],
+                       [0.2178285714, 0.7250428571, 0.6192619048],
+                       [0.2586428571, 0.7317142857, 0.5954285714], [0.3021714286, 0.7376047619,
+                                                                    0.5711857143],
+                       [0.3481666667, 0.7424333333, 0.5472666667],
+                       [0.3952571429, 0.7459, 0.5244428571], [0.4420095238, 0.7480809524,
+                                                              0.5033142857], [0.4871238095, 0.7490619048, 0.4839761905],
+                       [0.5300285714, 0.7491142857, 0.4661142857], [0.5708571429, 0.7485190476,
+                                                                    0.4493904762],
+                       [0.609852381, 0.7473142857, 0.4336857143],
+                       [0.6473, 0.7456, 0.4188], [0.6834190476, 0.7434761905, 0.4044333333],
+                       [0.7184095238, 0.7411333333, 0.3904761905],
+                       [0.7524857143, 0.7384, 0.3768142857], [0.7858428571, 0.7355666667,
+                                                              0.3632714286], [0.8185047619, 0.7327333333, 0.3497904762],
+                       [0.8506571429, 0.7299, 0.3360285714], [0.8824333333, 0.7274333333, 0.3217],
+                       [0.9139333333, 0.7257857143, 0.3062761905], [0.9449571429, 0.7261142857,
+                                                                    0.2886428571],
+                       [0.9738952381, 0.7313952381, 0.266647619],
+                       [0.9937714286, 0.7454571429, 0.240347619], [0.9990428571, 0.7653142857,
+                                                                   0.2164142857],
+                       [0.9955333333, 0.7860571429, 0.196652381],
+                       [0.988, 0.8066, 0.1793666667], [0.9788571429, 0.8271428571, 0.1633142857],
+                       [0.9697, 0.8481380952, 0.147452381], [0.9625857143, 0.8705142857, 0.1309],
+                       [0.9588714286, 0.8949, 0.1132428571], [0.9598238095, 0.9218333333,
+                                                              0.0948380952], [0.9661, 0.9514428571, 0.0755333333],
+                       [0.9763, 0.9831, 0.0538]]
+
+            parula_map = LinearSegmentedColormap.from_list('parula', cm_data)
+            c_map = parula_map
+            all_correlations = []
+            for cell, sce_times_list in self.sce_times_in_cell_assemblies_by_cell.items():
+                sources_profile_fig = plt.figure(figsize=(20, 20),
+                                                 subplotpars=SubplotParams(hspace=0, wspace=0))
+                fig_patch = sources_profile_fig.patch
+                rgba = c_map(0)
+                fig_patch.set_facecolor(rgba)
+
+                # now adding as many suplots as needed, depending on how many transients has the cell
+                n_profiles = len(sce_times_list) + 1
+                n_profiles_by_row = 4
+                n_columns = n_profiles_by_row
+                width_ratios = [100 // n_columns] * n_columns
+                n_lines = (((n_profiles - 1) // n_columns) + 1) * 2
+                height_ratios = [100 // n_lines] * n_lines
+                grid_spec = gridspec.GridSpec(n_lines, n_columns, width_ratios=width_ratios,
+                                              height_ratios=height_ratios,
+                                              figure=sources_profile_fig, wspace=0, hspace=0)
+                profiles_to_display = []
+                correlations = []
+                source_profile, minx, miny, mask_source_profile = \
+                    self.coord_obj.get_source_profile(tiff_movie=self.tiff_movie, traces=self.raw_traces,
+                                                      peak_nums=self.spike_struct.peak_nums,
+                                                      spike_nums=self.spike_struct.spike_nums,
+                                                      cell=cell,
+                                                      pixels_around=1,
+                                                      bounds=None)
+                # normalizing
+                source_profile = source_profile - np.mean(source_profile)
+                profiles_to_display.append(source_profile)
+                # we want the mask to be at ones over the cell
+                mask_source_profile = (1 - mask_source_profile).astype(bool)
+
+                xy_source = self.coord_obj.get_cell_new_coord_in_source(cell=cell,
+                                                                        minx=minx, miny=miny)
+                for sce_times in sce_times_list:
+                    sce_times[0] = max(0, sce_times[0]-2)
+                    sce_times[1] = min(n_times, sce_times[1] + 2)
+                    transient_profile, minx, miny = self.coord_obj.get_transient_profile(cell=cell, transient=sce_times,
+                                                         tiff_movie=self.tiff_movie,
+                                                         traces=self.raw_traces,
+                                                         pixels_around=1, bounds=None)
+
+                    transient_profile = transient_profile - np.mean(transient_profile)
+                    profiles_to_display.append(transient_profile)
+                    pearson_corr, pearson_p_value = stats.pearsonr(source_profile[mask_source_profile],
+                                                                   transient_profile[mask_source_profile])
+                    correlations.append(pearson_corr)
+                if np.NaN not in correlations:
+                    all_correlations.extend(correlations)
+                for index_profile, profile_to_display in enumerate(profiles_to_display):
+                    line_gs = (index_profile // n_columns) * 2
+                    col_gs = index_profile % n_columns
+
+                    ax = sources_profile_fig.add_subplot(grid_spec[line_gs, col_gs])
+                    # ax_source_profile_by_cell[cell_to_display].set_facecolor("black")
+                    ax.set_xticklabels([])
+                    ax.set_yticklabels([])
+                    ax.get_yaxis().set_visible(False)
+                    ax.get_xaxis().set_visible(False)
+                    ax.set_frame_on(False)
+
+                    img_src_profile = ax.imshow(profile_to_display, cmap=c_map)
+
+                    lw = 0.2
+                    contour_cell = patches.Polygon(xy=xy_source,
+                                                   fill=False,
+                                                   edgecolor="red",
+                                                   zorder=15, lw=lw)
+                    ax.add_patch(contour_cell)
+                    if index_profile > 0:
+                        ax.text(x=0.5, y=0.5, s=f"{np.round(correlations[index_profile-1], 2)}",
+                                color="red", zorder=20,
+                                ha='center', va="center", fontsize=12,
+                                fontweight='bold')
+
+                save_formats = ["pdf"]
+                file_name = f"source_transient_profiles_{cell}"
+                for save_format in save_formats:
+                    sources_profile_fig.savefig(f'{self.param.path_results}/'
+                                                f'{self.description}_{file_name}'
+                                                f'.{save_format}',
+                                                format=f"{save_format}",
+                                                facecolor=sources_profile_fig.get_facecolor(), edgecolor='none')
+                plt.close()
+
+            plot_box_plots(data_dict={"": all_correlations}, title="",
+                         filename=f"{self.description}_source_transient_profiles_{len(all_correlations)}correlations_in_cell_assemblies",
+                         y_label=f"correlation", y_log=False,
+                         x_labels_rotation=45,
+                         colors="cornflowerblue", with_scatters=True,
+                         path_results=self.param.path_results, scatter_size=80,
+                         param=self.param, save_formats="pdf")
 
     def plot_raster_with_cells_assemblies_and_shifts(self, only_cell_assemblies=False):
         if self.sce_times_in_cell_assemblies is None:

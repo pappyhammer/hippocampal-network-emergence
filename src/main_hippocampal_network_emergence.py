@@ -6062,6 +6062,8 @@ def main():
 
     just_merge_coords_map = False
 
+    just_produce_cell_assemblies_verification = True
+
     just_plot_raster_with_same_sum_activity_lim = False
     just_plot_raster = False
     just_plot_traces_with_shifts = False
@@ -6107,7 +6109,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = True
+    do_clustering = False
     do_detect_sce_on_traces = True
     do_detect_sce_based_on_peaks_finder = False
     use_hdbscan = False
@@ -6216,7 +6218,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(3, 6)
+    range_n_clusters_k_mean = np.arange(5, 6)
     # range_n_clusters_k_mean = np.array([7])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
@@ -6988,7 +6990,13 @@ def main():
         if just_plot_raster_with_cells_assemblies_and_shifts:
             ms.plot_raster_with_cells_assemblies_and_shifts(only_cell_assemblies=False)
             if ms_index == len(ms_to_analyse) - 1:
-                raise Exception("momo")
+                raise Exception("just_plot_raster_with_cells_assemblies_and_shifts")
+            continue
+
+        if just_produce_cell_assemblies_verification:
+            ms.produce_cell_assemblies_verification()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_produce_cell_assemblies_verification")
             continue
 
         if just_plot_traces_raster:

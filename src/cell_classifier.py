@@ -957,3 +957,6 @@ def train_model():
         #     predict_value = str(round(predict_value, 2))
         #     print(f"{i}: {test_img_descr[i]}: {predict_value} / {test_labels[i]}")
         # print(f"test_acc {test_acc}")
+
+if __name__ == '__main__':
+    train_model()

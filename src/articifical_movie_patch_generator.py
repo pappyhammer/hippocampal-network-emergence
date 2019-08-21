@@ -1599,3 +1599,6 @@ def main():
         coords_matlab_style[i] = map_coords[i]
     sio.savemat(os.path.join(param.path_results, "map_coords.mat"), {"coord_python": coords_matlab_style})
 
+
+if __name__ == '__main__':
+    main()

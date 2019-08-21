@@ -1670,10 +1670,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         #                                            "p60/p60_a529_2015_02_25/a529_2015_02_25_RasterDur.mat",
         #                                            variables_mapping=variables_mapping)
 
-        variables_mapping = {"raw_traces": "raw_traces"}
-        p60_a529_2015_02_25_ms.load_data_from_file(file_name_to_load=
-                                                   "p60/p60_a529_2015_02_25/MotCorre_529_15_02_25_raw_Traces.mat",
-                                                   variables_mapping=variables_mapping)
+        # variables_mapping = {"raw_traces": "raw_traces"}
+        # p60_a529_2015_02_25_ms.load_data_from_file(file_name_to_load=
+        #                                            "p60/p60_a529_2015_02_25/MotCorre_529_15_02_25_raw_Traces.mat",
+        #                                            variables_mapping=variables_mapping)
 
         variables_mapping = {"coord": "ContoursAll"}
         p60_a529_2015_02_25_ms.load_data_from_file(

@@ -22,7 +22,7 @@ import matplotlib.cm as cm
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 # from PIL import ImageTk, Image
 import math
-import matplotlib.gridspec as gridspec
+# import matplotlib.gridspec as gridspec
 # import matplotlib.image as mpimg
 from mouse_session_loader import load_mouse_sessions
 import pattern_discovery.tools.param as p_disc_tools_param
