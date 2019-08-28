@@ -44,6 +44,7 @@ from pattern_discovery.tools.signal import smooth_convolve
 from tensorflow.python.client import device_lib
 from alt_model_checkpoint import AltModelCheckpoint
 from keras_radam import RAdam
+from ScanImageTiffReader import ScanImageTiffReader
 
 device_lib.list_local_devices()
 
@@ -3563,17 +3564,24 @@ def create_tiffs_for_data_generator(ms_to_use, param, path_for_tiffs):
             continue
 
         print(f"{ms.description}")
-        start_time = time.time()
-        im = PIL.Image.open(ms.tif_movie_file_name)
-        n_frames = len(list(ImageSequence.Iterator(im)))
-        dim_x, dim_y = np.array(im).shape
-        print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
-        tiff_movie = np.zeros((n_frames, dim_x, dim_y), dtype="uint16")
-        for frame, page in enumerate(ImageSequence.Iterator(im)):
-            tiff_movie[frame] = np.array(page)
-        stop_time = time.time()
-        print(f"Time for loading movie: "
-              f"{np.round(stop_time - start_time, 3)} s")
+        try:
+            start_time = time.time()
+            tiff_movie = ScanImageTiffReader(ms.tif_movie_file_name).data()
+            stop_time = time.time()
+            print(f"Time for loading movie with scan_image_tiff: "
+                  f"{np.round(stop_time - start_time, 3)} s")
+        except Exception as e:
+            start_time = time.time()
+            im = PIL.Image.open(ms.tif_movie_file_name)
+            n_frames = len(list(ImageSequence.Iterator(im)))
+            dim_x, dim_y = np.array(im).shape
+            print(f"n_frames {n_frames}, dim_x {dim_x}, dim_y {dim_y}")
+            tiff_movie = np.zeros((n_frames, dim_x, dim_y), dtype="uint16")
+            for frame, page in enumerate(ImageSequence.Iterator(im)):
+                tiff_movie[frame] = np.array(page)
+            stop_time = time.time()
+            print(f"Time for loading movie: "
+                  f"{np.round(stop_time - start_time, 3)} s")
 
         ms_path = os.path.join(path_for_tiffs, ms.description.lower())
         os.mkdir(ms_path)

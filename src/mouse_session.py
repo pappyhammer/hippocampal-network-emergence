@@ -5495,7 +5495,7 @@ class MouseSession:
                         print(f"{self.description}: filtered_version_loaded")
                         filtered_version_loaded = True
                         break
-
+        predictions = None
         if path_name is not None:
             data = None
             # loading predictions
@@ -5511,6 +5511,10 @@ class MouseSession:
                     if (prediction_key in file_name) and ("filtered_predicted_raster_dur" not in file_name) \
                             and (file_name.endswith(".mat")):
                         data = hdf5storage.loadmat(os.path.join(self.param.path_data,
+                                                                path_name, file_name))
+                    elif (prediction_key in file_name) and ("filtered_predicted_raster_dur" not in file_name) \
+                            and (file_name.endswith(".npy")):
+                        predictions = np.load(os.path.join(self.param.path_data,
                                                                 path_name, file_name))
             if data is None:
                 print(f"load_raster_dur_from_predictions no file_name with {prediction_key} found in "
@@ -5529,8 +5533,10 @@ class MouseSession:
                 raise Exception(f"{self.description}, load_raster_dur_from_predictions: movie could not be loaded")
             self.normalize_movie()
 
-        if "predictions" in variables_mapping:
-            predictions = data[variables_mapping["predictions"]]
+        if (predictions is not None) or ("predictions" in variables_mapping):
+            # predictions might already be loaded if we use a npy file
+            if predictions is not None:
+                predictions = data[variables_mapping["predictions"]]
             self.rnn_transients_predictions = predictions
             if not filtered_version_loaded:
                 # then we produce the raster dur based on the predictions using threshold the prediction_threshold
