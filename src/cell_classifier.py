@@ -414,7 +414,17 @@ def load_data(ms_to_use, param, split_values=(0.5, 0.3), buffer=2,
         cells_count += n_cells
 
     print(f"total_n_cells {total_n_cells}")
-    print(f"full_labels {len(np.where(full_labels)[0])}")
+    print(f"full_labels {len(full_labels)}")
+    print(f"full_labels true cells {len(np.where(full_labels)[0])}")
+
+    path_to_save_data = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
+    # np.save(path_to_save_data + "cell_classifier_data.npy",
+    #          full_data)
+    # np.save(path_to_save_data + "cell_classifier_data_masked.npy",
+    #         full_data_masked)
+    np.save(path_to_save_data + "cell_classifier_labels.npy",
+            full_labels)
+    # raise Exception("TOTO")
 
     # 0.3 of the data will be for the test, the rest for training
     # train_data, test_data, train_labels, test_labels = train_test_split(full_data, full_labels, train_size=.7)
@@ -692,7 +702,6 @@ def plot_training_and_validation_values(history, key_name, n_epochs, result_path
     plt.close()
 
 
-
 def sensitivity(y_true, y_pred):
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
     possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
@@ -754,7 +763,7 @@ def train_model():
     # "p7_171012_a000-p9_18_09_27_a003-p12-p12_171110_a000_ms_buffer_1"
     # "p9_18_09_27_a003_ms",
     data_set, data_masked_set, labels_set, test_img_descr, cells_shuffling \
-        = load_data(["p7_171012_a000_ms", "p12_171110_a000_ms"], param=param, buffer=1,
+        = load_data(["p7_171012_a000_ms", "p12_171110_a000_ms", "p9_18_09_27_a003_ms"], param=param, buffer=1,
                     split_values=(0.7, 0.2), with_shuffling=False, with_data_augmentation=True)
     (train_images, valid_images, test_images) = data_set
     (train_images_masked, valid_images_masked, test_images_masked) = data_masked_set

@@ -5515,8 +5515,12 @@ class MouseSession:
                     elif (prediction_key in file_name) and ("filtered_predicted_raster_dur" not in file_name) \
                             and (file_name.endswith(".npy")):
                         predictions = np.load(os.path.join(self.param.path_data,
-                                                                path_name, file_name))
-            if data is None:
+                                                                path_name, file_name), allow_pickle=True)
+                    elif (prediction_key in file_name) and ("filtered_predicted_raster_dur" not in file_name) \
+                            and (file_name.endswith(".npz")):
+                        data = np.load(os.path.join(self.param.path_data,
+                                                                path_name, file_name), allow_pickle=True)
+            if (data is None) and (predictions is None):
                 print(f"load_raster_dur_from_predictions no file_name with {prediction_key} found in "
                       f"{os.path.join(self.param.path_data, path_name)}")
                 return
@@ -5535,7 +5539,7 @@ class MouseSession:
 
         if (predictions is not None) or ("predictions" in variables_mapping):
             # predictions might already be loaded if we use a npy file
-            if predictions is not None:
+            if predictions is None:
                 predictions = data[variables_mapping["predictions"]]
             self.rnn_transients_predictions = predictions
             if not filtered_version_loaded:
