@@ -259,7 +259,7 @@ class BenchmarkRasterDur:
         stat_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
         axes = np.ndarray.flatten(axes)
         fig_patch = stat_fig.patch
-        black_and_white_skin = True
+        black_and_white_skin = False
         # rgba = c_map(0)
         if black_and_white_skin:
             face_color = "white"
@@ -301,7 +301,7 @@ class BenchmarkRasterDur:
                         if black_and_white_skin:
                             edgecolors = "black"
                         else:
-                            edgecolors = "21"
+                            edgecolors = "white"
                         ax.scatter(x_pos, y_pos,
                                     color=colors[label_index%len(colors)],
                                     marker="o",
@@ -342,7 +342,7 @@ class BenchmarkRasterDur:
             if n_box_plots <= 2:
                 ax.xaxis.set_tick_params(labelsize=15)
             elif n_box_plots <= 6:
-                ax.xaxis.set_tick_params(labelsize=10)
+                ax.xaxis.set_tick_params(labelsize=9)
             else:
                 ax.xaxis.set_tick_params(labelsize=3)
             ax.yaxis.label.set_color(text_color)
@@ -358,14 +358,14 @@ class BenchmarkRasterDur:
             # sce clusters labels
             ax.set_xticklabels(labels)
             # fixing the limits
-            if stat_name == "sensitivity":
-                ax.set_ylim(0, 1.1)
-            elif stat_name == "specificity":
-                ax.set_ylim(0.85, 1)
-            elif stat_name == "PPV":
-                ax.set_ylim(0, 1.1)
-            elif stat_name == "NPV":
-                ax.set_ylim(0.6, 1.1)
+            # if stat_name == "sensitivity":
+            #     ax.set_ylim(0, 1.1)
+            # elif stat_name == "specificity":
+            #     ax.set_ylim(0.85, 1)
+            # elif stat_name == "PPV":
+            #     ax.set_ylim(0, 1.1)
+            # elif stat_name == "NPV":
+            #     ax.set_ylim(0.6, 1.1)
 
             ax.set_title(stat_name, color=title_color, pad=20, fontsize=20)
 
@@ -848,17 +848,17 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["suite2p"]["caiman_suite2p_mapping"] = "P12_17_11_10_a000_suite2p_vs_caiman.npy"
         # data_dict["suite2p"]["threshold"] = 120  # 50
         # #
-        # data_dict["MP"] = dict()
-        # data_dict["MP"]["path"] = "p12/p12_17_11_10_a000/"
-        # data_dict["MP"]["gui_file"] = "p12_17_11_10_a000_GUI_JDMP.mat"
-        #
-        # data_dict["RD"] = dict()
-        # data_dict["RD"]["path"] = "p12/p12_17_11_10_a000/"
-        # data_dict["RD"]["gui_file"] = "p12_17_11_10_a000_GUI_transientsRD_2.mat"
-        #
-        # data_dict["JD"] = dict()
-        # data_dict["JD"]["path"] = "p12/p12_17_11_10_a000/"
-        # data_dict["JD"]["gui_file"] = "p12_17_11_10_a000_GUI_JD.mat"
+        data_dict["MP"] = dict()
+        data_dict["MP"]["path"] = "p12/p12_17_11_10_a000/"
+        data_dict["MP"]["gui_file"] = "p12_17_11_10_a000_GUI_JDMP.mat"
+
+        data_dict["RD"] = dict()
+        data_dict["RD"]["path"] = "p12/p12_17_11_10_a000/"
+        data_dict["RD"]["gui_file"] = "p12_17_11_10_a000_GUI_transientsRD_2.mat"
+
+        data_dict["JD"] = dict()
+        data_dict["JD"]["path"] = "p12/p12_17_11_10_a000/"
+        data_dict["JD"]["gui_file"] = "p12_17_11_10_a000_GUI_JD.mat"
 
         # data_dict["caiman_filt"] = dict()
         # data_dict["caiman_filt"]["path"] = "p12/p12_17_11_10_a000"
@@ -871,7 +871,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["gt"]["path"] = "p6/p6_19_02_18_a000"
         # single expert labeling
         data_dict["gt"]["gui_file"] = "p6_19_02_18_a000_ground_truth_cell_0_1_2_3.mat"
-        data_dict["gt"]["cells"] = np.array([0, 1, 2, 3]) # 3 not seen by the network
+        data_dict["gt"]["cells"] = np.array([3]) # np.array([0, 1, 2, 3]) # 3 not seen by the network
         # data_dict["gt"]["cells"] = np.array([3])
         data_dict["gt"]["trace_file_name"] = "p6_19_02_18_a000_raw_traces.npy"
         data_dict["gt"]["trace_var_name"] = "raw_traces"
@@ -886,21 +886,21 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["caiman"]["trace_file_name"] = "caiman_matlab/p6_19_02_18_a000_Traces.mat"
         data_dict["caiman"]["trace_var_name"] = "C_df"
 
-        # data_dict["MP"] = dict()
-        # data_dict["MP"]["path"] = "p6/p6_19_02_18_a000/"
-        # data_dict["MP"]["gui_file"] = "p6_19_02_18_a000_Transient MP.mat"
-        #
-        # data_dict["EQ"] = dict()
-        # data_dict["EQ"]["path"] = "p6/p6_19_02_18_a000/"
-        # data_dict["EQ"]["gui_file"] = "p6_19_02_18_a000_ground_truth_ele.mat"
-        #
-        # data_dict["RD"] = dict()
-        # data_dict["RD"]["path"] = "p6/p6_19_02_18_a000/"
-        # data_dict["RD"]["gui_file"] = "p6_19_02_18_a000_Transients_selection_RD.mat"
-        #
-        # data_dict["JD"] = dict()
-        # data_dict["JD"]["path"] = "p6/p6_19_02_18_a000/"
-        # data_dict["JD"]["gui_file"] = "p6_19_02_18_a000_ground_truth_JD.mat"
+        data_dict["MP"] = dict()
+        data_dict["MP"]["path"] = "p6/p6_19_02_18_a000/"
+        data_dict["MP"]["gui_file"] = "p6_19_02_18_a000_Transient MP.mat"
+
+        data_dict["EQ"] = dict()
+        data_dict["EQ"]["path"] = "p6/p6_19_02_18_a000/"
+        data_dict["EQ"]["gui_file"] = "p6_19_02_18_a000_ground_truth_ele.mat"
+
+        data_dict["RD"] = dict()
+        data_dict["RD"]["path"] = "p6/p6_19_02_18_a000/"
+        data_dict["RD"]["gui_file"] = "p6_19_02_18_a000_Transients_selection_RD.mat"
+
+        data_dict["JD"] = dict()
+        data_dict["JD"]["path"] = "p6/p6_19_02_18_a000/"
+        data_dict["JD"]["gui_file"] = "p6_19_02_18_a000_ground_truth_JD.mat"
 
     elif ms_to_benchmark == "p11_19_04_30_a001_ms":
         data_dict["gt"] = dict()
@@ -985,13 +985,13 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["suite2p"]["caiman_suite2p_mapping"] = "P11_17_11_24_a000_suite2p_vs_caiman.npy"
         # data_dict["suite2p"]["threshold"] = 100 # best compromise for transients, for better sensibility try 70
         #
-        # data_dict["RD"] = dict()
-        # data_dict["RD"]["path"] = "p11/p11_17_11_24_a000/"
-        # data_dict["RD"]["gui_file"] = "p11_17_11_24_a000_GUI_transientsRD.mat"
-        #
-        # data_dict["JD"] = dict()
-        # data_dict["JD"]["path"] = "p11/p11_17_11_24_a000/"
-        # data_dict["JD"]["gui_file"] = "p11_17_11_24_a000_transients_GUI_JD.mat"
+        data_dict["RD"] = dict()
+        data_dict["RD"]["path"] = "p11/p11_17_11_24_a000/"
+        data_dict["RD"]["gui_file"] = "p11_17_11_24_a000_GUI_transientsRD.mat"
+
+        data_dict["JD"] = dict()
+        data_dict["JD"]["path"] = "p11/p11_17_11_24_a000/"
+        data_dict["JD"]["gui_file"] = "p11_17_11_24_a000_transients_GUI_JD.mat"
 
     elif ms_to_benchmark == "artificial_ms":
         data_dict["gt"] = dict()
@@ -1035,15 +1035,16 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # gt as ground_truth
         data_dict["gt"] = dict()
         data_dict["gt"]["path"] = "p7/p7_17_10_12_a000"
-        data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_fusion_validation.mat"
-        # data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_GUI_transients_RD.mat"
+        # data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_fusion_validation.mat"
+        # if 117 cells:
+        data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_GUI_transients_RD.mat"
 
         data_dict["gt"]["trace_file_name"] = "p7_17_10_12_a000_Traces.mat"
         data_dict["gt"]["trace_var_name"] = "C_df"
         # data_dict["gt"]["gt_file"] = "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt"
         # data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P7_17_10_12_a000.txt"
         # data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.array([2, 25]) # np.array([2, 3, 8, 11, 12, 14, 17, 18, 24, 25])  #  np.arange(117)
+        data_dict["gt"]["cells"] = np.arange(117) # np.array([2, 25]) # np.array([2, 3, 8, 11, 12, 14, 17, 18, 24, 25])  #  np.arange(117)
         # data_dict["gt"]["cells_to_remove"] = np.array([52, 75])
 
         data_dict["caiman"] = dict()
@@ -1094,18 +1095,18 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["caiman"]["trace_file_name"] = "p8_18_10_24_a005_Traces.mat"
         data_dict["caiman"]["trace_var_name"] = "C_df"
 
-        # data_dict["RD"] = dict()
-        # data_dict["RD"]["path"] = "p8/p8_18_10_24_a005"
-        # data_dict["RD"]["gui_file"] = "p8_18_10_24_a005_GUI_transientsRD.mat"
-        #
-        # data_dict["JD"] = dict()
-        # data_dict["JD"]["path"] = "p8/p8_18_10_24_a005"
-        # data_dict["JD"]["gui_file"] = "p8_18_10_24_a005_GUI_transientsJD.mat"
-        #
-        # data_dict["MP"] = dict()
-        # data_dict["MP"]["path"] = "p8/p8_18_10_24_a005"
-        # data_dict["MP"]["gui_file"] = "p8_18_10_24_a005_GUI_Transiant MP.mat"
-        # data_dict["MP"]["cells_not_predicted"] = np.array([28, 41, 42, 110, 207, 321])
+        data_dict["RD"] = dict()
+        data_dict["RD"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["RD"]["gui_file"] = "p8_18_10_24_a005_GUI_transientsRD.mat"
+
+        data_dict["JD"] = dict()
+        data_dict["JD"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["JD"]["gui_file"] = "p8_18_10_24_a005_GUI_transientsJD.mat"
+
+        data_dict["MP"] = dict()
+        data_dict["MP"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["MP"]["gui_file"] = "p8_18_10_24_a005_GUI_Transiant MP.mat"
+        data_dict["MP"]["cells_not_predicted"] = np.array([28, 41, 42, 110, 207, 321])
         #
         # data_dict["suite2p"] = dict()
         # data_dict["suite2p"]["path"] = "p8/p8_18_10_24_a005/suite2p/"
@@ -1150,18 +1151,18 @@ def main_benchmark():
     # ms_to_benchmarks = ["p13_18_10_29_a001_ms"]
     # ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
     #                     "p12_17_11_10_a000", "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"]
-    ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-                        "p11_17_11_24_a000_ms", "p12_17_11_10_a000"]
+    # ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+    #                     "p11_17_11_24_a000_ms", "p12_17_11_10_a000"]
     # ms_to_benchmarks = ["p7_17_10_12_a000"]
     # ms_to_benchmarks = ["p11_17_11_24_a000_ms"]
     # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
     # gad-cre + oriens
     # ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p8_18_10_24_a006_ms",
     #                     "p11_19_04_30_a001_ms"]
-    ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
+    # ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
     # gad-cre
     # ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
-    # ms_to_benchmarks = ["p6_19_02_18_a000_ms"]
+    ms_to_benchmarks = ["p6_19_02_18_a000_ms"]
     do_onsets_benchmarks = False
     do_plot_roc_predictions = False
     produce_separate_benchmarks = True
@@ -1170,17 +1171,18 @@ def main_benchmark():
     global_benchmarks = None
     description = ""
     boost_predictions = False
-    predictions_threshold = 0.7
+    predictions_threshold = 0.5
 
     # predictions_to_load = ["epoch_11", "meso_2", "meso_3", "meso_4", "meso_8", "meso_6", "meso_7", "meso_8", "meso_9",
     #                        "meso_10", "meso_11", "meso_12", "meso_13", "meso_14"]
     predictions_to_load = ["meso_9", "v2_epoch_8", "v2_epoch_12", "v2_epoch_14",
                            "v2_epoch_17", "v2_epoch_19"]
+    predictions_to_load = ["meso_9", "v2_epoch_19"]
     # gad-cre
-    predictions_to_load = ["meso_9", "cre_v1_epoch_10", "cre_v1_epoch_15", "cre_v1_epoch_19",
-                           "cre_v1_epoch_22", "cre_v1_epoch_23"]
-    # predictions_to_load = ["meso_9"]
-    predictions_to_load = []
+    # predictions_to_load = ["meso_9", "cre_v1_epoch_10", "cre_v1_epoch_15", "cre_v1_epoch_19",
+    #                        "cre_v1_epoch_22", "cre_v1_epoch_23"]
+    predictions_to_load = ["v1_epoch_15"]
+    # predictions_to_load = []
     for ms_to_benchmark in ms_to_benchmarks:
         print(f"ms_to_benchmark {ms_to_benchmark}")
         data_dict = dict()
