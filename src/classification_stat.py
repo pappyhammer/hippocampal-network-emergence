@@ -3,7 +3,7 @@ from pattern_discovery.tools.misc import get_continous_time_periods
 import scipy.signal as signal
 
 
-def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, with_threshold=None):
+def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, gt_predictions, with_threshold=None):
     """
     Compute the stats based on raster dur
     :param spike_nums_dur: should not be "uint" dtype
@@ -40,6 +40,8 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, with_thresho
         # we transform them in a 2 dimensions array
         spike_nums_dur = spike_nums_dur.reshape(1, spike_nums_dur.shape[0])
         predicted_spike_nums_dur = predicted_spike_nums_dur.reshape(1, predicted_spike_nums_dur.shape[0])
+        if gt_predictions is not None:
+            gt_predictions = gt_predictions.reshape(1, gt_predictions.shape[0])
         if traces is not None:
             traces = traces.reshape(1, traces.shape[0])
 
@@ -68,10 +70,24 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, with_thresho
     fp_transients = 0
     tn_transients = 0
 
+    # will keep values of the predictions of the FN and FP transients and frames
+    # for transients will take median predicted value over the transient
+    fn_transients_predictions = []
+    fp_transients_predictions = []
+    tp_transients_predictions = []
+    tn_transients_predictions = []
+    fn_frames_predictions = []
+    fp_frames_predictions = []
+    tn_frames_predictions = []
+    tp_frames_predictions = []
+
     for cell in np.arange(n_cells):
         raster_dur = spike_nums_dur[cell]
         predicted_raster_dur = predicted_spike_nums_dur[cell]
-
+        if gt_predictions is not None:
+            gt_predictions_for_cell = gt_predictions[cell]
+        else:
+            gt_predictions_for_cell = None
         predicted_positive_frames = np.where(predicted_raster_dur)[0]
         predicted_negative_frames = np.where(predicted_raster_dur == 0)[0]
 
@@ -79,6 +95,16 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, with_thresho
         fp_frames += len(np.where(raster_dur[predicted_positive_frames] == 0)[0])
         fn_frames += len(np.where(raster_dur[predicted_negative_frames] == 1)[0])
         tn_frames += len(np.where(raster_dur[predicted_negative_frames] == 0)[0])
+
+        if gt_predictions is not None:
+            fp_frames_indices = np.where(raster_dur[gt_predictions_for_cell >= 0.5] == 0)[0]
+            fn_frames_indices = np.where(raster_dur[gt_predictions_for_cell < 0.5] == 1)[0]
+            tp_frames_indices = np.where(raster_dur[gt_predictions_for_cell >= 0.5] == 1)[0]
+            tn_frames_indices = np.where(raster_dur[gt_predictions_for_cell < 0.5] == 0)[0]
+            fp_frames_predictions.extend(list(gt_predictions_for_cell[fp_frames_indices]))
+            fn_frames_predictions.extend(list(gt_predictions_for_cell[fn_frames_indices]))
+            tp_frames_predictions.extend(list(gt_predictions_for_cell[tp_frames_indices]))
+            tn_frames_predictions.extend(list(gt_predictions_for_cell[tn_frames_indices]))
 
         n_fake_transients = 0
         # transients section
@@ -89,8 +115,10 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, with_thresho
             # keeping only the fake ones
             for transient_period in full_transient_periods:
                 if np.sum(raster_dur[transient_period[0]:transient_period[1]+1]) > 0:
+                    # it means it's a real transient
                     continue
                 fake_transients_periods.append(transient_period)
+
             n_fake_transients = len(fake_transients_periods)
         # positive condition
         n_transients = len(transient_periods)
@@ -99,12 +127,29 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, with_thresho
             frames = np.arange(transient_period[0], transient_period[1] + 1)
             if np.sum(predicted_raster_dur[frames]) > 0:
                 tp += 1
+            if gt_predictions is not None:
+                if np.max(gt_predictions_for_cell[frames]) >= 0.5:
+                    # adding the median of the predicted frames in the transient
+                    tp_transients_predictions.append(np.max(gt_predictions_for_cell[frames]))
+                else:
+                    # then if's a FN
+                    fn_transients_predictions.append(np.max(gt_predictions_for_cell[frames]))
         tn = 0
         if full_raster_dur is not None:
             for transient_period in fake_transients_periods:
                 frames = np.arange(transient_period[0], transient_period[1] + 1)
                 if np.sum(predicted_raster_dur[frames]) == 0:
                     tn += 1
+                if gt_predictions is not None:
+                    if np.max(gt_predictions_for_cell[frames]) < 0.5:
+                        # adding the max of the predicted frames in the transient
+                        # by max we know how far we are from 0.5
+                        tn_transients_predictions.append(np.max(gt_predictions_for_cell[frames]))
+                    else:
+                        # then if's a FP
+                        # taking the max because we want to see how far are we from 0.5
+                        fp_transients_predictions.append(np.max(gt_predictions_for_cell[frames]))
+
         tp_transients += tp
         fn_transients += (n_transients - tp)
         tn_transients += tn
@@ -202,7 +247,17 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, with_thresho
 
     transients_stat["FNR"] = 1 - transients_stat["TPR"]
 
-    return frames_stat, transients_stat
+    predictions_stat = dict()
+    predictions_stat["fn_transients_predictions"] = fn_transients_predictions
+    predictions_stat["fp_transients_predictions"] = fp_transients_predictions
+    predictions_stat["tp_transients_predictions"] = tp_transients_predictions
+    predictions_stat["tn_transients_predictions"] = tn_transients_predictions
+    predictions_stat["fn_frames_predictions"] = fn_frames_predictions
+    predictions_stat["fp_frames_predictions"] = fp_frames_predictions
+    predictions_stat["tn_frames_predictions"] = tn_frames_predictions
+    predictions_stat["tp_frames_predictions"] = tp_frames_predictions
+
+    return frames_stat, transients_stat, predictions_stat
 
 
 def get_raster_dur_from_traces(traces, with_threshold=None):
