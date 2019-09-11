@@ -634,7 +634,17 @@ scleromalacie/ dellen post pterygion / plaie cornee / 37 -> reouverture plaie/ c
             self.clean_column_with_reg_exp(column_name=column_name, map_dict=dict_list[0],
                                            pattern_dict=dict_list[1])
 
-    def get_duration_bw_first_grafts(self, df):
+    def get_duration_bw_grafts(self, df, first_graft, second_graft):
+        """
+        Get duration in days between 2 graft.
+        Args:
+            df:
+            first_graft: Index representing the first graft to compare (like 2 for the third graft)
+            second_graft:Index representing the second graft to compare with the first (like 4 for the fifth graft)
+
+        Returns:
+
+        """
         graft_dates_list = []
         for index, value in enumerate(df.loc[:, "date_greffe"]):
             date_time = datetime.strptime(value, '%d/%m/%Y')
@@ -642,7 +652,7 @@ scleromalacie/ dellen post pterygion / plaie cornee / 37 -> reouverture plaie/ c
             # self.df_clean.at[index, "date_greffe"] = date_time.year
         graft_dates_list.sort()
         # number of days of difference between the 2 first grafts
-        delta = graft_dates_list[1] - graft_dates_list[0]
+        delta = graft_dates_list[second_graft] - graft_dates_list[first_graft]
         return delta.days
 
     def produce_stats(self, file_name):
@@ -790,6 +800,7 @@ scleromalacie/ dellen post pterygion / plaie cornee / 37 -> reouverture plaie/ c
             # key represent the number of grafts, value the number of patients with this number of grafts
             patients_count = SortedDict()
             durations_bw_1_st_2nd_graft_in_days = []
+            durations_bw_2_nd_3rd_graft_in_days= []
             for index, value in enumerate(self.df_clean.loc[:, "nom"]):
                 if index in indices_found:
                     # patients already counted
@@ -803,7 +814,11 @@ scleromalacie/ dellen post pterygion / plaie cornee / 37 -> reouverture plaie/ c
                                                      (self.df_clean['date_naissance'] == birth_date)]
                 patients_indices = df_filter.index
                 if len(patients_indices) > 1:
-                    durations_bw_1_st_2nd_graft_in_days.append(self.get_duration_bw_first_grafts(df_filter))
+                    durations_bw_1_st_2nd_graft_in_days.append(self.get_duration_bw_grafts(df_filter, first_graft=0,
+                                                                                           second_graft=1))
+                if len(patients_indices) > 2:
+                    durations_bw_2_nd_3rd_graft_in_days.append(self.get_duration_bw_grafts(df_filter, first_graft=1,
+                                                                                           second_graft=2))
 
                 n_grafts = len(patients_indices)
                 patients_count[n_grafts] = patients_count.get(n_grafts, 0) + 1
@@ -813,14 +828,21 @@ scleromalacie/ dellen post pterygion / plaie cornee / 37 -> reouverture plaie/ c
                        f"days, {np.std(durations_bw_1_st_2nd_graft_in_days)} days"
                        f" ({len(durations_bw_1_st_2nd_graft_in_days)} patients)\n")
 
+            file.write(
+                f"Mean & std duration between the second and third grafts: {np.mean(durations_bw_2_nd_3rd_graft_in_days)} "
+                f"days, {np.std(durations_bw_2_nd_3rd_graft_in_days)} days"
+                f" ({len(durations_bw_2_nd_3rd_graft_in_days)} patients)\n")
+
             # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
             # + 11 diverting
             colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
                       '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a50026', '#d73027',
                       '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9',
                       '#74add1', '#4575b4', '#313695']
-            filename = "delai_2_premiere_greffes"
-            plot_box_plot_data(data_dict={"": durations_bw_1_st_2nd_graft_in_days}, filename=filename,
+            filename = "delai_greffes"
+            plot_box_plot_data(data_dict={"1-2": durations_bw_1_st_2nd_graft_in_days,
+                                          "2-3": durations_bw_2_nd_3rd_graft_in_days},
+                               filename=filename,
                                path_results=self.path_results,
                                y_label="Delai (jours)", colors=colors, with_scatters=True)
 
