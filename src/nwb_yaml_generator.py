@@ -60,7 +60,7 @@ class SessionNwbYamlGenerator:
         # print(f"self.subject_id {self.subject_id} {self.recording_date_main_format}")
         # print(f"self.main_df.iloc[:, MAIN_RECORDING_DATE_COL] {self.main_df.iloc[10, MAIN_RECORDING_DATE_COL]}")
 
-        self.session_description = f"p{self.age}_{self.ext_session_id}"
+        self.session_description = f"p{self.age}_{self.subject_id}_{self.ext_session_id}"
 
         self.main_session_df = self.main_df.loc[(self.main_df.iloc[:, MAIN_SUBJECT_ID_COL] == self.subject_id) &
                                                 (self.main_df.iloc[:, MAIN_RECORDING_DATE_COL] == self.recording_date)]
@@ -88,11 +88,12 @@ class SessionNwbYamlGenerator:
 
         # else:
         #     print(f"weight {weight}")
-
         # we create a directory that will contains the files
-        self.path_results = os.path.join(path_results, self.session_description)
-        if not os.path.exists(self.path_results):
-            os.mkdir(self.path_results)
+        session_dir_name = f"p{self.age}_{self.recording_date.strftime('%y_%m_%d')}_{self.ext_session_id[-4:]}"
+        self.path_results = os.path.join(path_results, f"p{self.age}", session_dir_name)
+
+        if os.path.exists(self.path_results):
+            self.generate_yaml_files()
 
     def generate_yaml_files(self):
         self.generate_subject_yaml()
@@ -143,7 +144,7 @@ class SessionNwbYamlGenerator:
                 abf_dict["behavior_channels"] = behavior_channels
 
         with open(os.path.join(self.path_results, "nwb_abf_" + self.subject_id + ".yaml"), 'w') as outfile:
-            yaml.dump(abf_dict, outfile, default_flow_style=False)
+            yaml.dump(abf_dict, outfile, default_flow_style=False, explicit_start=True)
 
     def generate_session_yaml(self):
         """
@@ -159,7 +160,7 @@ class SessionNwbYamlGenerator:
         # identifier (str) lab-specific ID for the session
         session_dict["identifier"] = self.session_description
 
-        # session_start_time ANDATORY: Use to fill the session_start_time field,
+        # session_start_time MANDATORY: Use to fill the session_start_time field,
         # you have to indicate the date and the time:
         # in this format: '%m/%d/%y %H:%M:%S' representing the start of the recording session
 
@@ -184,7 +185,9 @@ class SessionNwbYamlGenerator:
         if indicator_str.strip() not in ["nan", "x"]:
             session_dict["indicator"] = indicator_str.strip()
         else:
-            indicator_str = None
+            # default
+            indicator_str = "GCaMP6s"
+            session_dict["indicator"] = indicator_str
 
         # lab
         session_dict["lab"] = "Cossart Lab"
@@ -270,7 +273,7 @@ class SessionNwbYamlGenerator:
 
         with open(os.path.join(self.path_results, "nwb_session_data_" + self.session_description + ".yaml"), 'w') \
                 as outfile:
-            yaml.dump(session_dict, outfile, default_flow_style=False)
+            yaml.dump(session_dict, outfile, default_flow_style=False, explicit_start=True)
 
     def generate_subject_yaml(self):
         """
@@ -289,9 +292,14 @@ class SessionNwbYamlGenerator:
         # subject_id
         subject_dict["subject_id"] = self.subject_id
         # genotype
-        subject_dict["genotype"] = self.main_session_df.iloc[0, MAIN_LINE_COL]
+        line = str(self.main_session_df.iloc[0, MAIN_LINE_COL])
+        if line not in ["nan"]:
+            if line.lower() == "swiss":
+                subject_dict["genotype"] = "wild type"
+            else:
+                subject_dict["genotype"] = line
         # species
-        subject_dict["species"] = "SWISS wild type"
+        subject_dict["species"] = "SWISS"
 
         # Description: empty for now
 
@@ -300,7 +308,7 @@ class SessionNwbYamlGenerator:
             subject_dict["weight"] = self.weight
 
         with open(os.path.join(self.path_results, "nwb_subject_data_" + self.subject_id + ".yaml"), 'w') as outfile:
-            yaml.dump(subject_dict, outfile, default_flow_style=False)
+            yaml.dump(subject_dict, outfile, default_flow_style=False, explicit_start=True)
 
 def main():
     # loading the root_path
@@ -313,7 +321,7 @@ def main():
         raise Exception("Root path is None")
 
     path_data = root_path + "data/"
-    path_results = root_path + "results_nwb_yaml_generator/"
+    path_results = path_data #root_path + "results_nwb_yaml_generator/"
 
     main_excel_file = os.path.join(path_data, "excel_files_for_nwb", "Pups_13_11_18_version_9th_sept.xlsx")
     external_info_excel_file = os.path.join(path_data, "excel_files_for_nwb", "pups_external_info.xlsx")
@@ -359,7 +367,6 @@ def main():
             session_generator = SessionNwbYamlGenerator(main_df=main_df, subject_ext_df=subject_ext_df,
                                                         index_session_ext_df=index,
                                                         subject_id=animal_id, path_results=path_results)
-            session_generator.generate_yaml_files()
 
     print(f"n_sessions: {n_sessions}")
 
