@@ -259,8 +259,8 @@ class BenchmarkRasterDur:
         metrics_to_show_list = ["tp", "tn", "fp", "fn"]
 
         # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12 + 12 blue range
-        colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
-                  '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#ffffd9', '#edf8b1', '#c7e9b4',
+        colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c',
+                  '#ff7f00', '#cab2d6', '#fdbf6f', '#6a3d9a', '#ffff99', '#b15928', '#ffffd9', '#edf8b1', '#c7e9b4',
                   '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']
         colors = ['cornflowerblue'] + colors[3:]
 
@@ -417,11 +417,11 @@ class BenchmarkRasterDur:
                     ax.set_xticklabels(labels)
                     # fixing the limits
                     # if stat_name == "sensitivity":
-                    #     ax.set_ylim(0, 1.1)
+                    #     ax.set_ylim(0, 1)
                     # elif stat_name == "specificity":
                     #     ax.set_ylim(0.85, 1)
                     # elif stat_name == "PPV":
-                    #     ax.set_ylim(0, 1.1)
+                    #     ax.set_ylim(0, 1)
                     # elif stat_name == "NPV":
                     #     ax.set_ylim(0.6, 1.1)
 
@@ -442,7 +442,7 @@ class BenchmarkRasterDur:
 
 
     def plot_boxplots_full_stat(self, path_results, description, time_str, for_frames=True, with_cells=False,
-                                save_formats="pdf", dpi=200):
+                                save_formats="pdf", dpi=350):
         """
 
         :param path_results:
@@ -570,12 +570,12 @@ class BenchmarkRasterDur:
             # sce clusters labels
             ax.set_xticklabels(labels)
             # fixing the limits
-            # if stat_name == "sensitivity":
-            #     ax.set_ylim(0, 1.1)
+            if stat_name == "sensitivity":
+                ax.set_ylim(0.2, 1.1)
             # elif stat_name == "specificity":
             #     ax.set_ylim(0.85, 1)
-            # elif stat_name == "PPV":
-            #     ax.set_ylim(0, 1.1)
+            elif stat_name == "PPV":
+                ax.set_ylim(0.2, 1.1)
             # elif stat_name == "NPV":
             #     ax.set_ylim(0.6, 1.1)
 
@@ -1358,13 +1358,13 @@ def main_benchmark():
     # ms_to_benchmarks = ["p12_17_11_10_a000"]
     # ms_to_benchmarks = ["p7_17_10_12_a000"]
     # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
-    # ms_to_benchmarks = ["p8_18_10_24_a005_ms"]
+    ms_to_benchmarks = ["p8_18_10_24_a005_ms"]
     # ms_to_benchmark = "artificial_ms"
     # ms_to_benchmarks = ["p13_18_10_29_a001_ms"]
-    ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-                        "p12_17_11_10_a000", "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"]
-    ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-                        "p12_17_11_10_a000", "p11_17_11_24_a000_ms"]
+    # ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+    #                     "p12_17_11_10_a000", "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"]
+    # ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+    #                     "p12_17_11_10_a000", "p11_17_11_24_a000_ms"]
     # ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms"]
     # ms_to_benchmarks = ["p8_18_10_24_a006_ms",
     #                     "p12_17_11_10_a000", "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"]
@@ -1394,8 +1394,8 @@ def main_benchmark():
     #                        "meso_10", "meso_11", "meso_12", "meso_13", "meso_14"]
     predictions_to_load = ["meso_9", "v2_epoch_8", "v2_epoch_12", "v2_epoch_14",
                            "v2_epoch_17", "v2_epoch_19"]
-    # predictions_to_load = ["meso_9", "v2_epoch_19"]
-    predictions_to_load = ["v2_epoch_19"]
+    predictions_to_load = ["meso_9", "v2_epoch_19"]
+    # predictions_to_load = ["v2_epoch_19"]
     # gad-cre
     # predictions_to_load = ["meso_9", "cre_v1_epoch_10", "cre_v1_epoch_15", "cre_v1_epoch_19",
     #                        "cre_v1_epoch_22", "cre_v1_epoch_23"]

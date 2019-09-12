@@ -118,13 +118,21 @@ class SessionNwbYamlGenerator:
 
         piezo_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_PIEZO_CH_COL]).strip()
         if piezo_channel not in ["nan"]:
-            abf_dict["piezo_channels"] = int(piezo_channel)
+            try:
+                abf_dict["piezo_channels"] = int(piezo_channel)
+            except ValueError:
+                # means that the value is a float
+                abf_dict["piezo_channels"] = int(float(piezo_channel))
 
         # abf_dict["piezo_downsampling_hz"] = 50
 
         run_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_TREADMMILL_CH_COL]).strip()
         if run_channel not in ["nan"]:
-            abf_dict["run_channel"] = int(run_channel)
+            try:
+                abf_dict["run_channel"] = int(run_channel)
+            except ValueError:
+                # means that the value is a float
+                abf_dict["run_channel"] = int(float(run_channel))
 
         lfp_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_LFP_CH_COL]).strip()
         if lfp_channel not in ["nan"]:
@@ -327,10 +335,17 @@ def main():
     external_info_excel_file = os.path.join(path_data, "excel_files_for_nwb", "pups_external_info.xlsx")
 
     main_df = pd.read_excel(main_excel_file, sheet_name=f"Experiments")
-    ext_df = pd.read_excel(external_info_excel_file, sheet_name=f"SWISS")
+    swiss_df = pd.read_excel(external_info_excel_file, sheet_name=f"SWISS")
+    gad_cre_df = pd.read_excel(external_info_excel_file, sheet_name=f"GadCre")
+    # removing the first line
+    gad_cre_df = gad_cre_df.iloc[1:, ]
+    # concatenating the 2 dataframe
+    frames = [swiss_df, gad_cre_df]
+    ext_df = pd.concat(frames)
+
 
     # print(f"main_df {main_df}")
-    # print(f"ext_df {ext_df}")
+    # print(f"ext_df {ext_df.head(5)}")
 
     # ------------------------------------------------
     # First we clean the external info data frame
@@ -343,6 +358,8 @@ def main():
 
     # print(ext_df.iloc[:, EXT_SUBJECT_ID_COL])
     # print(ext_df.iloc[2, EXT_AGE_COL])
+    print(f"ext_df {ext_df.head(5)}")
+
 
     # We want to identify all unique animals ID from ext_df
     animal_ids = list(set(ext_df.iloc[:, EXT_SUBJECT_ID_COL]))
