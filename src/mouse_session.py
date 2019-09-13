@@ -3595,7 +3595,8 @@ class MouseSession:
                            save_formats=["pdf", "png"])
 
     def plot_traces_on_raster(self, spike_nums_to_use=None, sce_times=None, with_run=True,
-                              display_spike_nums=False, cellsinpeak=None):
+                              display_spike_nums=False, cellsinpeak=None,
+                              order_with_cell_assemblies=False):
         # cellsinpeak: 2d array, binary, 1st dim matches the
         # number of cells, 2nd dim matches the size of sce_times
         def norm01(data):
@@ -3623,6 +3624,28 @@ class MouseSession:
         for i in np.arange(len(raw_traces)):
             raw_traces[i] = (raw_traces[i] - np.mean(raw_traces[i]) / np.std(raw_traces[i]))
             raw_traces[i] = norm01(raw_traces[i]) * 5
+
+        n_cells = len(raw_traces)
+
+        new_cell_order = np.zeros(n_cells, dtype="uint16")
+        if order_with_cell_assemblies and (self.cell_assemblies is not None):
+            cells_in_assemblies = []
+            last_group_index = 0
+            for cell_assembly_index, cell_assembly in enumerate(self.cell_assemblies):
+                new_cell_order[last_group_index:last_group_index + len(cell_assembly)] = \
+                    np.array(cell_assembly).astype("uint16")
+                last_group_index += len(cell_assembly)
+                cells_in_assemblies.extend(list(cell_assembly))
+
+            other_cells = np.setdiff1d(np.arange(n_cells), cells_in_assemblies)
+            new_cell_order[last_group_index:] = other_cells
+        else:
+            new_cell_order = np.arange(n_cells)
+
+        raw_traces = raw_traces[new_cell_order]
+        spike_nums_to_use = spike_nums_to_use[new_cell_order]
+        if cellsinpeak is not None:
+            cellsinpeak = cellsinpeak[new_cell_order]
 
         span_area_coords = []
         span_area_colors = []
@@ -5572,6 +5595,7 @@ class MouseSession:
         else:
             raise Exception("load_raster_dur_from_predictions no predicions variable")
 
+        print(f"Predicions {prediction_key} are loaded for {self.description}")
         self.spike_struct.n_cells = len(self.spike_struct.spike_nums_dur)
         if self.spike_struct.labels is None:
             self.spike_struct.labels = np.arange(len(self.spike_struct.spike_nums_dur))

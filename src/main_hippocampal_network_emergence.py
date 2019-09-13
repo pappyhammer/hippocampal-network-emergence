@@ -6062,7 +6062,7 @@ def main():
 
     just_merge_coords_map = False
 
-    just_produce_cell_assemblies_verification = True
+    just_produce_cell_assemblies_verification = False
 
     just_plot_raster_with_same_sum_activity_lim = False
     just_plot_raster = False
@@ -6109,7 +6109,7 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = False
+    do_clustering = True
     do_detect_sce_on_traces = True
     do_detect_sce_based_on_peaks_finder = False
     use_hdbscan = False
@@ -7842,8 +7842,8 @@ def main():
             sce_times_bool[sce_loc] = True
             SCE_times = get_continous_time_periods(sce_times_bool)
             ms.plot_traces_on_raster(spike_nums_to_use=spike_nums_to_use, sce_times=SCE_times, with_run=True,
-                                     display_spike_nums=True, cellsinpeak=cellsinpeak)
-
+                                     display_spike_nums=True, cellsinpeak=cellsinpeak, order_with_cell_assemblies=True)
+            raise Exception("STOP AFTER TRACES")
             sce_times_numbers = np.ones(spike_nums_to_use.shape[1], dtype="int16")
             sce_times_numbers *= -1
             for period_index, period in enumerate(SCE_times):

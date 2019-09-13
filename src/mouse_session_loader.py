@@ -1659,7 +1659,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "p60_a529_2015_02_25_ms" in ms_str_to_load:
         p60_a529_2015_02_25_ms = MouseSession(age=60, session_id="a529_2015_02_25",
                                               sampling_rate=10, param=param)
-        p60_a529_2015_02_25_ms.activity_threshold = 8
+        # p60_a529_2015_02_25_ms.activity_threshold = 8
         # p60_a529_2015_02_25_ms.set_inter_neurons([])
         # duration of those interneurons:
         #
@@ -1852,7 +1852,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if ms.spike_struct.spike_nums_dur is None:
             prediction_threshold = 0.5
             # key that should be on the prediction file_name to be loaded
-            prediction_key = "meso_v2_epoch_19" #"meso_v1_epoch_9" # "meso_v2_epoch_19" # "meso_v1_epoch_9" meso_v2_epoch_19
+            prediction_key = "meso_v1_epoch_9" #"meso_v2_epoch_19" #"meso_v1_epoch_9"
             # prediction_key = "gad_cre_v1_epoch_15"
             variables_mapping = {"predictions": "predictions"}
             ms.load_raster_dur_from_predictions(
