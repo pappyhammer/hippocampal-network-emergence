@@ -22,7 +22,7 @@ import matplotlib.cm as cm
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 # from PIL import ImageTk, Image
 import math
-import matplotlib.gridspec as gridspec
+# import matplotlib.gridspec as gridspec
 # import matplotlib.image as mpimg
 from mouse_session_loader import load_mouse_sessions
 import pattern_discovery.tools.param as p_disc_tools_param
@@ -276,6 +276,8 @@ class ChooseSessionFrame(tk.Frame):
                                 onsets.append(index + 1)
                     # print(f"onsets {len(onsets)}")
                     self.data_and_param.spike_nums[cell, np.array(onsets)] = 1
+        else:
+            print(f"self.data_and_param.peak_nums is not None")
         f = ManualOnsetFrame(data_and_param=self.data_and_param,
                              default_path=self.last_path_open)
         f.mainloop()
@@ -4992,8 +4994,9 @@ class ManualOnsetFrame(tk.Frame):
                         real_transient_frames = np.logical_and((predictions[:, 0] >= threshold_tc),
                                                                (predictions[:, 0] == max_pred_by_frame))
                     predicted_raster_dur[real_transient_frames] = 1
-                    frames_stat, transients_stat = classification_stat.compute_stats(raster_dur, predicted_raster_dur,
-                                                                                     self.traces[self.current_neuron])
+                    frames_stat, transients_stat, _ = classification_stat.compute_stats(raster_dur, predicted_raster_dur,
+                                                                                     self.traces[self.current_neuron],
+                                                                                     gt_predictions=None)
 
                     # frames stats
                     print(f"Cell {self.current_neuron} with threshold {threshold_tc}")
@@ -5657,7 +5660,7 @@ def fusion_gui_selection(path_data):
                                                                     "to_agree_spike_nums": to_agree_spike_nums})
 
 
-def main_manual():
+def main_manual() -> object:
     root_path = None
     with open("param_hne.txt", "r", encoding='UTF-8') as file:
         for nb_line, line in enumerate(file):

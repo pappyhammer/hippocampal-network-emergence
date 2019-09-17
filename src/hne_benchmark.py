@@ -28,8 +28,11 @@ def do_traces_smoothing(traces):
 
 class BenchmarkRasterDur:
     def __init__(self, description, ground_truth_raster_dur, predicted_raster_dur_dict, cells,
-                 traces, debug_mode=False):
+                 traces, rnn_predictions, debug_mode=False):
         self.description = description
+        # matrix of 2 dimensions, first being the cells, second the frames, and values the predictions
+        # (float between 0 and 1)
+        self.rnn_predictions = rnn_predictions
         self.ground_truth_raster_dur = ground_truth_raster_dur
         # cells on which base the ground truth
         self.cells = cells
@@ -39,6 +42,10 @@ class BenchmarkRasterDur:
         # same keys as raster_dur_dict, value will be a list of dict with results from benchmarks
         self.results_frames_dict_by_cell = dict()
         self.results_transients_dict_by_cell = dict()
+        # first key is the cell, value a dict with
+        # same keys as raster_dur_dict, value will be a dict with results from benchmarks. Each key of the dict
+        # each key being a string like "fp_transients_predictions" or "fp_frames_predictions"
+        self.results_predictions_dict_by_cell = dict()
         # same keys as raster_dur_dict, value will be a list of dict with results from benchmarks
         self.results_dict_global = dict()
         self.debug_mode = debug_mode
@@ -114,6 +121,7 @@ class BenchmarkRasterDur:
         for key in keys_to_remove:
             raster_dict.pop(key, None)
 
+        rnn_predictions = np.concatenate((self.rnn_predictions, other.rnn_predictions))
         # print(f"cells {cells}")
         # print(f"other.cells {other.cells}")
         cells = np.copy(np.concatenate((cells, other.cells + len(self.ground_truth_raster_dur))))
@@ -128,7 +136,7 @@ class BenchmarkRasterDur:
 
         return BenchmarkRasterDur(description=description, ground_truth_raster_dur=ground_truth_raster_dur,
                                   predicted_raster_dur_dict=raster_dict, cells=cells, traces=traces,
-                                  debug_mode=False)
+                                  debug_mode=False, rnn_predictions=rnn_predictions)
 
     def compute_stats(self):
         if self.debug_mode:
@@ -158,14 +166,15 @@ class BenchmarkRasterDur:
         #                     min_value = min(peak_amplitude, min_value)
         #         traces_threshold[cell] = min_value
 
-
         for cell in self.cells:
             if self.debug_mode:
                 print(f"Cell {cell}")
             self.results_frames_dict_by_cell[cell] = SortedDict()
             self.results_transients_dict_by_cell[cell] = SortedDict()
+            self.results_predictions_dict_by_cell[cell] = SortedDict()
             for key, raster_dur in self.predicted_raster_dur_dict.items():
                 gt_rd = self.ground_truth_raster_dur[cell]
+                gt_predictions = self.rnn_predictions[cell]
                 # predicted raster_dur
                 p_rd = raster_dur[cell]
                 # if no predictions were made for this cell, then we pass
@@ -178,9 +187,11 @@ class BenchmarkRasterDur:
                     traces = self.traces[cell]
                 else:
                     traces = None
-                frames_stat, transients_stat = cs.compute_stats(gt_rd, p_rd,
+                frames_stat, transients_stat, predictions_stat_dict = cs.compute_stats(gt_rd, p_rd,
+                                                                gt_predictions=gt_predictions,
                                                                 traces=traces,
                                                                 with_threshold=traces_threshold)
+                self.results_predictions_dict_by_cell[cell][key] = predictions_stat_dict
                 self.results_frames_dict_by_cell[cell][key] = frames_stat
                 self.results_transients_dict_by_cell[cell][key] = transients_stat
                 if self.debug_mode:
@@ -214,8 +225,8 @@ class BenchmarkRasterDur:
                     traces = self.traces[self.cells]
                 else:
                     traces = None
-                frames_stat, transients_stat = cs.compute_stats(gt_rd, p_rd,
-                                                                traces=traces)
+                frames_stat, transients_stat, predictions_stat_dict = cs.compute_stats(gt_rd, p_rd,
+                                                                    traces=traces, gt_predictions=gt_predictions)
                 # frames stats
                 if self.debug_mode:
                     print(f"raster {key}")
@@ -229,8 +240,209 @@ class BenchmarkRasterDur:
                         print(f"{k}: {str(np.round(value, 4))}")
                     print("")
 
+    def plot_boxplot_predictions_stat_by_metrics(self, path_results, description, time_str,
+                                save_formats="pdf", dpi=500):
+        """
+
+        Args:
+            path_results:
+            description:
+            time_str:
+            save_formats:
+            dpi:
+
+        Returns:
+
+        """
+
+        type_of_activity_list = ["frames", "transients"]
+        metrics_to_show_list = ["tp", "tn", "fp", "fn"]
+
+        # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12 + 12 blue range
+        colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c',
+                  '#ff7f00', '#cab2d6', '#fdbf6f', '#6a3d9a', '#ffff99', '#b15928', '#ffffd9', '#edf8b1', '#c7e9b4',
+                  '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']
+        colors = ['cornflowerblue'] + colors[3:]
+
+        with_scatter = True
+
+        predictions_by_cell_stat = dict()
+        predictions_stat = dict()
+        # we take just the first data, as it's supposed to be same results for each, and we put them as
+        for type_of_activity in type_of_activity_list:
+            predictions_by_cell_stat[type_of_activity] = dict()
+            predictions_stat[type_of_activity] = dict()
+            for metrics_to_show in metrics_to_show_list:
+                predictions_by_cell_stat[type_of_activity][metrics_to_show] = dict()
+                predictions_stat[type_of_activity][metrics_to_show] = []
+                for cell, data_pred_dict in self.results_predictions_dict_by_cell.items():
+                    predictions_by_cell_stat[type_of_activity][metrics_to_show][cell] = []
+                    for data_key, pred_dict in data_pred_dict.items():
+                        # pred_dict take as keys something like "fp_transients_prediction"
+                        string_key = metrics_to_show + "_" + type_of_activity + "_" + "predictions"
+                        predictions_by_cell_stat[type_of_activity][metrics_to_show][cell] = pred_dict[string_key]
+                        predictions_stat[type_of_activity][metrics_to_show].extend(pred_dict[string_key])
+                        # first one is enough
+                        break
+
+        for by_cell in [True, False]:
+            for type_of_activity in type_of_activity_list:
+                if by_cell:
+                    if len(predictions_by_cell_stat[type_of_activity][metrics_to_show]) > 15:
+                        # if more than 15 boxplots, we don't plot it
+                        continue
+                stat_fig, axes = plt.subplots(nrows=2, ncols=2, squeeze=True,
+                                              gridspec_kw={'height_ratios': [0.5, 0.5],
+                                                           'width_ratios': [0.5, 0.5]},
+                                              figsize=(10, 10), dpi=dpi)
+
+                stat_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
+                axes = np.ndarray.flatten(axes)
+                fig_patch = stat_fig.patch
+                black_and_white_skin = False
+                # rgba = c_map(0)
+                if black_and_white_skin:
+                    face_color = "white"
+                    text_color = "black"
+                    title_color = "black"
+                else:
+                    face_color = "black"
+                    text_color = "white"
+                    title_color = "red"
+                fig_patch.set_facecolor(face_color)
+
+                for metrics_index, metrics_to_show in enumerate(metrics_to_show_list):
+                    ax = axes[metrics_index]
+
+                    ax.set_facecolor(face_color)
+
+                    ax.set_frame_on(False)
+                    if by_cell:
+                        by_cell_dict = predictions_by_cell_stat[type_of_activity][metrics_to_show]
+                        n_box_plots = len(by_cell_dict)
+                        labels = []
+                        for cell_key in by_cell_dict.keys():
+                            labels.append(f"{cell_key} ({len(by_cell_dict[cell_key])})")
+                        # labels = list(by_cell_dict.keys())
+                        values_by_prediction = [by_cell_dict[cell_key] for cell_key in list(by_cell_dict.keys())]
+                        if with_scatter:
+                            for label_index, cell_key in enumerate(list(by_cell_dict.keys())):
+                                y_pos = by_cell_dict[cell_key]
+                                x_pos = []
+                                for ii in range(len(y_pos)):
+                                    # Adding jitter
+                                    x_pos.append(1 + label_index + ((np.random.random_sample() - 0.5) * 0.8))
+                                if black_and_white_skin:
+                                    edgecolors = "black"
+                                else:
+                                    edgecolors = "white"
+                                ax.scatter(x_pos, y_pos,
+                                           color=colors[label_index % len(colors)],
+                                           marker="o",
+                                           edgecolors=edgecolors,
+                                           s=20, zorder=21, alpha=0.5)
+
+                    else:
+                        n_cells = len(predictions_by_cell_stat[type_of_activity][metrics_to_show])
+                        labels = [f"{n_cells} cells, "
+                                  f"{len(predictions_stat[type_of_activity][metrics_to_show])} {type_of_activity}"]
+                        n_box_plots = 1
+                        values_by_prediction = [predictions_stat[type_of_activity][metrics_to_show]]
+
+                        if with_scatter:
+                            y_pos = predictions_stat[type_of_activity][metrics_to_show]
+                            x_pos = []
+                            for ii in range(len(y_pos)):
+                                # Adding jitter
+                                x_pos.append(1 + ((np.random.random_sample() - 0.5) * 0.8))
+                            if black_and_white_skin:
+                                edgecolors = "black"
+                            else:
+                                edgecolors = "white"
+                            ax.scatter(x_pos, y_pos,
+                                       color=colors[0 % len(colors)],
+                                       marker="o",
+                                       edgecolors=edgecolors,
+                                       s=20, zorder=21, alpha=0.5)
+
+                    colorfull = True
+                    outliers = dict(markerfacecolor='white', marker='D')
+                    # if not for_frames:
+                    #     print(f"plot_boxplots_full_stat: {stat_name}: values_by_prediction {values_by_prediction}")
+                    if with_scatter:
+                        sym = ''
+                    else:
+                        sym = '+'
+                    bplot = ax.boxplot(values_by_prediction, patch_artist=colorfull,
+                                       flierprops=outliers, widths=[0.7] * len(values_by_prediction),
+                                       labels=labels, sym=sym, zorder=1)  # whis=[5, 95], sym='+'
+
+                    for element in ['boxes', 'whiskers', 'fliers', 'caps']:
+                        if black_and_white_skin:
+                            plt.setp(bplot[element], color="black")
+                        else:
+                            plt.setp(bplot[element], color="white")
+
+                    for element in ['means', 'medians']:
+                        if black_and_white_skin:
+                            plt.setp(bplot[element], color="black")
+                        else:
+                            plt.setp(bplot[element], color="silver")
+
+                    if colorfull:
+                        colors = colors[:n_box_plots]
+                        for patch, color in zip(bplot['boxes'], colors):
+                            patch.set_facecolor(color)
+
+                    ax.xaxis.set_ticks_position('none')
+                    ax.xaxis.label.set_color(text_color)
+                    ax.tick_params(axis='x', colors=text_color)
+                    if n_box_plots <= 2:
+                        ax.xaxis.set_tick_params(labelsize=15)
+                    elif n_box_plots <= 6:
+                        ax.xaxis.set_tick_params(labelsize=9)
+                    else:
+                        ax.xaxis.set_tick_params(labelsize=3)
+                    ax.yaxis.label.set_color(text_color)
+                    ax.tick_params(axis='y', colors=text_color)
+                    # ax.set_xticklabels([])
+                    # ax.set_yticklabels([])
+                    # ax.get_yaxis().set_visible(False)
+                    # ax.get_xaxis().set_visible(False)
+                    # ax.set_ylabel(f"proportion")
+                    # ax.set_xlabel("age")
+                    xticks = np.arange(1, n_box_plots + 1)
+                    ax.set_xticks(xticks)
+                    # sce clusters labels
+                    ax.set_xticklabels(labels)
+                    # fixing the limits
+                    # if stat_name == "sensitivity":
+                    #     ax.set_ylim(0, 1)
+                    # elif stat_name == "specificity":
+                    #     ax.set_ylim(0.85, 1)
+                    # elif stat_name == "PPV":
+                    #     ax.set_ylim(0, 1)
+                    # elif stat_name == "NPV":
+                    #     ax.set_ylim(0.6, 1.1)
+
+                    ax.set_title(metrics_to_show.upper(), color=title_color, pad=20, fontsize=20)
+
+                str_details = "and_cells_" if by_cell else ""
+                if isinstance(save_formats, str):
+                    save_formats = [save_formats]
+                for save_format in save_formats:
+                    stat_fig.savefig(f'{path_results}/'
+                                     f'{description}_box_plots_predictions_by_metrics_{str_details}'
+                                     f'for_{type_of_activity}'
+                                     f'_{time_str}.{save_format}',
+                                     format=f"{save_format}",
+                                     facecolor=stat_fig.get_facecolor(), edgecolor='none')
+                plt.close()
+
+
+
     def plot_boxplots_full_stat(self, path_results, description, time_str, for_frames=True, with_cells=False,
-                                save_formats="pdf"):
+                                save_formats="pdf", dpi=350):
         """
 
         :param path_results:
@@ -249,20 +461,26 @@ class BenchmarkRasterDur:
         colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
                   '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#ffffd9', '#edf8b1', '#c7e9b4',
                   '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']
-        colors = colors[3:]
+        colors = ['cornflowerblue'] + colors[3:]
 
         stat_fig, axes = plt.subplots(nrows=2, ncols=2, squeeze=True,
                                       gridspec_kw={'height_ratios': [0.5, 0.5],
                                                    'width_ratios': [0.5, 0.5]},
-                                      figsize=(10, 10))
+                                      figsize=(10, 10), dpi=dpi)
 
         stat_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
         axes = np.ndarray.flatten(axes)
         fig_patch = stat_fig.patch
+        black_and_white_skin = False
         # rgba = c_map(0)
-        face_color = "black"
-        text_color = "white"
-        title_color = "red"
+        if black_and_white_skin:
+            face_color = "white"
+            text_color = "black"
+            title_color = "black"
+        else:
+            face_color = "black"
+            text_color = "white"
+            title_color = "red"
         fig_patch.set_facecolor(face_color)
 
         for stat_index, stat_name in enumerate(stats_to_show):
@@ -270,16 +488,6 @@ class BenchmarkRasterDur:
             n_cells = len(self.results_frames_dict_by_cell)
 
             ax.set_facecolor(face_color)
-            ax.xaxis.set_ticks_position('none')
-            ax.xaxis.label.set_color(text_color)
-            ax.tick_params(axis='x', colors=text_color)
-            ax.xaxis.set_tick_params(labelsize=3)
-            ax.yaxis.label.set_color(text_color)
-            ax.tick_params(axis='y', colors=text_color)
-            # ax.set_xticklabels([])
-            # ax.set_yticklabels([])
-            # ax.get_yaxis().set_visible(False)
-            # ax.get_xaxis().set_visible(False)
 
             ax.set_frame_on(False)
             n_box_plots = None
@@ -302,10 +510,14 @@ class BenchmarkRasterDur:
                         x_pos = 1 + label_index + ((np.random.random_sample() - 0.5) * 0.8)
                         y_pos = result_dict_to_use[cell_to_display][label][stat_name]
                         font_size = 3
+                        if black_and_white_skin:
+                            edgecolors = "black"
+                        else:
+                            edgecolors = "white"
                         ax.scatter(x_pos, y_pos,
                                     color=colors[label_index%len(colors)],
                                     marker="o",
-                                    edgecolors="white",
+                                    edgecolors=edgecolors,
                                     s=60, zorder=21)
                         ax.text(x=x_pos, y=y_pos,
                                 s=f"{cell_to_display}", color="black", zorder=22,
@@ -320,24 +532,54 @@ class BenchmarkRasterDur:
                                labels=labels, sym='', zorder=1)  # whis=[5, 95], sym='+'
 
             for element in ['boxes', 'whiskers', 'fliers', 'caps']:
-                plt.setp(bplot[element], color="white")
+                if black_and_white_skin:
+                    plt.setp(bplot[element], color="black")
+                else:
+                    plt.setp(bplot[element], color="white")
 
             for element in ['means', 'medians']:
-                plt.setp(bplot[element], color="silver")
+                if black_and_white_skin:
+                    plt.setp(bplot[element], color="black")
+                else:
+                    plt.setp(bplot[element], color="silver")
 
             if colorfull:
                 colors = colors[:n_box_plots]
                 for patch, color in zip(bplot['boxes'], colors):
                     patch.set_facecolor(color)
 
+            ax.xaxis.set_ticks_position('none')
+            ax.xaxis.label.set_color(text_color)
+            ax.tick_params(axis='x', colors=text_color)
+            if n_box_plots <= 2:
+                ax.xaxis.set_tick_params(labelsize=15)
+            elif n_box_plots <= 6:
+                ax.xaxis.set_tick_params(labelsize=9)
+            else:
+                ax.xaxis.set_tick_params(labelsize=3)
+            ax.yaxis.label.set_color(text_color)
+            ax.tick_params(axis='y', colors=text_color)
+            # ax.set_xticklabels([])
+            # ax.set_yticklabels([])
+            # ax.get_yaxis().set_visible(False)
+            # ax.get_xaxis().set_visible(False)
             # ax.set_ylabel(f"proportion")
             # ax.set_xlabel("age")
             xticks = np.arange(1, n_box_plots + 1)
             ax.set_xticks(xticks)
             # sce clusters labels
             ax.set_xticklabels(labels)
+            # fixing the limits
+            if stat_name == "sensitivity":
+                ax.set_ylim(0.2, 1.1)
+            # elif stat_name == "specificity":
+            #     ax.set_ylim(0.85, 1)
+            elif stat_name == "PPV":
+                ax.set_ylim(0.2, 1.1)
+            # elif stat_name == "NPV":
+            #     ax.set_ylim(0.6, 1.1)
 
-            ax.set_title(stat_name, color=title_color, pad=20)
+            ax.set_title(stat_name, color=title_color, pad=20, fontsize=20)
 
         str_details = "frames"
         if not for_frames:
@@ -818,17 +1060,17 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["suite2p"]["caiman_suite2p_mapping"] = "P12_17_11_10_a000_suite2p_vs_caiman.npy"
         # data_dict["suite2p"]["threshold"] = 120  # 50
         # #
-        # data_dict["MP"] = dict()
-        # data_dict["MP"]["path"] = "p12/p12_17_11_10_a000/"
-        # data_dict["MP"]["gui_file"] = "p12_17_11_10_a000_GUI_JDMP.mat"
-        #
-        # data_dict["RD"] = dict()
-        # data_dict["RD"]["path"] = "p12/p12_17_11_10_a000/"
-        # data_dict["RD"]["gui_file"] = "p12_17_11_10_a000_GUI_transientsRD_2.mat"
-        #
-        # data_dict["JD"] = dict()
-        # data_dict["JD"]["path"] = "p12/p12_17_11_10_a000/"
-        # data_dict["JD"]["gui_file"] = "p12_17_11_10_a000_GUI_JD.mat"
+        data_dict["MP"] = dict()
+        data_dict["MP"]["path"] = "p12/p12_17_11_10_a000/"
+        data_dict["MP"]["gui_file"] = "p12_17_11_10_a000_GUI_JDMP.mat"
+
+        data_dict["RD"] = dict()
+        data_dict["RD"]["path"] = "p12/p12_17_11_10_a000/"
+        data_dict["RD"]["gui_file"] = "p12_17_11_10_a000_GUI_transientsRD_2.mat"
+
+        data_dict["JD"] = dict()
+        data_dict["JD"]["path"] = "p12/p12_17_11_10_a000/"
+        data_dict["JD"]["gui_file"] = "p12_17_11_10_a000_GUI_JD.mat"
 
         # data_dict["caiman_filt"] = dict()
         # data_dict["caiman_filt"]["path"] = "p12/p12_17_11_10_a000"
@@ -841,7 +1083,8 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["gt"]["path"] = "p6/p6_19_02_18_a000"
         # single expert labeling
         data_dict["gt"]["gui_file"] = "p6_19_02_18_a000_ground_truth_cell_0_1_2_3.mat"
-        data_dict["gt"]["cells"] = np.array([0, 1, 2, 3]) # 3 not seen by the network
+        data_dict["gt"]["cells"] = np.array([3]) # np.array([0, 1, 2, 3]) # 3 not seen by the network
+        # data_dict["gt"]["cells"] = np.array([3])
         data_dict["gt"]["trace_file_name"] = "p6_19_02_18_a000_raw_traces.npy"
         data_dict["gt"]["trace_var_name"] = "raw_traces"
 
@@ -855,21 +1098,21 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["caiman"]["trace_file_name"] = "caiman_matlab/p6_19_02_18_a000_Traces.mat"
         data_dict["caiman"]["trace_var_name"] = "C_df"
 
-        # data_dict["MP"] = dict()
-        # data_dict["MP"]["path"] = "p6/p6_19_02_18_a000/"
-        # data_dict["MP"]["gui_file"] = "p6_19_02_18_a000_Transient MP.mat"
-        #
-        # data_dict["EQ"] = dict()
-        # data_dict["EQ"]["path"] = "p6/p6_19_02_18_a000/"
-        # data_dict["EQ"]["gui_file"] = "p6_19_02_18_a000_ground_truth_ele.mat"
-        #
-        # data_dict["RD"] = dict()
-        # data_dict["RD"]["path"] = "p6/p6_19_02_18_a000/"
-        # data_dict["RD"]["gui_file"] = "p6_19_02_18_a000_Transients_selection_RD.mat"
-        #
-        # data_dict["JD"] = dict()
-        # data_dict["JD"]["path"] = "p6/p6_19_02_18_a000/"
-        # data_dict["JD"]["gui_file"] = "p6_19_02_18_a000_ground_truth_JD.mat"
+        data_dict["MP"] = dict()
+        data_dict["MP"]["path"] = "p6/p6_19_02_18_a000/"
+        data_dict["MP"]["gui_file"] = "p6_19_02_18_a000_Transient MP.mat"
+
+        data_dict["EQ"] = dict()
+        data_dict["EQ"]["path"] = "p6/p6_19_02_18_a000/"
+        data_dict["EQ"]["gui_file"] = "p6_19_02_18_a000_ground_truth_ele.mat"
+
+        data_dict["RD"] = dict()
+        data_dict["RD"]["path"] = "p6/p6_19_02_18_a000/"
+        data_dict["RD"]["gui_file"] = "p6_19_02_18_a000_Transients_selection_RD.mat"
+
+        data_dict["JD"] = dict()
+        data_dict["JD"]["path"] = "p6/p6_19_02_18_a000/"
+        data_dict["JD"]["gui_file"] = "p6_19_02_18_a000_ground_truth_JD.mat"
 
     elif ms_to_benchmark == "p11_19_04_30_a001_ms":
         data_dict["gt"] = dict()
@@ -877,6 +1120,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # single expert labeling
         data_dict["gt"]["gui_file"] = "p11_19_04_30_a001_gound_truth.mat"
         data_dict["gt"]["cells"] = np.array([0, 2, 3, 4]) # 4 not seen by the network
+        # data_dict["gt"]["cells"] = np.array([4])  # 4 not seen by the network
         data_dict["gt"]["trace_file_name"] = "p11_19_04_30_a001_raw_traces.npy"
         data_dict["gt"]["trace_var_name"] = "raw_traces"
 
@@ -953,13 +1197,13 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["suite2p"]["caiman_suite2p_mapping"] = "P11_17_11_24_a000_suite2p_vs_caiman.npy"
         # data_dict["suite2p"]["threshold"] = 100 # best compromise for transients, for better sensibility try 70
         #
-        # data_dict["RD"] = dict()
-        # data_dict["RD"]["path"] = "p11/p11_17_11_24_a000/"
-        # data_dict["RD"]["gui_file"] = "p11_17_11_24_a000_GUI_transientsRD.mat"
-        #
-        # data_dict["JD"] = dict()
-        # data_dict["JD"]["path"] = "p11/p11_17_11_24_a000/"
-        # data_dict["JD"]["gui_file"] = "p11_17_11_24_a000_transients_GUI_JD.mat"
+        data_dict["RD"] = dict()
+        data_dict["RD"]["path"] = "p11/p11_17_11_24_a000/"
+        data_dict["RD"]["gui_file"] = "p11_17_11_24_a000_GUI_transientsRD.mat"
+
+        data_dict["JD"] = dict()
+        data_dict["JD"]["path"] = "p11/p11_17_11_24_a000/"
+        data_dict["JD"]["gui_file"] = "p11_17_11_24_a000_transients_GUI_JD.mat"
 
     elif ms_to_benchmark == "artificial_ms":
         data_dict["gt"] = dict()
@@ -1003,15 +1247,16 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # gt as ground_truth
         data_dict["gt"] = dict()
         data_dict["gt"]["path"] = "p7/p7_17_10_12_a000"
-        data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_fusion_validation.mat"
-        # data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_GUI_transients_RD.mat"
+        # data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_fusion_validation.mat"
+        # if 117 cells:
+        data_dict["gt"]["gui_file"] = "p7_17_10_12_a000_GUI_transients_RD.mat"
 
         data_dict["gt"]["trace_file_name"] = "p7_17_10_12_a000_Traces.mat"
         data_dict["gt"]["trace_var_name"] = "C_df"
         # data_dict["gt"]["gt_file"] = "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt"
         # data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P7_17_10_12_a000.txt"
         # data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.array([2, 25]) # np.array([2, 3, 8, 11, 12, 14, 17, 18, 24, 25])  #  np.arange(117)
+        data_dict["gt"]["cells"] = np.arange(117) # np.array([2, 25]) # np.array([2, 3, 8, 11, 12, 14, 17, 18, 24, 25])  #  np.arange(117)
         # data_dict["gt"]["cells_to_remove"] = np.array([52, 75])
 
         data_dict["caiman"] = dict()
@@ -1062,18 +1307,18 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["caiman"]["trace_file_name"] = "p8_18_10_24_a005_Traces.mat"
         data_dict["caiman"]["trace_var_name"] = "C_df"
 
-        # data_dict["RD"] = dict()
-        # data_dict["RD"]["path"] = "p8/p8_18_10_24_a005"
-        # data_dict["RD"]["gui_file"] = "p8_18_10_24_a005_GUI_transientsRD.mat"
-        #
-        # data_dict["JD"] = dict()
-        # data_dict["JD"]["path"] = "p8/p8_18_10_24_a005"
-        # data_dict["JD"]["gui_file"] = "p8_18_10_24_a005_GUI_transientsJD.mat"
-        #
-        # data_dict["MP"] = dict()
-        # data_dict["MP"]["path"] = "p8/p8_18_10_24_a005"
-        # data_dict["MP"]["gui_file"] = "p8_18_10_24_a005_GUI_Transiant MP.mat"
-        # data_dict["MP"]["cells_not_predicted"] = np.array([28, 41, 42, 110, 207, 321])
+        data_dict["RD"] = dict()
+        data_dict["RD"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["RD"]["gui_file"] = "p8_18_10_24_a005_GUI_transientsRD.mat"
+
+        data_dict["JD"] = dict()
+        data_dict["JD"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["JD"]["gui_file"] = "p8_18_10_24_a005_GUI_transientsJD.mat"
+
+        data_dict["MP"] = dict()
+        data_dict["MP"]["path"] = "p8/p8_18_10_24_a005"
+        data_dict["MP"]["gui_file"] = "p8_18_10_24_a005_GUI_Transiant MP.mat"
+        data_dict["MP"]["cells_not_predicted"] = np.array([28, 41, 42, 110, 207, 321])
         #
         # data_dict["suite2p"] = dict()
         # data_dict["suite2p"]["path"] = "p8/p8_18_10_24_a005/suite2p/"
@@ -1113,21 +1358,27 @@ def main_benchmark():
     # ms_to_benchmarks = ["p12_17_11_10_a000"]
     # ms_to_benchmarks = ["p7_17_10_12_a000"]
     # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
-    # ms_to_benchmarks = ["p8_18_10_24_a005_ms"]
+    ms_to_benchmarks = ["p8_18_10_24_a005_ms"]
     # ms_to_benchmark = "artificial_ms"
     # ms_to_benchmarks = ["p13_18_10_29_a001_ms"]
     # ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
     #                     "p12_17_11_10_a000", "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"]
-    ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-                        "p11_17_11_24_a000_ms", "p12_17_11_10_a000"]
+    # ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+    #                     "p12_17_11_10_a000", "p11_17_11_24_a000_ms"]
+    # ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms"]
+    # ms_to_benchmarks = ["p8_18_10_24_a006_ms",
+    #                     "p12_17_11_10_a000", "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms"]
+    # ms_to_benchmarks = ["p7_17_10_12_a000", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+    #                     "p11_17_11_24_a000_ms", "p12_17_11_10_a000"]
     # ms_to_benchmarks = ["p7_17_10_12_a000"]
     # ms_to_benchmarks = ["p11_17_11_24_a000_ms"]
     # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
     # gad-cre + oriens
-    ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p8_18_10_24_a006_ms",
-                        "p11_19_04_30_a001_ms"]
+    # ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p8_18_10_24_a006_ms",
+    #                     "p11_19_04_30_a001_ms"]
+    # ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
     # gad-cre
-    ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
+    # ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
     # ms_to_benchmarks = ["p6_19_02_18_a000_ms"]
     do_onsets_benchmarks = False
     do_plot_roc_predictions = False
@@ -1137,17 +1388,20 @@ def main_benchmark():
     global_benchmarks = None
     description = ""
     boost_predictions = False
-    predictions_threshold = 0.7
+    predictions_threshold = 0.5
 
     # predictions_to_load = ["epoch_11", "meso_2", "meso_3", "meso_4", "meso_8", "meso_6", "meso_7", "meso_8", "meso_9",
     #                        "meso_10", "meso_11", "meso_12", "meso_13", "meso_14"]
     predictions_to_load = ["meso_9", "v2_epoch_8", "v2_epoch_12", "v2_epoch_14",
                            "v2_epoch_17", "v2_epoch_19"]
+    predictions_to_load = ["meso_9", "v2_epoch_19"]
+    # predictions_to_load = ["v2_epoch_19"]
     # gad-cre
-    predictions_to_load = ["meso_9", "cre_v1_epoch_10", "cre_v1_epoch_15", "cre_v1_epoch_19",
-                           "cre_v1_epoch_22", "cre_v1_epoch_23"]
-    # predictions_to_load = ["meso_9"]
-    predictions_to_load = []
+    # predictions_to_load = ["meso_9", "cre_v1_epoch_10", "cre_v1_epoch_15", "cre_v1_epoch_19",
+    #                        "cre_v1_epoch_22", "cre_v1_epoch_23"]
+    # predictions_to_load = ["v1_epoch_15"]
+    # TO PLOT predictions distribution for each metrics, use only one predictions_to_load
+    # predictions_to_load = []
     for ms_to_benchmark in ms_to_benchmarks:
         print(f"ms_to_benchmark {ms_to_benchmark}")
         data_dict = dict()
@@ -1434,17 +1688,20 @@ def main_benchmark():
 
         benchmarks = BenchmarkRasterDur(description=ms_to_benchmark, ground_truth_raster_dur=ground_truth_raster_dur,
                                         predicted_raster_dur_dict=predicted_raster_dur_dict, cells=cells_for_benchmark,
-                                        traces=traces)
+                                        traces=traces, rnn_predictions=rnn_predictions)
         if produce_separate_benchmarks:
             tmp_description = ms_to_benchmark
             tmp_description += f"_thr_{predictions_threshold}_"
             benchmarks.compute_stats()
+            benchmarks.plot_boxplot_predictions_stat_by_metrics(path_results=path_results,
+                                                                description=tmp_description, time_str=time_str,
+                                                                save_formats=["pdf", "png"])
             benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
                                                       path_results=path_results, with_cells=True,
-                                                      for_frames=True, save_formats="pdf")
+                                                      for_frames=True, save_formats=["pdf", "png"])
             benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
                                                       path_results=path_results, with_cells=True,
-                                                      for_frames=False, save_formats="pdf")
+                                                      for_frames=False, save_formats=["pdf", "png"])
         if global_benchmarks is None:
             global_benchmarks = benchmarks
         else:
@@ -1455,10 +1712,13 @@ def main_benchmark():
     if len(ms_to_benchmarks) > 1:
         # print(f"GLOBAL BENCH {global_benchmarks.description}")
         global_benchmarks.compute_stats()
+        global_benchmarks.plot_boxplot_predictions_stat_by_metrics(path_results=path_results,
+                                                                description=description, time_str=time_str,
+                                                                save_formats=["pdf", "png"])
         global_benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
-                                           for_frames=True, save_formats="pdf", with_cells=True)
+                                           for_frames=True, save_formats=["pdf", "png"], with_cells=True)
         global_benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
-                                           for_frames=False, save_formats="pdf", with_cells=True)
+                                           for_frames=False, save_formats=["pdf", "png"], with_cells=True)
     # benchmarks.plot_boxplots_for_transients_stat(description=description, time_str=time_str,
     #                                              path_results=path_results,
     #                                              save_formats="pdf")

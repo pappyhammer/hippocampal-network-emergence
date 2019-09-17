@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import math
 
 
-def plot_psth(cell_dict, frequency_id, line_mode=False,
+def plot_psth(cell_dict, frequency_id, threshold, line_mode=False,
 background_color="white", label_color="black",
                        ax_to_use=None, put_mean_line_on_plt=False,
                        color_to_use=None, file_name_bonus="",
@@ -37,7 +37,7 @@ background_color="white", label_color="black",
         ax1 = ax_to_use
 
     time_stamps = cell_dict["time_stamps"]
-    stim_times_period  = cell_dict["stim_times_period"]
+    stim_times_period = cell_dict["stim_times_period"]
     responses = cell_dict["responses"]
     mean_values = np.nanmean(responses, axis=0)
     std_values = np.nanstd(responses, axis=0)
@@ -69,6 +69,9 @@ background_color="white", label_color="black",
                                  mean_values + std_values,
                                  alpha=0.5, facecolor=color)
             max_value = np.max((max_value, np.max(mean_values + std_values)))
+            ax1.hlines(threshold, 0,
+                       time_stamps[-1], color="blue", linewidth=2,
+                       linestyles="dashed")
         else:
             ax1.plot(time_stamps,
                      median_values, color=color, lw=2, label=f"{frequency_id}")
@@ -95,6 +98,9 @@ background_color="white", label_color="black",
                          alpha=0.3, facecolor=color)
         ax1.axvspan(stim_times_period[0], stim_times_period[1], alpha=0.3, facecolor="gray", zorder=2)
         max_value = np.max((max_value, np.max(mean_values)))
+        ax1.hlines(threshold, 0,
+                   time_stamps[-1], color="blue", linewidth=2,
+                   linestyles="dashed")
     # if put_mean_line_on_plt:
     # ax1.hlines(activity_threshold_percentage, -1 * time_around, time_around,
     #            color="white", linewidth=1,
@@ -142,7 +148,7 @@ background_color="white", label_color="black",
     return values_dict
 
 
-def plot_all_psth_in_one_figure(data_dict, frequencies_id, path_results, file_name_bonus="",
+def plot_all_psth_in_one_figure(data_dict, frequencies_id, path_results, threshold_dict, file_name_bonus="",
                                 line_mode=True, save_formats="pdf"):
     """
     Will plot in one plot with subplots all  PSTH
@@ -193,17 +199,21 @@ def plot_all_psth_in_one_figure(data_dict, frequencies_id, path_results, file_na
             continue
         frequency_id = frequencies_id[ax_index]
         cell_dict = data_dict[frequencies_id[ax_index]]
+        if threshold_dict is not None:
+            threshold = threshold_dict[frequencies_id[ax_index]]["threshold"]
+        else:
+            threshold = None
         for key_color, color in color_dict.items():
             if key_color in frequency_id:
                 color_to_use = color
         values_dict = plot_psth(cell_dict=cell_dict, frequency_id=frequency_id, line_mode=line_mode,
                   ax_to_use=ax, put_mean_line_on_plt=line_mode, path_results=path_results,
                   file_name_bonus=file_name_bonus, background_color=background_color, label_color=labels_color,
-                              color_to_use=color_to_use)
+                              color_to_use=color_to_use, threshold=threshold)
         plot_psth(cell_dict=cell_dict, frequency_id=frequency_id, line_mode=line_mode,
                   put_mean_line_on_plt=line_mode, path_results=path_results,
                   file_name_bonus=file_name_bonus, background_color=background_color, label_color=labels_color,
-                  color_to_use=color_to_use)
+                  color_to_use=color_to_use, threshold=threshold)
 
         avg_values_by_freq[frequency_id] = values_dict
 
@@ -236,7 +246,7 @@ def save_avg_values_in_file(values_dict, path_results, time_stamps, bonus_title=
         writer.save()
 
 def erwan_main():
-    root_path = "/home/julien/these_inmed/hne_project/"
+    root_path = "/media/julien/Not_today/hne_not_today/"
     path_data = root_path + "data/erwan/"
     path_results = root_path + "results_hne/"
 
@@ -283,9 +293,12 @@ def erwan_main():
     # data_dict, key = different frequencies
     # value -> dict with keys "stim_times_period", "time_stamps", "cells_id", "responses",
     data_dict = dict()
+    threshold_dict = dict()
     for freq_id in frequencies_id:
         data_dict[freq_id] = dict()
+        threshold_dict[freq_id] = dict()
 
+        freq_threshold_dict = threshold_dict[freq_id]
         freq_dict = data_dict[freq_id]
         if "10" in freq_id:
             freq_dict["stim_times_period"] = (5178-time_to_substract, 6178-time_to_substract)
@@ -295,8 +308,27 @@ def erwan_main():
             freq_dict["stim_times_period"] = (5465-time_to_substract, 5670-time_to_substract)
 
         freq_dict["time_stamps"] = time_stamps
+        freq_threshold_dict["time_stamps"] = time_stamps
 
         freq_dict["cells_id"] = cells_id
+        freq_threshold_dict["cells_id"] = cells_id
+
+        n_surrogate = 1000
+        surrogate_response_values = []
+        for surrogate_index in range(n_surrogate):
+            responses_surrogate = np.zeros((len(cells_id), len(time_stamps)))
+            for cell_index, cell_id in enumerate(cells_id):
+                df_cell = df.loc[df['Cellules'] == cell_id]
+                resp_tmp = df_cell.loc[:, freq_id]
+                if len(resp_tmp) > 0:
+                    resp_tmp = np.array(resp_tmp)[n_period_to_substract:]
+                    # we roll it
+                    responses_surrogate[cell_index] = np.roll(resp_tmp, np.random.randint(1, len(resp_tmp)))
+                else:
+                    responses_surrogate[cell_index] = np.repeat(np.nan, len(time_stamps))
+            surrogate_response_values.extend(list(np.nanmean(responses_surrogate, axis=0)))
+        threshold = np.nanpercentile(np.array(surrogate_response_values), 95)
+        freq_threshold_dict["threshold"] = threshold
 
         responses = np.zeros((len(cells_id), len(time_stamps)))
         for cell_index, cell_id in enumerate(cells_id):
@@ -319,7 +351,8 @@ def erwan_main():
             line_str = "bars"
         avg_values_by_freq = plot_all_psth_in_one_figure(data_dict=data_dict, frequencies_id=frequencies_id,
                                     file_name_bonus="non_normalized" + "_" + line_str, line_mode=line_mode,
-                                    path_results=path_results, save_formats=["pdf", "eps"])
+                                    path_results=path_results, save_formats=["pdf", "eps"],
+                                                         threshold_dict=threshold_dict)
     save_avg_values_in_file(values_dict=avg_values_by_freq, path_results=path_results,
                             bonus_title="non_normalized", time_stamps=time_stamps)
     # normalizing by baseline
@@ -339,7 +372,7 @@ def erwan_main():
         avg_values_by_freq = plot_all_psth_in_one_figure(data_dict=data_dict, frequencies_id=frequencies_id,
                                 file_name_bonus="normalized" + "_" + line_str, path_results=path_results,
                                                          line_mode=line_mode,
-                                                         save_formats=["pdf", "eps"])
+                                                         save_formats=["pdf", "eps"], threshold_dict=None)
     save_avg_values_in_file(values_dict=avg_values_by_freq, path_results=path_results,
                             bonus_title="normalized", time_stamps=time_stamps)
 

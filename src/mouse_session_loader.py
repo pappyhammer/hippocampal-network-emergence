@@ -699,7 +699,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         # if True will  use the coord from suite2p, if False, will just load the info concerning suite2p in
         # if the dict suit2p_data in mouse_session
-        p8_18_10_24_a005_ms.use_suite_2p = True
+        p8_18_10_24_a005_ms.use_suite_2p = False
         if for_transient_classifier:
             p8_18_10_24_a005_ms.use_suite_2p = False
 
@@ -1659,7 +1659,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
     if "p60_a529_2015_02_25_ms" in ms_str_to_load:
         p60_a529_2015_02_25_ms = MouseSession(age=60, session_id="a529_2015_02_25",
                                               sampling_rate=10, param=param)
-        p60_a529_2015_02_25_ms.activity_threshold = 8
+        # p60_a529_2015_02_25_ms.activity_threshold = 8
         # p60_a529_2015_02_25_ms.set_inter_neurons([])
         # duration of those interneurons:
         #
@@ -1670,10 +1670,10 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         #                                            "p60/p60_a529_2015_02_25/a529_2015_02_25_RasterDur.mat",
         #                                            variables_mapping=variables_mapping)
 
-        variables_mapping = {"raw_traces": "raw_traces"}
-        p60_a529_2015_02_25_ms.load_data_from_file(file_name_to_load=
-                                                   "p60/p60_a529_2015_02_25/MotCorre_529_15_02_25_raw_Traces.mat",
-                                                   variables_mapping=variables_mapping)
+        # variables_mapping = {"raw_traces": "raw_traces"}
+        # p60_a529_2015_02_25_ms.load_data_from_file(file_name_to_load=
+        #                                            "p60/p60_a529_2015_02_25/MotCorre_529_15_02_25_raw_Traces.mat",
+        #                                            variables_mapping=variables_mapping)
 
         variables_mapping = {"coord": "ContoursAll"}
         p60_a529_2015_02_25_ms.load_data_from_file(
@@ -1852,7 +1852,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if ms.spike_struct.spike_nums_dur is None:
             prediction_threshold = 0.5
             # key that should be on the prediction file_name to be loaded
-            prediction_key = "meso_v2_epoch_19" # "meso_v1_epoch_9" meso_v2_epoch_19
+            prediction_key = "meso_v1_epoch_9" #"meso_v2_epoch_19" #"meso_v1_epoch_9"
             # prediction_key = "gad_cre_v1_epoch_15"
             variables_mapping = {"predictions": "predictions"}
             ms.load_raster_dur_from_predictions(

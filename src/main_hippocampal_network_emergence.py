@@ -6062,6 +6062,8 @@ def main():
 
     just_merge_coords_map = False
 
+    just_produce_cell_assemblies_verification = False
+
     just_plot_raster_with_same_sum_activity_lim = False
     just_plot_raster = False
     just_plot_traces_with_shifts = False
@@ -6073,7 +6075,7 @@ def main():
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     # this one works properly
     just_plot_raster_with_cells_assemblies_and_shifts = False
-    just_plot_traces_raster = True
+    just_plot_traces_raster = False
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
     just_do_seqnmf = False
@@ -6108,7 +6110,7 @@ def main():
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
     do_clustering = True
-    do_detect_sce_on_traces = False
+    do_detect_sce_on_traces = True
     do_detect_sce_based_on_peaks_finder = False
     use_hdbscan = False
     # to add in the file title
@@ -6216,7 +6218,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(3, 6)
+    range_n_clusters_k_mean = np.arange(5, 6)
     # range_n_clusters_k_mean = np.array([7])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False
@@ -6988,7 +6990,13 @@ def main():
         if just_plot_raster_with_cells_assemblies_and_shifts:
             ms.plot_raster_with_cells_assemblies_and_shifts(only_cell_assemblies=False)
             if ms_index == len(ms_to_analyse) - 1:
-                raise Exception("momo")
+                raise Exception("just_plot_raster_with_cells_assemblies_and_shifts")
+            continue
+
+        if just_produce_cell_assemblies_verification:
+            ms.produce_cell_assemblies_verification()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_produce_cell_assemblies_verification")
             continue
 
         if just_plot_traces_raster:
@@ -7834,8 +7842,8 @@ def main():
             sce_times_bool[sce_loc] = True
             SCE_times = get_continous_time_periods(sce_times_bool)
             ms.plot_traces_on_raster(spike_nums_to_use=spike_nums_to_use, sce_times=SCE_times, with_run=True,
-                                     display_spike_nums=True)
-
+                                     display_spike_nums=True, cellsinpeak=cellsinpeak, order_with_cell_assemblies=True)
+            raise Exception("STOP AFTER TRACES")
             sce_times_numbers = np.ones(spike_nums_to_use.shape[1], dtype="int16")
             sce_times_numbers *= -1
             for period_index, period in enumerate(SCE_times):
