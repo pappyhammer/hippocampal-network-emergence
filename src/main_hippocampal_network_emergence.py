@@ -75,7 +75,6 @@ from spot_dist import spotdist_function
 from twitches_analysis import twitch_analysis, covnorm
 from rastermap import Rastermap
 
-
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
                      cells_to_highlights_shape=None, cells_to_highlights_colors=None, cells_to_highlights_legend=None):
     # print(f"connec_func_stat {mouse_session.session_numbers[0]}")
@@ -5700,7 +5699,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p7_171012_a000_ms"]
     # ms_str_to_load = ["p7_18_02_08_a000_ms"]
     # ms_str_to_load = ["p12_171110_a000_ms"]
-    # ms_str_to_load = ["p9_18_09_27_a003_ms"]
+    ms_str_to_load = ["p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p12_171110_a000_ms"]
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p7_171012_a000_ms"]
@@ -5785,13 +5784,13 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p8_18_10_24_a005_ms"]
     ## all the ms separated in 5 groups
 
-    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
-                      "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                      "p7_171012_a000_ms",
-                      "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
-                      "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
-                      "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
-                      "p7_19_03_05_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms",
+    #                   "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    #                   "p7_171012_a000_ms",
+    #                   "p7_17_10_18_a002_ms", "p7_17_10_18_a004_ms",
+    #                   "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms",
+    #                   "p7_18_02_08_a002_ms", "p7_18_02_08_a003_ms",
+    #                   "p7_19_03_05_a000_ms"]
     # # #
     # ms_str_to_load = ["p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
     #                   "p7_19_03_27_a002_ms",
@@ -5838,7 +5837,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p14_18_10_30_a001_ms"] #                       "p14_18_10_30_a001_ms"]
 
     # ms_str_to_load = ["richard_028_D1_P1_ms"]
-    ms_str_to_load = ["p60_a529_2015_02_25_ms"]
+    # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
@@ -5935,7 +5934,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
 
-    # add_z_shifts_from_file(ms_str_to_ms_dict, param)
+    add_z_shifts_from_file(ms_str_to_ms_dict, param)
 
     return ms_str_to_ms_dict
 
@@ -6074,7 +6073,7 @@ def main():
     # next one seems to be an old code
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     # this one works properly
-    just_plot_raster_with_cells_assemblies_and_shifts = False
+    just_plot_raster_with_cells_assemblies_and_shifts = True
     just_plot_traces_raster = False
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
@@ -6109,8 +6108,8 @@ def main():
     # ##########################################################################################
     # #################################### CLUSTERING ###########################################
     # ##########################################################################################
-    do_clustering = True
-    do_detect_sce_on_traces = True
+    do_clustering = False
+    do_detect_sce_on_traces = False
     do_detect_sce_based_on_peaks_finder = False
     use_hdbscan = False
     # to add in the file title
@@ -6218,7 +6217,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(5, 6)
+    range_n_clusters_k_mean = np.arange(3, 8)
     # range_n_clusters_k_mean = np.array([7])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False

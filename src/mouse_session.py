@@ -3448,15 +3448,22 @@ class MouseSession:
 
         span_areas_coords = []
         span_area_colors = []
-        span_areas_coords.append(self.mvt_frames_periods)
-        span_area_colors.append('red')
-        span_areas_coords.append(self.sce_times_in_cell_assemblies)
-        span_area_colors.append('green')
-        span_areas_coords.append(self.twitches_frames_periods)
-        span_area_colors.append('blue')
+        show_z_shift = True
+        if show_z_shift and len(self.z_shift_periods) > 0:
+            span_areas_coords.append(self.z_shift_periods)
+            span_area_colors.append("orange")
+        else:
+            span_areas_coords.append(self.mvt_frames_periods)
+            span_area_colors.append('red')
+            span_areas_coords.append(self.sce_times_in_cell_assemblies)
+            span_area_colors.append('green')
+            span_areas_coords.append(self.twitches_frames_periods)
+            span_area_colors.append('blue')
 
         ## ratio
         for cell_assembly_index in np.arange(-1, len(self.cell_assemblies)):
+            if self.mvt_frames_periods is None:
+                continue
 
             if cell_assembly_index == -1:
                 this_sce_times_in_cell_assemblies = self.sce_times_in_cell_assemblies
@@ -4005,6 +4012,14 @@ class MouseSession:
             labels = new_cell_order[:n_cells_in_assemblies]
         else:
             labels = new_cell_order
+
+        show_z_shift = True
+        if show_z_shift and len(self.z_shift_periods) > 0:
+            if span_area_coords is None:
+                span_area_coords = []
+                span_area_colors = []
+            span_area_coords.append(self.z_shift_periods)
+            span_area_colors.append("orange")
 
         plot_spikes_raster(spike_nums=spike_nums_dur, param=self.param,
                            title=f"{self.description}_spike_nums_with_mvt_and_cell_assemblies_events",
