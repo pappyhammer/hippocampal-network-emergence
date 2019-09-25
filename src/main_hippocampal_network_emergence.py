@@ -4670,6 +4670,69 @@ def select_cells_that_fire_during_time_periods(raster, time_periods_bool, descri
 
     return significant_cells
 
+def find_hubs_using_all_ms(ms_to_analyse, param):
+    print(f"Finding hubs")
+    ms_kept = []
+    cells_connectivity = []
+    bc_values = []
+    for ms in ms_to_analyse:
+        if ms.spike_struct.spike_nums_dur is None:
+            print(f"{ms.description} no spike_nums_dur")
+            continue
+        ms_kept.append(ms)
+        if ms.spike_struct.graph_out is None:
+            print(f"{ms.description} detect_n_in_n_out")
+            ms.detect_n_in_n_out()
+        graph = ms.spike_struct.graph_out
+        n_cells = ms.spike_struct.n_cells
+        for cell in np.arange(n_cells):
+            cells_connectivity.append(len(graph[cell]))
+        bc_dict = nx.betweenness_centrality(graph)
+        bc_values.extend(list(bc_dict.values()))
+    # determining hubs for each ms
+    print(f"Determining hubs over {len(ms_kept)} animals")
+    for ms in ms_kept:
+        if ms.spike_struct.graph_out is None:
+            continue
+        print("")
+        print(f"{ms.description}")
+        graph = ms.spike_struct.graph_out
+        n_cells = ms.spike_struct.n_cells
+        # print(f"{ms.description}: graph hubs: {n_cells} vs {len(graph)}")
+        # first selecting cells conencted to more than 5% cells
+        # we dot it among this particular mouse
+        cells_connectivity_perc_threshold = 5
+        # step 1
+        cells_selected_s1 = []
+        local_cells_connectivity = []
+        for cell in np.arange(n_cells):
+            local_cells_connectivity.append(len(graph[cell]))
+            if ((len(graph[cell]) / n_cells) * 100) >= cells_connectivity_perc_threshold:
+                cells_selected_s1.append(cell)
+        if len(cells_selected_s1) == 0:
+            print("Failed at step 1")
+            continue
+        # step 2
+        cells_selected_s2 = []
+        connec_treshold = np.percentile(cells_connectivity, 80)
+        for cell in cells_selected_s1:
+            if local_cells_connectivity[cell] >= connec_treshold:
+                cells_selected_s2.append(cell)
+
+        if len(cells_selected_s2) == 0:
+            print("Failed at step 2")
+            continue
+
+        cells_selected_s3 = []
+        local_bc_dict = nx.betweenness_centrality(graph)
+        bc_perc_threshold = np.percentile(bc_values, 80)
+        for cell in cells_selected_s2:
+            if local_bc_dict[cell] >= bc_perc_threshold:
+                cells_selected_s3.append(cell)
+        if len(cells_selected_s3) == 0:
+            print("Failed at step 3")
+            continue
+        print(f"HUB cells (n={len(cells_selected_s3)}): {cells_selected_s3}")
 
 def do_stat_on_pca(ms_to_analyse, param, save_formats="pdf"):
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
@@ -5651,7 +5714,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = available_ms_str
     # ms_str_to_load = ms_with_run
     # # ms_str_to_load = ["p60_a529_2015_02_25_v_arnaud_ms"]
-    ms_str_to_load = ["p7_18_02_08_a001_ms"]
+    # ms_str_to_load = ["p7_18_02_08_a001_ms"]
     # ms_str_to_load = ["p10_17_11_16_a003_ms"]
     # ms_str_to_load = available_ms_str
     # ms_str_to_load = ["p9_18_09_27_a003_ms", "p10_17_11_16_a003_ms"]
@@ -5699,7 +5762,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p6_18_02_07_a001_ms", "p7_171012_a000_ms"]
     # ms_str_to_load = ["p7_18_02_08_a000_ms"]
     # ms_str_to_load = ["p12_171110_a000_ms"]
-    ms_str_to_load = ["p9_18_09_27_a003_ms"]
+    # ms_str_to_load = ["p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p12_171110_a000_ms"]
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p7_171012_a000_ms"]
@@ -5879,7 +5942,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                "p16_18_11_01_a002_ms",
     #                "p7_19_02_19_a000_ms",
     #                "p10_19_03_04_a000_ms"]
-    # ms_with_weights = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a001_ms",
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a001_ms",
     #                    "p6_18_02_07_a002_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
     #                    "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
     #                    "p8_18_10_17_a001_ms", "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
@@ -5915,8 +5978,8 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
     #                   "p16_18_11_01_a002_ms",
     #                   "p19_19_04_08_a000_ms",
-    #                   # "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
-    #                   # "p21_19_04_10_a000_j3_ms",
+    #                   "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+    #                   "p21_19_04_10_a000_j3_ms",
     #                   "p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p13_18_10_29_a001_ms"]
     # ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
@@ -6001,7 +6064,7 @@ def main():
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
 
-    load_traces = True
+    load_traces = False
     load_abf = False
 
     if for_lexi:
@@ -6073,7 +6136,7 @@ def main():
     # next one seems to be an old code
     just_plot_raster_with_cells_assemblies_events_and_mvts = False
     # this one works properly
-    just_plot_raster_with_cells_assemblies_and_shifts = True
+    just_plot_raster_with_cells_assemblies_and_shifts = False
     just_plot_traces_raster = False
     just_plot_piezo_with_extra_info = False
     just_plot_raw_traces_around_each_sce_for_each_cell = False
@@ -6085,6 +6148,7 @@ def main():
     just_plot_ratio_spikes_for_shift = False
     just_save_sum_spikes_dur_in_npy_file = False
     do_find_hubs = False
+    do_find_hubs_using_all_ms = True
 
     # for events (sce) detection
     perc_threshold = 95
@@ -6300,6 +6364,10 @@ def main():
     if just_do_stat_on_pca:
         do_stat_on_pca(ms_to_analyse, param, save_formats="pdf")
         raise Exception("just_do_stat_on_pca")
+
+    if do_find_hubs_using_all_ms:
+        find_hubs_using_all_ms(ms_to_analyse, param)
+        raise Exception("do_find_hubs_using_all_ms")
 
     if just_save_stat_about_mvt_for_each_ms:
         save_stat_about_mvt_for_each_ms(ms_to_analyse, param=param)
