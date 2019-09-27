@@ -1,7 +1,8 @@
 from deepcinac.cinac_predictor import *
 
 if __name__ == '__main__':
-    root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
+    # root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
+    root_path = "/media/julien/Not_today/hne_not_today/"
 
     data_path = os.path.join(root_path, "data/p6/p6_18_02_07_a001")
     results_path = os.path.join(root_path, "results_hne")
@@ -11,10 +12,10 @@ if __name__ == '__main__':
     stat_suite2p_file_name = os.path.join(data_path, "suite2p", "stat.npy")
 
     weights_file_name = os.path.join(root_path, "data/transient_classifier_model/",
-                                  "transient_classifier_weights_11-0.9703_2019_04_13.23-21-27.h5")
+                                  "transient_classifier_weights_19-0.9710_2019_07_20.00-36-53.h5")
 
     json_file_name = os.path.join(root_path, "data/transient_classifier_model/",
-                                  "transient_classifier_model_architecture__2019_04_13.23-21-27.json")
+                                  "transient_classifier_model_architecture__2019_07_20.00-36-53.json")
     tiffs_dirname = os.path.join(root_path, "data/cinac_tiffs_test/")
     cinac_predictor = CinacPredictor()
 

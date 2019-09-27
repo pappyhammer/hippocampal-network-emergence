@@ -135,9 +135,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                            sampling_rate=8, param=param, weight=3.75)
         p5_19_03_25_a001_ms.use_suite_2p = True
         # calculated with 95th percentile on raster dur
-        p5_19_03_25_a001_ms.activity_threshold = 13
-        p5_19_03_25_a001_ms.z_shift_periods = [(295, 350),
-                                               (10252, 10308)]
+        # p5_19_03_25_a001_ms.activity_threshold = 13
+        # p5_19_03_25_a001_ms.z_shift_periods = [(295, 350),
+        #                                        (10252, 10308)]
         # prediction based on rnn trained on 50 cells, BO,
         # variables_mapping = {"predictions": "predictions"}
         # p5_19_03_25_a001_ms.load_raster_dur_from_predictions(
@@ -147,6 +147,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         ms_str_to_ms_dict["p5_19_03_25_a001_ms"] = p5_19_03_25_a001_ms
 
+    if "p5_19_09_02_a000_ms" in ms_str_to_load:
+        p5_19_09_02_a000_ms = MouseSession(age=5, session_id="19_09_02_a000",
+                                           sampling_rate=8, param=param)
+        p5_19_09_02_a000_ms.use_suite_2p = True
+        ms_str_to_ms_dict["p5_19_09_02_a000_ms"] = p5_19_09_02_a000_ms
     # GAD CRE
     # if "p5_19_03_20_a000_ms" in ms_str_to_load:
     #     p5_19_03_20_a000_ms = MouseSession(age=5, session_id="19_03_20_a000", sampling_rate=8,
@@ -699,7 +704,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         # if True will  use the coord from suite2p, if False, will just load the info concerning suite2p in
         # if the dict suit2p_data in mouse_session
-        p8_18_10_24_a005_ms.use_suite_2p = False
+        p8_18_10_24_a005_ms.use_suite_2p = True
         if for_transient_classifier:
             p8_18_10_24_a005_ms.use_suite_2p = False
 
@@ -865,7 +870,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             p9_18_09_27_a003_ms.use_suite_2p = False
 
         # calculated with 95th percentile on raster dur
-        p9_18_09_27_a003_ms.activity_threshold = 13
+        # p9_18_09_27_a003_ms.activity_threshold = 13
         # p9_18_09_27_a003_ms.set_low_activity_threshold(threshold=, percentile_value=1)
 
         if not p9_18_09_27_a003_ms.use_suite_2p:

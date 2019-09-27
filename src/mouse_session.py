@@ -4,14 +4,14 @@ from scipy import signal
 # import matplotlib
 # matplotlib.use('TkAgg')
 # to comment for mesocentre
-import tifffile
+import hdbscan
+import seaborn as sns
 import matplotlib.pyplot as plt
+import tifffile
 from matplotlib.figure import SubplotParams
 from matplotlib import patches
 import matplotlib.gridspec as gridspec
 from matplotlib.colors import LinearSegmentedColormap
-import seaborn as sns
-import hdbscan
 import numpy as np
 import hdf5storage
 import time

@@ -22,8 +22,8 @@ from keras import layers
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, EarlyStopping
 from keras.utils import get_custom_objects, multi_gpu_model
 from keras import backend as K
-from keras_radam import RAdam
-# from alt_model_checkpoint import AltModelCheckpoint
+# from keras_radam import RAdam
+from alt_model_checkpoint import AltModelCheckpoint
 
 # from matplotlib import pyplot as plt
 import pattern_discovery.tools.param as p_disc_tools_param
@@ -1188,7 +1188,7 @@ class MoviePatchData:
     def __init__(self, ms, cell, index_movie, max_n_transformations,
                  encoded_frames, decoding_frame_dict,
                  window_len, with_info=False, to_keep_absolutely=False):
-        # max_n_transformationsmax number of transofrmations to a movie patch
+        # max_n_transformations max number of transformations to a movie patch
         # if the number of available function to transform is lower, the lower one would be kept
         self.manual_max_transformation = max_n_transformations
         self.ms = ms
@@ -2711,16 +2711,23 @@ def add_segment_of_cells_for_training(param,
 
     dir_to_load = []
     # CAIMAN version
+    # used for v2
     dir_to_load.append(os.path.join(param.path_data, "p7", "p7_17_10_12_a000", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p8", "p8_18_10_24_a005", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p11", "p11_17_11_24_a000", "transients_to_add_for_rnn"))
 
     # SUITE2P version
+    # used for v2
     dir_to_load.append(os.path.join(param.path_data, "p10", "p10_19_02_21_a005", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_03_25_a001", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_05_a000", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_27_a000", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p16", "p16_18_11_01_a002", "transients_to_add_for_rnn"))
+    # used for v3
+    dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_09_02_a000", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p9", "p9_19_03_14_a001", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p10", "p10_19_03_08_a001", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p12", "p12_17_11_10_a002", "transients_to_add_for_rnn"))
 
     file_names_to_load = []
     dir_of_files = []
@@ -2805,9 +2812,9 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     add_doubt_at_movie_concatenation_frames = True
     use_cnn_to_select_cells = False
     use_small_sample = False
-    use_triple_blinded_data = False
+    use_triple_blinded_data = True
     use_test_sample = False
-    use_gad_cre_sample = True
+    use_gad_cre_sample = False
     # used for counting how many cells and transients available
     load_them_all = False
 
@@ -4011,7 +4018,7 @@ def train_model():
         ms_for_tiffs = ["p5_19_03_25_a001_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms",
                         "p16_18_11_01_a002_ms"]
         ms_for_tiffs = ["p10_19_02_21_a005_ms"]
-        ms_for_tiffs = ["p7_171012_a000_ms"]
+        ms_for_tiffs = ["p5_19_09_02_a000_ms"]
         # GAD-CRE
         # ms_for_tiffs = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
         #                 "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
@@ -4019,7 +4026,7 @@ def train_model():
         create_tiffs_for_data_generator(ms_to_use=ms_for_tiffs,
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
@@ -4099,18 +4106,18 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         #                 "p41_19_04_30_a000_ms"]
         # mesocentre
         # ms_for_rnn_benchmarks = ["p12_171110_a000_ms"]
-        cells_to_predict = dict()
+        # cells_to_predict = dict()
         # # predicting all cells
         #
         # for ms in ms_for_rnn_benchmarks:
         #     cells_to_predict[ms] = None
-        ms_for_rnn_benchmarks = ["p9_19_03_14_a001_ms"]
-        cells_selected = [1, 6, 245, 4, 499, 431, 6, 197, 10, 704, 792, 623, 311, 11, 276, 140, 29, 17, 282
-                          , 724, 18, 547, 36, 101, 106, 480, 209, 54]
-        cells_p9_19_03_14_a001_ms = np.array(cells_selected)
+        # ms_for_rnn_benchmarks = ["p9_19_03_14_a001_ms"]
+        # cells_selected = [1, 6, 245, 4, 499, 431, 6, 197, 10, 704, 792, 623, 311, 11, 276, 140, 29, 17, 282
+        #                   , 724, 18, 547, 36, 101, 106, 480, 209, 54]
+        # cells_p9_19_03_14_a001_ms = np.array(cells_selected)
         # cells_p9_19_03_14_a001_ms = np.arange(834)
         # cells_p9_19_03_14_a001_ms = np.setdiff1d(cells_p9_19_03_14_a001_ms, np.array([613, 677, 748]))
-        cells_to_predict["p9_19_03_14_a001_ms"] = cells_p9_19_03_14_a001_ms
+        # cells_to_predict["p9_19_03_14_a001_ms"] = cells_p9_19_03_14_a001_ms
 
 
         # cells_p10_19_02_21_a003_ms = np.arange(826)
@@ -4123,20 +4130,20 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # cells_to_predict["p8_18_10_17_a000_ms"] = cells_p8_18_10_17_a000_ms
 
         # ms_for_rnn_benchmarks = ["p10_19_03_08_a001_ms"]
-        ms_for_rnn_benchmarks = ["p14_18_10_23_a000_ms"]
-        cells_p14_18_10_23_a000_ms = np.array([])
-        cells_to_predict = dict()
-        cells_to_predict["p14_18_10_23_a000_ms"] = cells_p14_18_10_23_a000_ms
+        # ms_for_rnn_benchmarks = ["p14_18_10_23_a000_ms"]
+        # cells_p14_18_10_23_a000_ms = np.array([])
+        # cells_to_predict = dict()
+        # cells_to_predict["p14_18_10_23_a000_ms"] = cells_p14_18_10_23_a000_ms
         # cells_to_predict = {"p12_17_11_10_a002_ms": None}
 
-        ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
-        cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
+        ms_for_rnn_benchmarks = ["p5_19_09_02_a000_ms"]
+        # cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
 
         # ms_for_rnn_benchmarks = ms_for_gad_cre_benchmarks
-        # cells_to_predict = dict()
-        # # # # predicting all cells
-        # for ms in ms_for_rnn_benchmarks:
-        #     cells_to_predict[ms] = None
+        cells_to_predict = dict()
+        # # # predicting all cells
+        for ms in ms_for_rnn_benchmarks:
+            cells_to_predict[ms] = None
         # cells_to_predict = cells_to_predict_gad_cre
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0.5,
@@ -4180,7 +4187,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    n_gpus = 1
+    n_gpus = 4
     using_multi_class = 1  # 1 or 3 so far
     n_epochs = 30  # TODO: 30
     # multiplying by the number of gpus used as batches will be distributed to each GPU
@@ -4199,7 +4206,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     buffer = 1
     # between training, validation and test data
     split_values = [0.8, 0.2, 0]
-    optimizer_choice = "radam"  # "SGD"  used to be "RMSprop"  "adam", SGD
+    optimizer_choice = "RMSprop"  # "SGD"  used to be "RMSprop"  "adam", SGD
     activation_fct = "swish"
     if using_multi_class > 1:
         loss_fct = 'categorical_crossentropy'
@@ -4344,7 +4351,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         parallel_model = multi_gpu_model(model, gpus=n_gpus)
     else:
         parallel_model = model
-    raise Exception("YOU KNOW NOTHING JON SNOW")
+    # raise Exception("YOU KNOW NOTHING JON SNOW")
 
     # Save the model architecture
     with open(
