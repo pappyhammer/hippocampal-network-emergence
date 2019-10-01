@@ -47,6 +47,9 @@ class BenchmarkRasterDur:
         # same keys as raster_dur_dict, value will be a list of dict with results from benchmarks
         self.results_frames_dict_by_cell = dict()
         self.results_transients_dict_by_cell = dict()
+        # first key is the cell, second key same keys as raster_dict then value is a list of percentage
+        # that represents for each real transient the proportion of frames detected
+        self.results_frames_in_transients_pc = dict()
         # first key is the cell, value a dict with
         # same keys as raster_dur_dict, value will be a dict with results from benchmarks. Each key of the dict
         # each key being a string like "fp_transients_predictions" or "fp_frames_predictions"
@@ -156,7 +159,8 @@ class BenchmarkRasterDur:
                     self.cells_to_remove_by_key["MP"] = other.cells + len(self.ground_truth_raster_dur)
                 else:
                     self.cells_to_remove_by_key["MP"] = np.concatenate((self.cells_to_remove_by_key["MP"],
-                                                                        other.cells + len(self.ground_truth_raster_dur)))
+                                                                        other.cells + len(
+                                                                            self.ground_truth_raster_dur)))
         else:
             keys_to_remove = []
             for key in raster_dict.keys():
@@ -244,13 +248,15 @@ class BenchmarkRasterDur:
                     traces = self.traces[cell]
                 else:
                     traces = None
-                frames_stat, transients_stat, predictions_stat_dict = cs.compute_stats(gt_rd, p_rd,
-                                                                                       gt_predictions=gt_predictions,
-                                                                                       traces=traces,
-                                                                                       with_threshold=traces_threshold)
+                frames_stat, transients_stat, predictions_stat_dict, proportion_of_frames_detected_in_transients = \
+                    cs.compute_stats(gt_rd, p_rd,
+                                     gt_predictions=gt_predictions,
+                                     traces=traces,
+                                     with_threshold=traces_threshold)
                 self.results_predictions_dict_by_cell[cell][key] = predictions_stat_dict
                 self.results_frames_dict_by_cell[cell][key] = frames_stat
                 self.results_transients_dict_by_cell[cell][key] = transients_stat
+                self.results_frames_in_transients_pc[cell][key] = proportion_of_frames_detected_in_transients
                 if self.debug_mode:
                     # frames stats
                     print(f"raster {key}")
@@ -282,9 +288,10 @@ class BenchmarkRasterDur:
                     traces = self.traces[self.cells]
                 else:
                     traces = None
-                frames_stat, transients_stat, predictions_stat_dict = cs.compute_stats(gt_rd, p_rd,
-                                                                                       traces=traces,
-                                                                                       gt_predictions=gt_predictions)
+                frames_stat, transients_stat, predictions_stat_dict, proportion_of_frames_detected_in_transients \
+                    = cs.compute_stats(gt_rd, p_rd,
+                                       traces=traces,
+                                       gt_predictions=gt_predictions)
                 # frames stats
                 if self.debug_mode:
                     print(f"raster {key}")
@@ -750,7 +757,7 @@ class BenchmarkRasterDur:
                              facecolor=stat_fig.get_facecolor(), edgecolor='none')
 
     def plot_boxplots_f1_score(self, path_results, description, time_str, for_frames=True, with_cells=False,
-                                save_formats="pdf", dpi=500):
+                               save_formats="pdf", dpi=500):
         """
 
         :param path_results:
@@ -771,9 +778,9 @@ class BenchmarkRasterDur:
         colors = ['cornflowerblue'] + colors[3:]
 
         stat_fig, ax = plt.subplots(nrows=1, ncols=1, squeeze=True,
-                                      gridspec_kw={'height_ratios': [1],
-                                                   'width_ratios': [1]},
-                                      figsize=(10, 10), dpi=dpi)
+                                    gridspec_kw={'height_ratios': [1],
+                                                 'width_ratios': [1]},
+                                    figsize=(10, 10), dpi=dpi)
 
         stat_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
         fig_patch = stat_fig.patch
@@ -903,6 +910,163 @@ class BenchmarkRasterDur:
                              format=f"{save_format}",
                              facecolor=stat_fig.get_facecolor(), edgecolor='none')
         plt.close()
+
+    def plot_boxplots_proportion_frames_in_transients(self, path_results, description, time_str,
+                                                      only_this_key=None,
+                                                       with_scatter=True,
+                                                      save_formats="pdf", dpi=500):
+        """
+
+        :param path_results:
+        :param description:
+        :param time_str:
+        :param for_frames:
+        :param with_cells: if True, display a scatter for each cell
+        :param save_formats:
+        :return:
+        """
+        result_dict_to_use = self.results_frames_in_transients_pc
+        # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12 + 12 blue range
+        colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+                  '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#ffffd9', '#edf8b1', '#c7e9b4',
+                  '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']
+        colors = ['cornflowerblue'] + colors[3:]
+
+        stat_fig, ax = plt.subplots(nrows=1, ncols=1, squeeze=True,
+                                    gridspec_kw={'height_ratios': [1],
+                                                 'width_ratios': [1]},
+                                    figsize=(10, 10), dpi=dpi)
+
+        stat_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
+        fig_patch = stat_fig.patch
+        black_and_white_skin = False
+        # rgba = c_map(0)
+        if black_and_white_skin:
+            face_color = "white"
+            text_color = "black"
+            title_color = "black"
+        else:
+            face_color = "black"
+            text_color = "white"
+            title_color = "red"
+        fig_patch.set_facecolor(face_color)
+
+        n_cells = len(self.results_frames_dict_by_cell)
+
+        ax.set_facecolor(face_color)
+
+        ax.set_frame_on(False)
+
+        # determining the cell with the max number of label
+        max_key = 0
+        max_n_values = 0
+        for cell_to_display in result_dict_to_use.keys():
+            n_values = len(result_dict_to_use[cell_to_display])
+            if n_values > max_n_values:
+                max_n_values = n_values
+                max_key = cell_to_display
+        if only_this_key and only_this_key in result_dict_to_use[max_key]:
+            n_box_plots = 1
+            labels = [only_this_key]
+        else:
+            n_box_plots = len(result_dict_to_use[max_key])
+            labels = list(result_dict_to_use[max_key].keys())
+        values_by_prediction = [[] for n in np.arange(n_box_plots)]
+
+        for cell_index, cell_to_display in enumerate(result_dict_to_use.keys()):
+            for label_index, label in enumerate(labels):
+                # all label might not have the same cells
+                if label in result_dict_to_use[cell_to_display]:
+                    pourcentages = result_dict_to_use[cell_to_display][label]
+                    values_by_prediction[label_index]. \
+                        extend(pourcentages)
+                else:
+                    continue
+                if with_scatter:
+                    for pc in pourcentages:
+                        # Adding jitter
+                        x_pos = 1 + label_index + ((np.random.random_sample() - 0.5) * 0.8)
+                        y_pos = pc
+                        font_size = 3
+                        if black_and_white_skin:
+                            edgecolors = "black"
+                        else:
+                            edgecolors = "white"
+                        if cell_to_display not in self.cells_to_color:
+                            color_cell = colors[label_index % len(colors)]
+                        else:
+                            color_cell = self.cells_to_color[cell_to_display]
+                        ax.scatter(x_pos, y_pos,
+                                   color=color_cell,
+                                   marker="o",
+                                   edgecolors=edgecolors,
+                                   s=60, zorder=21)
+                        ax.text(x=x_pos, y=y_pos,
+                                s=f"{cell_to_display}", color="black", zorder=22,
+                                ha='center', va="center", fontsize=font_size, fontweight='bold')
+
+        colorfull = True
+        outliers = dict(markerfacecolor='white', marker='D')
+        # if not for_frames:
+        #     print(f"plot_boxplots_full_stat: {stat_name}: values_by_prediction {values_by_prediction}")
+        bplot = ax.boxplot(values_by_prediction, patch_artist=colorfull,
+                           flierprops=outliers, widths=[0.7] * len(values_by_prediction),
+                           labels=labels, sym='', zorder=1)  # whis=[5, 95], sym='+'
+
+        for element in ['boxes', 'whiskers', 'fliers', 'caps']:
+            if black_and_white_skin:
+                plt.setp(bplot[element], color="black")
+            else:
+                plt.setp(bplot[element], color="white")
+
+        for element in ['means', 'medians']:
+            if black_and_white_skin:
+                plt.setp(bplot[element], color="black")
+            else:
+                plt.setp(bplot[element], color="silver")
+
+        if colorfull:
+            colors = colors[:n_box_plots]
+            for patch, color in zip(bplot['boxes'], colors):
+                patch.set_facecolor(color)
+
+        ax.xaxis.set_ticks_position('none')
+        ax.xaxis.label.set_color(text_color)
+        ax.tick_params(axis='x', colors=text_color)
+        if n_box_plots <= 2:
+            ax.xaxis.set_tick_params(labelsize=15)
+        elif n_box_plots <= 6:
+            ax.xaxis.set_tick_params(labelsize=9)
+        else:
+            ax.xaxis.set_tick_params(labelsize=3)
+        ax.yaxis.label.set_color(text_color)
+        ax.tick_params(axis='y', colors=text_color)
+        # ax.set_xticklabels([])
+        # ax.set_yticklabels([])
+        # ax.get_yaxis().set_visible(False)
+        # ax.get_xaxis().set_visible(False)
+        # ax.set_ylabel(f"proportion")
+        # ax.set_xlabel("age")
+        xticks = np.arange(1, n_box_plots + 1)
+        ax.set_xticks(xticks)
+        # sce clusters labels
+        ax.set_xticklabels(labels)
+        # fixing the limits
+        ax.set_ylim(0, 1.1)
+
+        # ax.set_title("", color=title_color, pad=20, fontsize=20)
+
+        str_details = ""
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+        for save_format in save_formats:
+            stat_fig.savefig(f'{path_results}/'
+                             f'{description}_box_plots_proportion_frames_in_transients_on_{n_cells}_cells'
+                             f'_{time_str}.{save_format}',
+                             format=f"{save_format}",
+                             facecolor=stat_fig.get_facecolor(), edgecolor='none')
+        plt.close()
+
 
 def build_spike_nums_dur(spike_nums, peak_nums):
     n_cells = len(spike_nums)
@@ -1590,7 +1754,8 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         # data_dict["gt"]["gt_file"] = "p7_17_10_12_a000_cell_to_suppress_ground_truth.txt"
         # data_dict["gt"]["cnn"] = "cell_classifier_results_txt/cell_classifier_cnn_results_P7_17_10_12_a000.txt"
         # data_dict["gt"]["cnn_threshold"] = 0.5
-        data_dict["gt"]["cells"] = np.array([2, 25])  # np.array([2, 25]) # np.array([2, 3, 8, 11, 12, 14, 17, 18, 24, 25])  #  np.arange(117)
+        data_dict["gt"]["cells"] = np.array(
+            [2, 25])  # np.array([2, 25]) # np.array([2, 3, 8, 11, 12, 14, 17, 18, 24, 25])  #  np.arange(117)
         # data_dict["gt"]["cells_to_remove"] = np.array([52, 75])
 
         data_dict["caiman"] = dict()
@@ -1910,7 +2075,6 @@ def main_benchmark():
                                                                        + "_transients",
                                                            path_results=path_results, save_formats="png")
 
-
         # value is a dict
         for key, value in data_dict.items():
             if key == "gt":
@@ -2061,8 +2225,8 @@ def main_benchmark():
                                                path_results=path_results, with_cells=True,
                                                for_frames=False, save_formats=["png"])
             benchmarks.plot_boxplots_f1_score(description=tmp_description, time_str=time_str,
-                                               path_results=path_results, with_cells=True,
-                                               for_frames=False, save_formats=["png"])
+                                              path_results=path_results, with_cells=True,
+                                              for_frames=False, save_formats=["png"])
         if global_benchmarks is None:
             global_benchmarks = benchmarks
         else:
@@ -2081,7 +2245,12 @@ def main_benchmark():
         global_benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
                                                   for_frames=False, save_formats=["png"], with_cells=True)
         global_benchmarks.plot_boxplots_f1_score(description=description, time_str=time_str, path_results=path_results,
-                                                  for_frames=False, save_formats=["png"], with_cells=True)
+                                                 for_frames=False, save_formats=["png"], with_cells=True)
+        global_benchmarks.plot_boxplots_proportion_frames_in_transients(description=description,
+                                                                        time_str=time_str, path_results=path_results,
+                                                                        only_this_key="v2_epoch_19",
+                                                                        with_scatter=True,
+                                                                        save_formats="png", dpi=500)
     # benchmarks.plot_boxplots_for_transients_stat(description=description, time_str=time_str,
     #                                              path_results=path_results,
     #                                              save_formats="pdf")
