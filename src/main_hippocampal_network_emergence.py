@@ -5992,7 +5992,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p5_19_03_20_a000_ms"]
     # ms_str_to_load = ["p6_19_02_18_a000_ms"]
     # ms_str_to_load = ["p11_19_04_30_a001_ms"]
-    # ms_str_to_load = ["p12_19_02_08_a000_ms"]
+    ms_str_to_load = ["p12_17_11_10_a002_ms"]
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
@@ -6064,7 +6064,7 @@ def main():
         correlate_global_roi_and_shift(path_data=os.path.join(path_data), param=param)
         return
 
-    load_traces = False
+    load_traces = True
     load_abf = False
 
     if for_lexi:
@@ -6121,6 +6121,7 @@ def main():
     just_do_stat_on_pca = False
     just_analyse_lfp = False
     just_run_cilva = False
+    just_evaluate_overlaps_accuracy = True
 
     just_merge_coords_map = False
 
@@ -6148,7 +6149,7 @@ def main():
     just_plot_ratio_spikes_for_shift = False
     just_save_sum_spikes_dur_in_npy_file = False
     do_find_hubs = False
-    do_find_hubs_using_all_ms = True
+    do_find_hubs_using_all_ms = False
 
     # for events (sce) detection
     perc_threshold = 95
@@ -6917,6 +6918,12 @@ def main():
             ms.run_cilva()
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_run_cilva")
+            continue
+
+        if just_evaluate_overlaps_accuracy:
+            ms.evaluate_overlaps_accuracy()
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_evaluate_overlaps_accuracy")
             continue
 
         if just_do_pca_on_raster:
