@@ -1013,8 +1013,7 @@ class ManualOnsetFrame(tk.Frame):
         self.last_predicted_transient_selected = None
         # checking if a prediction results are already loaded in mouse_sessions
         if self.data_and_param.ms.rnn_transients_predictions is not None:
-            # print(f"len(self.data_and_param.ms.rnn_transients_predictions) "
-            #       f"{len(self.data_and_param.ms.rnn_transients_predictions)} {self.nb_neurons}")
+            print(f"rnn_transients_predictions available")
             for cell in np.arange(self.nb_neurons):
                 self.transient_prediction_periods[cell] = dict()
                 cell_predictions = self.data_and_param.ms.rnn_transients_predictions[cell]
@@ -4956,7 +4955,8 @@ class ManualOnsetFrame(tk.Frame):
                                                color=self.classifier_filling_color)
 
                 # display the stat only when the threshold is changed
-                if self.print_transients_predictions_stat:
+                if False:
+                # if self.print_transients_predictions_stat:
                     # first we build the raster_dur for this cell
                     if self.current_neuron not in self.raster_dur_for_a_cell:
                         raster_dur = np.zeros(self.nb_times_traces, dtype="int8")

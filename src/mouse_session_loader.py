@@ -286,6 +286,11 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             p6_19_02_18_a000_ms.load_data_from_file(file_name_to_load="p6/p6_19_02_18_a000/p6_19_02_18_a000_CellDetect_fiji.mat",
                                                     variables_mapping=variables_mapping, from_fiji=True)
 
+            # variables_mapping = {"coord": "ContoursAll"}
+            # p6_19_02_18_a000_ms.load_data_from_file(
+            #     file_name_to_load="p6/p6_19_02_18_a000/caiman_matlab/p6_19_02_18_a000_CellDetect.mat",
+            #     variables_mapping=variables_mapping, from_fiji=False)
+
             p6_19_02_18_a000_ms.load_tif_movie(path="p6/p6_19_02_18_a000/")
             # p6_19_02_18_a000_ms.load_caiman_results(path_data="p6/p6_19_02_18_a000/")
             # p6_19_02_18_a000_ms.spike_struct.spike_nums = p6_19_02_18_a000_ms.caiman_spike_nums
@@ -1227,12 +1232,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                           sampling_rate=10, param=param,
                                           weight=7)
 
-        p12_171110_a000_ms.use_suite_2p = True
+        p12_171110_a000_ms.use_suite_2p = False
         if for_transient_classifier or for_cell_classifier:
             p12_171110_a000_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
-        p12_171110_a000_ms.activity_threshold = 13
+        # p12_171110_a000_ms.activity_threshold = 13
 
         # caiman version
         # variables_mapping = {"spike_nums_dur": "corrected_rasterdur"} # rasterdur before
@@ -1242,21 +1247,31 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         if not p12_171110_a000_ms.use_suite_2p:
             if for_cell_classifier or for_transient_classifier:
-                variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
-                                     "peak_nums": "LocPeakMatrix_Python",
-                                     "cells_to_remove": "cells_to_remove",
-                                     "inter_neurons_from_gui": "inter_neurons",
-                                     "doubtful_frames_nums": "doubtful_frames_nums"}
+                variables_mapping = {"spike_nums_dur": "rasterdur"}  # rasterdur before
                 p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                                                       "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_fusion_validation.mat",
+                                                       "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur.mat",
                                                        variables_mapping=variables_mapping,
-                                                       from_gui=True)
-                # keeping JD gui selection for test, then using: p12_17_11_10_a000_GUI_JD.mat
-                p12_171110_a000_ms.build_spike_nums_dur()
-                if for_cell_classifier:
-                    p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
-                                                                               "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
+                                                       save_caiman_apart=True)
+                # variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                #                      "peak_nums": "LocPeakMatrix_Python",
+                #                      "cells_to_remove": "cells_to_remove",
+                #                      "inter_neurons_from_gui": "inter_neurons",
+                #                      "doubtful_frames_nums": "doubtful_frames_nums"}
+                # p12_171110_a000_ms.load_data_from_file(file_name_to_load=
+                #                                        "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_fusion_validation.mat",
+                #                                        variables_mapping=variables_mapping,
+                #                                        from_gui=True)
+                # # keeping JD gui selection for test, then using: p12_17_11_10_a000_GUI_JD.mat
+                # p12_171110_a000_ms.build_spike_nums_dur()
+                # if for_cell_classifier:
+                #     p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
+                #                                                                "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
             else:
+                # variables_mapping = {"spike_nums_dur": "rasterdur"}  # rasterdur before
+                # p12_171110_a000_ms.load_data_from_file(file_name_to_load=
+                #                                          "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur.mat",
+                #                                          variables_mapping=variables_mapping,
+                #                                        save_caiman_apart=True)
                 pass
                 # variables_mapping = {"spike_nums_dur": "spike_nums_dur_predicted"}
                 # not the best prediction, but done on all CNN validated cells
@@ -1294,11 +1309,17 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_CellDetect.mat",
                 variables_mapping=variables_mapping)
 
+            p12_171110_a000_ms.load_caiman_results(path_data="p12/p12_17_11_10_a000/")
+
+            variables_mapping = {"spike_nums_dur": "rasterdur"}  # rasterdur before
+            p12_171110_a000_ms.load_data_from_file(file_name_to_load=
+                                                   "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur.mat",
+                                                   variables_mapping=variables_mapping,
+                                                   save_caiman_apart=True)
+
         if not p12_171110_a000_ms.use_suite_2p:
             if not for_cell_classifier:
                 p12_171110_a000_ms.clean_data_using_cells_to_remove()
-
-        # p12_171110_a000_ms.load_caiman_results(path_data="p12/p12_17_11_10_a000/")
 
         ms_str_to_ms_dict["p12_171110_a000_ms"] = p12_171110_a000_ms
 
@@ -1317,20 +1338,20 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             #                      "spike_nums": "filt_Bin100ms_spikedigital",
             #                      "spike_durations": "LOC3"}
             # p12_17_11_10_a002_ms.load_data_from_file(file_name_to_load=
-            #                                          "p12/p12_17_11_10_a002/p12_17_11_10_a002_Corrected_RasterDur.mat",
+            #                                          "p12/p12_17_11_10_a002/old/p12_17_11_10_a002_Corrected_RasterDur.mat",
             #                                          variables_mapping=variables_mapping)
             if load_traces:
-                variables_mapping = {"traces": "C_df"}
-                p12_17_11_10_a002_ms.load_data_from_file(
-                    file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_Traces.mat",
-                    variables_mapping=variables_mapping)
+                # variables_mapping = {"traces": "C_df"}
+                # p12_17_11_10_a002_ms.load_data_from_file(
+                #     file_name_to_load="p12/p12_17_11_10_a002/old/p12_17_11_10_a002_Traces.mat",
+                #     variables_mapping=variables_mapping)
                 variables_mapping = {"raw_traces": "raw_traces"}
                 p12_17_11_10_a002_ms.load_data_from_file(
-                    file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_raw_Traces.mat",
+                    file_name_to_load="p12/p12_17_11_10_a002/old/p12_17_11_10_a002_raw_Traces.mat",
                     variables_mapping=variables_mapping)
             variables_mapping = {"coord": "ContoursAll"}
             p12_17_11_10_a002_ms.load_data_from_file(
-                file_name_to_load="p12/p12_17_11_10_a002/p12_17_11_10_a002_CellDetect.mat",
+                file_name_to_load="p12/p12_17_11_10_a002/old/p12_17_11_10_a002_CellDetect.mat",
                 variables_mapping=variables_mapping)
 
         ms_str_to_ms_dict["p12_17_11_10_a002_ms"] = p12_17_11_10_a002_ms
@@ -1392,7 +1413,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p13_18_10_29_a001_ms = MouseSession(age=13, session_id="18_10_29_a001", sampling_rate=10, param=param,
                                             weight=9.4)
 
-        p13_18_10_29_a001_ms.use_suite_2p = True
+        p13_18_10_29_a001_ms.use_suite_2p = False
         if for_transient_classifier:
             p13_18_10_29_a001_ms.use_suite_2p = False
 
@@ -1857,7 +1878,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if ms.spike_struct.spike_nums_dur is None:
             prediction_threshold = 0.5
             # key that should be on the prediction file_name to be loaded
-            prediction_key = "meso_v1_epoch_9" #"meso_v2_epoch_19" #"meso_v1_epoch_9"
+            prediction_key = "meso_v2_caiman_epoch_19"  #"meso_v2_epoch_19" #"meso_v2_caiman_epoch_19" #"meso_v1_epoch_9"
             # prediction_key = "gad_cre_v1_epoch_15"
             variables_mapping = {"predictions": "predictions"}
             ms.load_raster_dur_from_predictions(

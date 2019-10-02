@@ -2394,7 +2394,7 @@ def load_movie(ms):
 
             # no need to normalize the movie, we normalize it only on the frame we need using
             # mean and std saved in npy.file
-            # ms.normalize_movie()
+            ms.normalize_movie()
         return True
     return False
 
@@ -4070,7 +4070,7 @@ def train_model():
         create_tiffs_for_data_generator(ms_to_use=ms_for_tiffs,
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
-    go_predict_from_movie = False
+    go_predict_from_movie = True
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
@@ -4173,14 +4173,16 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # cells_p8_18_10_17_a000_ms = np.setdiff1d(cells_p8_18_10_17_a000_ms, np.array([538]))
         # cells_to_predict["p8_18_10_17_a000_ms"] = cells_p8_18_10_17_a000_ms
 
-        # ms_for_rnn_benchmarks = ["p10_19_03_08_a001_ms"]
+        # ms_for_rnn_benchmarks = ["p12_17_11_10_a002_ms"]
+        ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
+
         # ms_for_rnn_benchmarks = ["p14_18_10_23_a000_ms"]
         # cells_p14_18_10_23_a000_ms = np.array([])
         # cells_to_predict = dict()
         # cells_to_predict["p14_18_10_23_a000_ms"] = cells_p14_18_10_23_a000_ms
         # cells_to_predict = {"p12_17_11_10_a002_ms": None}
 
-        ms_for_rnn_benchmarks = ["p5_19_09_02_a000_ms"]
+        # ms_for_rnn_benchmarks = ["p5_19_09_02_a000_ms"]
         # cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
 
         # ms_for_rnn_benchmarks = ms_for_gad_cre_benchmarks
@@ -4192,7 +4194,8 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0.5,
                                          use_data_augmentation=False, using_cnn_predictions=False,
-                                         cells_to_predict=cells_to_predict, file_name_bonus_str="meso_v2_epoch_19",
+                                         cells_to_predict=cells_to_predict,
+                                         file_name_bonus_str="cre_meso_v1_caiman_epoch_15_",
                                          tiffs_for_transient_classifier_path=path_for_tiffs)
         # "rnn_gad_cre_epoch_9"
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
