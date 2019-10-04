@@ -1273,9 +1273,9 @@ def merge_coords_map(ms, param):
     if ms.description.lower() not in ["p6_19_02_18_a000", "p11_19_04_30_a001"]:
         print(f"merge_coords_map not available for {ms.description}")
         return
-    # specific fonction to match segmentation from Fiji to the one with Caiman on matlab
+    # specific function to match segmentation from Fiji to the one with Caiman on matlab
     caiman_mat_file_name = os.path.join(param.path_data, f"p{ms.age}", ms.description.lower(),
-                                       "caiman_matlab", f"{ms.description.lower()}_CellDetect.mat")
+                                       "caiman_matlab", f"{ms.description.lower()}_CellDetect_new.mat")
     data = hdf5storage.loadmat(caiman_mat_file_name)
     coord = data["ContoursAll"][0]
     coord_obj = CoordClass(coord=coord, nb_col=200,
@@ -6124,6 +6124,7 @@ def main():
     just_run_cilva = False
     just_evaluate_overlaps_accuracy = True
 
+    # to merge contour map, like between fiji and caiman
     just_merge_coords_map = False
 
     just_produce_cell_assemblies_verification = False

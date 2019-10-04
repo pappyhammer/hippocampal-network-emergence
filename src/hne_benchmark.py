@@ -373,7 +373,7 @@ class BenchmarkRasterDur:
         for by_cell in [True, False]:
             for type_of_activity in type_of_activity_list:
                 if by_cell:
-                    if len(predictions_by_cell_stat[type_of_activity][metrics_to_show]) > 15:
+                    if len(predictions_by_cell_stat[type_of_activity][metrics_to_show]) > 25:
                         # if more than 15 boxplots, we don't plot it
                         continue
                 stat_fig, axes = plt.subplots(nrows=2, ncols=2, squeeze=True,
@@ -407,7 +407,7 @@ class BenchmarkRasterDur:
                         n_box_plots = len(by_cell_dict)
                         labels = []
                         for cell_key in by_cell_dict.keys():
-                            labels.append(f"{cell_key} ({len(by_cell_dict[cell_key])})")
+                            labels.append(f"{len(by_cell_dict[cell_key])}")
                         # labels = list(by_cell_dict.keys())
                         values_by_prediction = [by_cell_dict[cell_key] for cell_key in list(by_cell_dict.keys())]
                         if with_scatter:
@@ -492,7 +492,7 @@ class BenchmarkRasterDur:
                     elif n_box_plots <= 6:
                         ax.xaxis.set_tick_params(labelsize=9)
                     else:
-                        ax.xaxis.set_tick_params(labelsize=3)
+                        ax.xaxis.set_tick_params(labelsize=6)
                     ax.yaxis.label.set_color(text_color)
                     ax.tick_params(axis='y', colors=text_color)
                     # ax.set_xticklabels([])
@@ -515,7 +515,7 @@ class BenchmarkRasterDur:
                     # elif stat_name == "NPV":
                     #     ax.set_ylim(0.6, 1.1)
 
-                    ax.set_title(metrics_to_show.upper(), color=title_color, pad=20, fontsize=20)
+                    ax.set_title(metrics_to_show.upper(), color=title_color, pad=20, fontsize=30, fontweight='bold')
 
                 str_details = "and_cells_" if by_cell else ""
                 if isinstance(save_formats, str):
@@ -1639,6 +1639,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["caiman"]["onsets_var_name"] = "spikenums"
         data_dict["caiman"]["to_bin"] = True
         data_dict["caiman"]["caiman_fiji_mapping"] = "P6_19_02_18_a000_fiji_vs_caiman.npy"
+        # data_dict["caiman"]["caiman_fiji_mapping"] = "P6_19_02_18_a000_fiji_vs_caiman_new.npy"
         data_dict["caiman"]["trace_file_name"] = "caiman_matlab/p6_19_02_18_a000_Traces.mat"
         data_dict["caiman"]["trace_var_name"] = "C_df"
 
@@ -1675,6 +1676,7 @@ def load_data_dict(ms_to_benchmark, data_dict, version=None):
         data_dict["caiman"]["onsets_var_name"] = "spikenums"
         data_dict["caiman"]["to_bin"] = True
         data_dict["caiman"]["caiman_fiji_mapping"] = "P11_19_04_30_a001_fiji_vs_caiman.npy"
+        # data_dict["caiman"]["caiman_fiji_mapping"] = "P11_19_04_30_a001_fiji_vs_caiman_new.npy"
         data_dict["caiman"]["trace_file_name"] = "caiman_matlab/p11_19_04_30_a001_Traces.mat"
         data_dict["caiman"]["trace_var_name"] = "C_df"
 
@@ -1934,7 +1936,7 @@ def main_benchmark():
     # ms_to_benchmarks = ["p6_19_02_18_a000_ms"]
     do_onsets_benchmarks = False
     do_plot_roc_predictions = False
-    do_plot_recall_vs_precision_curve = True
+    do_plot_recall_vs_precision_curve = False
     produce_separate_benchmarks = True
     do_plot_roc_predictions_for_suite_2p = False
     # ########### end options ###################
@@ -1952,7 +1954,7 @@ def main_benchmark():
     # gad-cre
     # predictions_to_load = ["meso_9", "cre_v1_epoch_10", "cre_v1_epoch_15", "cre_v1_epoch_19",
     #                        "cre_v1_epoch_22", "cre_v1_epoch_23"]
-    predictions_to_load = ["v1_epoch_15"]
+    # predictions_to_load = ["v1_epoch_15"]
     # predictions_to_load = ["epoch_15", "meso_9", "v2_epoch_19"]
     # predictions_to_load = ["caiman_epoch_15"]
     # TO PLOT predictions distribution for each metrics, use only one predictions_to_load

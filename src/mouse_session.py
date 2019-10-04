@@ -1080,7 +1080,7 @@ class MouseSession:
     def plot_source_profile_with_transients_profiles(self, profiles_dict, path_results):
 
         def get_new_figure(n_columns, n_lines):
-            fig = plt.figure(figsize=(12, 20),
+            fig = plt.figure(figsize=(8, 14),
                              subplotpars=SubplotParams(hspace=0, wspace=0),
                              dpi=500)
             fig_patch = fig.patch
@@ -1234,7 +1234,7 @@ class MouseSession:
 
                 for spine in ax.spines.values():
                     spine.set_edgecolor(frame_color)
-                    spine.set_linewidth(1.5)
+                    spine.set_linewidth(3)
                     if caiman_error:
                         spine.set_linestyle("dashed")
                     else:
@@ -1255,6 +1255,7 @@ class MouseSession:
         print('Starting evaluate_overlaps_accuracy')
         # just to test how many cells have predictions
         cells_predicted = 0
+        print(f"len(self.spike_struct.spike_nums_dur) {len(self.spike_struct.spike_nums_dur)}")
         for spikes in self.spike_struct.spike_nums_dur:
             if np.sum(spikes) > 0:
                 cells_predicted += 1
@@ -1276,7 +1277,7 @@ class MouseSession:
 
         other_raster_dur = None
 
-        add_other = True
+        add_other = False
         if add_other:
             file_name = "p12/p12_17_11_10_a000/predictions/P12_17_11_10_a000_predictions_cre_meso_v1_caiman_epoch_15_.mat"
             data = hdf5storage.loadmat(os.path.join(self.param.path_data, file_name))

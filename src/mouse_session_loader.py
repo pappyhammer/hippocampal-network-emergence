@@ -1232,9 +1232,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                           sampling_rate=10, param=param,
                                           weight=7)
 
-        p12_171110_a000_ms.use_suite_2p = False
+        p12_171110_a000_ms.use_suite_2p = True
         if for_transient_classifier or for_cell_classifier:
-            p12_171110_a000_ms.use_suite_2p = False
+            p12_171110_a000_ms.use_suite_2p = True
 
         # calculated with 99th percentile on raster dur
         # p12_171110_a000_ms.activity_threshold = 13
@@ -1309,7 +1309,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_CellDetect.mat",
                 variables_mapping=variables_mapping)
 
-            p12_171110_a000_ms.load_caiman_results(path_data="p12/p12_17_11_10_a000/")
+            # p12_171110_a000_ms.load_caiman_results(path_data="p12/p12_17_11_10_a000/")
 
             # variables_mapping = {"spike_nums_dur": "rasterdur"}  # rasterdur before
             # p12_171110_a000_ms.load_data_from_file(file_name_to_load=
@@ -1878,7 +1878,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if ms.spike_struct.spike_nums_dur is None:
             prediction_threshold = 0.5
             # key that should be on the prediction file_name to be loaded
-            prediction_key = "meso_v2_caiman_epoch_19" #"meso_v2_epoch_19" #"meso_v2_caiman_epoch_19" #"meso_v1_epoch_9"
+            prediction_key = "meso_v2_epoch_19" #"meso_v2_epoch_19" #"meso_v2_caiman_epoch_19" #"meso_v1_epoch_9"
             # prediction_key = "gad_cre_v1_epoch_15"
             variables_mapping = {"predictions": "predictions"}
             ms.load_raster_dur_from_predictions(
