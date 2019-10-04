@@ -298,7 +298,7 @@ class MouseSession:
         if caiman_file_name is None:
             return
         data_file = hdf5storage.loadmat(caiman_file_name)
-        print(f'load_caiman_results: {list(data_file.keys())}')
+        # print(f'load_caiman_results: {list(data_file.keys())}')
         if "spikenums" in data_file:
             caiman_spike_nums = data_file["spikenums"].astype(int)
         else:
@@ -1077,13 +1077,181 @@ class MouseSession:
         # spike_sum_of_sum_at_time_dict, spikes_sums_at_time_dict, \
         # spikes_at_time_dict = self.get_spikes_by_time_around_a_time(twitches_times, spike_nums_to_use, 25)
 
-    def evaluate_overlaps_accuracy(self, path_data, path_results):
+    def plot_source_profile_with_transients_profiles(self, profiles_dict, path_results):
+
+        def get_new_figure(n_columns, n_lines):
+            fig = plt.figure(figsize=(12, 20),
+                             subplotpars=SubplotParams(hspace=0, wspace=0),
+                             dpi=500)
+            fig_patch = fig.patch
+            fig_patch.set_facecolor("white")
+            # plt.subplots_adjust(left=0.01, right=0.01, top=0.01, bottom=0.01)
+            # now adding as many suplots as need, depending on how many overlap has the cell
+            # n_columns = 10
+            width_ratios = [100 // n_columns] * n_columns
+            # n_lines = (((n_source_profile_max - 1) // n_columns) + 1) * 2
+            height_ratios = [100 // n_lines] * n_lines
+            grid_spec = gridspec.GridSpec(n_lines, n_columns, width_ratios=width_ratios,
+                                          height_ratios=height_ratios,
+                                          figure=fig, wspace=0.1, hspace=0.1)
+            ax_grid = dict()
+            for line_gs in np.arange(n_lines):
+                for col_gs in np.arange(n_columns):
+                    ax_grid[(line_gs, col_gs)] = \
+                        fig.add_subplot(grid_spec[line_gs, col_gs])
+                    ax = ax_grid[(line_gs, col_gs)]
+                    # ax_source_profile_by_cell[cell_to_display].set_facecolor("black")
+                    ax.set_xticklabels([])
+                    ax.set_yticklabels([])
+                    ax.get_yaxis().set_visible(False)
+                    ax.get_xaxis().set_visible(False)
+                    ax.set_frame_on(False)
+            return ax_grid, fig
+
+        def save_figure(path_results, fig, index):
+            save_formats = ["png", "pdf"]
+            if not os.path.isdir(path_results):
+                os.mkdir(path_results)
+
+            if isinstance(save_formats, str):
+                save_formats = [save_formats]
+            for save_format in save_formats:
+                fig.savefig(f'{path_results}/'
+                            f'{self.description}_source_profiles_classifier_vs_caiman_{index}'
+                            f'.{save_format}',
+                            format=f"{save_format}",
+                            facecolor=sources_profile_fig.get_facecolor(), edgecolor='none', bbox_inches='tight')
+
+        print(f'profiles_dict.keys() {list(profiles_dict.keys())}')
+        n_lines = 20
+        n_columns = 10
+        lw_contour = 1
+        ax_grid, sources_profile_fig = get_new_figure(n_columns=n_columns, n_lines=n_lines)
+        # n_figure plotted
+        index_fig = 0
+        source_profile_fig_index = 0
+
+        for main_cell, profiles_list in profiles_dict.items():
+            print(f"main_cell {main_cell}: len(profiles_list) {len(profiles_list)}")
+            if source_profile_fig_index == n_lines:
+                # we need to save the figure and create a new one
+                save_figure(path_results=path_results, fig=sources_profile_fig, index=index_fig)
+                index_fig += 1
+                # we need to create a new figure
+                ax_grid, sources_profile_fig = get_new_figure(n_columns=n_columns, n_lines=n_lines)
+                source_profile_fig_index = 0
+
+            # intersect_cells used to display cells contours in the source profile
+            intersect_cells = self.coord_obj.intersect_cells[main_cell]
+            cells_color = dict()
+            cells_color[main_cell] = "red"
+            cells_to_display = [main_cell]
+            for index, cell_inter in enumerate(intersect_cells):
+                cells_color[cell_inter] = cm.nipy_spectral(float(index + 1) / (len(intersect_cells) + 1))
+
+            cells_to_display.extend(intersect_cells)
+
+            # calculating the bound that will surround all the cells
+            minx = None
+            maxx = None
+            miny = None
+            maxy = None
+            corr_by_cell = dict()
+            for cell_to_display in cells_to_display:
+                poly_gon = self.coord_obj.cells_polygon[cell_to_display]
+
+                if minx is None:
+                    minx, miny, maxx, maxy = np.array(list(poly_gon.bounds)).astype(int)
+                else:
+                    tmp_minx, tmp_miny, tmp_maxx, tmp_maxy = np.array(list(poly_gon.bounds)).astype(int)
+                    minx = min(minx, tmp_minx)
+                    miny = min(miny, tmp_miny)
+                    maxx = max(maxx, tmp_maxx)
+                    maxy = max(maxy, tmp_maxy)
+            bounds = (minx, miny, maxx, maxy)
+
+            column_to_aim = 0
+            source_profile, minx, miny, mask_source_profile = self.coord_obj.get_source_profile(cell=main_cell,
+                                                                                                tiff_movie=self.tiff_movie,
+                                                                                                traces=self.raw_traces,
+                                                                                                peak_nums=self.spike_struct.peak_nums,
+                                                                                                spike_nums=self.spike_struct.spike_nums,
+                                                                                                pixels_around=3,
+                                                                                                bounds=bounds)
+            xy_source = self.coord_obj.get_cell_new_coord_in_source(cell=main_cell, minx=minx, miny=miny)
+            ax = ax_grid[(source_profile_fig_index, column_to_aim)]
+            img_src_profile = ax.imshow(source_profile, cmap=plt.get_cmap('gray'))
+            # xy_source = self.coord_obj.get_cell_new_coord_in_source(cell=main_cell, minx=minx, miny=miny)
+            contour_cell = patches.Polygon(xy=xy_source,
+                                           fill=False,
+                                           edgecolor=cells_color[main_cell],
+                                           zorder=15, lw=lw_contour)
+            ax.add_patch(contour_cell)
+            column_to_aim += 1
+
+            if len(profiles_list) == 0:
+                source_profile_fig_index += 1
+                continue
+
+            for profile_info in profiles_list:
+                transient = profile_info[0]
+                classifier_error = profile_info[1]
+                caiman_error = profile_info[2]
+                if column_to_aim == n_columns:
+                    # we need to go to next line
+                    source_profile_fig_index += 1
+                    if source_profile_fig_index == n_lines:
+                        # we need to save the figure and create a new one
+                        save_figure(path_results=path_results, fig=sources_profile_fig, index=index_fig)
+                        index_fig += 1
+                        # we need to create a new figure
+                        ax_grid, sources_profile_fig = get_new_figure(n_columns=n_columns, n_lines=n_lines)
+                        source_profile_fig_index = 0
+                    column_to_aim = 1
+                ax = ax_grid[(source_profile_fig_index, column_to_aim)]
+                transient_profile, minx, miny = self.coord_obj.get_transient_profile(cell=cell_to_display,
+                                                                                     tiff_movie=self.tiff_movie,
+                                                                                     traces=self.raw_traces,
+                                                                                     transient=transient,
+                                                                                     pixels_around=3, bounds=bounds)
+                img_t_profile = ax.imshow(transient_profile, cmap=plt.get_cmap('gray'))
+
+                for cell in cells_to_display:
+                    xy_source = self.coord_obj.get_cell_new_coord_in_source(cell=cell, minx=minx, miny=miny)
+                    cell_color = cells_color[cell]
+                    contour_cell = patches.Polygon(xy=xy_source,
+                                                   fill=False,
+                                                   edgecolor=cell_color,
+                                                   zorder=15, lw=lw_contour)
+                    ax.add_patch(contour_cell)
+
+                ax.set_frame_on(True)
+                # 3 range of color
+                if classifier_error:
+                    frame_color = "red"
+                else:
+                    frame_color = "green"
+
+                for spine in ax.spines.values():
+                    spine.set_edgecolor(frame_color)
+                    spine.set_linewidth(1.5)
+                    if caiman_error:
+                        spine.set_linestyle("dashed")
+                    else:
+                        spine.set_linestyle("solid")
+                column_to_aim += 1
+            source_profile_fig_index += 1
+        # we need to save the figure and create a new one
+        save_figure(path_results=path_results, fig=sources_profile_fig, index=index_fig)
+
+    def evaluate_overlaps_accuracy(self, path_data, path_results, with_figures=True):
         """
         Based on transient and source profiles, evaluate which transients are due to overlaps and give the number
         of transients that were actually not detected as overlap
         Returns:
 
         """
+
         print('Starting evaluate_overlaps_accuracy')
         # just to test how many cells have predictions
         cells_predicted = 0
@@ -1098,8 +1266,11 @@ class MouseSession:
         n_errors_caiman = 0
         # we can add another raster_dur
         n_errors_other = 0
+        # count the number of cells with overlaps
+        n_cells_with_overlaps = 0
         # if True, we use onsets/spikes and not spike_nums_dur
         using_caiman_spikes = True
+        pixels_around = 1
         print(f"using_caiman_spikes {using_caiman_spikes}")
         print(f"sum self.caiman_spike_nums {np.sum(self.caiman_spike_nums)}")
 
@@ -1155,6 +1326,12 @@ class MouseSession:
         traces = self.smooth_traces
         n_times = traces.shape[1]
 
+        # ---- for figure -----
+        # counter
+        # will be used to print the cell profiles of cells with overlaps
+        # and how the transient profile associated to each overlap
+        profiles_dict = dict()
+
         # now we want to compute all potential peak and onsets
         # based on diff
         spike_nums_all = np.zeros((n_cells, n_times), dtype="int8")
@@ -1192,7 +1369,7 @@ class MouseSession:
         # then we look for all pairs of overlapping cells
         for cell in np.arange(n_cells):
             if cell % 1 == 0:
-                print(f"cell {cell} / {n_cells-1}")
+                print(f"cell {cell} / {n_cells - 1}")
 
             # if the cell as no peaks or onsets, then we won't be able to compute the source profile
             if np.sum(self.spike_struct.spike_nums_dur[cell]) == 0:
@@ -1220,6 +1397,7 @@ class MouseSession:
             else:
                 print(f"N intersect cells of {cell}: {len(intersect_cells_to_explore)}")
 
+            n_cells_with_overlaps += 1
             poly_gon = coord_obj.cells_polygon[cell]
 
             # Correlation test
@@ -1230,9 +1408,9 @@ class MouseSession:
                                                                           bounds=bounds_corr,
                                                                           peak_nums=self.spike_struct.peak_nums,
                                                                           spike_nums=self.spike_struct.spike_nums,
-                                                                          pixels_around=1, buffer=1)
+                                                                          pixels_around=pixels_around, buffer=1)
             # normalizing
-            source_profile_corr = source_profile_corr - np.mean(source_profile_corr)
+            source_profile_corr_norm = source_profile_corr - np.mean(source_profile_corr)
             # we want the mask to be at ones over the cell
             mask_source_profile = (1 - mask_source_profile).astype(bool)
 
@@ -1242,21 +1420,23 @@ class MouseSession:
             for cell_2 in intersect_cells_to_explore:
                 if np.sum(self.spike_struct.spike_nums_dur[cell_2]) == 0:
                     continue
+                n_cells_with_overlaps += 1
 
                 poly_gon_2 = coord_obj.cells_polygon[cell_2]
 
                 # Correlation test
                 bounds_corr_2 = np.array(list(poly_gon_2.bounds)).astype(int)
 
-                source_profile_corr_2, minx_corr, \
-                miny_corr, mask_source_profile_2 = coord_obj.get_source_profile(cell=cell_2, tiff_movie=self.tiff_movie,
-                                                                          bounds=bounds_corr_2,
-                                                                traces=self.raw_traces,
-                                                                peak_nums=self.spike_struct.peak_nums,
-                                                                spike_nums=self.spike_struct.spike_nums, 
-                                                                                pixels_around=1, buffer=1)
+                source_profile_corr_2, minx_corr_2, \
+                miny_corr_2, mask_source_profile_2 = coord_obj.get_source_profile(cell=cell_2,
+                                                                                  tiff_movie=self.tiff_movie,
+                                                                                  bounds=bounds_corr_2,
+                                                                                  traces=self.raw_traces,
+                                                                                  peak_nums=self.spike_struct.peak_nums,
+                                                                                  spike_nums=self.spike_struct.spike_nums,
+                                                                                  pixels_around=pixels_around, buffer=1)
                 # normalizing
-                source_profile_corr_2 = source_profile_corr_2 - np.mean(source_profile_corr_2)
+                source_profile_corr_2_norm = source_profile_corr_2 - np.mean(source_profile_corr_2)
                 # we want the mask to be at ones over the cell
                 mask_source_profile_2 = (1 - mask_source_profile_2).astype(bool)
 
@@ -1267,62 +1447,63 @@ class MouseSession:
 
                     # now we compute the correlation for each transient profile with its source
                     # cell 1
-                    if transient in transient_profiles_dict:
-                        transient_profile_corr = transient_profiles_dict[transient]
-                    else:
-                        transient_profile_corr, minx_corr, miny_corr = \
-                            coord_obj.get_transient_profile(cell=cell, tiff_movie=self.tiff_movie,
-                                                                traces=self.raw_traces,
-                                                            transient=transient,
-                                                            pixels_around=1,
-                                                            bounds=bounds_corr)
-                        transient_profile_corr = transient_profile_corr - np.mean(transient_profile_corr)
+                    transient_profile_corr, minx_corr_tp, miny_corr_tp = \
+                        coord_obj.get_transient_profile(cell=cell, tiff_movie=self.tiff_movie,
+                                                        traces=self.raw_traces,
+                                                        transient=transient,
+                                                        pixels_around=pixels_around,
+                                                        bounds=bounds_corr)
+                    transient_profile_corr_norm = transient_profile_corr - np.mean(transient_profile_corr)
 
-
-
-                    pearson_corr, pearson_p_value = stats.pearsonr(source_profile_corr[mask_source_profile],
-                                                                   transient_profile_corr[mask_source_profile])
+                    pearson_corr, pearson_p_value = stats.pearsonr(source_profile_corr_norm[mask_source_profile],
+                                                                   transient_profile_corr_norm[mask_source_profile])
 
                     # cell 2
-                    transient_profile_corr_2, minx_corr, miny_corr = \
+                    transient_profile_corr_2, minx_corr_tp_2, miny_corr_tp_2 = \
                         coord_obj.get_transient_profile(cell=cell_2, tiff_movie=self.tiff_movie,
                                                         traces=self.raw_traces,
                                                         transient=transient,
-                                                        pixels_around=1,
+                                                        pixels_around=pixels_around,
                                                         bounds=bounds_corr_2)
-                    transient_profile_corr_2 = transient_profile_corr_2 - np.mean(transient_profile_corr_2)
+                    transient_profile_corr_2_norm = transient_profile_corr_2 - np.mean(transient_profile_corr_2)
 
-                    pearson_corr_2, pearson_p_value = stats.pearsonr(source_profile_corr_2[mask_source_profile_2],
-                                                               transient_profile_corr_2[mask_source_profile_2])
+                    pearson_corr_2, pearson_p_value = stats.pearsonr(source_profile_corr_2_norm[mask_source_profile_2],
+                                                                     transient_profile_corr_2_norm[
+                                                                         mask_source_profile_2])
 
                     # if we have corr values that are opposed, we can suppose that overlap is responsible for the
                     # transient augmentation
                     n_frames_in_transient = transient[1] - transient[0] + 1
                     threshold_n_transients = max(1, (n_frames_in_transient // 3))
                     if (pearson_corr < low_correlation_threshold) and (pearson_corr_2 > high_correlation_threshold):
+                        classifier_error = False
+                        caiman_error = False
                         # then it means the transient in cell is fake and due to overlap
                         # we check if the spike_nums_dur say it is indeed False
-                        if np.sum(self.spike_struct.spike_nums_dur[cell, transient[0]:transient[1]+1]) >= \
+                        if np.sum(self.spike_struct.spike_nums_dur[cell, transient[0]:transient[1] + 1]) >= \
                                 threshold_n_transients:
                             # then it's not right
                             print(f"## Correlations {cell} {cell_2}: {np.round(pearson_corr, 2)} & "
                                   f"{np.round(pearson_corr_2, 2)} {transient}")
                             n_errors += 1
+                            classifier_error = True
                             if (cell, cell_2) not in errors_dict:
                                 errors_dict[(cell, cell_2)] = []
                             errors_dict[(cell, cell_2)].append(transient)
                         if using_caiman_spikes:
                             if self.caiman_spike_nums is not None:
-                                if np.sum(self.caiman_spike_nums[cell, transient[0]:transient[1]+1]) > 0:
+                                if np.sum(self.caiman_spike_nums[cell, transient[0]:transient[1] + 1]) > 0:
                                     print(f"## Correlations {cell} {cell_2}: {np.round(pearson_corr, 2)} & "
                                           f"{np.round(pearson_corr_2, 2)} {transient} (CaImAn)")
                                     n_errors_caiman += 1
+                                    caiman_error = True
                         elif self.caiman_spike_nums_dur is not None:
-                            if np.sum(self.caiman_spike_nums_dur[cell, transient[0]:transient[1]+1]) > \
+                            if np.sum(self.caiman_spike_nums_dur[cell, transient[0]:transient[1] + 1]) > \
                                     threshold_n_transients:
                                 print(f"## Correlations {cell} {cell_2}: {np.round(pearson_corr, 2)} & "
                                       f"{np.round(pearson_corr_2, 2)} {transient} (CaImAn)")
                                 n_errors_caiman += 1
+                                caiman_error = True
                         if other_raster_dur is not None:
                             if np.sum(other_raster_dur[cell, transient[0]:transient[1] + 1]) >= \
                                     threshold_n_transients:
@@ -1331,8 +1512,16 @@ class MouseSession:
                                       f"{np.round(pearson_corr_2, 2)} {transient} (other)")
                                 n_errors_other += 1
                         n_transients_due_to_overlaps += 1
-
+                        # to display sources and transients profiles
+                        if cell not in profiles_dict:
+                            profiles_dict[cell] = []
+                        # then we add the new transient profile
+                        # profiles_dict[cell].append([transient_profile_corr, minx_corr_tp, miny_corr_tp,
+                        #                             classifier_error, caiman_error])
+                        profiles_dict[cell].append([transient, classifier_error, caiman_error])
                     elif (pearson_corr > high_correlation_threshold) and (pearson_corr_2 < low_correlation_threshold):
+                        classifier_error = False
+                        caiman_error = False
                         # then it means the transient in cell_2 is fake and due to overlap
                         # we check if the spike_nums_dur say it is indeed False
                         if np.sum(self.spike_struct.spike_nums_dur[cell_2, transient[0]:transient[1] + 1]) > \
@@ -1341,6 +1530,7 @@ class MouseSession:
                             print(f"## Correlations {cell} {cell_2}: {np.round(pearson_corr, 2)} & "
                                   f"{np.round(pearson_corr_2, 2)} {transient}")
                             n_errors += 1
+                            classifier_error = True
                             if (cell, cell_2) not in errors_dict:
                                 errors_dict[(cell, cell_2)] = []
                             errors_dict[(cell, cell_2)].append(transient)
@@ -1350,12 +1540,14 @@ class MouseSession:
                                     print(f"## Correlations {cell} {cell_2}: {np.round(pearson_corr, 2)} & "
                                           f"{np.round(pearson_corr_2, 2)} {transient} (CaImAn)")
                                     n_errors_caiman += 1
+                                    caiman_error = True
                         elif self.caiman_spike_nums_dur is not None:
-                            if np.sum(self.caiman_spike_nums_dur[cell_2, transient[0]:transient[1]+1]) > \
+                            if np.sum(self.caiman_spike_nums_dur[cell_2, transient[0]:transient[1] + 1]) > \
                                     threshold_n_transients:
                                 print(f"## Correlations {cell} {cell_2}: {np.round(pearson_corr, 2)} & "
                                       f"{np.round(pearson_corr_2, 2)} {transient} (CaImAn)")
                                 n_errors_caiman += 1
+                                caiman_error = True
 
                         if other_raster_dur is not None:
                             if np.sum(other_raster_dur[cell_2, transient[0]:transient[1] + 1]) >= \
@@ -1366,6 +1558,14 @@ class MouseSession:
                                 n_errors_other += 1
 
                         n_transients_due_to_overlaps += 1
+                        # to display sources and transients profiles
+                        if cell_2 not in profiles_dict:
+                            profiles_dict[cell_2] = []
+                            # profiles_dict[cell_2].append([source_profile_corr_2, minx_corr_2, miny_corr_2])
+                        # then we add the new transient profile
+                        # profiles_dict[cell_2].append([transient_profile_corr_2, minx_corr_tp_2, miny_corr_tp_2,
+                        #                             classifier_error, caiman_error])
+                        profiles_dict[cell_2].append([transient, classifier_error, caiman_error])
 
                     else:
                         continue
@@ -1383,8 +1583,7 @@ class MouseSession:
             else:
                 print("No transients_due_to_overlaps yet")
 
-
-        print(f"n_transients_due_to_overlaps {n_transients_due_to_overlaps}")
+        print(f"n_transients_due_to_overlaps {n_transients_due_to_overlaps} from {len(profiles_dict)} cells")
         if n_transients_due_to_overlaps > 0:
             meso_false_ratio = (n_errors / n_transients_due_to_overlaps) * 100
             meso_positive_ratio = 100 - meso_false_ratio
@@ -1398,10 +1597,9 @@ class MouseSession:
         else:
             print("No transients_due_to_overlaps yet")
 
+        self.plot_source_profile_with_transients_profiles(profiles_dict, path_results=path_results)
         # with open(os.path.join(path_results, f'errors_overlaps_{self.description}.yaml'), 'w') as outfile:
         #     yaml.safe_dump(errors_dict, outfile, default_flow_style=False)
-
-                    
 
     def get_spikes_by_time_around_a_time(self, twitches_times, spike_nums_to_use, time_around):
 
@@ -1903,7 +2101,7 @@ class MouseSession:
                     else:
                         ax1.plot(time_x_values,
                                  ms_median_values, color=color, lw=2, label=f"{ms.description}{weight_str} {n_mvts} "
-                            f"mvt")
+                                                                            f"mvt")
                         ax1.fill_between(time_x_values, ms_low_values, ms_high_values, alpha=0.5, facecolor=color)
                         max_value = np.max((max_value, np.max(ms_high_values)))
             else:
@@ -6107,7 +6305,7 @@ class MouseSession:
                                                 xlabel="N fake transients by cell", save_formats=save_formats)
 
             file_name = f'{self.param.path_results}/{self.description}_stat_fake_transients_distribution_by_' \
-                f'cell_{self.param.time_str}.txt'
+                        f'cell_{self.param.time_str}.txt'
 
             with open(file_name, "w", encoding='UTF-8') as file:
                 file.write(f"N fake transients by cell for {self.description}" + '\n')

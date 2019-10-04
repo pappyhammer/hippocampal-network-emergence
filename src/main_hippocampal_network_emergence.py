@@ -5990,9 +5990,9 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
     # ms_str_to_load = ["p5_19_03_20_a000_ms", "p12_19_02_08_a000_ms"]
     # ms_str_to_load = ["p5_19_03_20_a000_ms"]
-    ms_str_to_load = ["p6_19_02_18_a000_ms"]
+    # ms_str_to_load = ["p6_19_02_18_a000_ms"]
 
-    # ms_str_to_load = ["p12_171110_a000_ms"]
+    ms_str_to_load = ["p12_171110_a000_ms"]
     # ms_str_to_load = ["p12_17_11_10_a002_ms"]
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -6085,7 +6085,7 @@ def main():
     just_do_stat_significant_time_period = False
     just_fca_clustering_on_twitches_activity = False
     just_plot_cell_assemblies_on_map = False
-    just_plot_all_cells_on_map = True
+    just_plot_all_cells_on_map = False
     just_plot_all_cells_on_map_with_avg_on_bg = False
 
     # --------- shift categories analyses
@@ -6122,7 +6122,7 @@ def main():
     just_do_stat_on_pca = False
     just_analyse_lfp = False
     just_run_cilva = False
-    just_evaluate_overlaps_accuracy = False
+    just_evaluate_overlaps_accuracy = True
 
     just_merge_coords_map = False
 

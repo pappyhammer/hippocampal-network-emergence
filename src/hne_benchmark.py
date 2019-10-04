@@ -458,6 +458,11 @@ class BenchmarkRasterDur:
                         sym = ''
                     else:
                         sym = '+'
+
+                    # print("stat_by_metrics")
+                    # print(f"{metrics_to_show.upper()}: median: {np.round(np.median(values_by_prediction), 3)}, "
+                    #       f"25p {np.round(np.percentile(values_by_prediction, 25), 3)}, "
+                    #       f"75p {np.round(np.percentile(values_by_prediction, 75), 3)}")
                     bplot = ax.boxplot(values_by_prediction, patch_artist=colorfull,
                                        flierprops=outliers, widths=[0.7] * len(values_by_prediction),
                                        labels=labels, sym=sym, zorder=1)  # whis=[5, 95], sym='+'
@@ -685,7 +690,7 @@ class BenchmarkRasterDur:
             # elif stat_name == "specificity":
             #     ax.set_ylim(0.85, 1)
             if stat_name == "PPV":
-                ax.set_ylim(0.4, 1.1)
+                ax.set_ylim(0, 1.1)
             # elif stat_name == "NPV":
             #     ax.set_ylim(0.6, 1.1)
 
@@ -1947,7 +1952,9 @@ def main_benchmark():
     # gad-cre
     # predictions_to_load = ["meso_9", "cre_v1_epoch_10", "cre_v1_epoch_15", "cre_v1_epoch_19",
     #                        "cre_v1_epoch_22", "cre_v1_epoch_23"]
-    # predictions_to_load = ["v1_epoch_15"]
+    predictions_to_load = ["v1_epoch_15"]
+    # predictions_to_load = ["epoch_15", "meso_9", "v2_epoch_19"]
+    # predictions_to_load = ["caiman_epoch_15"]
     # TO PLOT predictions distribution for each metrics, use only one predictions_to_load
     # predictions_to_load = []
     for ms_to_benchmark in ms_to_benchmarks:
@@ -2240,10 +2247,10 @@ def main_benchmark():
                     # -1 otherwise
                     for caiman_cell_index, fiji_cell_index in enumerate(caiman_fiji_mapping):
                         if fiji_cell_index >= 0:
-                            print(f"{ms_to_benchmark}: Cell {fiji_cell_index} -> {caiman_cell_index}")
+                            # print(f"{ms_to_benchmark}: Cell {fiji_cell_index} -> {caiman_cell_index}")
                             # using deconvolution value, cell is active if value > 0
                             caiman_raster_dur[fiji_cell_index] = predicted_raster_dur_dict[key][caiman_cell_index]
-                            print(f"sum spikes: {np.sum(caiman_raster_dur[fiji_cell_index])}")
+                            # print(f"sum spikes: {np.sum(caiman_raster_dur[fiji_cell_index])}")
                             cells_mapped.append(fiji_cell_index)
                     predicted_raster_dur_dict[key] = caiman_raster_dur
                     cells_to_keep = []
@@ -2267,20 +2274,20 @@ def main_benchmark():
             # benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
             #                                    path_results=path_results, with_cells=True,
             #                                    for_frames=True, save_formats=["pdf", "png"])
-            benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
-                                               path_results=path_results, with_cells=True,
-                                               for_frames=False, save_formats=["png"])
-            benchmarks.plot_boxplots_f1_score(description=tmp_description, time_str=time_str,
-                                              path_results=path_results, with_cells=True,
-                                              for_frames=False, save_formats=["png"])
-            benchmarks.plot_boxplots_proportion_frames_in_transients(description=tmp_description,
-                                                                            time_str=time_str,
-                                                                            path_results=path_results,
-                                                                     # v2_epoch_19 v1_epoch_15
-                                                                            only_this_key=predictions_to_load[0],
-                                                                            with_scatter=True,
-                                                                            with_cell_text=False,
-                                                                            save_formats="png", dpi=500)
+            # benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
+            #                                    path_results=path_results, with_cells=True,
+            #                                    for_frames=False, save_formats=["png"])
+            # benchmarks.plot_boxplots_f1_score(description=tmp_description, time_str=time_str,
+            #                                   path_results=path_results, with_cells=True,
+            #                                   for_frames=False, save_formats=["png"])
+            # benchmarks.plot_boxplots_proportion_frames_in_transients(description=tmp_description,
+            #                                                                 time_str=time_str,
+            #                                                                 path_results=path_results,
+            #                                                          # v2_epoch_19 v1_epoch_15
+            #                                                                 only_this_key=predictions_to_load[0],
+            #                                                                 with_scatter=True,
+            #                                                                 with_cell_text=False,
+            #                                                                 save_formats="png", dpi=500)
         if global_benchmarks is None:
             global_benchmarks = benchmarks
         else:
