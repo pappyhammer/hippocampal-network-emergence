@@ -120,7 +120,7 @@ class BenchmarkRasterDur:
         # print(f"Fusion self: {self.description}, with other: {other.description}")
         # print(f"fusion self keys {list(self.predicted_raster_dur_dict.keys())}, "
         #       f"other keys {list(other.predicted_raster_dur_dict.keys())}")
-        make_special_case_for_MP = False
+        make_special_case_for_MP = True
         color_cells_by_session = True
 
         ground_truth_raster_dur = np.copy(self.ground_truth_raster_dur)
@@ -932,7 +932,7 @@ class BenchmarkRasterDur:
         # sce clusters labels
         ax.set_xticklabels(labels)
         # fixing the limits
-        ax.set_ylim(0.4, 1.1)
+        ax.set_ylim(0.3, 1.1)
 
         ax.set_title("F1 SCORE", color=title_color, pad=20, fontsize=20)
 
@@ -1928,8 +1928,8 @@ def main_benchmark():
     # ms_to_benchmarks = ["p11_17_11_24_a000_ms"]
     # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
     # gad-cre + oriens
-    ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p8_18_10_24_a006_ms",
-                        "p11_19_04_30_a001_ms"]
+    # ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p8_18_10_24_a006_ms",
+    #                     "p11_19_04_30_a001_ms"]
     # ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
     # gad-cre
     # ms_to_benchmarks = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
@@ -1949,13 +1949,13 @@ def main_benchmark():
     #                        "meso_10", "meso_11", "meso_12", "meso_13", "meso_14"]
     predictions_to_load = ["meso_9", "v2_epoch_8", "v2_epoch_12", "v2_epoch_14",
                            "v2_epoch_17", "v2_epoch_19"]
-    predictions_to_load = ["meso_9", "v2_epoch_19"]
+    # predictions_to_load = ["meso_9", "v2_epoch_19"]
     predictions_to_load = ["v2_epoch_19"]
     # gad-cre
     # predictions_to_load = ["meso_9", "cre_v1_epoch_10", "cre_v1_epoch_15", "cre_v1_epoch_19",
     #                        "cre_v1_epoch_22", "cre_v1_epoch_23"]
     # predictions_to_load = ["v1_epoch_15"]
-    # predictions_to_load = ["epoch_15", "meso_9", "v2_epoch_19"]
+    predictions_to_load = ["epoch_15", "meso_9", "v2_epoch_19"]
     # predictions_to_load = ["caiman_epoch_15"]
     # TO PLOT predictions distribution for each metrics, use only one predictions_to_load
     # predictions_to_load = []

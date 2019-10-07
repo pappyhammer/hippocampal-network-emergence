@@ -6014,7 +6014,7 @@ class MouseSession:
         # raise Exception("JOJO")
 
     def load_raster_dur_from_predictions(self, prediction_threshold, variables_mapping, file_name=None,
-                                         path_name=None, prediction_key=None, use_filtered_version=False):
+                                         path_name=None, prediction_keys=None, use_filtered_version=False):
         """
         Loader raster_dur from either a prediction file using threshold at 0.5 to keep the predictions
         or will load if available to a file with also prediction_key on it but with the name
@@ -6024,7 +6024,8 @@ class MouseSession:
         :param variables_mapping:
         :param file_name:
         :param path_name: if given, will look for a file in this directory with key_prediction on it
-        :param prediction_key:
+        :param prediction_keys: could be a string or a list of string, in that case priority to the first one then next
+        etc.. until a file with prediction_key is found
         :param use_filtered_version: if True, will filter the predicted raster_dur created base on predictions
         in order to remove fake transients that could have been missed using co-activation and source transient profile
         correlation. if use_filtered_version, path_name must be incicated
@@ -6038,6 +6039,9 @@ class MouseSession:
         if use_filtered_version and (path_name is None):
             print(f"{self.description} For using use_filtered_version you need to indicated a path_name")
             return
+
+        if isinstance(prediction_keys, str):
+            prediction_keys = [prediction_keys]
 
         filtered_version_loaded = False
         if use_filtered_version:
@@ -6053,7 +6057,7 @@ class MouseSession:
 
             if len(file_names) > 0:
                 for file_name in file_names:
-                    if (prediction_key in file_name) and ("filtered_predicted_raster_dur" in file_name):
+                    if (prediction_keys[0] in file_name) and ("filtered_predicted_raster_dur" in file_name):
                         self.spike_struct.spike_nums_dur = np.load(os.path.join(self.param.path_data,
                                                                                 path_name, file_name),
                                                                    allow_pickle=True)
@@ -6072,22 +6076,26 @@ class MouseSession:
                 break
 
             if len(file_names) > 0:
-                for file_name in file_names:
-                    if (prediction_key in file_name) and ("filtered_predicted_raster_dur" not in file_name) \
-                            and (file_name.endswith(".mat")):
-                        data = hdf5storage.loadmat(os.path.join(self.param.path_data,
-                                                                path_name, file_name))
-                    elif (prediction_key in file_name) and ("filtered_predicted_raster_dur" not in file_name) \
-                            and (file_name.endswith(".npy")):
-                        predictions = np.load(os.path.join(self.param.path_data,
-                                                           path_name, file_name), allow_pickle=True)
-                    elif (prediction_key in file_name) and ("filtered_predicted_raster_dur" not in file_name) \
-                            and (file_name.endswith(".npz")):
-                        data = np.load(os.path.join(self.param.path_data,
-                                                    path_name, file_name), allow_pickle=True)
+                for prediction_key in prediction_keys:
+                    for file_name in file_names:
+                        if (prediction_key in file_name) and ("filtered_predicted_raster_dur" not in file_name) \
+                                and (file_name.endswith(".mat")):
+                            data = hdf5storage.loadmat(os.path.join(self.param.path_data,
+                                                                    path_name, file_name))
+                        elif (prediction_key in file_name) and ("filtered_predicted_raster_dur" not in file_name) \
+                                and (file_name.endswith(".npy")):
+                            predictions = np.load(os.path.join(self.param.path_data,
+                                                               path_name, file_name), allow_pickle=True)
+                        elif (prediction_key in file_name) and ("filtered_predicted_raster_dur" not in file_name) \
+                                and (file_name.endswith(".npz")):
+                            data = np.load(os.path.join(self.param.path_data,
+                                                        path_name, file_name), allow_pickle=True)
+                        else:
+                            continue
+                        break
             if (data is None) and (predictions is None):
                 print(f"load_raster_dur_from_predictions no file_name with {prediction_key} found in "
-                      f"{os.path.join(self.param.path_data, path_name)}")
+                          f"{os.path.join(self.param.path_data, path_name)}")
                 return
         else:
             try:
@@ -6137,7 +6145,7 @@ class MouseSession:
         else:
             raise Exception("load_raster_dur_from_predictions no predicions variable")
 
-        print(f"Predicions {prediction_key} are loaded for {self.description}")
+        print(f"Predictions {prediction_key} are loaded for {self.description}")
         self.spike_struct.n_cells = len(self.spike_struct.spike_nums_dur)
         if self.spike_struct.labels is None:
             self.spike_struct.labels = np.arange(len(self.spike_struct.spike_nums_dur))

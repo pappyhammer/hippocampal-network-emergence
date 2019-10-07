@@ -710,8 +710,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # if True will  use the coord from suite2p, if False, will just load the info concerning suite2p in
         # if the dict suit2p_data in mouse_session
         p8_18_10_24_a005_ms.use_suite_2p = True
-        if for_transient_classifier:
-            p8_18_10_24_a005_ms.use_suite_2p = False
+        # if for_transient_classifier:
+        #     p8_18_10_24_a005_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         # p8_18_10_24_a005_ms.activity_threshold =
@@ -1878,12 +1878,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if ms.spike_struct.spike_nums_dur is None:
             prediction_threshold = 0.5
             # key that should be on the prediction file_name to be loaded
-            prediction_key = "meso_v2_epoch_19" #"meso_v2_epoch_19" #"meso_v2_caiman_epoch_19" #"meso_v1_epoch_9"
+            prediction_key = ["meso_v2_epoch_19", "meso_v1_epoch_9"] #"meso_v2_epoch_19" #"meso_v2_caiman_epoch_19" #"meso_v1_epoch_9"
             # prediction_key = "gad_cre_v1_epoch_15"
             variables_mapping = {"predictions": "predictions"}
             ms.load_raster_dur_from_predictions(
                 path_name=f"p{ms.age}/{ms.description.lower()}/predictions/",
-                prediction_key=prediction_key,
+                prediction_keys=prediction_key,
                 prediction_threshold=prediction_threshold,
                 variables_mapping=variables_mapping, use_filtered_version=False)
 

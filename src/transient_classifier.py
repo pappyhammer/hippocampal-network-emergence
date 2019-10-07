@@ -2812,11 +2812,11 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     add_doubt_at_movie_concatenation_frames = True
     use_cnn_to_select_cells = False
     use_small_sample = False
-    use_triple_blinded_data = True
+    use_triple_blinded_data = False
     use_test_sample = False
     use_gad_cre_sample = False
     # used for counting how many cells and transients available
-    load_them_all = False
+    load_them_all = True
     load_them_all_gad_cre = False
     # goes with load_them_all, but if True them we load data we use for benchmarks, just use to get some stat
     load_data_for_benchmark = False
@@ -2869,6 +2869,7 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                 # ms_to_remove_from_validation.append("artificial_ms_3")
                 # "artificial_ms_3",
                 # "artificial_ms_3": np.array([0, 11, 27, 37, 48, 55, 65, 78, 87, 95, 103, 112, 117, 128, 136, 144],
+
                 ms_to_use = ["artificial_ms_1", "artificial_ms_2", "p7_171012_a000_ms",
                              "p8_18_10_24_a006_ms",
                              "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
@@ -2887,6 +2888,12 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                     add_segment_of_cells_for_training(param,
                                                       ms_to_use,
                                                       cell_to_load_by_ms)
+                #
+                # ms_to_use = ["artificial_ms_1", "artificial_ms_2"]
+                # cell_to_load_by_ms = {"artificial_ms_1":
+                #                           np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
+                #                       "artificial_ms_2":
+                #                           np.array([0, 9, 18, 26, 34, 41, 46, 56, 62, 77, 88, 101, 116, 127, 140, 150])}
     elif use_small_sample:
         # ms_to_use = ["p7_171012_a000_ms"]
         # cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([8])}
@@ -4181,12 +4188,15 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
         #
         # cells_to_predict = dict()
-        # cells_p8_18_10_24_a005_ms = np.arange(361)
-        # # for Caiman segmentation
-        # cells_p8_18_10_24_a005_ms = np.setdiff1d(cells_p8_18_10_24_a005_ms, np.array([168]))
-        # cells_to_predict["p8_18_10_24_a005_ms"] = cells_p8_18_10_24_a005_ms
 
-        ms_for_rnn_benchmarks = ["p12_171110_a000_ms"]
+
+        ms_for_rnn_benchmarks = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms",
+                                 "p6_18_02_07_a002_ms",
+                      "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+                      "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                      "p7_19_03_27_a002_ms",
+                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms"]
         # cells_p14_18_10_23_a000_ms = np.array([])
         # cells_to_predict = dict()
         # cells_to_predict["p14_18_10_23_a000_ms"] = cells_p14_18_10_23_a000_ms
@@ -4200,6 +4210,10 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # # # predicting all cells
         for ms in ms_for_rnn_benchmarks:
             cells_to_predict[ms] = None
+        # cells_p8_18_10_24_a005_ms = np.arange(361)
+        # # for Caiman segmentation
+        # cells_p8_18_10_24_a005_ms = np.setdiff1d(cells_p8_18_10_24_a005_ms, np.array([168]))
+        # cells_to_predict["p8_18_10_24_a005_ms"] = cells_p8_18_10_24_a005_ms
         # cells_to_predict = cells_to_predict_gad_cre
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0.5,
@@ -4408,7 +4422,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         parallel_model = multi_gpu_model(model, gpus=n_gpus)
     else:
         parallel_model = model
-    # raise Exception("YOU KNOW NOTHING JON SNOW")
+    raise Exception("YOU KNOW NOTHING JON SNOW")
 
     # Save the model architecture
     with open(

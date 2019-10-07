@@ -1,5 +1,6 @@
 max_threads = '10'
 import os
+
 # Configure threading
 os.environ["MKL_NUM_THREADS"] = max_threads
 os.environ["NUMEXPR_NUM_THREADS"] = max_threads
@@ -74,6 +75,7 @@ import elephant.cell_assembly_detection as cad
 from spot_dist import spotdist_function
 from twitches_analysis import twitch_analysis, covnorm
 from rastermap import Rastermap
+
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
                      cells_to_highlights_shape=None, cells_to_highlights_colors=None, cells_to_highlights_legend=None):
@@ -258,7 +260,7 @@ def save_stat_sce_detection_methods(spike_nums_to_use, activity_threshold, ms,
         file.write("" + '\n')
         file.write(f"{n_cells} cells, {n_sce} events" + '\n')
         file.write(f"Event participation threshold {activity_threshold} / "
-                   f"{np.round((activity_threshold*100)/n_cells, 2)}%, "
+                   f"{np.round((activity_threshold * 100) / n_cells, 2)}%, "
                    f"{perc_threshold} percentile, "
                    f"{n_surrogate_activity_threshold} surrogates" + '\n')
         file.write(f"Sliding window duration {sliding_window_duration}" + '\n')
@@ -1071,6 +1073,254 @@ def plot_all_long_mvt_psth_in_one_figure(ms_to_analyse, param, line_mode=True,
     plt.close()
 
 
+def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_around=100,
+                                       line_mode=False,
+                                       ax_to_use=None, put_mean_line_on_plt=False,
+                                       color_to_use=None,
+                                       with_other_ms=None,
+                                       duration_option=False,
+                                       use_traces=False,
+                                       mean_version=True,
+                                       save_formats="pdf"):
+    sce_bool = None
+    time_x_values = np.arange(-1 * time_around, time_around + 1)
+    total_n_cells = 0
+    # line represent each twitches, and columns the time surrounding the twitch
+    psth_matrix = np.zeros((0, len(time_x_values)))
+
+    for ms in ms_list:
+        # print(f"ms description {ms.description}")
+        spike_nums_dur = ms.spike_struct.spike_nums_dur
+        # spike_nums = self.spike_struct.spike_nums
+        if use_traces:
+            # print(f"get_spikes_values_around_twitches use_traces")
+            spike_nums_to_use = ms.raw_traces
+        else:
+            spike_nums_to_use = spike_nums_dur
+
+        n_cells = len(spike_nums_dur)
+
+        # frames on which to center the ptsth
+        twitches_times, twitches_periods = ms.get_twitches_times_by_group(sce_bool=sce_bool,
+                                                                          twitches_group=0)
+
+        results = ms.get_spikes_by_time_around_a_time(twitches_times, spike_nums_to_use, time_around)
+        if results is None:
+            continue
+
+        total_n_cells += n_cells
+
+        spike_sum_of_sum_at_time_dict, spikes_sums_at_time_dict, \
+        spikes_at_time_dict = results
+
+        # tmp_psth_matrix = None
+        # first we determine the max nb of value (can change depending where the twitches are)
+        max_n_twitches = 0
+        for time_index, time_value in enumerate(time_x_values):
+            if time_value in spike_sum_of_sum_at_time_dict:
+                if len(spikes_sums_at_time_dict[time_value]) > max_n_twitches:
+                    max_n_twitches = len(spikes_sums_at_time_dict[time_value])
+        tmp_psth_matrix = np.zeros((max_n_twitches, len(time_x_values)))
+        for time_index, time_value in enumerate(time_x_values):
+            if time_value in spike_sum_of_sum_at_time_dict:
+                n_twitches = len(spikes_sums_at_time_dict[time_value])
+                # print(f"_len(spikes_sums_at_time_dict[time_value]) {len(spikes_sums_at_time_dict[time_value])}")
+                tmp_psth_matrix[:n_twitches, time_index] = spikes_sums_at_time_dict[time_value]
+                if n_twitches < len(tmp_psth_matrix):
+                    tmp_psth_matrix[n_twitches:, time_index] = np.nan
+                # mean_values.append((np.mean(spikes_sums_at_time_dict[time_value]) / n_cells) * 100)
+                # median_values.append((np.median(spikes_sums_at_time_dict[time_value]) / n_cells) * 100)
+                # std_values.append((np.std(spikes_sums_at_time_dict[time_value]) / n_cells) * 100)
+                # low_values.append((np.percentile(spikes_sums_at_time_dict[time_value], low_percentile) / n_cells) * 100)
+                # high_values.append(
+                #     (np.percentile(spikes_sums_at_time_dict[time_value], high_percentile) / n_cells) * 100)
+            else:
+                print(f"time {time_value} not there")
+                # mean_values.append(0)
+        if tmp_psth_matrix is not None:
+            psth_matrix = np.concatenate((psth_matrix, tmp_psth_matrix))
+
+    if len(psth_matrix) == 0:
+        return
+
+    psth_matrix = psth_matrix / total_n_cells
+    psth_matrix = psth_matrix * 100
+
+    mean_values = np.nanmean(psth_matrix, axis=0)
+    std_values = np.nanstd(psth_matrix, axis=0)
+    median_values = np.nanmedian(psth_matrix, axis=0)
+    low_values = np.nanpercentile(psth_matrix, 25)
+    high_values = np.nanpercentile(psth_matrix, 75)
+
+    n_twitches = len(psth_matrix)
+
+    hist_color = "blue"
+    edge_color = "white"
+    max_value = 0
+    if ax_to_use is None:
+        fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                                gridspec_kw={'height_ratios': [1]},
+                                figsize=(15, 10))
+        fig.patch.set_facecolor("black")
+
+        ax1.set_facecolor("black")
+    else:
+        ax1 = ax_to_use
+    if line_mode:
+
+        if color_to_use is not None:
+            color = color_to_use
+        else:
+            color = hist_color
+        if mean_version:
+            ax1.plot(time_x_values,
+                     mean_values, color=color, lw=2, label=f"{description} {n_twitches} twitches")
+            if put_mean_line_on_plt:
+                plt.plot(time_x_values,
+                         mean_values, color=color, lw=2)
+            if with_other_ms is None:
+                ax1.fill_between(time_x_values, mean_values - std_values,
+                                 mean_values + std_values,
+                                 alpha=0.5, facecolor=color)
+            max_value = np.max((max_value, np.max(mean_values + std_values)))
+        else:
+            ax1.plot(time_x_values,
+                     median_values, color=color, lw=2, label=f"{description} {n_twitches} twitches")
+            if with_other_ms is None:
+                ax1.fill_between(time_x_values, low_values, high_values,
+                                 alpha=0.5, facecolor=color)
+            max_value = np.max((max_value, np.max(high_values)))
+    else:
+        if color_to_use is not None:
+            hist_color = color_to_use
+            edge_color = "white"
+        ax1.bar(time_x_values,
+                mean_values, color=hist_color, edgecolor=edge_color,
+                label=f"{description} {n_twitches} twitches")
+        max_value = np.max((max_value, np.max(mean_values)))
+    ax1.vlines(0, 0,
+               np.max(mean_values), color="white", linewidth=2,
+               linestyles="dashed")
+    if put_mean_line_on_plt:
+        plt.vlines(0, 0,
+                   np.max(mean_values), color="white", linewidth=2,
+                   linestyles="dashed")
+    # ax1.hlines(activity_threshold_percentage, -1 * time_around, time_around,
+    #            color="white", linewidth=1,
+    #            linestyles="dashed")
+
+    ax1.tick_params(axis='y', colors="white")
+    ax1.tick_params(axis='x', colors="white")
+
+    # if with_other_ms is not None:
+    ax1.legend()
+
+    extra_info = ""
+    if line_mode:
+        extra_info = "lines_"
+    if mean_version:
+        extra_info += "mean_"
+    else:
+        extra_info += "median_"
+
+    descr = description
+
+    if duration_option:
+        ax1.set_ylabel(f"Duration (ms)")
+    else:
+        ax1.set_ylabel(f"Spikes (%)")
+    ax1.set_xlabel("time (frames)")
+    ax1.set_ylim(0, max_value + 1)
+    # ax1.set_ylim(0, np.max((activity_threshold_percentage, max_value)) + 1)
+
+    ax1.xaxis.label.set_color("white")
+    ax1.yaxis.label.set_color("white")
+    # xticks = np.arange(0, len(data_dict))
+    # ax1.set_xticks(xticks)
+    # # sce clusters labels
+    # ax1.set_xticklabels(labels)
+
+    if ax_to_use is None:
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+        for save_format in save_formats:
+            fig.savefig(f'{path_results}/{descr}_psth_'
+                        f'{n_twitches}_twitches'
+                        f'_{extra_info}.{save_format}',
+                        format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
+
+        plt.close()
+
+
+def plot_twitches_psth_by_age(ms_to_analyse, param, line_mode=True, use_traces=False,
+                              save_formats="pdf"):
+    colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
+              '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
+    background_color = "black"
+    labels_color = "white"
+    max_sum = 0
+
+    ms_by_age = dict()
+    ages = []
+    for ms in ms_to_analyse:
+        if ms.spike_struct.spike_nums_dur is not None and ms.shift_data_dict is not None:
+            if ms.age not in ms_by_age:
+                ms_by_age[ms.age] = []
+                ages.append(ms.age)
+            ms_by_age[ms.age].append(ms)
+    ages.sort()
+
+    if line_mode:
+        n_plots = len(ms_by_age) + 1
+    else:
+        n_plots = len(ms_by_age)
+
+    if n_plots > 6:
+        max_n_lines = 4
+    else:
+        max_n_lines = 2
+    n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
+    n_col = math.ceil(n_plots / n_lines)
+
+    fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                             gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
+                             figsize=(30, 20))
+    fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+    fig.patch.set_facecolor(background_color)
+
+    axes = axes.flatten()
+    for ax_index, ax in enumerate(axes):
+        ax.set_facecolor(background_color)
+        if ax_index >= len(ms_by_age):
+            continue
+        ms_list = ms_by_age[ages[ax_index]]
+        descrs = [m.description for m in ms_list]
+        # print(f"{ms.description} plot_all_twitch_psth_in_one_figure")
+        plot_psth_twitches_for_multiple_ms(ms_list=ms_list, line_mode=line_mode, ax_to_use=ax,
+                                           time_around=100,
+                                           description=f"p{ages[ax_index]}", path_results=param.path_results,
+                                           put_mean_line_on_plt=line_mode,
+                                           color_to_use=colors[ax_index % len(colors)],
+                                           use_traces=use_traces)
+
+        plot_psth_twitches_for_multiple_ms(ms_list=ms_list, line_mode=line_mode,
+                                           time_around=100,
+                                           description=f"p{ages[ax_index]}", path_results=param.path_results,
+                                           put_mean_line_on_plt=line_mode,
+                                           color_to_use=colors[ax_index % len(colors)],
+                                           use_traces=use_traces)
+
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/twitches_psth_by_age_'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+    plt.close()
+
+
 def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, use_traces=False,
                                        duration_option=False, save_formats="pdf"):
     """
@@ -1099,7 +1349,10 @@ def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, use
     else:
         n_plots = len(ms_to_analyse)
 
-    max_n_lines = 2
+    if n_plots > 6:
+        max_n_lines = 5
+    else:
+        max_n_lines = 2
     n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
     n_col = math.ceil(n_plots / n_lines)
 
@@ -1115,7 +1368,7 @@ def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, use
         if ax_index >= len(ms_to_analyse):
             continue
         ms = ms_to_analyse[ax_index]
-        print(f"{ms.description} plot_all_twitch_psth_in_one_figure")
+        # print(f"{ms.description} plot_all_twitch_psth_in_one_figure")
         ms.plot_psth_twitches(line_mode=line_mode, ax_to_use=ax, put_mean_line_on_plt=line_mode,
                               color_to_use=colors[ax_index % len(colors)], duration_option=duration_option,
                               use_traces=use_traces)
@@ -1269,20 +1522,21 @@ def plot_transient_amplitude(ms_to_analyse, param, colors=None, save_formats="pd
                          y_label="Avg amplitude (DF/F) of transients by cell", colors=colors,
                          param=param, save_formats=save_formats)
 
+
 def merge_coords_map(ms, param):
     if ms.description.lower() not in ["p6_19_02_18_a000", "p11_19_04_30_a001"]:
         print(f"merge_coords_map not available for {ms.description}")
         return
     # specific function to match segmentation from Fiji to the one with Caiman on matlab
     caiman_mat_file_name = os.path.join(param.path_data, f"p{ms.age}", ms.description.lower(),
-                                       "caiman_matlab", f"{ms.description.lower()}_CellDetect_new.mat")
+                                        "caiman_matlab", f"{ms.description.lower()}_CellDetect_new.mat")
     data = hdf5storage.loadmat(caiman_mat_file_name)
     coord = data["ContoursAll"][0]
     coord_obj = CoordClass(coord=coord, nb_col=200,
-                                nb_lines=200, from_fiji=False)
+                           nb_lines=200, from_fiji=False)
 
     caiman_suite2p_mapping = ms.coord_obj.match_cells_indices(coord_obj, param=param,
-                                                                plot_title_opt=f"{ms.description}_fiji_vs_caiman")
+                                                              plot_title_opt=f"{ms.description}_fiji_vs_caiman")
     np.save(os.path.join(param.path_results, f"{ms.description}_fiji_vs_caiman.npy"),
             caiman_suite2p_mapping)
 
@@ -4210,15 +4464,15 @@ def print_surprise_for_michou(n_lines, actual_line):
     result = ""
     if actual_line < (n_lines - 1):
         result += f"{' ' * 5}"
-        result += f"{' '* actual_line}"
+        result += f"{' ' * actual_line}"
         if actual_line > (n_lines / 2):
             result += "\\"
         else:
             result += "|"
         if actual_line == (n_lines // 2):
-            result += f"{' ' * (width//2 - 1)}"
+            result += f"{' ' * (width // 2 - 1)}"
             result += " O "
-            result += f"{' ' * (width//2 - 1)}"
+            result += f"{' ' * (width // 2 - 1)}"
         else:
             result += f"{' ' * width}"
 
@@ -4232,9 +4486,9 @@ def print_surprise_for_michou(n_lines, actual_line):
         # result += f"{' ' * actual_line}"
         result += "|"
         if actual_line == (n_lines // 2):
-            result += f"{' ' * (width//2 - 1)}"
+            result += f"{' ' * (width // 2 - 1)}"
             result += " O "
-            result += f"{' ' * (width//2 - 1)}"
+            result += f"{' ' * (width // 2 - 1)}"
         else:
             result += f"{' ' * width}"
         result += "|"
@@ -4670,6 +4924,7 @@ def select_cells_that_fire_during_time_periods(raster, time_periods_bool, descri
 
     return significant_cells
 
+
 def find_hubs_using_all_ms(ms_to_analyse, param):
     print(f"Finding hubs")
     ms_kept = []
@@ -4733,6 +4988,7 @@ def find_hubs_using_all_ms(ms_to_analyse, param):
             print("Failed at step 3")
             continue
         print(f"HUB cells (n={len(cells_selected_s3)}): {cells_selected_s3}")
+
 
 def do_stat_on_pca(ms_to_analyse, param, save_formats="pdf"):
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
@@ -4844,7 +5100,6 @@ def stats_on_graph_on_all_ms(ms_to_analyse, param, save_formats="pdf"):
 
 def twitch_analysis_on_all_ms(ms_to_analyse, param, n_surrogates, before_extension, after_extension,
                               save_formats=["png", "pdf"], option="intersect"):
-
     print(f"starting twitches analysis on all selected sessions")
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     # + 11 diverting
@@ -4867,7 +5122,8 @@ def twitch_analysis_on_all_ms(ms_to_analyse, param, n_surrogates, before_extensi
         #     results_by_age_dict[ms.description] = []
         # n_sessions_dict["p" + str(ms.age)] = set()
         # n_sessions_dict["p" + str(ms.age)].add(ms.description[:-4])
-        results = twitch_analysis(ms, n_surrogates=n_surrogates, before_extension=before_extension, after_extension=after_extension)
+        results = twitch_analysis(ms, n_surrogates=n_surrogates, before_extension=before_extension,
+                                  after_extension=after_extension)
         distrib, co_var_matrix, rnd_distrib_list, rnd_co_var_matrix_list = results
         results_by_age_dict[ms.description] = distrib
         results_for_this_ms = dict()
@@ -5333,7 +5589,7 @@ def try_hdbscan(cells_in_sce, param, data_descr, activity_threshold=None,
     labels = clusterer.labels_
 
     print(f"labels.shape: {labels.shape}")
-    print(f"N clusters hdbscan: {labels.max()+1}")
+    print(f"N clusters hdbscan: {labels.max() + 1}")
     print(f"labels: {labels}")
 
     print(f"With no clusters hdbscan: {len(np.where(labels == -1)[0])}")
@@ -5799,15 +6055,16 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p8_18_10_17_a001_ms"]
 
     # session with mouvements periods (twitch, long mvt etc...) available
-    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-    #                   "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
-    #                   "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-    #                   "p7_19_03_27_a002_ms",
-    #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-    #                   "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
-    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-    #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-    #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+                      "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+                      "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                      "p7_19_03_27_a002_ms",
+                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # sessions with predictions for graph stats on young animals
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
     #                   "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
@@ -5992,7 +6249,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p5_19_03_20_a000_ms"]
     # ms_str_to_load = ["p6_19_02_18_a000_ms"]
 
-    ms_str_to_load = ["p12_171110_a000_ms"]
+    # ms_str_to_load = ["p12_171110_a000_ms"]
     # ms_str_to_load = ["p12_17_11_10_a002_ms"]
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
@@ -6098,6 +6355,7 @@ def main():
     just_plot_movement_activity = False
     just_plot_psth_over_event_time_correlation_graph_style = False
     do_plot_psth_twitches = False
+    do_plot_psth_twitches_by_age=True
     # Add weight in legend of long mvt psth
     do_plot_psth_long_mvt = False
     do_twitches_analysis = False
@@ -6122,7 +6380,7 @@ def main():
     just_do_stat_on_pca = False
     just_analyse_lfp = False
     just_run_cilva = False
-    just_evaluate_overlaps_accuracy = True
+    just_evaluate_overlaps_accuracy = False
 
     # to merge contour map, like between fiji and caiman
     just_merge_coords_map = False
@@ -6319,6 +6577,14 @@ def main():
     if just_plot_all_sum_spikes_dur:
         plot_all_sum_spikes_dur(ms_to_analyse, param)
         raise Exception("plot_all_sum_spikes_dur")
+
+    if do_plot_psth_twitches_by_age:
+        line_mode = True
+        duration_option = False
+        use_traces = False
+        plot_twitches_psth_by_age(ms_to_analyse, param, line_mode=line_mode, use_traces=use_traces,
+                                      save_formats="pdf")
+        raise Exception("do_plot_psth_twitches_by_age")
 
     if just_plot_all_time_correlation_graph_over_events:
         # event_str = "shift_twitch" "shift_long"
@@ -6574,7 +6840,7 @@ def main():
                 for index_beg in np.arange(0, n_times, 2500):
                     frames_to_display = np.arange(index_beg, index_beg + 2500)
                     file_name = f"{ms.description}_pc_{pc_number}_map_and_raster_seq_pca_{len(pca_seq_cells_order)}_cells_" \
-                                f"frame_{index_beg}_to_frame_{index_beg+2500}"
+                                f"frame_{index_beg}_to_frame_{index_beg + 2500}"
                     if ms.speed_by_frame is not None:
                         binary_speed = np.zeros(len(ms.speed_by_frame), dtype="int8")
                         binary_speed[ms.speed_by_frame > 0] = 1
@@ -7876,7 +8142,7 @@ def main():
             activity_threshold = ms.activity_threshold
         if activity_threshold is not None:
             print(f"perc_threshold {perc_threshold}, "
-                  f"activity_threshold {activity_threshold}, {np.round((activity_threshold/n_cells)*100, 2)}%")
+                  f"activity_threshold {activity_threshold}, {np.round((activity_threshold / n_cells) * 100, 2)}%")
             print(f"sliding_window_duration {sliding_window_duration}")
         spike_struct.activity_threshold = activity_threshold
         # param.activity_threshold = activity_threshold
@@ -7992,9 +8258,9 @@ def main():
                            span_area_coords=span_area_coords,
                            span_area_colors=span_area_colors,
                            vertical_lines=SCE_times,
-                           vertical_lines_colors = ['red'] * len(SCE_times),
-                           vertical_lines_sytle = "solid",
-                           vertical_lines_linewidth = [0.2] * len(SCE_times),
+                           vertical_lines_colors=['red'] * len(SCE_times),
+                           vertical_lines_sytle="solid",
+                           vertical_lines_linewidth=[0.2] * len(SCE_times),
                            alpha_span_area=0.8,
                            span_area_only_on_raster=False,
                            show_sum_spikes_as_percentage=True,
@@ -8199,7 +8465,7 @@ def main():
                                               n_surrogate=n_surrogate_for_pattern_search,
                                               use_ordered_spike_nums_for_surrogate=use_ordered_spike_nums_for_surrogate,
                                               data_id=ms.description, debug_mode=False,
-                                              extra_file_name=f"part_{split_id+1}",
+                                              extra_file_name=f"part_{split_id + 1}",
                                               sce_times_bool=sce_times_bool_to_use,
                                               use_only_uniformity_method=use_only_uniformity_method,
                                               use_loss_score_to_keep_the_best_from_tree=
