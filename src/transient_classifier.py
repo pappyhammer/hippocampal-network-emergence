@@ -4189,14 +4189,13 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         #
         # cells_to_predict = dict()
 
-
-        ms_for_rnn_benchmarks = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms",
-                                 "p6_18_02_07_a002_ms",
+        # "p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms",
+        ms_for_rnn_benchmarks = [
                       "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
                       "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
                       "p7_19_03_27_a002_ms",
                       "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms"]
+                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms", "p6_18_02_07_a002_ms"]
         # cells_p14_18_10_23_a000_ms = np.array([])
         # cells_to_predict = dict()
         # cells_to_predict["p14_18_10_23_a000_ms"] = cells_p14_18_10_23_a000_ms
@@ -4210,6 +4209,9 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # # # predicting all cells
         for ms in ms_for_rnn_benchmarks:
             cells_to_predict[ms] = None
+        cells_p6_18_02_07_a002_ms = np.arange(497)
+        cells_p6_18_02_07_a002_ms = np.setdiff1d(cells_p6_18_02_07_a002_ms, np.array([256, 296, 302]))
+        cells_to_predict["p6_18_02_07_a002_ms"] = cells_p6_18_02_07_a002_ms
         # cells_p8_18_10_24_a005_ms = np.arange(361)
         # # for Caiman segmentation
         # cells_p8_18_10_24_a005_ms = np.setdiff1d(cells_p8_18_10_24_a005_ms, np.array([168]))

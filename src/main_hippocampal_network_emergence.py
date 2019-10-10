@@ -1085,6 +1085,7 @@ def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_
     sce_bool = None
     time_x_values = np.arange(-1 * time_around, time_around + 1)
     total_n_cells = 0
+    total_n_twitches = 0
     # line represent each twitches, and columns the time surrounding the twitch
     psth_matrix = np.zeros((0, len(time_x_values)))
 
@@ -1096,9 +1097,11 @@ def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_
             # print(f"get_spikes_values_around_twitches use_traces")
             spike_nums_to_use = ms.raw_traces
         else:
-            spike_nums_to_use = spike_nums_dur
+            cells_to_keep = np.sum(ms.spike_struct.spike_nums, axis=1) > 2
+            spike_nums_to_use = spike_nums_dur[cells_to_keep]
+            # spike_nums_to_use = spike_nums_dur
 
-        n_cells = len(spike_nums_dur)
+        n_cells = len(spike_nums_to_use)
 
         # frames on which to center the ptsth
         twitches_times, twitches_periods = ms.get_twitches_times_by_group(sce_bool=sce_bool,
@@ -1109,7 +1112,6 @@ def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_
             continue
 
         total_n_cells += n_cells
-
         spike_sum_of_sum_at_time_dict, spikes_sums_at_time_dict, \
         spikes_at_time_dict = results
 
@@ -1117,12 +1119,12 @@ def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_
         # first we determine the max nb of value (can change depending where the twitches are)
         max_n_twitches = 0
         for time_index, time_value in enumerate(time_x_values):
-            if time_value in spike_sum_of_sum_at_time_dict:
+            if time_value in spikes_sums_at_time_dict:
                 if len(spikes_sums_at_time_dict[time_value]) > max_n_twitches:
                     max_n_twitches = len(spikes_sums_at_time_dict[time_value])
         tmp_psth_matrix = np.zeros((max_n_twitches, len(time_x_values)))
         for time_index, time_value in enumerate(time_x_values):
-            if time_value in spike_sum_of_sum_at_time_dict:
+            if time_value in spikes_sums_at_time_dict:
                 n_twitches = len(spikes_sums_at_time_dict[time_value])
                 # print(f"_len(spikes_sums_at_time_dict[time_value]) {len(spikes_sums_at_time_dict[time_value])}")
                 tmp_psth_matrix[:n_twitches, time_index] = spikes_sums_at_time_dict[time_value]
@@ -1138,13 +1140,20 @@ def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_
                 print(f"time {time_value} not there")
                 # mean_values.append(0)
         if tmp_psth_matrix is not None:
-            psth_matrix = np.concatenate((psth_matrix, tmp_psth_matrix))
+            total_n_twitches += len(tmp_psth_matrix)
+            median_values = np.nanmedian(tmp_psth_matrix, axis=0)
+            median_values = median_values / n_cells
+            median_values = median_values * 100
+            median_values = np.reshape(median_values, (1, len(median_values)))
+            psth_matrix = np.concatenate((psth_matrix, median_values))
+            # psth_matrix = np.concatenate((psth_matrix, tmp_psth_matrix))
 
     if len(psth_matrix) == 0:
         return
-
-    psth_matrix = psth_matrix / total_n_cells
-    psth_matrix = psth_matrix * 100
+    # print(f"psth_matrix.shape {psth_matrix.shape}")
+    # print(f"{description}, total cells filtered: {total_n_cells}")
+    # psth_matrix = psth_matrix / total_n_cells
+    # psth_matrix = psth_matrix * 100
 
     mean_values = np.nanmean(psth_matrix, axis=0)
     std_values = np.nanstd(psth_matrix, axis=0)
@@ -1174,7 +1183,8 @@ def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_
             color = hist_color
         if mean_version:
             ax1.plot(time_x_values,
-                     mean_values, color=color, lw=2, label=f"{description} {n_twitches} twitches")
+                     mean_values, color=color, lw=2, label=f"{description}, N={len(ms_list)}, "
+                                                           f"{total_n_twitches} twitches")
             if put_mean_line_on_plt:
                 plt.plot(time_x_values,
                          mean_values, color=color, lw=2)
@@ -1230,7 +1240,8 @@ def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_
     else:
         ax1.set_ylabel(f"Spikes (%)")
     ax1.set_xlabel("time (frames)")
-    ax1.set_ylim(0, max_value + 1)
+    # ax1.set_ylim(0, max_value + 1)
+    ax1.set_ylim(0, 5)
     # ax1.set_ylim(0, np.max((activity_threshold_percentage, max_value)) + 1)
 
     ax1.xaxis.label.set_color("white")
@@ -1260,15 +1271,19 @@ def plot_twitches_psth_by_age(ms_to_analyse, param, line_mode=True, use_traces=F
     background_color = "black"
     labels_color = "white"
     max_sum = 0
+    # age_categories = {5: "5-6", 6: "5-6", 7: "7-8", 8: "7-8", 9: "9"}
+    age_categories = {5: "5", 6: "6", 7: "7", 8: "8", 9: "9"}
 
     ms_by_age = dict()
     ages = []
     for ms in ms_to_analyse:
+        # print(f"len(ms.spike_struct.spike_nums_dur) {len(ms.spike_struct.spike_nums_dur)}")
         if ms.spike_struct.spike_nums_dur is not None and ms.shift_data_dict is not None:
-            if ms.age not in ms_by_age:
-                ms_by_age[ms.age] = []
-                ages.append(ms.age)
-            ms_by_age[ms.age].append(ms)
+            age_category = age_categories[ms.age]
+            if age_category not in ms_by_age:
+                ms_by_age[age_category] = []
+                ages.append(age_category)
+            ms_by_age[age_category].append(ms)
     ages.sort()
 
     if line_mode:
@@ -6238,7 +6253,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms",
     #                   "p41_19_04_30_a000_ms"]
-    # ms_str_to_load = ["p13_18_10_29_a001_ms"]
+    # ms_str_to_load = ["p6_18_02_07_a002_ms"]
     # ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
     # GAD-CRE with caiman Rois available
     # ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
