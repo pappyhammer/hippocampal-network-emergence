@@ -1,6 +1,6 @@
 #!/bin/sh
 #SBATCH -J job_tc
-#SBATCH -p gpu
+#SBATCH -p kepler
 #SBATCH --gres=gpu:4
 #SBATCH --gres-flags=enforce-binding # active l’affinité CPU:GPU
 #SBATCH --ntasks-per-node=10

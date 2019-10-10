@@ -22,8 +22,8 @@ from keras import layers
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, EarlyStopping
 from keras.utils import get_custom_objects, multi_gpu_model
 from keras import backend as K
-from keras_radam import RAdam
-# from alt_model_checkpoint import AltModelCheckpoint
+# from keras_radam import RAdam
+from alt_model_checkpoint import AltModelCheckpoint
 
 # from matplotlib import pyplot as plt
 import pattern_discovery.tools.param as p_disc_tools_param
@@ -1188,7 +1188,7 @@ class MoviePatchData:
     def __init__(self, ms, cell, index_movie, max_n_transformations,
                  encoded_frames, decoding_frame_dict,
                  window_len, with_info=False, to_keep_absolutely=False):
-        # max_n_transformationsmax number of transofrmations to a movie patch
+        # max_n_transformations max number of transformations to a movie patch
         # if the number of available function to transform is lower, the lower one would be kept
         self.manual_max_transformation = max_n_transformations
         self.ms = ms
@@ -2394,7 +2394,7 @@ def load_movie(ms):
 
             # no need to normalize the movie, we normalize it only on the frame we need using
             # mean and std saved in npy.file
-            # ms.normalize_movie()
+            ms.normalize_movie()
         return True
     return False
 
@@ -2711,16 +2711,23 @@ def add_segment_of_cells_for_training(param,
 
     dir_to_load = []
     # CAIMAN version
+    # used for v2
     dir_to_load.append(os.path.join(param.path_data, "p7", "p7_17_10_12_a000", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p8", "p8_18_10_24_a005", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p11", "p11_17_11_24_a000", "transients_to_add_for_rnn"))
 
     # SUITE2P version
+    # used for v2
     dir_to_load.append(os.path.join(param.path_data, "p10", "p10_19_02_21_a005", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_03_25_a001", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_05_a000", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_27_a000", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p16", "p16_18_11_01_a002", "transients_to_add_for_rnn"))
+    # used for v3
+    dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_09_02_a000", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p9", "p9_19_03_14_a001", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p10", "p10_19_03_08_a001", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p12", "p12_17_11_10_a002", "transients_to_add_for_rnn"))
 
     file_names_to_load = []
     dir_of_files = []
@@ -2807,9 +2814,12 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     use_small_sample = False
     use_triple_blinded_data = False
     use_test_sample = False
-    use_gad_cre_sample = True
+    use_gad_cre_sample = False
     # used for counting how many cells and transients available
-    load_them_all = False
+    load_them_all = True
+    load_them_all_gad_cre = False
+    # goes with load_them_all, but if True them we load data we use for benchmarks, just use to get some stat
+    load_data_for_benchmark = False
 
     # list of string representing the session that should be used only for training and validation
     # but not for testing
@@ -2820,32 +2830,70 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     raster_dur_by_cells_and_session = None
 
     if load_them_all:
-        ms_to_remove_from_test.append("artificial_ms_1")
-        ms_to_remove_from_validation.append("artificial_ms_1")
-        ms_to_remove_from_test.append("artificial_ms_2")
-        ms_to_remove_from_validation.append("artificial_ms_2")
-        # ms_to_remove_from_test.append("artificial_ms_3")
-        # ms_to_remove_from_validation.append("artificial_ms_3")
-        # "artificial_ms_3",
-        # "artificial_ms_3": np.array([0, 11, 27, 37, 48, 55, 65, 78, 87, 95, 103, 112, 117, 128, 136, 144],
-        ms_to_use = ["artificial_ms_1", "artificial_ms_2", "p7_171012_a000_ms",
-                     "p8_18_10_24_a006_ms",
-                     "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
-                     "p13_18_10_29_a001_ms"]
-        cell_to_load_by_ms = {"artificial_ms_1":
-                                  np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
-                              "artificial_ms_2":
-                                  np.array([0, 9, 18, 26, 34, 41, 46, 56, 62, 77, 88, 101, 116, 127, 140, 150]),
-                              "p7_171012_a000_ms": np.array([3, 8, 11, 12, 14, 17, 18, 24]),
-                              "p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
-                              "p11_17_11_24_a000_ms": np.array([17, 22, 24, 25, 29, 30, 33]),
-                              "p12_171110_a000_ms": np.array([0, 3, 6, 7, 12, 14, 15, 19]),
-                              "p13_18_10_29_a001_ms": np.array([0, 2, 5, 12, 13, 31, 42, 44, 48, 51])}
+        if load_them_all_gad_cre:
+            if load_data_for_benchmark:
+                ms_to_use = ["p8_18_10_24_a006_ms", "p11_19_04_30_a001_ms", "p6_19_02_18_a000_ms"]
+                cell_to_load_by_ms = {"p8_18_10_24_a006_ms": np.array([28, 32, 33]),
+                                      "p11_19_04_30_a001_ms": np.array([4]),
+                                      "p6_19_02_18_a000_ms": np.array([3]),
+                                      }
+            else:
+                ms_to_use = ["p8_18_10_24_a006_ms", "p11_19_04_30_a001_ms", "p6_19_02_18_a000_ms"]
+                cell_to_load_by_ms = {"p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
+                                      "p11_19_04_30_a001_ms": np.array([0, 2, 3]),
+                                      "p6_19_02_18_a000_ms": np.array([0, 1, 2]),
+                                      }
+                """
+                For benchmark:
+                 "p11_19_04_30_a001_ms" -> cell 4
+                 "p6_19_02_18_a000_ms" -> cell 3
 
-        cells_segments_by_session, raster_dur_by_cells_and_session = \
-            add_segment_of_cells_for_training(param,
-                                              ms_to_use,
-                                              cell_to_load_by_ms)
+                """
+        else:
+            if load_data_for_benchmark:
+                ms_to_use = ["p7_171012_a000_ms",
+                             "p8_18_10_24_a006_ms",
+                             "p8_18_10_24_a005_ms",
+                             "p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
+                cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([2, 25]),
+                                      "p8_18_10_24_a006_ms": np.array([28, 32, 33]),
+                                      "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
+                                      "p11_17_11_24_a000_ms": np.array([3, 45]),
+                                      "p12_171110_a000_ms": np.array([9, 10])}
+            else:
+                ms_to_remove_from_test.append("artificial_ms_1")
+                ms_to_remove_from_validation.append("artificial_ms_1")
+                ms_to_remove_from_test.append("artificial_ms_2")
+                ms_to_remove_from_validation.append("artificial_ms_2")
+                # ms_to_remove_from_test.append("artificial_ms_3")
+                # ms_to_remove_from_validation.append("artificial_ms_3")
+                # "artificial_ms_3",
+                # "artificial_ms_3": np.array([0, 11, 27, 37, 48, 55, 65, 78, 87, 95, 103, 112, 117, 128, 136, 144],
+
+                ms_to_use = ["artificial_ms_1", "artificial_ms_2", "p7_171012_a000_ms",
+                             "p8_18_10_24_a006_ms",
+                             "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
+                             "p13_18_10_29_a001_ms"]
+                cell_to_load_by_ms = {"artificial_ms_1":
+                                          np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
+                                      "artificial_ms_2":
+                                          np.array([0, 9, 18, 26, 34, 41, 46, 56, 62, 77, 88, 101, 116, 127, 140, 150]),
+                                      "p7_171012_a000_ms": np.array([3, 8, 11, 12, 14, 17, 18, 24]),
+                                      "p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
+                                      "p11_17_11_24_a000_ms": np.array([17, 22, 24, 25, 29, 30, 33]),
+                                      "p12_171110_a000_ms": np.array([0, 3, 6, 7, 12, 14, 15, 19]),
+                                      "p13_18_10_29_a001_ms": np.array([0, 2, 5, 12, 13, 31, 42, 44, 48, 51])}
+
+                cells_segments_by_session, raster_dur_by_cells_and_session = \
+                    add_segment_of_cells_for_training(param,
+                                                      ms_to_use,
+                                                      cell_to_load_by_ms)
+                #
+                # ms_to_use = ["artificial_ms_1", "artificial_ms_2"]
+                # cell_to_load_by_ms = {"artificial_ms_1":
+                #                           np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
+                #                       "artificial_ms_2":
+                #                           np.array([0, 9, 18, 26, 34, 41, 46, 56, 62, 77, 88, 101, 116, 127, 140, 150])}
     elif use_small_sample:
         # ms_to_use = ["p7_171012_a000_ms"]
         # cell_to_load_by_ms = {"p7_171012_a000_ms": np.array([8])}
@@ -2972,6 +3020,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     else:
         updated_cells_segments_by_session = dict()
 
+    total_n_frames_labeled = 0
+
     # filtering the cells, to keep only the one not removed or with a good source profile according to cell classifier
     for ms_str in ms_to_use:
         ms = ms_str_to_ms_dict[ms_str]
@@ -2993,6 +3043,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
 
         # if cells have been removed we need to updated indices that were given
         cells_to_load, original_cell_indices_mapping = ms.get_new_cell_indices_if_cells_removed(np.array(cells_to_load))
+
+        total_n_frames_labeled += len(cells_to_load) * n_frames
 
         if raster_dur_by_cells_and_session is not None:
             if ms_str in raster_dur_by_cells_and_session:
@@ -3032,6 +3084,8 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                         if ms_str not in updated_cells_segments_by_session:
                             updated_cells_segments_by_session[ms_str] = dict()
                         updated_cells_segments_by_session[ms_str][new_cell] = segments
+                        for segment in segments:
+                            total_n_frames_labeled += segment[1] - segment[0]
                 # debugging
                 # for cell_index, segments in updated_cells_segments_by_session[ms_str].items():
                 #     print(f"New cell {cell_index}: {segments}")
@@ -3068,6 +3122,10 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
         print(f"n_sessions {len(ms_to_use)}")
         print(f"total_n_cells {total_n_cells}")
         print(f"n_transients_available {n_transients_available}")
+        print(f"total_n_frames_labeled {total_n_frames_labeled}")
+        print(f"total sec labeled {(total_n_frames_labeled * 100) / 1000}")
+        print(f"total min labeled {((total_n_frames_labeled * 100) / 1000) / 60}")
+        print(f"total hours labeled {((total_n_frames_labeled * 100) / 1000) / 3600}")
         raise Exception(f"load_them_all")
     if total_n_cells == 0:
         raise Exception(f"No cells loaded")
@@ -4011,7 +4069,7 @@ def train_model():
         ms_for_tiffs = ["p5_19_03_25_a001_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms",
                         "p16_18_11_01_a002_ms"]
         ms_for_tiffs = ["p10_19_02_21_a005_ms"]
-        ms_for_tiffs = ["p7_171012_a000_ms"]
+        ms_for_tiffs = ["p5_19_09_02_a000_ms"]
         # GAD-CRE
         # ms_for_tiffs = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
         #                 "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
@@ -4030,25 +4088,29 @@ def train_model():
         ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
                                  "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms", "p12_171110_a000_ms"]
-        ms_for_gad_cre_benchmarks = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
-                                     "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
+        ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+                                 "p11_17_11_24_a000_ms",  "p12_171110_a000_ms"]
+        ms_for_rnn_benchmarks = ["p12_171110_a000_ms"]
+        # ms_for_gad_cre_benchmarks = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
+        #                              "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
         # oriens: "p8_18_10_24_a006_ms"
         # cells_to_predict_gad_cre = {"p6_19_02_18_a000_ms": np.array([3]),
         #                     "p11_19_04_30_a001_ms": np.array([4]),
         #                     "p8_18_10_24_a006_ms": np.array([28, 32, 33])  # RD
         #                      }
-        ms_for_rnn_benchmarks = ["p12_17_11_10_a002_ms"]
+        # ms_for_rnn_benchmarks = ["p12_17_11_10_a002_ms"]
         # ms_for_rnn_benchmarks = ["p60_a529_2015_02_25_ms"]
         # ms_for_rnn_benchmarks = ["p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
         # ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
-        # cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
-        #                     "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
-        #                     "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
-        #                     "p11_17_11_24_a000_ms": np.array([3, 45]),
-        #                     "p12_171110_a000_ms": np.array([9, 10]),
-        #                     "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
+        cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
+                            "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
+                            "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
+                            "p11_17_11_24_a000_ms": np.array([3, 45]),
+                            "p12_171110_a000_ms": np.array([9, 10])} #,
+        cells_to_predict = {"p12_171110_a000_ms": np.array([9, 10])}
+                            # "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
         # cells_to_predict = {"p11_17_11_24_a000_ms": np.arange(24)}  # np.array([2, 25])} # np.arange(117)
         # cells_to_predict = {"p41_19_04_30_a000_ms": None}
         # cells_to_predict = {"p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])}
@@ -4099,18 +4161,18 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         #                 "p41_19_04_30_a000_ms"]
         # mesocentre
         # ms_for_rnn_benchmarks = ["p12_171110_a000_ms"]
-        cells_to_predict = dict()
+        # cells_to_predict = dict()
         # # predicting all cells
         #
         # for ms in ms_for_rnn_benchmarks:
         #     cells_to_predict[ms] = None
-        ms_for_rnn_benchmarks = ["p9_19_03_14_a001_ms"]
-        cells_selected = [1, 6, 245, 4, 499, 431, 6, 197, 10, 704, 792, 623, 311, 11, 276, 140, 29, 17, 282
-                          , 724, 18, 547, 36, 101, 106, 480, 209, 54]
-        cells_p9_19_03_14_a001_ms = np.array(cells_selected)
+        # ms_for_rnn_benchmarks = ["p9_19_03_14_a001_ms"]
+        # cells_selected = [1, 6, 245, 4, 499, 431, 6, 197, 10, 704, 792, 623, 311, 11, 276, 140, 29, 17, 282
+        #                   , 724, 18, 547, 36, 101, 106, 480, 209, 54]
+        # cells_p9_19_03_14_a001_ms = np.array(cells_selected)
         # cells_p9_19_03_14_a001_ms = np.arange(834)
         # cells_p9_19_03_14_a001_ms = np.setdiff1d(cells_p9_19_03_14_a001_ms, np.array([613, 677, 748]))
-        cells_to_predict["p9_19_03_14_a001_ms"] = cells_p9_19_03_14_a001_ms
+        # cells_to_predict["p9_19_03_14_a001_ms"] = cells_p9_19_03_14_a001_ms
 
 
         # cells_p10_19_02_21_a003_ms = np.arange(826)
@@ -4122,26 +4184,42 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # cells_p8_18_10_17_a000_ms = np.setdiff1d(cells_p8_18_10_17_a000_ms, np.array([538]))
         # cells_to_predict["p8_18_10_17_a000_ms"] = cells_p8_18_10_17_a000_ms
 
-        # ms_for_rnn_benchmarks = ["p10_19_03_08_a001_ms"]
-        ms_for_rnn_benchmarks = ["p14_18_10_23_a000_ms"]
-        cells_p14_18_10_23_a000_ms = np.array([])
-        cells_to_predict = dict()
-        cells_to_predict["p14_18_10_23_a000_ms"] = cells_p14_18_10_23_a000_ms
+        # ms_for_rnn_benchmarks = ["p12_17_11_10_a002_ms"]
+        # ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
+        #
+        # cells_to_predict = dict()
+
+
+        ms_for_rnn_benchmarks = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms",
+                                 "p6_18_02_07_a002_ms",
+                      "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+                      "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+                      "p7_19_03_27_a002_ms",
+                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms"]
+        # cells_p14_18_10_23_a000_ms = np.array([])
+        # cells_to_predict = dict()
+        # cells_to_predict["p14_18_10_23_a000_ms"] = cells_p14_18_10_23_a000_ms
         # cells_to_predict = {"p12_17_11_10_a002_ms": None}
 
-        ms_for_rnn_benchmarks = ["p7_171012_a000_ms"]
-        cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
+        # ms_for_rnn_benchmarks = ["p5_19_09_02_a000_ms"]
+        # cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
 
         # ms_for_rnn_benchmarks = ms_for_gad_cre_benchmarks
-        # cells_to_predict = dict()
-        # # # # predicting all cells
-        # for ms in ms_for_rnn_benchmarks:
-        #     cells_to_predict[ms] = None
+        cells_to_predict = dict()
+        # # # predicting all cells
+        for ms in ms_for_rnn_benchmarks:
+            cells_to_predict[ms] = None
+        # cells_p8_18_10_24_a005_ms = np.arange(361)
+        # # for Caiman segmentation
+        # cells_p8_18_10_24_a005_ms = np.setdiff1d(cells_p8_18_10_24_a005_ms, np.array([168]))
+        # cells_to_predict["p8_18_10_24_a005_ms"] = cells_p8_18_10_24_a005_ms
         # cells_to_predict = cells_to_predict_gad_cre
         print(f"transients_prediction_from_movie: {ms_for_rnn_benchmarks}")
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0.5,
                                          use_data_augmentation=False, using_cnn_predictions=False,
-                                         cells_to_predict=cells_to_predict, file_name_bonus_str="meso_v2_epoch_19",
+                                         cells_to_predict=cells_to_predict,
+                                         file_name_bonus_str="meso_v2_epoch_19",
                                          tiffs_for_transient_classifier_path=path_for_tiffs)
         # "rnn_gad_cre_epoch_9"
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])
@@ -4180,7 +4258,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    n_gpus = 1
+    n_gpus = 4
     using_multi_class = 1  # 1 or 3 so far
     n_epochs = 30  # TODO: 30
     # multiplying by the number of gpus used as batches will be distributed to each GPU
@@ -4199,7 +4277,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     buffer = 1
     # between training, validation and test data
     split_values = [0.8, 0.2, 0]
-    optimizer_choice = "radam"  # "SGD"  used to be "RMSprop"  "adam", SGD
+    optimizer_choice = "RMSprop"  # "SGD"  used to be "RMSprop"  "adam", SGD
     activation_fct = "swish"
     if using_multi_class > 1:
         loss_fct = 'categorical_crossentropy'

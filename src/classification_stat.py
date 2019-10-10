@@ -81,6 +81,8 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, gt_predictio
     tn_frames_predictions = []
     tp_frames_predictions = []
 
+    proportion_of_frames_detected_in_transients = []
+
     for cell in np.arange(n_cells):
         raster_dur = spike_nums_dur[cell]
         predicted_raster_dur = predicted_spike_nums_dur[cell]
@@ -127,6 +129,10 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, gt_predictio
             frames = np.arange(transient_period[0], transient_period[1] + 1)
             if np.sum(predicted_raster_dur[frames]) > 0:
                 tp += 1
+                # keeping only transients with one frame detected
+                proportion_of_frames_detected_in_transients.append((np.sum(predicted_raster_dur[frames]) / len(frames))
+                                                                   * 100)
+
             if gt_predictions is not None:
                 if np.max(gt_predictions_for_cell[frames]) >= 0.5:
                     # adding the median of the predicted frames in the transient
@@ -257,7 +263,7 @@ def compute_stats(spike_nums_dur, predicted_spike_nums_dur, traces, gt_predictio
     predictions_stat["tn_frames_predictions"] = tn_frames_predictions
     predictions_stat["tp_frames_predictions"] = tp_frames_predictions
 
-    return frames_stat, transients_stat, predictions_stat
+    return frames_stat, transients_stat, predictions_stat, proportion_of_frames_detected_in_transients
 
 
 def get_raster_dur_from_traces(traces, with_threshold=None):
