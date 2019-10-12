@@ -2429,9 +2429,8 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
     The mask consist on a binary array of with 0 for all pixels in the cell, 1 otherwise
     :return:
     """
-    # given the opposite value, seem to fix the issue at the border
-    len_frame_x = ms.movie_len_y
-    len_frame_y = ms.movie_len_x
+    len_frame_x = ms.movie_len_x
+    len_frame_y = ms.movie_len_y
 
     # determining the size of the square surrounding the cell so it includes all overlapping cells around
     overlapping_cells = ms.coord_obj.intersect_cells[cell]
@@ -2465,9 +2464,12 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
         miny = max(0, miny - pixels_around)
         # we use max_width and max_height to make sure it won't be bigger than the frame used by the network
         # and we crop the frame if necessary
+        # print(f"minx {minx}, maxx {maxx}, len_frame_x {len_frame_x}")
+        # print(f"miny {miny}, maxy {maxy}, len_frame_y {len_frame_y}")
         maxx = np.min(((len_frame_x - 1), (maxx + pixels_around), (minx + max_height - 1)))
         maxy = np.min(((len_frame_y - 1), (maxy + pixels_around), (miny + max_width - 1)))
-
+        # print(f"minx {minx}, maxx {maxx}")
+        # print(f"miny {miny}, maxy {maxy}")
         len_x = maxx - minx + 1
         len_y = maxy - miny + 1
 
@@ -4085,12 +4087,12 @@ def train_model():
                                  "p13_18_10_29_a001_ms", "p8_18_10_24_a005_ms"]
         ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms"]
         ms_for_rnn_benchmarks = ["p41_19_04_30_a000_ms"]
-        ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
-        ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-                                 "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms", "p12_171110_a000_ms"]
-        ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-                                 "p11_17_11_24_a000_ms",  "p12_171110_a000_ms"]
-        ms_for_rnn_benchmarks = ["p12_171110_a000_ms"]
+        ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms", "p12_171110_a000_ms"]
+        # ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+        #                          "p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
+        # ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+        #                          "p11_17_11_24_a000_ms",  "p12_171110_a000_ms"]
+        # ms_for_rnn_benchmarks = ["p12_171110_a000_ms"]
         # ms_for_gad_cre_benchmarks = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
         #                              "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
         # oriens: "p8_18_10_24_a006_ms"
@@ -4104,13 +4106,14 @@ def train_model():
         # ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
-        cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
-                            "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
-                            "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
-                            "p11_17_11_24_a000_ms": np.array([3, 45]),
-                            "p12_171110_a000_ms": np.array([9, 10])} #,
-        cells_to_predict = {"p12_171110_a000_ms": np.array([9, 10])}
-                            # "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
+        # cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
+        #                     "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
+        #                     "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
+        #                     "p11_17_11_24_a000_ms": np.array([3, 45]),
+        #                     "p12_171110_a000_ms": np.array([9, 10])} #,
+        # cells_to_predict = {"p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
+        #                     "p12_171110_a000_ms": np.array([9, 10])}
+        #                     # "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
         # cells_to_predict = {"p11_17_11_24_a000_ms": np.arange(24)}  # np.array([2, 25])} # np.arange(117)
         # cells_to_predict = {"p41_19_04_30_a000_ms": None}
         # cells_to_predict = {"p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])}
@@ -4189,19 +4192,21 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         #
         # cells_to_predict = dict()
 
-        # "p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms",
-        ms_for_rnn_benchmarks = [
-                      "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
-                      "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                      "p7_19_03_27_a002_ms",
+        # "p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+        ms_for_rnn_benchmarks = ["p7_19_03_27_a002_ms",
                       "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms", "p6_18_02_07_a002_ms"]
+                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms", "p6_18_02_07_a002_ms", "p7_18_02_08_a003_ms"]
         # cells_p14_18_10_23_a000_ms = np.array([])
         # cells_to_predict = dict()
         # cells_to_predict["p14_18_10_23_a000_ms"] = cells_p14_18_10_23_a000_ms
         # cells_to_predict = {"p12_17_11_10_a002_ms": None}
 
-        # ms_for_rnn_benchmarks = ["p5_19_09_02_a000_ms"]
+        # ms_for_rnn_benchmarks = ["p9_17_12_20_a001_ms"]
+        # cells_to_predict = dict()
+        # cells_p9_17_12_20_a001_ms = np.arange(19, 21)
+        # # cells_p9_17_12_20_a001_ms = np.setdiff1d(cells_p9_17_12_20_a001_ms, np.arange(19, 21))
+        # cells_to_predict["p9_17_12_20_a001_ms"] = cells_p9_17_12_20_a001_ms
+
         # cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
 
         # ms_for_rnn_benchmarks = ms_for_gad_cre_benchmarks
@@ -4209,9 +4214,12 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # # # predicting all cells
         for ms in ms_for_rnn_benchmarks:
             cells_to_predict[ms] = None
-        cells_p6_18_02_07_a002_ms = np.arange(497)
-        cells_p6_18_02_07_a002_ms = np.setdiff1d(cells_p6_18_02_07_a002_ms, np.array([256, 296, 302]))
-        cells_to_predict["p6_18_02_07_a002_ms"] = cells_p6_18_02_07_a002_ms
+        # cells_p6_18_02_07_a002_ms = np.arange(497)
+        # cells_p6_18_02_07_a002_ms = np.setdiff1d(cells_p6_18_02_07_a002_ms, np.array([256, 296, 302]))
+        # cells_to_predict["p6_18_02_07_a002_ms"] = cells_p6_18_02_07_a002_ms
+        # cells_p7_18_02_08_a003_ms = np.arange(657)
+        # cells_p7_18_02_08_a003_ms = np.setdiff1d(cells_p7_18_02_08_a003_ms, np.array([352]))
+        # cells_to_predict["p7_18_02_08_a003_ms"] = cells_p7_18_02_08_a003_ms
         # cells_p8_18_10_24_a005_ms = np.arange(361)
         # # for Caiman segmentation
         # cells_p8_18_10_24_a005_ms = np.setdiff1d(cells_p8_18_10_24_a005_ms, np.array([168]))
@@ -4221,7 +4229,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         transients_prediction_from_movie(ms_to_use=ms_for_rnn_benchmarks, param=param, overlap_value=0.5,
                                          use_data_augmentation=False, using_cnn_predictions=False,
                                          cells_to_predict=cells_to_predict,
-                                         file_name_bonus_str="meso_v2_epoch_19",
+                                         file_name_bonus_str="meso_v2_epoch_19_test",
                                          tiffs_for_transient_classifier_path=path_for_tiffs)
         # "rnn_gad_cre_epoch_9"
         # p8_18_10_24_a005_ms: np.array([9, 10, 13, 28, 41, 42, 207, 321, 110])

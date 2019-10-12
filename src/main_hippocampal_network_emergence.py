@@ -1277,7 +1277,7 @@ def plot_twitches_psth_by_age(ms_to_analyse, param, line_mode=True, use_traces=F
     ms_by_age = dict()
     ages = []
     for ms in ms_to_analyse:
-        # print(f"len(ms.spike_struct.spike_nums_dur) {len(ms.spike_struct.spike_nums_dur)}")
+        print(f"len(ms.spike_struct.spike_nums_dur) {len(ms.spike_struct.spike_nums_dur)}")
         if ms.spike_struct.spike_nums_dur is not None and ms.shift_data_dict is not None:
             age_category = age_categories[ms.age]
             if age_category not in ms_by_age:
@@ -6253,7 +6253,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms",
     #                   "p41_19_04_30_a000_ms"]
-    # ms_str_to_load = ["p6_18_02_07_a002_ms"]
+    ms_str_to_load = ["p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
     # GAD-CRE with caiman Rois available
     # ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
@@ -6356,7 +6356,7 @@ def main():
 
     just_do_stat_significant_time_period = False
     just_fca_clustering_on_twitches_activity = False
-    just_plot_cell_assemblies_on_map = False
+    just_plot_cell_assemblies_on_map = True
     just_plot_all_cells_on_map = False
     just_plot_all_cells_on_map_with_avg_on_bg = False
 
@@ -6370,7 +6370,7 @@ def main():
     just_plot_movement_activity = False
     just_plot_psth_over_event_time_correlation_graph_style = False
     do_plot_psth_twitches = False
-    do_plot_psth_twitches_by_age=True
+    do_plot_psth_twitches_by_age=False
     # Add weight in legend of long mvt psth
     do_plot_psth_long_mvt = False
     do_twitches_analysis = False
@@ -6557,7 +6557,7 @@ def main():
     # #### for kmean  #####
     with_shuffling = False
     print(f"use_raster_dur {use_raster_dur}")
-    range_n_clusters_k_mean = np.arange(3, 8)
+    range_n_clusters_k_mean = np.arange(2, 3)
     # range_n_clusters_k_mean = np.array([7])
     n_surrogate_k_mean = 20
     keep_only_the_best_kmean_cluster = False

@@ -1949,13 +1949,13 @@ def main_benchmark():
     #                        "meso_10", "meso_11", "meso_12", "meso_13", "meso_14"]
     predictions_to_load = ["meso_9", "v2_epoch_8", "v2_epoch_12", "v2_epoch_14",
                            "v2_epoch_17", "v2_epoch_19"]
-    # predictions_to_load = ["meso_9", "v2_epoch_19"]
-    predictions_to_load = ["v2_epoch_19"]
+    predictions_to_load = ["v2_epoch_19", "meso_9", "v3_epoch_12", "v3_epoch_15", "v3_epoch_16"]
+    # predictions_to_load = ["v2_epoch_19"]
     # gad-cre
     # predictions_to_load = ["meso_9", "cre_v1_epoch_10", "cre_v1_epoch_15", "cre_v1_epoch_19",
     #                        "cre_v1_epoch_22", "cre_v1_epoch_23"]
     # predictions_to_load = ["v1_epoch_15"]
-    predictions_to_load = ["epoch_15", "meso_9", "v2_epoch_19"]
+    # predictions_to_load = ["epoch_15", "meso_9", "v2_epoch_19"]
     # predictions_to_load = ["caiman_epoch_15"]
     # TO PLOT predictions distribution for each metrics, use only one predictions_to_load
     # predictions_to_load = []
@@ -2276,9 +2276,9 @@ def main_benchmark():
             # benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
             #                                    path_results=path_results, with_cells=True,
             #                                    for_frames=True, save_formats=["pdf", "png"])
-            # benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
-            #                                    path_results=path_results, with_cells=True,
-            #                                    for_frames=False, save_formats=["png"])
+            benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
+                                               path_results=path_results, with_cells=True,
+                                               for_frames=False, save_formats=["png"])
             # benchmarks.plot_boxplots_f1_score(description=tmp_description, time_str=time_str,
             #                                   path_results=path_results, with_cells=True,
             #                                   for_frames=False, save_formats=["png"])

@@ -12,10 +12,10 @@ if __name__ == '__main__':
     stat_suite2p_file_name = os.path.join(data_path, "suite2p", "stat.npy")
 
     weights_file_name = os.path.join(root_path, "data/transient_classifier_model/",
-                                  "transient_classifier_weights_19-0.9710_2019_07_20.00-36-53.h5")
+                                                "transient_classifier_weights_19-0.9710_2019_07_20.00-36-53.h5")
 
     json_file_name = os.path.join(root_path, "data/transient_classifier_model/",
-                                  "transient_classifier_model_architecture__2019_07_20.00-36-53.json")
+                                             "transient_classifier_model_architecture__2019_07_20.00-36-53.json")
     tiffs_dirname = os.path.join(root_path, "data/cinac_tiffs_test/")
     cinac_predictor = CinacPredictor()
 
