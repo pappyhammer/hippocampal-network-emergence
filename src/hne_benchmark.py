@@ -384,7 +384,7 @@ class BenchmarkRasterDur:
                 stat_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
                 axes = np.ndarray.flatten(axes)
                 fig_patch = stat_fig.patch
-                black_and_white_skin = True
+                black_and_white_skin = False
                 # rgba = c_map(0)
                 if black_and_white_skin:
                     face_color = "white"
@@ -559,7 +559,7 @@ class BenchmarkRasterDur:
         stat_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
         axes = np.ndarray.flatten(axes)
         fig_patch = stat_fig.patch
-        black_and_white_skin = True
+        black_and_white_skin = False
         # rgba = c_map(0)
         if black_and_white_skin:
             face_color = "white"
@@ -819,7 +819,7 @@ class BenchmarkRasterDur:
 
         stat_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
         fig_patch = stat_fig.patch
-        black_and_white_skin = True
+        black_and_white_skin = False
         # rgba = c_map(0)
         if black_and_white_skin:
             face_color = "white"
@@ -932,7 +932,7 @@ class BenchmarkRasterDur:
         # sce clusters labels
         ax.set_xticklabels(labels)
         # fixing the limits
-        ax.set_ylim(0.3, 1.1)
+        ax.set_ylim(0, 1.1)
 
         ax.set_title("F1 SCORE", color=title_color, pad=20, fontsize=20)
 
@@ -978,7 +978,7 @@ class BenchmarkRasterDur:
 
         stat_fig.set_tight_layout({'rect': [0, 0, 1, 1], 'pad': 1, 'w_pad': 1, 'h_pad': 5})
         fig_patch = stat_fig.patch
-        black_and_white_skin = True
+        black_and_white_skin = False
         # rgba = c_map(0)
         if black_and_white_skin:
             face_color = "white"
@@ -1909,7 +1909,7 @@ def main_benchmark():
     # ms_to_benchmarks = ["p12_17_11_10_a000"]
     # ms_to_benchmarks = ["p7_17_10_12_a000"]
     # ms_to_benchmarks = ["p8_18_10_24_a006_ms"]
-    ms_to_benchmarks = ["p8_18_10_24_a005_ms", "p12_17_11_10_a000"]
+    # ms_to_benchmarks = ["p8_18_10_24_a005_ms", "p12_17_11_10_a000"]
     # ms_to_benchmark = "artificial_ms"
     # no benchmarks yet for p13
     # ms_to_benchmarks = ["p13_18_10_29_a001_ms"]
@@ -1955,7 +1955,7 @@ def main_benchmark():
     # predictions_to_load = ["meso_9", "cre_v1_epoch_10", "cre_v1_epoch_15", "cre_v1_epoch_19",
     #                        "cre_v1_epoch_22", "cre_v1_epoch_23"]
     # predictions_to_load = ["v1_epoch_15"]
-    # predictions_to_load = ["epoch_15", "meso_9", "v2_epoch_19"]
+    predictions_to_load = ["epoch_15", "meso_9", "v2_epoch_19"]
     # predictions_to_load = ["caiman_epoch_15"]
     # TO PLOT predictions distribution for each metrics, use only one predictions_to_load
     # predictions_to_load = []
@@ -2276,9 +2276,9 @@ def main_benchmark():
             # benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
             #                                    path_results=path_results, with_cells=True,
             #                                    for_frames=True, save_formats=["pdf", "png"])
-            benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
-                                               path_results=path_results, with_cells=True,
-                                               for_frames=False, save_formats=["png"])
+            # benchmarks.plot_boxplots_full_stat(description=tmp_description, time_str=time_str,
+            #                                    path_results=path_results, with_cells=True,
+            #                                    for_frames=False, save_formats=["png"])
             # benchmarks.plot_boxplots_f1_score(description=tmp_description, time_str=time_str,
             #                                   path_results=path_results, with_cells=True,
             #                                   for_frames=False, save_formats=["png"])
@@ -2306,9 +2306,9 @@ def main_benchmark():
         # global_benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
         #                                           for_frames=True, save_formats=["pdf", "png"], with_cells=True)
         global_benchmarks.plot_boxplots_full_stat(description=description, time_str=time_str, path_results=path_results,
-                                                  for_frames=False, save_formats=["png"], with_cells=True)
+                                                  for_frames=False, save_formats=["png"], with_cells=True, dpi=500)
         global_benchmarks.plot_boxplots_f1_score(description=description, time_str=time_str, path_results=path_results,
-                                                 for_frames=False, save_formats=["png"], with_cells=True)
+                                                 for_frames=False, save_formats=["png"], with_cells=True, dpi=500)
         global_benchmarks.plot_boxplots_proportion_frames_in_transients(description=description,
                                                                         time_str=time_str, path_results=path_results,
                                                                         only_this_key=predictions_to_load[0],

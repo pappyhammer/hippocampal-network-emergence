@@ -710,8 +710,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # if True will  use the coord from suite2p, if False, will just load the info concerning suite2p in
         # if the dict suit2p_data in mouse_session
         p8_18_10_24_a005_ms.use_suite_2p = True
-        # if for_transient_classifier:
-        #     p8_18_10_24_a005_ms.use_suite_2p = False
+        if for_transient_classifier:
+            p8_18_10_24_a005_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         # p8_18_10_24_a005_ms.activity_threshold =
@@ -1234,7 +1234,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         p12_171110_a000_ms.use_suite_2p = True
         if for_transient_classifier or for_cell_classifier:
-            p12_171110_a000_ms.use_suite_2p = True
+            p12_171110_a000_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         # p12_171110_a000_ms.activity_threshold = 13
@@ -1413,7 +1413,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p13_18_10_29_a001_ms = MouseSession(age=13, session_id="18_10_29_a001", sampling_rate=10, param=param,
                                             weight=9.4)
 
-        p13_18_10_29_a001_ms.use_suite_2p = False
+        p13_18_10_29_a001_ms.use_suite_2p = True
         if for_transient_classifier:
             p13_18_10_29_a001_ms.use_suite_2p = False
 
@@ -1706,7 +1706,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             file_name_to_load="p60/p60_a529_2015_02_25/MotCorre_529_15_02_25_CellDetect.mat",
             variables_mapping=variables_mapping)
 
-        # TODO: LOAD SPEED
         speed_file = os.path.join(param.path_data, "p60/p60_a529_2015_02_25",
                                   "data_bonus", "Speed.mat")
         speed_data = hdf5storage.loadmat(speed_file)
@@ -1878,12 +1877,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if ms.spike_struct.spike_nums_dur is None:
             prediction_threshold = 0.5
             # key that should be on the prediction file_name to be loaded
-            prediction_key = ["meso_v2_epoch_19", "meso_v1_epoch_9"] #"meso_v2_epoch_19" #"meso_v2_caiman_epoch_19" #"meso_v1_epoch_9"
+            prediction_keys = ["meso_v2_epoch_19", "meso_v1_epoch_9"] #"meso_v2_epoch_19" #"meso_v2_caiman_epoch_19" #"meso_v1_epoch_9"
             # prediction_key = "gad_cre_v1_epoch_15"
             variables_mapping = {"predictions": "predictions"}
             ms.load_raster_dur_from_predictions(
                 path_name=f"p{ms.age}/{ms.description.lower()}/predictions/",
-                prediction_keys=prediction_key,
+                prediction_keys=prediction_keys,
                 prediction_threshold=prediction_threshold,
                 variables_mapping=variables_mapping, use_filtered_version=False)
 

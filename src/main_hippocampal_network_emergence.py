@@ -49,7 +49,7 @@ from pattern_discovery.clustering.kmean_version.k_mean_clustering import compute
 from pattern_discovery.clustering.kmean_version.k_mean_clustering import give_stat_one_sce
 from pattern_discovery.clustering.fca.fca import compute_and_plot_clusters_raster_fca_version
 from pattern_discovery.graph.force_directed_graphs import plot_graph_using_fa2
-from matplotlib.patches import Patch
+from matplotlib.patches import Patch, Ellipse
 from matplotlib.lines import Line2D
 import time
 from scipy import stats
@@ -75,6 +75,11 @@ import elephant.cell_assembly_detection as cad
 from spot_dist import spotdist_function
 from twitches_analysis import twitch_analysis, covnorm
 from rastermap import Rastermap
+from pysal.explore.pointpats import PointPattern
+from pysal.explore.pointpats import centrography
+# import hull, mbr, mean_center, weighted_mean_center, \
+#     manhattan_median, std_distance,euclidean_median, ellipse
+import matplotlib.colors as plt_colors
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -1073,8 +1078,12 @@ def plot_all_long_mvt_psth_in_one_figure(ms_to_analyse, param, line_mode=True,
     plt.close()
 
 
-def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_around=100,
+def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, mvt_type,
+                                       cell_population_name,
+                                       ylim=None,
+                                       time_around=100,
                                        line_mode=False,
+                                       n_cell_assemblies=2,
                                        ax_to_use=None, put_mean_line_on_plt=False,
                                        color_to_use=None,
                                        with_other_ms=None,
@@ -1090,24 +1099,48 @@ def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_
     psth_matrix = np.zeros((0, len(time_x_values)))
 
     for ms in ms_list:
-        # print(f"ms description {ms.description}")
-        spike_nums_dur = ms.spike_struct.spike_nums_dur
-        # spike_nums = self.spike_struct.spike_nums
+        spike_nums_to_use = ms.spike_struct.spike_nums_dur
+        # spike_nums_to_use = ms.spike_struct.spike_nums
+        # print(f"{ms.description} spikes: {np.sum(spike_nums_to_use, axis=1)}")
         if use_traces:
             # print(f"get_spikes_values_around_twitches use_traces")
             spike_nums_to_use = ms.raw_traces
         else:
-            cells_to_keep = np.sum(ms.spike_struct.spike_nums, axis=1) > 2
-            spike_nums_to_use = spike_nums_dur[cells_to_keep]
-            # spike_nums_to_use = spike_nums_dur
+            # cells_to_keep = np.sum(ms.spike_struct.spike_nums, axis=1) > 2
+            # spike_nums_to_use = spike_nums_dur[cells_to_keep]
 
-        n_cells = len(spike_nums_to_use)
+            if cell_population_name == "all":
+                pass
+            else:
+                for i in np.arange(n_cell_assemblies):
+                    if cell_population_name == f"assembly_{i}":
+                        size_ca = np.array([len(ca) for ca in ms.cell_assemblies])
+                        sorted_index = size_ca.argsort()
+                        spike_nums_to_use = spike_nums_to_use[ms.cell_assemblies[sorted_index[i]], :]
+                        break
+                    elif cell_population_name == "outside_assembly":
+                        cells_array = np.arange(len(spike_nums_to_use))
+                        for cell_assembly in ms.cell_assemblies:
+                            cells_array = np.setdiff1d(cells_array, np.array(cell_assembly))
+                        spike_nums_to_use = spike_nums_to_use[cells_array, :]
 
-        # frames on which to center the ptsth
-        twitches_times, twitches_periods = ms.get_twitches_times_by_group(sce_bool=sce_bool,
-                                                                          twitches_group=0)
+            cells_to_keep = np.sum(spike_nums_to_use, axis=1) > 2
+            spike_nums_to_use = spike_nums_to_use[cells_to_keep]
+            n_cells = len(spike_nums_to_use)
 
-        results = ms.get_spikes_by_time_around_a_time(twitches_times, spike_nums_to_use, time_around)
+        if mvt_type == "twitches":
+            # frames on which to center the ptsth
+            mvt_times, twitches_periods = ms.get_twitches_times_by_group(sce_bool=sce_bool,
+                                                                         twitches_group=0)
+        else:
+            mvt_times = []
+
+            mvt_frames_periods = get_continous_time_periods(ms.shift_data_dict["shift_long"].astype("int8"))
+            for mvt_period in mvt_frames_periods:
+                mvt_times.append(mvt_period[0])
+            # n_mvts = len(mvt_times)
+
+        results = ms.get_spikes_by_time_around_a_time(mvt_times, spike_nums_to_use, time_around)
         if results is None:
             continue
 
@@ -1183,8 +1216,8 @@ def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_
             color = hist_color
         if mean_version:
             ax1.plot(time_x_values,
-                     mean_values, color=color, lw=2, label=f"{description}, N={len(ms_list)}, "
-                                                           f"{total_n_twitches} twitches")
+                     mean_values, color=color, lw=2, label=f"{description}, N={len(ms_list)}, cells={total_n_cells}, "
+                                                           f"{total_n_twitches} {mvt_type}")
             if put_mean_line_on_plt:
                 plt.plot(time_x_values,
                          mean_values, color=color, lw=2)
@@ -1240,8 +1273,11 @@ def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_
     else:
         ax1.set_ylabel(f"Spikes (%)")
     ax1.set_xlabel("time (frames)")
-    # ax1.set_ylim(0, max_value + 1)
-    ax1.set_ylim(0, 5)
+
+    if ylim is None:
+        ax1.set_ylim(0, max_value + 1)
+    else:
+        ax1.set_ylim(0, ylim)
     # ax1.set_ylim(0, np.max((activity_threshold_percentage, max_value)) + 1)
 
     ax1.xaxis.label.set_color("white")
@@ -1256,7 +1292,8 @@ def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_
             save_formats = [save_formats]
         for save_format in save_formats:
             fig.savefig(f'{path_results}/{descr}_psth_'
-                        f'{n_twitches}_twitches'
+                        f'{n_twitches}_{mvt_type}_'
+                        f'{cell_population_name}_cells'
                         f'_{extra_info}.{save_format}',
                         format=f"{save_format}",
                         facecolor=fig.get_facecolor())
@@ -1264,21 +1301,27 @@ def plot_psth_twitches_for_multiple_ms(ms_list, description, path_results, time_
         plt.close()
 
 
-def plot_twitches_psth_by_age(ms_to_analyse, param, line_mode=True, use_traces=False,
+def plot_twitches_psth_by_age(ms_to_analyse, param, mvt_type, time_around, line_mode=True, use_traces=False,
+                              n_cell_assemblies=2, ylim=None,
+                              with_cell_assemblies=False,
                               save_formats="pdf"):
     colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f',
               '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
     background_color = "black"
     labels_color = "white"
     max_sum = 0
-    # age_categories = {5: "5-6", 6: "5-6", 7: "7-8", 8: "7-8", 9: "9"}
-    age_categories = {5: "5", 6: "6", 7: "7", 8: "8", 9: "9"}
+    age_categories = {5: "5-6", 6: "5-6", 7: "7-8", 8: "7-8", 9: "9"}
+    # age_categories = {5: "5", 6: "6", 7: "7", 8: "8", 9: "9"}
+    # age_categories = {5: "5-6-7", 6: "5-6-7", 7: "5-6-7", 9: "9"}
 
     ms_by_age = dict()
     ages = []
     for ms in ms_to_analyse:
-        print(f"len(ms.spike_struct.spike_nums_dur) {len(ms.spike_struct.spike_nums_dur)}")
+        # print(f"len(ms.spike_struct.spike_nums_dur) {len(ms.spike_struct.spike_nums_dur)}")
         if ms.spike_struct.spike_nums_dur is not None and ms.shift_data_dict is not None:
+            # checking is cell_assemblies data is available
+            if with_cell_assemblies and ((ms.cell_assemblies is None) or (len(ms.cell_assemblies) < 2)):
+                continue
             age_category = age_categories[ms.age]
             if age_category not in ms_by_age:
                 ms_by_age[age_category] = []
@@ -1298,42 +1341,59 @@ def plot_twitches_psth_by_age(ms_to_analyse, param, line_mode=True, use_traces=F
     n_lines = n_plots if n_plots <= max_n_lines else max_n_lines
     n_col = math.ceil(n_plots / n_lines)
 
-    fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
-                             gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
-                             figsize=(30, 20))
-    fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
-    fig.patch.set_facecolor(background_color)
+    # first if with_cell_assemblies, we filter
+    cells_population_name = ["all"]
+    if with_cell_assemblies:
+        for i in np.arange(n_cell_assemblies):
+            cells_population_name.append(f"assembly_{i}")
+        cells_population_name.append("outside_assembly")
+    # if with_cell_assemblies:
+    #     if ms.cell_assemblies is not None:
+    #         print(f"{ms.description} n assemblies {len(ms.cell_assemblies)}")
+    #         for cell_ass_index, cell_assembly in enumerate(ms.cell_assemblies):
+    #             cells_population.append(cell_assembly)
+    #             cells_population_name.add(f"assembly_{cell_ass_index}_n_{len(cell_assembly)}")
 
-    axes = axes.flatten()
-    for ax_index, ax in enumerate(axes):
-        ax.set_facecolor(background_color)
-        if ax_index >= len(ms_by_age):
-            continue
-        ms_list = ms_by_age[ages[ax_index]]
-        descrs = [m.description for m in ms_list]
-        # print(f"{ms.description} plot_all_twitch_psth_in_one_figure")
-        plot_psth_twitches_for_multiple_ms(ms_list=ms_list, line_mode=line_mode, ax_to_use=ax,
-                                           time_around=100,
-                                           description=f"p{ages[ax_index]}", path_results=param.path_results,
-                                           put_mean_line_on_plt=line_mode,
-                                           color_to_use=colors[ax_index % len(colors)],
-                                           use_traces=use_traces)
+    for cell_population_name in cells_population_name:
 
-        plot_psth_twitches_for_multiple_ms(ms_list=ms_list, line_mode=line_mode,
-                                           time_around=100,
-                                           description=f"p{ages[ax_index]}", path_results=param.path_results,
-                                           put_mean_line_on_plt=line_mode,
-                                           color_to_use=colors[ax_index % len(colors)],
-                                           use_traces=use_traces)
+        fig, axes = plt.subplots(nrows=n_lines, ncols=n_col,
+                                 gridspec_kw={'width_ratios': [1] * n_col, 'height_ratios': [1] * n_lines},
+                                 figsize=(30, 20))
+        fig.set_tight_layout({'rect': [0, 0, 1, 0.95], 'pad': 1.5, 'h_pad': 1.5})
+        fig.patch.set_facecolor(background_color)
 
-    if isinstance(save_formats, str):
-        save_formats = [save_formats]
-    for save_format in save_formats:
-        fig.savefig(f'{param.path_results}/twitches_psth_by_age_'
-                    f'_{param.time_str}.{save_format}',
-                    format=f"{save_format}",
-                    facecolor=fig.get_facecolor())
-    plt.close()
+        axes = axes.flatten()
+        for ax_index, ax in enumerate(axes):
+            ax.set_facecolor(background_color)
+            if ax_index >= len(ms_by_age):
+                continue
+            ms_list = ms_by_age[ages[ax_index]]
+            descrs = [m.description for m in ms_list]
+            # print(f"{ms.description} plot_all_twitch_psth_in_one_figure")
+            plot_psth_twitches_for_multiple_ms(ms_list=ms_list, line_mode=line_mode, ax_to_use=ax,
+                                               mvt_type=mvt_type, ylim=ylim,
+                                               time_around=time_around, cell_population_name=cell_population_name,
+                                               description=f"p{ages[ax_index]}", path_results=param.path_results,
+                                               put_mean_line_on_plt=line_mode,
+                                               color_to_use=colors[ax_index % len(colors)],
+                                               use_traces=use_traces)
+
+            plot_psth_twitches_for_multiple_ms(ms_list=ms_list, line_mode=line_mode,
+                                               mvt_type=mvt_type, ylim=ylim,
+                                               time_around=time_around, cell_population_name=cell_population_name,
+                                               description=f"p{ages[ax_index]}", path_results=param.path_results,
+                                               put_mean_line_on_plt=line_mode,
+                                               color_to_use=colors[ax_index % len(colors)],
+                                               use_traces=use_traces)
+
+        if isinstance(save_formats, str):
+            save_formats = [save_formats]
+        for save_format in save_formats:
+            fig.savefig(f'{param.path_results}/{mvt_type}_psth_by_age_{cell_population_name}_cells'
+                        f'_{param.time_str}.{save_format}',
+                        format=f"{save_format}",
+                        facecolor=fig.get_facecolor())
+        plt.close()
 
 
 def plot_all_twitch_psth_in_one_figure(ms_to_analyse, param, line_mode=True, use_traces=False,
@@ -2676,9 +2736,9 @@ def compute_stat_about_seq_with_slope(files_path, param,
     """
     plot_slopes_by_ages = False
     plot_seq_contour_map = False
-    plot_seq_with_rep_by_age = False
+    plot_seq_with_rep_by_age = True
     plot_synchronies_on_raster = False
-    plot_3_kinds_of_slopes = True
+    plot_3_kinds_of_slopes = False
 
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
     # + 11 diverting
@@ -2712,10 +2772,10 @@ def compute_stat_about_seq_with_slope(files_path, param,
         file_name_original = file_name
         file_name = file_name.lower()
         if not file_name.startswith("p"):
-            if not file_name.startswith("significant_sorting_results_with_timestamps_with_slope_"):
+            if not file_name.startswith("significant_sorting_results_with_timestamps_with_"):
                 continue
 
-            file_name = file_name[len("significant_sorting_results_with_timestamps_with_slope_"):]
+            file_name = file_name[len("significant_sorting_results_with_timestamps_with_"):]
 
         index_ = file_name.find("_")
         if index_ < 1:
@@ -3351,9 +3411,11 @@ def plot_figure_with_map_and_raster_for_sequences(ms, cells_in_seq, span_area_co
     plt.close()
 
 
-def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap_gradient", cmap_name="Reds",
+def compute_stat_about_significant_seq(files_path, param, slope_for_stat=None,
+                                       slope_by_slope=False,
+                                       color_option="use_cmap_gradient", cmap_name="Reds",
                                        scale_scatter=False, use_different_shapes_for_stat=False,
-                                       min_len_seq_to_display=4,
+                                       min_len_seq_to_display=4, min_rep_to_display=3,
                                        save_formats="pdf", slope_version=True):
     """
 
@@ -3388,15 +3450,20 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
     ages_groups = dict()
     # will allow to group age by groups, for each age, we give a string value which is going to be a key for another
     # dict
-    age_tuples = [(5,), (6, 7), (8, 10), (11, 12), (13, 14), (15, 21), (41,)]  # , (60, )
+    # age_tuples = [(5,), (6, 7), (8, 10), (11, 12), (13, 14), (15, 21)] #, (41,)]  # , (60, )
+    age_tuples = [(5, 7), (8, 10), (11, 14), (15, 21)]  # , (41,)]  # , (60, )
     manual_colors = dict()
-    manual_colors["5"] = "white"
-    manual_colors["6-7"] = "navajowhite"
+    manual_colors["5-7"] = "white"
     manual_colors["8-10"] = "lawngreen"
-    manual_colors["11-12"] = "cornflowerblue"
-    manual_colors["13-14"] = "orange"
-    manual_colors["15-21"] = "coral"
-    manual_colors["41"] = "red"
+    manual_colors["11-14"] = "cornflowerblue"
+    manual_colors["15-21"] = "red"  # coral
+    # manual_colors["5"] = "white"
+    # manual_colors["6-7"] = "navajowhite"
+    # manual_colors["8-10"] = "lawngreen"
+    # manual_colors["11-12"] = "cornflowerblue"
+    # manual_colors["13-14"] = "orange"
+    # manual_colors["15-21"] = "red" # coral
+    # manual_colors["41"] = "red"
 
     # manual_colors["60"] = "red"
     # used for display
@@ -3416,18 +3483,46 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
     for file_name in file_names:
         file_name_original = file_name
         file_name = file_name.lower()
-        if not file_name.startswith("p"):
+        if (not file_name.startswith("p")) and \
+                (not file_name.startswith("significant_sorting_results_with_timestamps")):
             if not file_name.startswith("significant_sorting_results_"):
                 continue
             # p_index = len("significant_sorting_results")+1
             if "slope" in file_name:
-                file_name = file_name[len("significant_sorting_results_with_slope_"):]
+                if slope_by_slope:
+                    file_name = file_name[len("significant_sorting_results_with_"):]
+                else:
+                    file_name = file_name[len("significant_sorting_results_with_slope_"):]
             else:
                 file_name = file_name[len("significant_sorting_results_"):]
-        index_ = file_name.find("_")
-        if index_ < 1:
+        else:
             continue
-        age_file = int(file_name[1:index_])
+        # significant_sorting_results_with_150_ms_slope_P19_19_04_08_a001.txt
+        if slope_by_slope:
+            # first determining the slope
+            index_ = file_name.find("_")
+            if index_ < 1:
+                continue
+            # print(f"file_name[:index_] {file_name[:index_]}")
+            slope_ms = int(file_name[:index_])
+            
+            if slope_ms != slope_for_stat:
+                continue
+            # print(f"slope_ms {slope_ms}, {slope_for_stat}")
+            file_name = file_name[index_ + 1 + len("ms_slope_"):]
+            # print(f"{slope_for_stat} file_name {file_name_original}")
+            index_ = file_name.find("_")
+            if index_ < 1:
+                continue
+            age_file = int(file_name[1:index_])
+            # print(f"age_file {age_file}")
+        else:
+            index_ = file_name.find("_")
+            if index_ < 1:
+                continue
+            age_file = int(file_name[1:index_])
+        if age_file not in ages_groups:
+            continue
         age = ages_groups[age_file]
         nb_ms_by_age[age] = nb_ms_by_age.get(age, 0) + 1
         # print(f"age {age}")
@@ -3453,6 +3548,8 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
                     data_dict[age][seq_n_cells][n_total_rep] = 1
                 else:
                     n_total_rep = int(line_list[1])
+                    # if n_total_rep > 100:
+                        # print(f"n_total_rep {n_total_rep}: {file_name_original} ")
                     if seq_n_cells not in data_dict[age]:
                         data_dict[age][seq_n_cells] = dict()
                     data_dict[age][seq_n_cells][n_total_rep] = data_dict[age][seq_n_cells].get(n_total_rep, 0) + 1
@@ -3472,13 +3569,175 @@ def compute_stat_about_significant_seq(files_path, param, color_option="use_cmap
                 #         data_dict[age][cat][seq_n_cells][rep] = 0
                 #     data_dict[age][cat][seq_n_cells][rep] += 1
                 # print(f"{seq_n_cells} cells: {repetitions} {categories}")
-    plot_fig_nb_cells_in_seq_vs_rep_by_age(data_dict, ages_key_order, param, min_len_seq_to_display,
-                                           nb_ms_by_age, color_option, manual_colors, save_formats)
+    # return
+    # raise Exception("TESTTT")
+    plot_fig_nb_cells_in_seq_vs_rep_by_age(data_dict=data_dict, ages_key_order=ages_key_order, param=param,
+                                           min_len_seq_to_display=min_len_seq_to_display,
+                                           nb_ms_by_age=nb_ms_by_age, color_option=color_option,
+                                           manual_colors=manual_colors, save_formats=save_formats,
+                                           min_rep_to_display=min_rep_to_display,
+                                           file_name=f"scatter_significant_seq_slope_{slope_for_stat}_ms")
 
+    # plot_fig_nb_cells_in_seq_vs_rep_by_age_using_centroids(data_dict=data_dict, ages_key_order=ages_key_order,
+    #                                                        param=param,
+    #                                        min_len_seq_to_display=min_len_seq_to_display,
+    #                                        nb_ms_by_age=nb_ms_by_age, color_option=color_option,
+    #                                        manual_colors=manual_colors, save_formats=save_formats,
+    #                                        min_rep_to_display=min_rep_to_display,
+    #                                        file_name=f"scatter_significant_seq_slope_{slope_for_stat}_ms")
+
+
+def plot_fig_nb_cells_in_seq_vs_rep_by_age_using_centroids(data_dict, ages_key_order, param, min_len_seq_to_display,
+                                           nb_ms_by_age, color_option, manual_colors, scale_scatter=False,
+                                           cmap_name=None, file_name=None, min_rep_to_display=None,
+                                           with_text=False,
+                                           save_formats="pdf"):
+    """
+    Display centroids + ellipse representing the standard distance deviation
+
+    :param data_dict: # dict1: key age (int) value dict2
+            # dict2: key length seq (int), value dict3
+            # dict3: key repetitions (int), value nb of seq with this length and this repetition
+    :param ages_key_order:
+    :param param:
+    :param min_len_seq_to_display:
+    :param nb_ms_by_age:
+    :param color_option:
+    :param manual_colors:
+    :param cmap_name:
+    :param save_formats:
+    :return:
+    """
+    fig, ax1 = plt.subplots(nrows=1, ncols=1,
+                            gridspec_kw={'height_ratios': [1]},
+                            figsize=(15, 15))
+    background_color = "black"
+    labels_color = "white"
+    ax1.set_facecolor(background_color)
+    fig.patch.set_facecolor(background_color)
+
+    age_index = 0
+    max_rep = 0
+    min_rep = 100
+    min_len = 100
+    max_len = 0
+
+    # age_point_pattern_dict = dict()
+
+    for age in ages_key_order:
+        age_points = []
+        len_dict = data_dict[age]
+        for len_seq, rep_dict in len_dict.items():
+            if len_seq < min_len_seq_to_display:
+                continue
+            min_len = np.min((len_seq, min_len))
+            max_len = np.max((len_seq, max_len))
+            for rep, n_seq in rep_dict.items():
+                if rep < min_rep_to_display:
+                    continue
+                max_rep = np.max((max_rep, rep))
+                min_rep = np.min((min_rep, rep))
+                coord = [[len_seq, rep]] * n_seq
+                # adding n_seq points with x len_seq and y rep
+                age_points.extend(coord)
+        point_pattern = PointPattern(age_points)
+        # age_point_pattern_dict[age] = pp
+
+
+        mean_center_point = centrography.mean_center(point_pattern.points)
+
+        if color_option == "use_cmap_random":
+            color = plt.get_cmap(cmap_name)(float(age_index + 1) / (len(ages_key_order) + 1))
+        elif color_option == "use_cmap_gradient":
+            color = plt.get_cmap(cmap_name)(float(age_index + 1) / (len(ages_key_order) + 1))
+        elif color_option == "manual":
+            color = manual_colors[age]
+        else:
+            color = param.colors[age_index % (len(param.colors))]
+        scatter_size = 900 # + 1.2 * x_pos + 1.2 * y_pos  # 50
+        marker_to_use = "o"
+        # if use_different_shapes_for_stat:
+        #     marker_to_use = param.markers[cat - 1]
+        ax1.scatter(mean_center_point[0],
+                    mean_center_point[1],
+                    color=color,
+                    marker=marker_to_use,
+                    zorder=20,
+                    s=scatter_size, alpha=1, edgecolors='none')
+
+        # displaying the Standard Deviational Ellipse
+        # based on http://pysal.org/notebooks/explore/pointpats/centrography.html
+        sx, sy, theta = centrography.ellipse(point_pattern.points)
+        theta_degree = np.degrees(theta)
+        ellipse_patch = Ellipse(xy=mean_center_point, width=sx * 2, height=sy * 2,
+                                      angle=-theta_degree, fill=False)  # angle is rotation in degrees (anti-clockwise)
+        ax1.add_artist(ellipse_patch)
+        ellipse_patch.set_clip_box(ax1.bbox)
+        # color = plt_colors.to_rgba(color, alpha=0.3)
+        # ellipse_patch.set_facecolor(color)
+        ellipse_patch.set_edgecolor(color)
+        ellipse_patch.set_linewidth(3)
+
+
+        age_index += 1
+
+    legend_elements = []
+    # [Line2D([0], [0], color='b', lw=4, label='Line')
+    age_index = 0
+    for age in ages_key_order:
+        if color_option == "use_cmap_random":
+            color = plt.get_cmap(cmap_name)(float(age_index + 1) / (len(ages_key_order) + 1))
+        elif color_option == "use_cmap_gradient":
+            values = np.linspace(0, 1, len(ages_key_order))
+            color = plt.get_cmap(cmap_name)(values[age_index])
+        elif color_option == "manual":
+            color = manual_colors[age]
+        else:
+            color = param.colors[age_index % (len(param.colors))]
+        legend_elements.append(Patch(facecolor=color,
+                                     edgecolor='black', label=f'p{age}'))
+        age_index += 1
+    # if use_different_shapes_for_stat:
+    #     for cat in np.arange(1, n_categories + 1):
+    #         if cat in banned_categories:
+    #             continue
+    #         legend_elements.append(Line2D([0], [0], marker=param.markers[cat - 1], color="w", lw=0, label="*" * cat,
+    #                                       markerfacecolor='black', markersize=15))
+
+    ax1.legend(handles=legend_elements)
+
+    # plt.title(title)
+    ax1.set_ylabel(f"Repetition (#)", fontsize=20)
+    ax1.set_xlabel("Cells (#)", fontsize=20)
+    # ax1.set_ylim(min_rep - 2, max_rep + 2)
+    # ax1.set_xlim(min_len - 2, max_len + 2)
+    ax1.set_ylim(-20, 60)
+    ax1.set_xlim(0, 25)
+    ax1.xaxis.label.set_color(labels_color)
+    ax1.yaxis.label.set_color(labels_color)
+    ax1.tick_params(axis='y', colors=labels_color)
+    ax1.tick_params(axis='x', colors=labels_color)
+    # xticks = np.arange(0, len(data_dict))
+    # ax1.set_xticks(xticks)
+    # # sce clusters labels
+    # ax1.set_xticklabels(labels)
+
+    if isinstance(save_formats, str):
+        save_formats = [save_formats]
+    if file_name is None:
+        file_name = "scatter_significant_seq_centroids"
+    for save_format in save_formats:
+        fig.savefig(f'{param.path_results}/{file_name}'
+                    f'_{param.time_str}.{save_format}',
+                    format=f"{save_format}",
+                    facecolor=fig.get_facecolor())
+
+    plt.close()
 
 def plot_fig_nb_cells_in_seq_vs_rep_by_age(data_dict, ages_key_order, param, min_len_seq_to_display,
                                            nb_ms_by_age, color_option, manual_colors, scale_scatter=False,
-                                           cmap_name=None, file_name=None,
+                                           cmap_name=None, file_name=None, min_rep_to_display=None,
+                                           with_text=False,
                                            save_formats="pdf"):
     """
 
@@ -3532,6 +3791,10 @@ def plot_fig_nb_cells_in_seq_vs_rep_by_age(data_dict, ages_key_order, param, min
             min_len = np.min((len_seq, min_len))
             max_len = np.max((len_seq, max_len))
             for rep, n_seq in rep_dict.items():
+                if rep < min_rep_to_display:
+                    continue
+                # if n_seq > 1:
+                #     print(f"n_seq == {n_seq} for age {age} and len seq {len_seq} & rep {rep}")
                 if rep not in grid_dict[len_seq]:
                     grid_dict[len_seq][rep] = np.ones(len_grid[0] * len_grid[1], dtype="bool")
                 max_rep = np.max((max_rep, rep))
@@ -3571,9 +3834,10 @@ def plot_fig_nb_cells_in_seq_vs_rep_by_age(data_dict, ages_key_order, param, min
                             color=color,
                             marker=marker_to_use,
                             s=scatter_size, alpha=1, edgecolors='none')
-                ax1.text(x=x_pos, y=y_pos,
-                         s=f"{n_seq_normalized}", color="black", zorder=22,
-                         ha='center', va="center", fontsize=0.9, fontweight='bold')
+                if with_text:
+                    ax1.text(x=x_pos, y=y_pos,
+                             s=f"{n_seq_normalized}", color="black", zorder=22,
+                             ha='center', va="center", fontsize=0.9, fontweight='bold')
                 i_jitter += 1
         age_index += 1
     with_grid = False
@@ -6070,15 +6334,20 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p8_18_10_17_a001_ms"]
 
     # session with mouvements periods (twitch, long mvt etc...) available
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
+    #                   "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+    #                   "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
+    #                   "p7_19_03_27_a002_ms",
+    #                   "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+    #                   "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
+    #                   "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+    #                   "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
+    #                   "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
+    # with mvt info + 2 cell assemblie sorthogonal
     ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
-                      "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
-                      "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                      "p7_19_03_27_a002_ms",
-                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms",
-                      "p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
-                      "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms", "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
-                      "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
+                      "p7_19_03_05_a000_ms",
+                      "p9_17_12_20_a001_ms", "p9_18_09_27_a003_ms",
+                      "p9_19_03_22_a000_ms", "p9_19_03_22_a001_ms"]
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms"]
     # sessions with predictions for graph stats on young animals
     # ms_str_to_load = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p6_18_02_07_a002_ms",
@@ -6150,11 +6419,11 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
     #                   "p13_19_03_11_a000_ms"]
     # # # #
-    # ms_str_to_load = ["p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
-    #                   "p16_18_11_01_a002_ms",
-    #                   "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
-    #                   "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
-    #                   "p41_19_04_30_a000_ms"]
+    ms_str_to_load = ["p14_18_10_23_a000_ms", "p14_18_10_30_a001_ms",
+                      "p16_18_11_01_a002_ms",
+                      "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms",
+                      "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
+                      "p41_19_04_30_a000_ms"]
 
     # ms_str_to_load = ["p5_19_03_25_a001_ms", "p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p5_19_03_25_a001_ms"]
@@ -6171,7 +6440,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p13_18_10_29_a000_ms", "p13_18_10_29_a001_ms",
     #                   "p14_18_10_30_a001_ms"] #                       "p14_18_10_30_a001_ms"]
 
-    # ms_str_to_load = ["richard_028_D1_P1_ms"]
+    # ms_str_to_load = ["p41_19_04_30_a000_ms"]
     # ms_str_to_load = ["p60_a529_2015_02_25_ms"]
     # ms_str_to_load = ["p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms", "p21_19_04_10_a001_j3_ms"]
@@ -6253,7 +6522,7 @@ def robin_loading_process(param, load_traces, load_abf=False):
     #                   "p21_19_04_10_a000_ms", "p21_19_04_10_a001_ms",
     #                   "p21_19_04_10_a000_j3_ms",
     #                   "p41_19_04_30_a000_ms"]
-    ms_str_to_load = ["p9_18_09_27_a003_ms"]
+    # ms_str_to_load = ["p9_18_09_27_a003_ms"]
     # ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
     # GAD-CRE with caiman Rois available
     # ms_str_to_load = ["p6_19_02_18_a000_ms", "p11_19_04_30_a001_ms"]
@@ -6293,7 +6562,7 @@ def main():
 
     path_data = root_path + "data/"
     path_results_raw = root_path + "results_hne/"
-    cell_assemblies_data_path = path_data + "cell_assemblies/v6/"
+    cell_assemblies_data_path = path_data + "cell_assemblies/psth/"
     best_order_data_path = path_data + "best_order_data/v3/"
 
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
@@ -6312,10 +6581,13 @@ def main():
                           max_branches=20, stop_if_twin=False,
                           no_reverse_seq=False, spike_rate_weight=False, path_data=path_data)
 
-    just_compute_significant_seq_stat = False
+    just_compute_significant_seq_stat = True
     if just_compute_significant_seq_stat:
-        compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v7_slope/", param=param,
-                                           save_formats=["pdf"],
+        for slope_for_stat in np.arange(0, 1500, 150):
+            compute_stat_about_significant_seq(files_path=f"{path_data}significant_seq/v_slope_by_slope/", param=param,
+                                           slope_by_slope=True, slope_for_stat=slope_for_stat,
+                                           save_formats=["pdf"], slope_version=True,
+                                           min_len_seq_to_display=4, min_rep_to_display=3,
                                            color_option="manual", cmap_name="Reds")
         # use_cmap_gradient
         # color_option="manual"
@@ -6324,8 +6596,8 @@ def main():
     just_compute_significant_seq_with_slope_stat = False
     if just_compute_significant_seq_with_slope_stat:
         compute_stat_about_seq_with_slope(files_path=f"{path_data}/seq_slope/v3_70_150_surro/", param=param,
-                                          save_formats=["pdf"],
-                                          color_option="manual", cmap_name="Reds")
+                                              save_formats=["pdf"],
+                                              color_option="manual", cmap_name="Reds")
         # use_cmap_gradient
         # color_option="manual"
         return
@@ -6356,7 +6628,7 @@ def main():
 
     just_do_stat_significant_time_period = False
     just_fca_clustering_on_twitches_activity = False
-    just_plot_cell_assemblies_on_map = True
+    just_plot_cell_assemblies_on_map = False
     just_plot_all_cells_on_map = False
     just_plot_all_cells_on_map_with_avg_on_bg = False
 
@@ -6370,7 +6642,7 @@ def main():
     just_plot_movement_activity = False
     just_plot_psth_over_event_time_correlation_graph_style = False
     do_plot_psth_twitches = False
-    do_plot_psth_twitches_by_age=False
+    do_plot_psth_twitches_by_age = False
     # Add weight in legend of long mvt psth
     do_plot_psth_long_mvt = False
     do_twitches_analysis = False
@@ -6597,8 +6869,14 @@ def main():
         line_mode = True
         duration_option = False
         use_traces = False
-        plot_twitches_psth_by_age(ms_to_analyse, param, line_mode=line_mode, use_traces=use_traces,
-                                      save_formats="pdf")
+        for time_around, mvt_type in zip([200, 100], ["mvt_long", "twitches"]):
+            print(f"mvt_type {mvt_type}")
+            plot_twitches_psth_by_age(ms_to_analyse=ms_to_analyse, param=param,
+                                      ylim=16,
+                                      mvt_type=mvt_type, time_around=time_around,
+                                      line_mode=line_mode,
+                                      use_traces=use_traces,
+                                      save_formats="pdf", with_cell_assemblies=True)
         raise Exception("do_plot_psth_twitches_by_age")
 
     if just_plot_all_time_correlation_graph_over_events:
