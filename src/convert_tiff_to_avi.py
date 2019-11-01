@@ -2,9 +2,10 @@ import os
 import numpy as np
 import PIL
 from PIL import Image
-from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize, destroyAllWindows
+from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize, destroyAllWindows, VideoCapture
 from time import time
 from sortedcontainers import SortedDict
+import cv2
 
 import os
 
@@ -18,9 +19,57 @@ def sorted_tiff_ls(path):
 
     return list(sorted(files_in_dir, key=mtime))
 
+def test_avi():
+    path_data = "/media/julien/Not_today/hne_not_today/data/test_behavior_movie/results/behavior_test_cam_test_fps_50.avi"
+
+    # Create a VideoCapture object and read from input file
+    # If the input is the camera, pass 0 instead of the video file name
+    cap = VideoCapture(path_data)
+
+    # Check if camera opened successfully
+    if cap.isOpened() == False:
+        print("Error opening video stream or file")
+    n_frames = 0
+    # Read until video is completed
+    while cap.isOpened():
+        # Capture frame-by-frame
+        ret, frame = cap.read()
+
+        if ret == True:
+            n_frames += 1
+
+            # # Display the resulting frame
+            # cv2.imshow('Frame', frame)
+            #
+            # # Press Q on keyboard to  exit
+            # if cv2.waitKey(25) & 0xFF == ord('q'):
+            #     break
+
+        # Break the loop
+        else:
+            break
+    print(f"n_frames {n_frames}")
+    # When everything done, release the video capture object
+    cap.release()
+
+    # Closes all the frames
+    cv2.destroyAllWindows()
 
 def main():
+    open_avi_for_test = True
+    if open_avi_for_test:
+        test_avi()
+        return
+
     tiffs_path_dir = '/media/julien/Not_today/hne_not_today/data/test_behavior_movie/a000'
+    subject_id = "test"
+    cam_id = "test"
+
+    # subject_id = "p8_19_09_29_1_a001"
+    # cam_id = "22983298"
+    # cam_id = "23109588"
+    # tiffs_path_dir = f'/media/julien/Not_today/hne_not_today/data/p8/{subject_id}/cams/{cam_id}'
+
     results_path = '/media/julien/Not_today/hne_not_today/data/test_behavior_movie/results'
 
     files_in_dir = [item for item in os.listdir(tiffs_path_dir)
@@ -55,8 +104,9 @@ def main():
 
     size_avi = None
     vid_avi = None
-    avi_file_name = os.path.join(results_path, "test.avi")
-    fps_avi = 20
+    fps_avi = 1
+    avi_file_name = os.path.join(results_path, f"behavior_{subject_id}_cam_{cam_id}_fps_{fps_avi}.avi")
+    print(f"creating behavior_{subject_id}_cam_{cam_id}_fps_{fps_avi}.avi from {len(files_in_dir_dict)} tiff files")
     is_color = True
     # put fourcc to 0 for no compression
     # fourcc = 0
@@ -66,6 +116,10 @@ def main():
     # https://stackoverflow.com/questions/44947505/how-to-make-a-movie-out-of-images-in-python
     start_time = time()
     for tiff_frame, tiff_file in files_in_dir_dict.items():
+        # temporary for testing
+        if tiff_frame > 300:
+            break
+
         if (tiff_frame > 0) and (tiff_frame % 5000 == 0):
             print(f"{tiff_frame} frames done")
         # img = PIL.Image.open(os.path.join(tiffs_path_dir, tiff_file))

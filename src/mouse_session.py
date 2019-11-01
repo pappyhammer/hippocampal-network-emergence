@@ -6115,7 +6115,7 @@ class MouseSession:
                     if (data is not None) or (predictions is not None):
                         break
             if (data is None) and (predictions is None):
-                print(f"load_raster_dur_from_predictions no file_name with {prediction_key} found in "
+                print(f"load_raster_dur_from_predictions no file_name with {prediction_keys} found in "
                           f"{os.path.join(self.param.path_data, path_name)}")
                 return
         else:

@@ -75,11 +75,12 @@ import elephant.cell_assembly_detection as cad
 from spot_dist import spotdist_function
 from twitches_analysis import twitch_analysis, covnorm
 from rastermap import Rastermap
-from pysal.explore.pointpats import PointPattern
-from pysal.explore.pointpats import centrography
+# from pysal.explore.pointpats import PointPattern
+# from pysal.explore.pointpats import centrography
 # import hull, mbr, mean_center, weighted_mean_center, \
 #     manhattan_median, std_distance,euclidean_median, ellipse
 import matplotlib.colors as plt_colors
+from hne_spatial_pattern import spatial_pattern_detector
 
 
 def connec_func_stat(mouse_sessions, data_descr, param, show_interneurons=True, cells_to_highlights=None,
@@ -6265,6 +6266,8 @@ def add_z_shifts_from_file(ms_str_to_ms_dict, param):
     file_name = "Z_movement_movies_to_cut.txt"
     ms_session = None
     z_shifts = None
+    if not os.path.isfile(os.path.join(param.path_data, file_name)):
+        return
     with open(os.path.join(param.path_data, file_name), "r", encoding='UTF-8') as file:
         for nb_line, line in enumerate(file):
             if len(line) < 4:
@@ -6659,8 +6662,8 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p5_19_03_20_a000_ms"]
     # ms_str_to_load = ["p6_19_02_18_a000_ms"]
 
-    # ms_str_to_load = ["p12_171110_a000_ms"]
-    # ms_str_to_load = ["p12_17_11_10_a002_ms"]
+    # ms_str_to_load = ["p7_19_03_27_a000_ms"]
+    ms_str_to_load = ["p5_19_03_25_a000_ms", "p9_17_12_20_a001_ms", "p12_17_11_10_a002_ms", "p41_19_04_30_a000_ms"]
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
@@ -6719,7 +6722,7 @@ def main():
         # color_option="manual"
         return
 
-    just_compute_significant_seq_with_slope_stat = True
+    just_compute_significant_seq_with_slope_stat = False
     if just_compute_significant_seq_with_slope_stat:
         compute_stat_about_seq_with_slope(files_path=f"{path_data}/significant_seq/v_slope_by_slope_100_surro/", param=param,
                                           slope_by_slope_ms=1050,
@@ -6785,7 +6788,7 @@ def main():
     just_find_seq_with_pca = False
 
     # ------------- SEQUENCES -----------
-    just_find_seq_using_graph = True
+    just_find_seq_using_graph = False
     # ------------------------------------
 
     just_test_elephant_cad = False
@@ -6799,6 +6802,8 @@ def main():
     just_analyse_lfp = False
     just_run_cilva = False
     just_evaluate_overlaps_accuracy = False
+
+    just_do_spatial_pattern_detector = True
 
     # to merge contour map, like between fiji and caiman
     just_merge_coords_map = False
@@ -7616,6 +7621,19 @@ def main():
             ms.evaluate_overlaps_accuracy(path_data=path_data, path_results=param.path_results)
             if ms_index == len(ms_to_analyse) - 1:
                 raise Exception("just_evaluate_overlaps_accuracy")
+            continue
+
+        if just_do_spatial_pattern_detector:
+            print(f"just_do_spatial_pattern_detector {ms.description}")
+            ms.load_tiff_movie_in_memory()
+            grid_sizes = [10, 20, 30, 40, 50] # 5
+            # grid_sizes = [20]
+            for grid_size in grid_sizes:
+                spatial_pattern_detector(ci_movie=ms.tiff_movie, coord_obj=ms.coord_obj, raster_dur=ms.spike_struct.spike_nums_dur,
+                                         subject_description=ms.description, path_results=param.path_results,
+                                         grid_size=grid_size)
+            if ms_index == len(ms_to_analyse) - 1:
+                raise Exception("just_do_spatial_pattern_detector")
             continue
 
         if just_do_pca_on_raster:
