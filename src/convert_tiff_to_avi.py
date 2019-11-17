@@ -6,6 +6,7 @@ from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize, destroyAllWindo
 from time import time
 from sortedcontainers import SortedDict
 import cv2
+import pims
 
 import os
 
@@ -20,7 +21,18 @@ def sorted_tiff_ls(path):
     return list(sorted(files_in_dir, key=mtime))
 
 def test_avi():
-    path_data = "/media/julien/Not_today/hne_not_today/data/test_behavior_movie/results/behavior_test_cam_test_fps_50.avi"
+    # loading the root_path
+    root_path = None
+    with open("param_hne.txt", "r", encoding='UTF-8') as file:
+        for nb_line, line in enumerate(file):
+            line_list = line.split('=')
+            root_path = line_list[1]
+    if root_path is None:
+        raise Exception("Root path is None")
+    path_data = os.path.join(root_path, "data/test_behavior_movie/results/behavior_test_cam_test_fps_50.avi")
+
+    vs = pims.Video(path_data)
+    print(f"vs.frame_shape {vs.frame_shape}")
 
     # Create a VideoCapture object and read from input file
     # If the input is the camera, pass 0 instead of the video file name
@@ -29,6 +41,16 @@ def test_avi():
     # Check if camera opened successfully
     if cap.isOpened() == False:
         print("Error opening video stream or file")
+        return
+
+    length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    print(f"length {length}, width {width}, height {height}, fps {fps}")
+    return
+
     n_frames = 0
     # Read until video is completed
     while cap.isOpened():
