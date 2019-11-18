@@ -6,7 +6,7 @@ from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize, destroyAllWindo
 from time import time
 from sortedcontainers import SortedDict
 import cv2
-import pims
+# import pims
 
 import os
 
@@ -30,9 +30,10 @@ def test_avi():
     if root_path is None:
         raise Exception("Root path is None")
     path_data = os.path.join(root_path, "data/test_behavior_movie/results/behavior_test_cam_test_fps_50.avi")
-
-    vs = pims.Video(path_data)
-    print(f"vs.frame_shape {vs.frame_shape}")
+    file_name = "behavior_p8_19_09_29_0_cam_23109588_cam1_a002_fps_20.avi"
+    path_data = f"/media/julien/My Book/robin_tmp/cameras/p8_19_09_29_0/{file_name}"
+    # vs = pims.Video(path_data)
+    # print(f"vs.frame_shape {vs.frame_shape}")
 
     # Create a VideoCapture object and read from input file
     # If the input is the camera, pass 0 instead of the video file name
@@ -48,6 +49,7 @@ def test_avi():
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
 
+    print(f"file: {file_name}")
     print(f"length {length}, width {width}, height {height}, fps {fps}")
     return
 
@@ -83,16 +85,14 @@ def main():
         test_avi()
         return
 
-    tiffs_path_dir = '/media/julien/Not_today/hne_not_today/data/test_behavior_movie/a000'
-    subject_id = "test"
-    cam_id = "test"
+    subject_id = "p8_19_09_29_0"
+    cam_folder_id = "cam2_a002"  # cam2_a002 cam1_a003  cam2_a003
+    tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/'
+    tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id)
+    cam_id = "22983298"  # cam1_a002: 23109588, cam2_a002: 22983298,  cam1_a003: 22983298, cam2_a003: 23109588
 
-    # subject_id = "p8_19_09_29_1_a001"
-    # cam_id = "22983298"
-    # cam_id = "23109588"
-    # tiffs_path_dir = f'/media/julien/Not_today/hne_not_today/data/p8/{subject_id}/cams/{cam_id}'
-
-    results_path = '/media/julien/Not_today/hne_not_today/data/test_behavior_movie/results'
+    results_path = '/media/julien/My Book/robin_tmp/cameras/'
+    results_path = os.path.join(results_path, subject_id)
 
     files_in_dir = [item for item in os.listdir(tiffs_path_dir)
                     if os.path.isfile(os.path.join(tiffs_path_dir, item)) and
@@ -126,8 +126,8 @@ def main():
 
     size_avi = None
     vid_avi = None
-    fps_avi = 1
-    avi_file_name = os.path.join(results_path, f"behavior_{subject_id}_cam_{cam_id}_fps_{fps_avi}.avi")
+    fps_avi = 20
+    avi_file_name = os.path.join(results_path, f"behavior_{subject_id}_cam_{cam_id}_{cam_folder_id}_fps_{fps_avi}.avi")
     print(f"creating behavior_{subject_id}_cam_{cam_id}_fps_{fps_avi}.avi from {len(files_in_dir_dict)} tiff files")
     is_color = True
     # put fourcc to 0 for no compression
@@ -138,10 +138,6 @@ def main():
     # https://stackoverflow.com/questions/44947505/how-to-make-a-movie-out-of-images-in-python
     start_time = time()
     for tiff_frame, tiff_file in files_in_dir_dict.items():
-        # temporary for testing
-        if tiff_frame > 300:
-            break
-
         if (tiff_frame > 0) and (tiff_frame % 5000 == 0):
             print(f"{tiff_frame} frames done")
         # img = PIL.Image.open(os.path.join(tiffs_path_dir, tiff_file))
