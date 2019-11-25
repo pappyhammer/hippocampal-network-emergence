@@ -30,8 +30,8 @@ def test_avi():
     if root_path is None:
         raise Exception("Root path is None")
     path_data = os.path.join(root_path, "data/test_behavior_movie/results/behavior_test_cam_test_fps_50.avi")
-    file_name = "behavior_p8_19_09_29_0_cam_23109588_cam1_a002_fps_20.avi"
-    path_data = f"/media/julien/My Book/robin_tmp/cameras/p8_19_09_29_0/{file_name}"
+    file_name = "behavior_p9_19_09_30_cam_22983298_cam1_a003_fps_20.avi"
+    path_data = f"/media/julien/My Book/robin_tmp/cameras/p9_19_09_30/{file_name}"
     # vs = pims.Video(path_data)
     # print(f"vs.frame_shape {vs.frame_shape}")
 
@@ -80,16 +80,24 @@ def test_avi():
     cv2.destroyAllWindows()
 
 def main():
-    open_avi_for_test = True
+    open_avi_for_test = False
     if open_avi_for_test:
         test_avi()
         return
 
-    subject_id = "p8_19_09_29_0"
-    cam_folder_id = "cam2_a002"  # cam2_a002 cam1_a003  cam2_a003
+    subject_id = "p9_19_09_30"
+    cam_folder_id_1 = "cam2"
+    cam_folder_id_2 = "a003"  # a001 a002 a003
+    if cam_folder_id_2 is None:
+        cam_folder_id = ""  # ex cam1_a002
+    else:
+        cam_folder_id = f"{cam_folder_id_1}_{cam_folder_id_2}"
     tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/'
-    tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id)
-    cam_id = "22983298"  # cam1_a002: 23109588, cam2_a002: 22983298,  cam1_a003: 22983298, cam2_a003: 23109588
+    if cam_folder_id_2 is not None:
+        tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_1, cam_folder_id_2)
+    else:
+        tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id)
+    cam_id = "23109588"  #  cam1: 22983298  cam2: 23109588
 
     results_path = '/media/julien/My Book/robin_tmp/cameras/'
     results_path = os.path.join(results_path, subject_id)
@@ -128,7 +136,7 @@ def main():
     vid_avi = None
     fps_avi = 20
     avi_file_name = os.path.join(results_path, f"behavior_{subject_id}_cam_{cam_id}_{cam_folder_id}_fps_{fps_avi}.avi")
-    print(f"creating behavior_{subject_id}_cam_{cam_id}_fps_{fps_avi}.avi from {len(files_in_dir_dict)} tiff files")
+    print(f"creating behavior_{subject_id}_cam_{cam_id}_{cam_folder_id}_fps_{fps_avi}.avi from {len(files_in_dir_dict)} tiff files")
     is_color = True
     # put fourcc to 0 for no compression
     # fourcc = 0
