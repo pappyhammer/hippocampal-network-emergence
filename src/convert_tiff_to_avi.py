@@ -30,8 +30,12 @@ def test_avi():
     if root_path is None:
         raise Exception("Root path is None")
     path_data = os.path.join(root_path, "data/test_behavior_movie/results/behavior_test_cam_test_fps_50.avi")
-    file_name = "behavior_p9_19_09_30_cam_22983298_cam1_a003_fps_20.avi"
+    file_name = "behavior_P6 19_12_11_0"
     path_data = f"/media/julien/My Book/robin_tmp/cameras/p9_19_09_30/{file_name}"
+    path_data = "/media/julien/Not_today/hne_not_today/data/p8/p8_19_09_29_1_a001/cams/behavior_p8_19_09_29_1_cam_22983298_cam1_a001_fps_20.avi"
+    path_data = "/media/julien/Not_today/hne_not_today/data/p8/p8_19_09_29_1_a001/cams/behavior_p8_19_09_29_1_cam_23109588_cam2_a001_fps_20.avi"
+    path_data = "/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/behavior_P6 19_12_11_0_cam_22983298_cam1_a000_fps_20.avi"
+    # 37254
     # vs = pims.Video(path_data)
     # print(f"vs.frame_shape {vs.frame_shape}")
 
@@ -85,22 +89,27 @@ def main():
         test_avi()
         return
 
-    subject_id = "p9_19_09_30"
+    subject_id = "p13_19_10_04"
     cam_folder_id_1 = "cam2"
-    cam_folder_id_2 = "a003"  # a001 a002 a003
+    cam_folder_id_2 = "a002"  # a000 a001 a002 a003
     if cam_folder_id_2 is None:
         cam_folder_id = ""  # ex cam1_a002
     else:
         cam_folder_id = f"{cam_folder_id_1}_{cam_folder_id_2}"
     tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/'
+    tiffs_path_dir = '/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/'
     if cam_folder_id_2 is not None:
         tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_1, cam_folder_id_2)
     else:
         tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id)
-    cam_id = "23109588"  #  cam1: 22983298  cam2: 23109588
+    if cam_folder_id_1 == "cam1":
+        cam_id = "22983298"
+    else:
+        cam_id = "23109588"  #  cam1: 22983298  cam2: 23109588
 
-    results_path = '/media/julien/My Book/robin_tmp/cameras/'
-    results_path = os.path.join(results_path, subject_id)
+    # results_path = '/media/julien/My Book/robin_tmp/cameras/'
+    # results_path = os.path.join(results_path, subject_id)
+    results_path = "/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/"
 
     files_in_dir = [item for item in os.listdir(tiffs_path_dir)
                     if os.path.isfile(os.path.join(tiffs_path_dir, item)) and

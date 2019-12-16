@@ -62,14 +62,21 @@ def main():
 
 
         """
-        # if session_dir_name not in ["p11_19_04_30_a001"]:
+        # if session_dir_name not in ["p8_19_09_29_1_a000", "p8_19_09_29_1_a001"]:
         #     continue
-        if session_dir_name[1:3] not in ["41"] or session_dir_name in sessions_to_exclude:
+        # if session_dir_name not in ["p8_19_09_29_0_a000", "p8_19_09_29_0_a001"]:
+        #     continue
+        if session_dir_name not in ["p8_19_09_29_0_a000"]:
             continue
+        # if session_dir_name not in ["p7_19_03_27_a000"]:
+        #     continue
+        # if session_dir_name[1:3] not in ["41"] or session_dir_name in sessions_to_exclude:
+        #     continue
         print(f"Loading data for {os.path.split(session_dir)[1]}")
         convert_data_to_nwb(data_to_convert_dir=session_dir,
                             default_convert_to_nwb_yml_file=default_convert_to_nwb_yml_file,
                             nwb_files_dir=nwb_files_dir)
+
 
 if __name__ == "__main__":
     main()
