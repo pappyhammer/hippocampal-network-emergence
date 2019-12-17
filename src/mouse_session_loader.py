@@ -776,7 +776,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "inter_neurons_from_gui": "inter_neurons",
                                      "doubtful_frames_nums": "doubtful_frames_nums"}
                 p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load=
-                                                        "p8/p8_18_10_24_a006/p8_18_10_24_a006_GUI_transients_RD.mat",
+                                                        "p8/p8_18_10_24_a006/p8_18_10_24_a006_fusion_validation.mat",
                                                         variables_mapping=variables_mapping,
                                                         from_gui=True)
                 # used for training before: p8_18_10_24_a006_GUI_transients_RD.mat p8_18_10_24_a006_fusion_validation.mat
@@ -1247,20 +1247,20 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         if not p12_171110_a000_ms.use_suite_2p:
             if for_cell_classifier or for_transient_classifier:
-                variables_mapping = {"spike_nums_dur": "rasterdur"}  # rasterdur before
-                p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                                                       "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur.mat",
-                                                       variables_mapping=variables_mapping,
-                                                       save_caiman_apart=True)
-                # variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
-                #                      "peak_nums": "LocPeakMatrix_Python",
-                #                      "cells_to_remove": "cells_to_remove",
-                #                      "inter_neurons_from_gui": "inter_neurons",
-                #                      "doubtful_frames_nums": "doubtful_frames_nums"}
+                # variables_mapping = {"spike_nums_dur": "rasterdur"}  # rasterdur before
                 # p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                #                                        "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_fusion_validation.mat",
+                #                                        "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur.mat",
                 #                                        variables_mapping=variables_mapping,
-                #                                        from_gui=True)
+                #                                        save_caiman_apart=True)
+                variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                     "peak_nums": "LocPeakMatrix_Python",
+                                     "cells_to_remove": "cells_to_remove",
+                                     "inter_neurons_from_gui": "inter_neurons",
+                                     "doubtful_frames_nums": "doubtful_frames_nums"}
+                p12_171110_a000_ms.load_data_from_file(file_name_to_load=
+                                                       "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_fusion_validation.mat",
+                                                       variables_mapping=variables_mapping,
+                                                       from_gui=True)
                 # # keeping JD gui selection for test, then using: p12_17_11_10_a000_GUI_JD.mat
                 # p12_171110_a000_ms.build_spike_nums_dur()
                 # if for_cell_classifier:

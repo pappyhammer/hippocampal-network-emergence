@@ -2712,16 +2712,17 @@ def add_segment_of_cells_for_training(param,
     raster_dur_by_cells_and_session = dict()
 
     dir_to_load = []
+    # cinac comment indicate that the data has been converted
     # CAIMAN version
     # used for v2
-    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_17_10_12_a000", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data, "p8", "p8_18_10_24_a005", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data, "p11", "p11_17_11_24_a000", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_17_10_12_a000", "transients_to_add_for_rnn")) # cinac
+    dir_to_load.append(os.path.join(param.path_data, "p8", "p8_18_10_24_a005", "transients_to_add_for_rnn")) # cinac
+    dir_to_load.append(os.path.join(param.path_data, "p11", "p11_17_11_24_a000", "transients_to_add_for_rnn")) # cinac
 
     # SUITE2P version
     # used for v2
     dir_to_load.append(os.path.join(param.path_data, "p10", "p10_19_02_21_a005", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_03_25_a001", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_03_25_a001", "transients_to_add_for_rnn")) # cinac
     dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_05_a000", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_27_a000", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p16", "p16_18_11_01_a002", "transients_to_add_for_rnn"))
@@ -2880,11 +2881,11 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                                           np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
                                       "artificial_ms_2":
                                           np.array([0, 9, 18, 26, 34, 41, 46, 56, 62, 77, 88, 101, 116, 127, 140, 150]),
-                                      "p7_171012_a000_ms": np.array([3, 8, 11, 12, 14, 17, 18, 24]),
-                                      "p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
-                                      "p11_17_11_24_a000_ms": np.array([17, 22, 24, 25, 29, 30, 33]),
-                                      "p12_171110_a000_ms": np.array([0, 3, 6, 7, 12, 14, 15, 19]),
-                                      "p13_18_10_29_a001_ms": np.array([0, 2, 5, 12, 13, 31, 42, 44, 48, 51])}
+                                      "p7_171012_a000_ms": np.array([3, 8, 11, 12, 14, 17, 18, 24]), # cinac
+                                      "p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]), # cinac
+                                      "p11_17_11_24_a000_ms": np.array([17, 22, 24, 25, 29, 30, 33]), # cinac
+                                      "p12_171110_a000_ms": np.array([0, 3, 6, 7, 12, 14, 15, 19]), # cinac
+                                      "p13_18_10_29_a001_ms": np.array([0, 2, 5, 12, 13, 31, 42, 44, 48, 51])} # cinac
 
                 cells_segments_by_session, raster_dur_by_cells_and_session = \
                     add_segment_of_cells_for_training(param,

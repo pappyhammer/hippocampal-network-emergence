@@ -42,6 +42,7 @@ def create_cinac_file(ms, session_dict, param):
     segments_to_add = []
     raster_dur = ms.spike_struct.spike_nums_dur
     n_frames = raster_dur.shape[1]
+    ms.normalize_traces()
 
     if (n_frames == 12500) or (n_frames == 10000):
 
@@ -70,14 +71,16 @@ def create_cinac_file(ms, session_dict, param):
         file_names_to_load = []
         dir_of_files = []
         dir_to_load = session_dict["segments_folder"]
+        path_data = param.path_data
+        path_data = os.path.join(path_data, session_dict["path"])
         for directory in dir_to_load:
-            for (dirpath, dirnames, local_filenames) in os.walk(directory):
+            for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(path_data, directory)):
                 for file_name in local_filenames:
                     if file_name.endswith(".npy"):
                         file_names_to_load.append(file_name)
-                        dir_of_files.append(directory)
+                        dir_of_files.append(os.path.join(path_data, directory))
                 break
-
+        print(f"n file_names_to_load in segments_folder == {len(file_names_to_load)}")
         for file_index, file_name in enumerate(file_names_to_load):
             underscores_pos = [pos for pos, char in enumerate(file_name) if char == "_"]
             if len(underscores_pos) < 4:
@@ -171,6 +174,8 @@ def create_cinac_file(ms, session_dict, param):
                                                     doubtful_frames=doubtful_frames, ci_movie=profile_fit,
                                                     pixels_around=0,
                                                     buffer=1,
+                                                    smooth_traces=ms.z_score_smooth_traces[cell, first_frame:last_frame + 1],
+                                                    raw_traces=ms.z_score_raw_traces[cell, first_frame:last_frame + 1],
                                                     cells_contour=coords_to_register,
                                                     invalid_cells=invalid_cells)
     cinac_writer.close_file()
@@ -179,7 +184,8 @@ def main_convert_gt_to_cinac():
     # import pyqtgraph.examples
     # pyqtgraph.examples.run()
     # return
-    root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
+    # root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
+    root_path = '/media/julien/Not_today/hne_not_today/'
     path_data = os.path.join(root_path, "data/")
     result_path = os.path.join(root_path, "results_hne/")
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
@@ -191,28 +197,63 @@ def main_convert_gt_to_cinac():
     # first key will be the ms id
     data_dict = dict()
 
-    data_dict["p12_171110_a000_ms"] = dict()
-    data_dict["p12_171110_a000_ms"]["id"] = "1"
-    data_dict["p12_171110_a000_ms"]["path"] = "p12/p12_17_11_10_a000"
-    # data_dict["p12_171110_a000_ms"]["gt_file"] = "p12_17_11_10_a000_GUI_fusion_validation.mat"
-    data_dict["p12_171110_a000_ms"]["gt_cells"] = [9, 10, 17, 22, 24, 25, 29, 30, 33]
-    data_dict["p12_171110_a000_ms"]["segmentation_tool"] = "suite2p"
+    data_dict["p5_19_03_25_a001_ms"] = dict()
+    data_dict["p5_19_03_25_a001_ms"]["id"] = "p5_19_03_25_a001"
+    data_dict["p5_19_03_25_a001_ms"]["path"] = "p5/p5_19_03_25_a001"
+    data_dict["p5_19_03_25_a001_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p5_19_03_25_a001_ms"]["segmentation_tool"] = "suite2p"
+
+    data_dict["p7_171012_a000_ms"] = dict()
+    data_dict["p7_171012_a000_ms"]["id"] = "p7_17_10_12_a000"
+    data_dict["p7_171012_a000_ms"]["path"] = "p7/p7_17_10_12_a000"
+    data_dict["p7_171012_a000_ms"]["gt_cells"] = [3, 8, 11, 12, 14, 17, 18, 24] # for training
+    # data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 25] # for benchmarks
+    # data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 3, 8, 11, 12, 14, 17, 18, 24, 25] # all
+    data_dict["p7_171012_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p7_171012_a000_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["p8_18_10_24_a005_ms"] = dict()
-    data_dict["p8_18_10_24_a005_ms"]["id"] = "2"
+    data_dict["p8_18_10_24_a005_ms"]["id"] = "p8_18_10_24_a005"
     data_dict["p8_18_10_24_a005_ms"]["path"] = "p8/p8_18_10_24_a005"
     # data_dict["p8_18_10_24_a005_ms"]["gt_file"] = "p8_18_10_24_a005_fusion_validation.mat"
     data_dict["p8_18_10_24_a005_ms"]["gt_cells"] = [0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]
-    data_dict["p8_18_10_24_a005_ms"]["segments_folder"] = "transients_to_add_for_rnn"
-    data_dict["p8_18_10_24_a005_ms"]["segmentation_tool"] = "caiman"
+    data_dict["p8_18_10_24_a005_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p8_18_10_24_a005_ms"]["segmentation_tool"] = "caiman"
 
-    data_dict["p5_19_03_25_a001_ms"] = dict()
-    data_dict["p5_19_03_25_a001_ms"]["id"] = "10"
-    data_dict["p5_19_03_25_a001_ms"]["path"] = "p5/p5_19_03_25_a001"
-    data_dict["p5_19_03_25_a001_ms"]["segments_folder"] = "transients_to_add_for_rnn"
-    data_dict["p5_19_03_25_a001_ms"]["segmentation_tool"] = "suite2p"
+    data_dict["p8_18_10_24_a006_ms"] = dict()
+    data_dict["p8_18_10_24_a006_ms"]["id"] = "p8_18_10_24_a006"
+    data_dict["p8_18_10_24_a006_ms"]["path"] = "p8/p8_18_10_24_a006"
+    data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [0, 1, 6, 7, 9, 10, 11, 18, 24]  # for training
+    # data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [28, 32, 33] # for benchmarks
+    # data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [0, 1, 6, 7, 9, 10, 11, 18, 24, 28, 32, 33] # all
+    data_dict["p8_18_10_24_a006_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p8_18_10_24_a006_ms"]["segmentation_tool"] = "caiman"
 
-    ms_to_use = ["p8_18_10_24_a005_ms"]
+    data_dict["p11_17_11_24_a000_ms"] = dict()
+    data_dict["p11_17_11_24_a000_ms"]["id"] = "p11_17_11_24_a000"
+    data_dict["p11_17_11_24_a000_ms"]["path"] = "p11/p11_17_11_24_a000"
+    # data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [3, 17, 22, 24, 25, 29, 30, 33, 45] # all
+    # data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [17, 22, 24, 25, 29, 30, 33] # for training
+    data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [3, 45] # for benchmarks
+    data_dict["p11_17_11_24_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p11_17_11_24_a000_ms"]["segmentation_tool"] = "caiman"
+
+    data_dict["p12_171110_a000_ms"] = dict()
+    data_dict["p12_171110_a000_ms"]["id"] = "p12_17_11_10_a000"
+    data_dict["p12_171110_a000_ms"]["path"] = "p12/p12_17_11_10_a000"
+    data_dict["p12_171110_a000_ms"]["gt_cells"] = [0, 3, 6, 7, 9, 10, 12, 14, 15, 19]
+    # data_dict["p12_171110_a000_ms"]["gt_cells"] = [9, 10] # for benchmarks
+    # data_dict["p12_171110_a000_ms"]["segmentation_tool"] = "caiman"
+
+    data_dict["p13_18_10_29_a001_ms"] = dict()
+    data_dict["p13_18_10_29_a001_ms"]["id"] = "p13_18_10_29_a001"
+    data_dict["p13_18_10_29_a001_ms"]["path"] = "p13/p13_18_10_29_a001"
+    data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [0, 2, 5, 12, 13, 31, 42, 44, 48, 51]  # for training
+    # data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [0, 2, 5, 12, 13, 31, 42, 44, 48, 51] # all
+    data_dict["p13_18_10_29_a001_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p13_18_10_29_a001_ms"]["segmentation_tool"] = "caiman"
+
+    ms_to_use = ["p13_18_10_29_a001_ms"]
 
     # we need to change in mouse_session_loader the type of segmentation to use
 
