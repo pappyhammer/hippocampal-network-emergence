@@ -38,16 +38,22 @@ if __name__ == '__main__':
     - finally setting the learning rate so it is the same as the last epoch trained, using learning_rate_start
     """
 
-    partly_trained_model = "/media/julien/Not_today/hne_not_today/data/test_cinac_gui/transient_classifier_full_model_02-0.9779.h5"
-    cinac_model = CinacModel(results_path=results_path, n_epochs=2, verbose=1,
-                               partly_trained_model=partly_trained_model, save_only_the_weitghs=False,
-                               learning_rate_start=0.001)
+    partly_trained_model = "/media/julien/Not_today/hne_not_today/data/test_cinac_gui/transient_classifier_full_model_02-0.9817.h5"
+    cinac_model = CinacModel(results_path=results_path, n_epochs=3, verbose=1, batch_size=4,
+                               # partly_trained_model=partly_trained_model,
+                               #  learning_rate_start = 0.001,
+                             save_only_the_weitghs=False
+                             )
 
-    artificial_movie_1 = os.path.join(data_path, "test_cinac_gui/artificial_movie_1_cell_0.cinac")
+    # artificial_movie_1 = os.path.join(data_path, "test_cinac_gui/artificial_movie_1_cell_0.cinac")
 
-    cinac_model.add_input_data(cinac_file_name=artificial_movie_1)
-    cinac_model.prepare_model()
-    cinac_model.fit()
+    cinac_dir_name = os.path.join(data_path, "cinac_ground_truth/for_training")
+
+    cinac_model.add_input_data_from_dir(dir_name=cinac_dir_name, verbose=1)
+    # cinac_model.add_input_data(cinac_file_names=artificial_movie_1)
+
+    cinac_model.prepare_model(verbose=1)
+    # cinac_model.fit()
 
 
 def just_for_test_to_forget():

@@ -206,9 +206,9 @@ def main_convert_gt_to_cinac():
     data_dict["p7_171012_a000_ms"] = dict()
     data_dict["p7_171012_a000_ms"]["id"] = "p7_17_10_12_a000"
     data_dict["p7_171012_a000_ms"]["path"] = "p7/p7_17_10_12_a000"
-    data_dict["p7_171012_a000_ms"]["gt_cells"] = [3, 8, 11, 12, 14, 17, 18, 24] # for training
+    # data_dict["p7_171012_a000_ms"]["gt_cells"] = [3, 8, 11, 12, 14, 17, 18, 24] # for training
     # data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 25] # for benchmarks
-    # data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 3, 8, 11, 12, 14, 17, 18, 24, 25] # all
+    data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 3, 8, 11, 12, 14, 17, 18, 24, 25] # all
     data_dict["p7_171012_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
     # data_dict["p7_171012_a000_ms"]["segmentation_tool"] = "caiman"
 
@@ -216,16 +216,15 @@ def main_convert_gt_to_cinac():
     data_dict["p8_18_10_24_a005_ms"]["id"] = "p8_18_10_24_a005"
     data_dict["p8_18_10_24_a005_ms"]["path"] = "p8/p8_18_10_24_a005"
     # data_dict["p8_18_10_24_a005_ms"]["gt_file"] = "p8_18_10_24_a005_fusion_validation.mat"
-    data_dict["p8_18_10_24_a005_ms"]["gt_cells"] = [0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]
-    data_dict["p8_18_10_24_a005_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    data_dict["p8_18_10_24_a005_ms"]["gt_cells"] = [0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321] # all with segments
+    # data_dict["p8_18_10_24_a005_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
     # data_dict["p8_18_10_24_a005_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["p8_18_10_24_a006_ms"] = dict()
     data_dict["p8_18_10_24_a006_ms"]["id"] = "p8_18_10_24_a006"
     data_dict["p8_18_10_24_a006_ms"]["path"] = "p8/p8_18_10_24_a006"
-    data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [0, 1, 6, 7, 9, 10, 11, 18, 24]  # for training
-    # data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [28, 32, 33] # for benchmarks
-    # data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [0, 1, 6, 7, 9, 10, 11, 18, 24, 28, 32, 33] # all
+    # data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [0, 1, 6, 7, 9, 10, 11, 18, 24]  # for training
+    data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [28, 32, 33] # for benchmarks # TODO: use RD GT
     data_dict["p8_18_10_24_a006_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
     # data_dict["p8_18_10_24_a006_ms"]["segmentation_tool"] = "caiman"
 
@@ -233,16 +232,17 @@ def main_convert_gt_to_cinac():
     data_dict["p11_17_11_24_a000_ms"]["id"] = "p11_17_11_24_a000"
     data_dict["p11_17_11_24_a000_ms"]["path"] = "p11/p11_17_11_24_a000"
     # data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [3, 17, 22, 24, 25, 29, 30, 33, 45] # all
-    # data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [17, 22, 24, 25, 29, 30, 33] # for training
-    data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [3, 45] # for benchmarks
+    data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [17, 22, 24, 25, 29, 30, 33] # for training
+    # data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [3, 45] # for benchmarks
     data_dict["p11_17_11_24_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
     # data_dict["p11_17_11_24_a000_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["p12_171110_a000_ms"] = dict()
     data_dict["p12_171110_a000_ms"]["id"] = "p12_17_11_10_a000"
     data_dict["p12_171110_a000_ms"]["path"] = "p12/p12_17_11_10_a000"
-    data_dict["p12_171110_a000_ms"]["gt_cells"] = [0, 3, 6, 7, 9, 10, 12, 14, 15, 19]
-    # data_dict["p12_171110_a000_ms"]["gt_cells"] = [9, 10] # for benchmarks
+    data_dict["p12_171110_a000_ms"]["gt_cells"] = [0, 3, 6, 7, 12, 14, 15, 19] # for training
+    data_dict["p12_171110_a000_ms"]["gt_cells"] = [9, 10] # for benchmarks
+    data_dict["p12_171110_a000_ms"]["gt_cells"] = [0, 3, 6, 7, 9, 10, 12, 14, 15, 19] # all
     # data_dict["p12_171110_a000_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["p13_18_10_29_a001_ms"] = dict()
@@ -250,10 +250,71 @@ def main_convert_gt_to_cinac():
     data_dict["p13_18_10_29_a001_ms"]["path"] = "p13/p13_18_10_29_a001"
     data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [0, 2, 5, 12, 13, 31, 42, 44, 48, 51]  # for training
     # data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [0, 2, 5, 12, 13, 31, 42, 44, 48, 51] # all
+    # data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [77, 117] # for benchmarks, but load RD GT
     data_dict["p13_18_10_29_a001_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
     # data_dict["p13_18_10_29_a001_ms"]["segmentation_tool"] = "caiman"
 
-    ms_to_use = ["p13_18_10_29_a001_ms"]
+    data_dict["artificial_ms_1"] = dict()
+    data_dict["artificial_ms_1"]["id"] = "artificial_ms_1"
+    data_dict["artificial_ms_1"]["path"] = "artificial_movies/1"
+    data_dict["artificial_ms_1"]["gt_cells"] = [0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96,
+                                                110, 118, 131, 136]  # for training
+
+    data_dict["artificial_ms_2"] = dict()
+    data_dict["artificial_ms_2"]["id"] = "artificial_ms_2"
+    data_dict["artificial_ms_2"]["path"] = "artificial_movies/2"
+    data_dict["artificial_ms_2"]["gt_cells"] = [0, 9, 18, 26, 34, 41, 46, 56, 62, 77, 88, 101,
+                                                116, 127, 140, 150]  # for training
+
+    data_dict["p10_19_02_21_a005_ms"] = dict()
+    data_dict["p10_19_02_21_a005_ms"]["id"] = "p10_19_02_21_a005"
+    data_dict["p10_19_02_21_a005_ms"]["path"] = "p10/p10_19_02_21_a005"
+    data_dict["p10_19_02_21_a005_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p10_19_02_21_a005_ms"]["segmentation_tool"] = "suite2p"
+
+    data_dict["p7_19_03_05_a000_ms"] = dict()
+    data_dict["p7_19_03_05_a000_ms"]["id"] = "p7_19_03_05_a000"
+    data_dict["p7_19_03_05_a000_ms"]["path"] = "p7/p7_19_03_05_a000"
+    data_dict["p7_19_03_05_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p7_19_03_05_a000_ms"]["segmentation_tool"] = "suite2p"
+
+    data_dict["p7_19_03_27_a000_ms"] = dict()
+    data_dict["p7_19_03_27_a000_ms"]["id"] = "p7_19_03_27_a000"
+    data_dict["p7_19_03_27_a000_ms"]["path"] = "p7/p7_19_03_27_a000"
+    data_dict["p7_19_03_27_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p7_19_03_27_a000_ms"]["segmentation_tool"] = "suite2p"
+
+    data_dict["p16_18_11_01_a002_ms"] = dict()
+    data_dict["p16_18_11_01_a002_ms"]["id"] = "p16_18_11_01_a002"
+    data_dict["p16_18_11_01_a002_ms"]["path"] = "p16/p16_18_11_01_a002"
+    data_dict["p16_18_11_01_a002_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p16_18_11_01_a002_ms"]["segmentation_tool"] = "suite2p"
+
+    data_dict["p9_19_03_14_a001_ms"] = dict()
+    data_dict["p9_19_03_14_a001_ms"]["id"] = "p9_19_03_14_a001"
+    data_dict["p9_19_03_14_a001_ms"]["path"] = "p9/p9_19_03_14_a001"
+    data_dict["p9_19_03_14_a001_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p9_19_03_14_a001_ms"]["segmentation_tool"] = "suite2p"
+
+    data_dict["p5_19_09_02_a000_ms"] = dict()
+    data_dict["p5_19_09_02_a000_ms"]["id"] = "p5_19_09_02_a000"
+    data_dict["p5_19_09_02_a000_ms"]["path"] = "p5/p5_19_09_02_a000"
+    data_dict["p5_19_09_02_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p5_19_09_02_a000_ms"]["segmentation_tool"] = "suite2p"
+
+    data_dict["p10_19_03_08_a001_ms"] = dict()
+    data_dict["p10_19_03_08_a001_ms"]["id"] = "p10_19_03_08_a001"
+    data_dict["p10_19_03_08_a001_ms"]["path"] = "p10/p10_19_03_08_a001"
+    data_dict["p10_19_03_08_a001_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p10_19_03_08_a001_ms"]["segmentation_tool"] = "suite2p"
+
+    data_dict["p12_17_11_10_a002_ms"] = dict()
+    data_dict["p12_17_11_10_a002_ms"]["id"] = "p12_17_11_10_a002"
+    data_dict["p12_17_11_10_a002_ms"]["path"] = "p12/p12_17_11_10_a002"
+    data_dict["p12_17_11_10_a002_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p12_17_11_10_a002_ms"]["segmentation_tool"] = "suite2p"
+
+    ms_to_use = ["p8_18_10_24_a006_ms"]
 
     # we need to change in mouse_session_loader the type of segmentation to use
 

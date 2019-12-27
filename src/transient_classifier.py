@@ -2721,14 +2721,14 @@ def add_segment_of_cells_for_training(param,
 
     # SUITE2P version
     # used for v2
-    dir_to_load.append(os.path.join(param.path_data, "p10", "p10_19_02_21_a005", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p10", "p10_19_02_21_a005", "transients_to_add_for_rnn"))# cinac
     dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_03_25_a001", "transients_to_add_for_rnn")) # cinac
-    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_05_a000", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_27_a000", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data, "p16", "p16_18_11_01_a002", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_05_a000", "transients_to_add_for_rnn")) # cinac
+    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_27_a000", "transients_to_add_for_rnn")) # cinac
+    dir_to_load.append(os.path.join(param.path_data, "p16", "p16_18_11_01_a002", "transients_to_add_for_rnn")) # cinac
     # used for v3
-    dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_09_02_a000", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data, "p9", "p9_19_03_14_a001", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_09_02_a000", "transients_to_add_for_rnn")) # cinac
+    dir_to_load.append(os.path.join(param.path_data, "p9", "p9_19_03_14_a001", "transients_to_add_for_rnn")) # cinac
     dir_to_load.append(os.path.join(param.path_data, "p10", "p10_19_03_08_a001", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p12", "p12_17_11_10_a002", "transients_to_add_for_rnn"))
 

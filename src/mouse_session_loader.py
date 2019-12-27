@@ -37,6 +37,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                               from_gui=True)
 
             artificial_ms.build_spike_nums_dur()
+            artificial_ms.build_default_doubtful_frames()
             artificial_ms.load_tiff_movie_in_memory()
             # artificial_ms.normalize_movie()
             artificial_ms.raw_traces = artificial_ms.build_raw_traces_from_movie()
@@ -63,6 +64,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                               from_gui=True)
 
             artificial_ms.build_spike_nums_dur()
+            artificial_ms.build_default_doubtful_frames()
             artificial_ms.load_tiff_movie_in_memory()
             # artificial_ms.normalize_movie()
             artificial_ms.raw_traces = artificial_ms.build_raw_traces_from_movie()
@@ -776,7 +778,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "inter_neurons_from_gui": "inter_neurons",
                                      "doubtful_frames_nums": "doubtful_frames_nums"}
                 p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load=
-                                                        "p8/p8_18_10_24_a006/p8_18_10_24_a006_fusion_validation.mat",
+                                                        "p8/p8_18_10_24_a006/p8_18_10_24_a006_GUI_transients_RD.mat",
                                                         variables_mapping=variables_mapping,
                                                         from_gui=True)
                 # used for training before: p8_18_10_24_a006_GUI_transients_RD.mat p8_18_10_24_a006_fusion_validation.mat
@@ -1428,7 +1430,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "inter_neurons_from_gui": "inter_neurons",
                                      "doubtful_frames_nums": "doubtful_frames_nums"}
                 p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
-                                                         "p13/p13_18_10_29_a001/p13_18_10_29_a001_GUI_transients_RD.mat",
+                                                         "p13/p13_18_10_29_a001/p13_18_10_29_a001_fusion_validation.mat",
                                                          variables_mapping=variables_mapping,
                                                          from_gui=True)
                 # p13_18_10_29_a001_GUI_transients_RD.mat p13_18_10_29_a001_fusion_validation.mat

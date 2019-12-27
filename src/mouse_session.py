@@ -6708,6 +6708,9 @@ class MouseSession:
         self.cells_to_remove = cells_to_remove
 
     def clean_data_using_cells_to_remove(self):
+        # temporarly deactivated for converting GT to cinac format
+        # return
+
         if (self.cells_to_remove is None) or len(self.cells_to_remove) == 0:
             return
         n_cells = self.spike_struct.n_cells
@@ -6758,6 +6761,16 @@ class MouseSession:
 
     def detect_n_in_n_out(self):
         self.spike_struct.detect_n_in_n_out()
+
+    def build_default_doubtful_frames(self):
+        """
+        Build an empty doubtful_frames matrix (none of the frames are doubtful then)
+        self.spike_struct.spike_nums_dur should not be none
+        Returns:
+
+        """
+        if self.spike_struct.spike_nums_dur is not None:
+            self.doubtful_frames_nums = np.zeros(self.spike_struct.spike_nums_dur.shape, dtype="int8")
 
     def build_spike_nums_dur(self):
         # build spike_nums_dur based on peak_nums and spike_nums
