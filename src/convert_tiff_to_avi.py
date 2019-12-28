@@ -89,15 +89,17 @@ def main():
         test_avi()
         return
 
-    subject_id = "p13_19_10_04"
+    subject_id = "P14_20191206_chronic_J2"
     cam_folder_id_1 = "cam2"
-    cam_folder_id_2 = "a002"  # a000 a001 a002 a003
+    cam_folder_id_2 = "a001"  # a000 a001 a002 a003
     if cam_folder_id_2 is None:
         cam_folder_id = ""  # ex cam1_a002
     else:
         cam_folder_id = f"{cam_folder_id_1}_{cam_folder_id_2}"
     tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/'
-    tiffs_path_dir = '/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/'
+    tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/to_convert/'
+    # tiffs_path_dir = '/media/julien/dream team/camera/'
+    # tiffs_path_dir = '/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/'
     if cam_folder_id_2 is not None:
         tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_1, cam_folder_id_2)
     else:
