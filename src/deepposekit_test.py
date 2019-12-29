@@ -43,8 +43,6 @@ import time
 from os.path import expanduser
 
 
-
-
 def change_frame_resolution(frame, new_width, new_height, using_croping=True):
     if using_croping:
         if frame.shape[1] > new_width and frame.shape[0] > new_height:
@@ -456,6 +454,7 @@ if __name__ == "__main__":
     movie_file_name = "res_dpk_1024_640_behavior_p8_19_09_29_1_cam_22983298_cam1_a000_fps_20.avi"
     fpath = "/media/julien/Not_today/hne_not_today/data/deepposekit_test/"
     labeled_data_h5_file = "test_dpk.h5"
+    # TIPS: put it in the same order as the order you want to annotate
     skeleton_file = "dpk_right_side_video_simple.csv"
     model_file = "best_model_densenet.h5"
 

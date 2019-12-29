@@ -89,22 +89,26 @@ def main():
         test_avi()
         return
 
-    subject_id = "P14_20191206_chronic_J2"
-    cam_folder_id_1 = "cam2"
-    cam_folder_id_2 = "a001"  # a000 a001 a002 a003
+    subject_id = "P7_19_09_04"
+    cam_folder_id_1 = "cam2" # "cam2"
+    cam_folder_id_2 = "a000" # a000 a001 a002 a003
     if cam_folder_id_2 is None:
-        cam_folder_id = ""  # ex cam1_a002
+        cam_folder_id = "20190430_a002"  # ex cam1_a002, movie1, etc...
     else:
         cam_folder_id = f"{cam_folder_id_1}_{cam_folder_id_2}"
     tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/'
     tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/to_convert/'
+    tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/to_convert/Swiss_GCaMP6/'
     # tiffs_path_dir = '/media/julien/dream team/camera/'
     # tiffs_path_dir = '/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/'
     if cam_folder_id_2 is not None:
-        tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_1, cam_folder_id_2)
+        # tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_1, cam_folder_id_2)
+        tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_2, cam_folder_id_1)
     else:
         tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id)
-    if cam_folder_id_1 == "cam1":
+    if cam_folder_id_1 is None:
+        cam_id = "22983298"
+    elif cam_folder_id_1 == "cam1":
         cam_id = "22983298"
     else:
         cam_id = "23109588"  #  cam1: 22983298  cam2: 23109588
