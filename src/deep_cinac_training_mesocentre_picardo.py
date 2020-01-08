@@ -4,7 +4,7 @@ import os
 
 
 if __name__ == '__main__':
-    root_path = "/scratch/edenis/deepcinac/"
+    root_path = "/scratch/mpicardo/deepcinac/"
 
     cinac_dir_name = os.path.join(root_path, "cinac_files_training/")
     results_path = os.path.join(root_path, "results_training")
@@ -20,10 +20,10 @@ if __name__ == '__main__':
     """
 
     # partly_trained_model = "/scratch/edenis/deepcinac/transient_classifier_full_model_02-0.9817.h5"
-    cinac_model = CinacModel(results_path=results_path, n_epochs=30, verbose=1, batch_size=4,
-                             n_gpus=4,
-                               # partly_trained_model=partly_trained_model,
-                               #  learning_rate_start = 0.001,
+    cinac_model = CinacModel(results_path=results_path, n_epochs=3, verbose=1, batch_size=4,
+                             n_gpus=1,
+                             # partly_trained_model=partly_trained_model,
+                             #  learning_rate_start = 0.001,
                              save_only_the_weitghs=False
                              )
 
