@@ -1,6 +1,7 @@
 from deepcinac.cinac_model import *
 from deepcinac.cinac_predictor import *
 import os
+from datetime import datetime
 
 
 if __name__ == '__main__':
@@ -22,6 +23,7 @@ if __name__ == '__main__':
     # partly_trained_model = "/scratch/edenis/deepcinac/transient_classifier_full_model_02-0.9817.h5"
     cinac_model = CinacModel(results_path=results_path, n_epochs=3, verbose=1, batch_size=4,
                              n_gpus=1,
+                             optimizer_choice="Adam",
                              # partly_trained_model=partly_trained_model,
                              #  learning_rate_start = 0.001,
                              save_only_the_weitghs=False

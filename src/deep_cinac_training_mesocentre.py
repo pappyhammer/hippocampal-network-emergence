@@ -1,7 +1,7 @@
 from deepcinac.cinac_model import *
 from deepcinac.cinac_predictor import *
 import os
-
+from datetime import datetime
 
 if __name__ == '__main__':
     root_path = "/scratch/edenis/deepcinac/"

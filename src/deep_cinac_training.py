@@ -1,7 +1,8 @@
 import os
 from deepcinac.cinac_model import *
 from deepcinac.cinac_predictor import *
-import hdf5storage
+# import hdf5storage
+from datetime import datetime
 
 
 def build_spike_nums_dur(spike_nums, peak_nums):
@@ -68,9 +69,10 @@ if __name__ == '__main__':
 
         partly_trained_model = "/media/julien/Not_today/hne_not_today/data/test_cinac_gui/"
         cinac_model = CinacModel(results_path=results_path, n_epochs=10, verbose=1, batch_size=8,
-                                 cell_type_classifier_mode=cell_type_classifier_mode,
-                                 window_len=200, max_n_transformations=2,
+                                 cell_type_classifier_mode=True,
+                                 window_len=200, max_n_transformations=1,
                                  lstm_layers_size=[128], bin_lstm_size=128,
+                                 overlap_value=0,
                                  # partly_trained_model=partly_trained_model,
                                  #  learning_rate_start = 0.001,
                                  save_only_the_weitghs=False
@@ -84,7 +86,7 @@ if __name__ == '__main__':
         # cinac_model.add_input_data(cinac_file_names=artificial_movie_1)
 
         cinac_model.prepare_model(verbose=1)
-        cinac_model.fit()
+        # cinac_model.fit()
 
 
 def just_for_test_to_forget():
@@ -175,4 +177,5 @@ def just_for_test_to_forget():
     # TODO: For non artificial movies, add DOUBT at concatenation and beg and end of movie
     # cinac_model.add_input_data(cinac_recording=cinac_recording, cell, frames_to_add,
     #                            ground_truth, doubtful_frames, cells_to_remove)
+
 

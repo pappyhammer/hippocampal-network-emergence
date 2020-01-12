@@ -66,7 +66,9 @@ def main():
         #     continue
         # if session_dir_name not in ["p8_19_09_29_0_a000", "p8_19_09_29_0_a001"]:
         #     continue
-        if session_dir_name not in ["p8_19_09_29_0_a000"]:
+        # if session_dir_name not in ["p8_19_09_29_0_a000"]:
+        #     continue
+        if session_dir_name not in ["p13_19_10_04"]:
             continue
         # if session_dir_name not in ["p7_19_03_27_a000"]:
         #     continue
