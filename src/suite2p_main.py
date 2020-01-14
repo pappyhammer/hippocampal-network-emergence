@@ -129,6 +129,9 @@ def main():
         'xrange': np.array([0, 0]),
         'yrange': np.array([0, 0])
     }
+    """
+    
+    """
 
     """
     ops to modify defaults):
@@ -143,8 +146,9 @@ def main():
     
     To run the code:
     conda activate suite2p
-    To install it from sources: pip install -e .
+    (First time only: To install it from sources: pip install -e .)
     then python suite2p_main.py
+    To open GUI:
     and: python -m suite2p
     conda deactivate
     """
@@ -154,7 +158,7 @@ def main():
     # p8_19_09_29_1_a001.h5
     db = {
         # 'h5py': '/Users/pappyhammer/Documents/academique/these_inmed/suite2p/suite2p_tiffs/MichelMotC_p8_19_09_29_1_a000.h5',  # a single h5 file path
-        'h5py': '/home/julien/these_inmed/suite2p/suite2p_tiffs/MotC_Yannick_version_p8_19_09_29_0_a001.h5',
+        'h5py': '/home/julien/these_inmed/suite2p/suite2p_tiffs/p5_19_03_25_a001.h5',
         # 'h5py_key': 'data',
         'look_one_level_down': False,  # whether to look in ALL subfolders when searching for tiffs
         # 'data_path': ['/home/julien/these_inmed/suite2p/suite2p_tiffs'],  # a list of folders with tiffs
