@@ -34,7 +34,7 @@ def test_avi():
     path_data = f"/media/julien/My Book/robin_tmp/cameras/p9_19_09_30/{file_name}"
     path_data = "/media/julien/Not_today/hne_not_today/data/p8/p8_19_09_29_1_a001/cams/behavior_p8_19_09_29_1_cam_22983298_cam1_a001_fps_20.avi"
     path_data = "/media/julien/Not_today/hne_not_today/data/p8/p8_19_09_29_1_a001/cams/behavior_p8_19_09_29_1_cam_23109588_cam2_a001_fps_20.avi"
-    path_data = "/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/behavior_P6 19_12_11_0_cam_22983298_cam1_a000_fps_20.avi"
+    path_data = "/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/p6_20_01_09/behavior_p6_20_01_09_cam_23109588_cam2_a002_fps_20.avi"
     # 37254
     # vs = pims.Video(path_data)
     # print(f"vs.frame_shape {vs.frame_shape}")
@@ -89,8 +89,8 @@ def main():
         test_avi()
         return
 
-    subject_id = "P7_19_09_04"
-    cam_folder_id_1 = "cam2" # "cam2"
+    subject_id = "p6_20_01_14"
+    cam_folder_id_1 = "cam1" # "cam2"
     cam_folder_id_2 = "a000" # a000 a001 a002 a003
     if cam_folder_id_2 is None:
         cam_folder_id = "20190430_a002"  # ex cam1_a002, movie1, etc...
@@ -98,12 +98,12 @@ def main():
         cam_folder_id = f"{cam_folder_id_1}_{cam_folder_id_2}"
     tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/'
     tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/to_convert/'
-    tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/to_convert/Swiss_GCaMP6/'
+    tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/basler_recordings/'
     # tiffs_path_dir = '/media/julien/dream team/camera/'
     # tiffs_path_dir = '/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/'
     if cam_folder_id_2 is not None:
-        # tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_1, cam_folder_id_2)
-        tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_2, cam_folder_id_1)
+        tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_1, cam_folder_id_2)
+        # tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_2, cam_folder_id_1)
     else:
         tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id)
     if cam_folder_id_1 is None:
@@ -174,7 +174,7 @@ def main():
             vid_avi = VideoWriter(avi_file_name, fourcc, fps_avi, size_avi, is_color)
         # vid_avi.write(img)
         vid_avi.write(imread(os.path.join(tiffs_path_dir, tiff_file)))
-    destroyAllWindows()
+    cv2.destroyAllWindows()
     vid_avi.release()
 
     time_to_convert = time() - start_time

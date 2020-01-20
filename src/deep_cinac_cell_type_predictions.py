@@ -4,6 +4,7 @@ import numpy as np
 import hdf5storage
 import os
 from deepcinac.utils.cinac_file_utils import CinacFileReader
+from deepcinac.utils.display import plot_hist_distribution
 
 def find_weight_and_model_file_in_dir(dir_name):
     file_names = []
@@ -52,7 +53,11 @@ data_path = os.path.join(root_path, "data")
 # network could be specialized for interneurons and the other one for pyramidal
 # cells)
 weights_file_name, json_file_name = find_weight_and_model_file_in_dir(dir_name=
-                                  os.path.join(data_path, "cinac_cell_type_ground_truth/classifier/second_try"))
+                                                                      os.path.join(data_path,
+                                                                                   "cinac_cell_type_ground_truth",
+                                                                                   "cell_type_classifier_models",
+                                                                                   "sunday_19_01_20_epoch_2"))
+# "sunday_19_01_20_acc_87-5_epoch_4", "sunday_19_01_20_acc_90-38"
 # weights_file_name = os.path.join(root_path, "transient_classifier_full_model_02-0.9883.h5")
 # json_file_name = os.path.join(root_path, "transient_classifier_model_architecture_.json")
 
@@ -61,6 +66,9 @@ weights_file_name, json_file_name = find_weight_and_model_file_in_dir(dir_name=
 # the directory name will be the date and time at which the analysis has been run
 # the predictions will be in this directory.
 results_path = os.path.join(root_path, "results_hne")
+time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
+results_path = os.path.join(results_path, f"{time_str}/")
+os.mkdir(results_path)
 
 # not mandatory, just to test if you GPU is accessible
 device_name = tf.test.gpu_device_name()
@@ -92,14 +100,13 @@ if with_cinac_file:
         break
     for file_index, cinac_file_name in enumerate(cinac_path_w_file_names):
         cinac_file_reader = CinacFileReader(file_name=cinac_file_name)
-        cinac_movie = get_cinac_movie_from_cinac_file_reader(cinac_file_reader)
+        # cinac_movie = get_cinac_movie_from_cinac_file_reader(cinac_file_reader)
         segments_list = cinac_file_reader.get_all_segments()
         # identifier = os.path.basename(cinac_file_name)
         identifier = cinac_file_names[file_index]
         for segment in segments_list:
             cinac_recording = create_cinac_recording_from_cinac_file_segment(identifier=identifier,
                                                                              cinac_file_reader=cinac_file_reader,
-                                                                             cinac_movie=cinac_movie,
                                                                              segment=segment)
 
             """
@@ -164,7 +171,10 @@ if with_cinac_file:
 
             # predictions are saved in the results_path and return as a dict,
             predictions_dict = cinac_predictor.predict(results_path=results_path, output_file_formats="npy",
-                                                       overlap_value=0, cell_type_classifier_mode=True)
+                                                       overlap_value=0, cell_type_classifier_mode=True,
+                                                       n_segments_to_use_for_prediction=4,
+                                                       cell_type_pred_fct=np.mean,
+                                                       create_dir_for_results=False)
             # mean of the different predictions is already in the dict
             prediction_value = predictions_dict[list(predictions_dict.keys())[0]][0]
             print(f"{identifier} prediction_value {prediction_value}")
@@ -228,6 +238,17 @@ if with_cinac_file:
           f"min {np.round(np.min(ins_predictions), 2)}, "
           f"max {np.round(np.max(ins_predictions), 2)}")
     print("-" * 100)
+
+    data_hist_dict = {"pyr": pyr_predictions, "ins": ins_predictions}
+    for cell_type, data in data_hist_dict.items():
+        plot_hist_distribution(distribution_data=data,
+                               description=f"hist_prediction_distribution_{cell_type}",
+                               path_results=results_path,
+                               tight_x_range=True,
+                               twice_more_bins=True,
+                               xlabel=f"{cell_type}",
+                               save_formats="png")
+
 else:
     movie_file_name = os.path.join(data_path, "p1_artificial_1.tif")
     # string used to identify the recording from which you want to predict activity

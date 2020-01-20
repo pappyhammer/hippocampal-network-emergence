@@ -43,10 +43,14 @@ if __name__ == '__main__':
         """
 
         partly_trained_model = "/media/julien/Not_today/hne_not_today/data/test_cinac_gui/transient_classifier_full_model_02-0.9817.h5"
-        cinac_model = CinacModel(results_path=results_path, n_epochs=3, verbose=1, batch_size=4,
-                                 cell_type_classifier_mode=cell_type_classifier_mode,
+        cinac_model = CinacModel(results_path=results_path,
+                                 n_epochs=20, verbose=1, batch_size=8,
+                                 lstm_layers_size=[128], bin_lstm_size=128,
+                                 # lstm_layers_size=[128, 256], bin_lstm_size=256,
+                                 cell_type_classifier_mode=False,
                                    # partly_trained_model=partly_trained_model,
                                    #  learning_rate_start = 0.001,
+                                 tiffs_dirname=tiffs_dirname,
                                  save_only_the_weitghs=False
                                  )
 
@@ -58,7 +62,7 @@ if __name__ == '__main__':
         # cinac_model.add_input_data(cinac_file_names=artificial_movie_1)
 
         cinac_model.prepare_model(verbose=1)
-        # cinac_model.fit()
+        cinac_model.fit()
     else:
         tiffs_dirname = os.path.join(data_path, "tiffs_for_cell_type_classifier")
         """
@@ -88,5 +92,5 @@ if __name__ == '__main__':
         # cinac_model.add_input_data(cinac_file_names=artificial_movie_1)
 
         cinac_model.prepare_model(verbose=1)
-        # cinac_model.fit()
+        cinac_model.fit()
 

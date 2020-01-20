@@ -14,10 +14,8 @@
 module purge
 module load userspace/all
 module load python3/3.6.3
-module load cuda/10.1
-##module load cuda/9.0
+module load gcc/7.3.0
 export PYTHONPATH=/scratch/edenis/deepcinac/deepcinac_src:$PYTHONPATH
 export LD_LIBRARY_PATH=/scratch/edenis/deepcinac/libcudnn_10_1/lib64:$LD_LIBRARY_PATH
-##export LD_LIBRARY_PATH=/scratch/edenis/deepcinac/libcudnn_9_0/lib64:$LD_LIBRARY_PATH
 cd /scratch/edenis/deepcinac/src
 python3 deep_cinac_training_mesocentre.py

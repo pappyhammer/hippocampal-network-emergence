@@ -20,7 +20,7 @@ if __name__ == '__main__':
     """
 
     # partly_trained_model = "/scratch/edenis/deepcinac/transient_classifier_full_model_02-0.9817.h5"
-    cinac_model = CinacModel(results_path=results_path, n_epochs=30, verbose=1, batch_size=4,
+    cinac_model = CinacModel(results_path=results_path, n_epochs=30, verbose=1, batch_size=8,
                              n_gpus=4,
                                # partly_trained_model=partly_trained_model,
                                #  learning_rate_start = 0.001,
@@ -30,4 +30,4 @@ if __name__ == '__main__':
     cinac_model.add_input_data_from_dir(dir_name=cinac_dir_name, verbose=1)
 
     cinac_model.prepare_model(verbose=1)
-    # cinac_model.fit()
+    cinac_model.fit()
