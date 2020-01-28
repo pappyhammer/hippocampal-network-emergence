@@ -6606,9 +6606,9 @@ class MouseSession:
                 matlab_format = False
                 data = np.load(os.path.join(self.param.path_data, file_name_to_load))
             else:
-                data = hdf5storage.loadmat(self.param.path_data + file_name_to_load)
+                data = hdf5storage.loadmat(os.path.join(self.param.path_data, file_name_to_load))
         except (FileNotFoundError, OSError) as e:
-            print(f"File not found: {file_name_to_load}")
+            print(f"File not found: {os.path.join(self.param.path_data, file_name_to_load)}")
             return
         # print(f'load_data_from_file: {list(data.keys())}')
         if "shift_periods_bool" in variables_mapping:
