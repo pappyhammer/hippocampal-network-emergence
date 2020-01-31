@@ -73,15 +73,19 @@ if __name__ == '__main__':
                 """
 
         partly_trained_model = "/media/julien/Not_today/hne_not_today/data/test_cinac_gui/"
-        cinac_model = CinacModel(results_path=results_path, n_epochs=10, verbose=1, batch_size=8,
+        cinac_model = CinacModel(results_path=results_path, n_epochs=4, verbose=1, batch_size=4,
                                  cell_type_classifier_mode=True,
-                                 window_len=200, max_n_transformations=1,
-                                 lstm_layers_size=[128], bin_lstm_size=128,
-                                 overlap_value=0,
+                                 max_width=10, max_height=10,
+                                 window_len=1000, max_n_transformations=1,
+                                 lstm_layers_size=[64], bin_lstm_size=64,
+                                 overlap_value=0.5,
+                                 frames_to_avoid_for_cell_type=[2500, 5000, 7500, 10000],
                                  tiffs_dirname=tiffs_dirname,
                                  # partly_trained_model=partly_trained_model,
                                  #  learning_rate_start = 0.001,
-                                 save_only_the_weitghs=False
+                                 save_only_the_weitghs=False,
+                                 without_bidirectional=False,
+                                 use_bin_at_al_version=True
                                  )
 
         # artificial_movie_1 = os.path.join(data_path, "test_cinac_gui/artificial_movie_1_cell_0.cinac")

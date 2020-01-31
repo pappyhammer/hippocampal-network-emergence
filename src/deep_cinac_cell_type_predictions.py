@@ -1,10 +1,14 @@
 from deepcinac.cinac_predictor import *
+from deepcinac.cinac_structures import create_cinac_recording_from_cinac_file_segment, CinacRecording, CinacTiffMovie
 import tensorflow as tf
 import numpy as np
 import hdf5storage
 import os
-from deepcinac.utils.cinac_file_utils import CinacFileReader
+from deepcinac.utils.cinac_file_utils import CinacFileReader, read_cell_type_categories_yaml_file
 from deepcinac.utils.display import plot_hist_distribution
+import sklearn.metrics
+from datetime import datetime
+
 
 def find_weight_and_model_file_in_dir(dir_name):
     file_names = []
@@ -20,6 +24,7 @@ def find_weight_and_model_file_in_dir(dir_name):
         raise Exception(f"No model file in {dir_name}")
 
     return weights_files[0], cinac_files[0]
+
 
 """
 We're going to guide you on how using DeepCINAC to infer the neuronal activity from your calcium imaging data.
@@ -56,8 +61,14 @@ weights_file_name, json_file_name = find_weight_and_model_file_in_dir(dir_name=
                                                                       os.path.join(data_path,
                                                                                    "cinac_cell_type_ground_truth",
                                                                                    "cell_type_classifier_models",
-                                                                                   "sunday_19_01_20_epoch_2"))
-# "sunday_19_01_20_acc_87-5_epoch_4", "sunday_19_01_20_acc_90-38"
+                                                                                   "training_20_epoch_3"))
+# training_17_epoch_3 multi_class_training_test
+# cell_type_yaml_file = os.path.join(data_path, "cinac_cell_type_ground_truth", "cell_type_yaml_files",
+#                                    "pyr_vs_ins_binary.yaml")
+cell_type_yaml_file = os.path.join(data_path, "cinac_cell_type_ground_truth", "cell_type_yaml_files",
+                                   "pyr_vs_ins_multi_class.yaml")
+
+# "sunday_19_01_20_acc_87-5_epoch_4", "sunday_19_01_20_acc_90-38" sunday_19_01_20_epoch_2
 # weights_file_name = os.path.join(root_path, "transient_classifier_full_model_02-0.9883.h5")
 # json_file_name = os.path.join(root_path, "transient_classifier_model_architecture_.json")
 
@@ -79,8 +90,33 @@ print('Found GPU at: {}'.format(device_name))
 with_cinac_file = True
 
 if with_cinac_file:
-    # TODO: load cinac file from a directory
     cinac_dir_name = os.path.join(data_path, "cinac_cell_type_ground_truth/for_testing")
+
+    cell_type_from_code_dict, cell_type_to_code_dict, multi_class_arg = \
+        read_cell_type_categories_yaml_file(yaml_file=cell_type_yaml_file, using_multi_class=1)
+
+    print(f"### cell_type_from_code_dict {cell_type_from_code_dict}")
+
+    n_cell_categories = len(cell_type_from_code_dict)
+
+    if n_cell_categories < 2:
+        raise Exception(f"You need at least 2 cell_type categories, you provided {n_cell_categories}: "
+                        f"{list(cell_type_from_code_dict.values())}")
+
+    # if n_class_for_predictions is equal 1, it means we are building a binary classifier
+    # otherwise a multi class one
+
+    if multi_class_arg is not None:
+        if multi_class_arg or (n_cell_categories > 2):
+            n_class_for_predictions = n_cell_categories
+        else:
+            n_class_for_predictions = 1
+    else:
+        if n_cell_categories > 2:
+            n_class_for_predictions = n_cell_categories
+        else:
+            n_class_for_predictions = 1
+
     cinac_path_w_file_names = []
     frames_to_keep_dict = None
     cinac_file_names = []
@@ -89,6 +125,17 @@ if with_cinac_file:
     tn = 0
     fp = 0
     fn = 0
+    # used for multiclass
+    more_than_one_cell_type = 0
+    none_of_cell_types = 0
+    # for sklearn metrics
+    # from https://towardsdatascience.com/multi-class-metrics-made-simple-part-i-precision-and-recall-9250280bddc2
+    y_true = []
+    y_pred = []
+    # each key is the code representing the cell_type (see in cell_type_from_code_dict), each value is an int
+    # representing the number of cell by type
+    n_cells_by_type_dict = dict()
+    cell_type_predictions_dict = dict()
     n_pyr_cell = 0
     n_in_cell = 0
     pyr_predictions = []
@@ -177,77 +224,127 @@ if with_cinac_file:
                                                        create_dir_for_results=False)
             # mean of the different predictions is already in the dict
             prediction_value = predictions_dict[list(predictions_dict.keys())[0]][0]
-            print(f"{identifier} prediction_value {prediction_value}")
-            print(f"Real cell type {cinac_recording.cell_type}")
-            if cinac_recording.cell_type == "pyr":
-                n_pyr_cell += 1
-                pyr_predictions.append(prediction_value)
-                if prediction_value >= 0.5:
-                    tp += 1
+
+            right_prediction = False
+
+            if cinac_recording.cell_type.strip().lower() not in cell_type_to_code_dict:
+                print(f"cinac_recording.cell_type ({cinac_recording.cell_type}) not in cell_type_to_code_dict")
+                continue
+            cell_type_code = cell_type_to_code_dict[cinac_recording.cell_type.strip().lower()]
+            if cell_type_code not in n_cells_by_type_dict:
+                n_cells_by_type_dict[cell_type_code] = 0
+                cell_type_predictions_dict[cell_type_code] = []
+            n_cells_by_type_dict[cell_type_code] += 1
+            if n_class_for_predictions == 1:
+                cell_type_predictions_dict[cell_type_code].append(prediction_value)
+                if cell_type_code == 0:
+                    if prediction_value >= 0.5:
+                        fp += 1
+                    else:
+                        tn += 1
+                        right_prediction = True
                 else:
-                    fn += 1
+                    if prediction_value >= 0.5:
+                        tp += 1
+                        right_prediction = True
+                    else:
+                        fn += 1
             else:
-                ins_predictions.append(prediction_value)
-                n_in_cell += 1
-                if prediction_value >= 0.5:
-                    fp += 1
-                else:
-                    tn += 1
-    # metrics:
-    if (tp + fn) > 0:
-        sensitivity = tp / (tp + fn)
-    else:
-        sensitivity = 1
+                if len(prediction_value) != n_class_for_predictions:
+                    print("len(prediction_value) != n_class_for_predictions")
+                    continue
 
-    if (tn + fp) > 0:
-        specificity = tn / (tn + fp)
-    else:
-        specificity = 1
+                cell_type_predictions_dict[cell_type_code].append(prediction_value[cell_type_code])
 
-    if (tp + tn + fp + fn) > 0:
-        accuracy = (tp + tn) / (tp + tn + fp + fn)
-    else:
-        accuracy = 1
+                if len(np.where(prediction_value < 0.5)[0]) == len(prediction_value):
+                    # means all values are under the 0.5 threshold, and the cell doesn't belong to any cell type
+                    none_of_cell_types += 1
+                if len(np.where(prediction_value >= 0.5)[0]) >= 2:
+                    # means at least 2 values are over the 0.5 threshold,
+                    # and the cell belong to more than one cell type
+                    more_than_one_cell_type += 1
 
-    if (tp + fp) > 0:
-        ppv = tp / (tp + fp)
-    else:
-        ppv = 1
+                # we want to use sklearn metrics for multiclass metrics
+                y_true.append(cell_type_from_code_dict[cell_type_code])
+                predicted_cell_type_code = np.argmax(prediction_value)
+                y_pred.append(cell_type_from_code_dict[predicted_cell_type_code])
+                if cell_type_code == predicted_cell_type_code:
+                    right_prediction = True
+                # if np.argmax(prediction_value) == cell_type_code:
+                #     tp += 1
+                # else:
+                #     fp += 1
+            print(f"Cell {segment[0]} [{cinac_recording.cell_type.strip().lower()}] from {identifier}, predictions: "
+                  f"{prediction_value} {right_prediction}")
+    if n_class_for_predictions == 1:
+        # metrics:
+        if (tp + fn) > 0:
+            sensitivity = tp / (tp + fn)
+        else:
+            sensitivity = 1
 
-    if (tn + fn) > 0:
-        npv = tn / (tn + fn)
-    else:
-        npv = 1
+        if (tn + fp) > 0:
+            specificity = tn / (tn + fp)
+        else:
+            specificity = 1
+
+        if (tp + tn + fp + fn) > 0:
+            accuracy = (tp + tn) / (tp + tn + fp + fn)
+        else:
+            accuracy = 1
+
+        if (tp + fp) > 0:
+            ppv = tp / (tp + fp)
+        else:
+            ppv = 1
+
+        if (tn + fn) > 0:
+            npv = tn / (tn + fn)
+        else:
+            npv = 1
 
     print("")
-    print("-"*100)
-    print(f"METRICS for {n_pyr_cell} pyramidal cells and {n_in_cell} interneurons")
     print("-" * 100)
-    print(f"Accuracy {accuracy}")
-    print(f"Sensitivity {sensitivity}")
-    print(f"Specificity {specificity}")
-    print(f"PPV {ppv}")
-    print(f"NPV {npv}")
-    print("-" * 100)
-    print(f"For pyramidal cells, mean {np.round(np.mean(pyr_predictions), 2)}, "
-          f"std {np.round(np.std(pyr_predictions), 2)}, "
-          f"min {np.round(np.min(pyr_predictions), 2)}, "
-          f"max {np.round(np.max(pyr_predictions), 2)}")
-    print(f"For interneurons, mean {np.round(np.mean(ins_predictions), 2)}, "
-          f"std {np.round(np.std(ins_predictions), 2)}, "
-          f"min {np.round(np.min(ins_predictions), 2)}, "
-          f"max {np.round(np.max(ins_predictions), 2)}")
-    print("-" * 100)
+    metrics_title_str = "METRICS for "
+    for cell_type_code, n_cells_by_type in n_cells_by_type_dict.items():
+        cell_type_str = cell_type_from_code_dict[cell_type_code]
+        metrics_title_str = metrics_title_str + f"{n_cells_by_type} {cell_type_str}, "
+    print(f"{metrics_title_str[:-2]}")
+    # print(f"METRICS for {n_pyr_cell} pyramidal cells and {n_in_cell} interneurons")
+    if n_class_for_predictions == 1:
+        print("-" * 100)
+        print(f"Accuracy {accuracy}")
+        print(f"Sensitivity {sensitivity}")
+        print(f"Specificity {specificity}")
+        print(f"PPV {ppv}")
+        print(f"NPV {npv}")
+        print("-" * 100)
+    else:
+        print(f"N cell classified has none of the cell types: {none_of_cell_types}")
+        print(f"N cell classified has more than one cell type: {more_than_one_cell_type}")
+        # Print the confusion matrix
+        print("--- confusion matrix ---")
+        print(sklearn.metrics.confusion_matrix(y_true, y_pred))
 
-    data_hist_dict = {"pyr": pyr_predictions, "ins": ins_predictions}
-    for cell_type, data in data_hist_dict.items():
-        plot_hist_distribution(distribution_data=data,
-                               description=f"hist_prediction_distribution_{cell_type}",
+        # Print the precision and recall, among other metrics
+        print(sklearn.metrics.classification_report(y_true, y_pred, digits=3))
+
+    data_hist_dict = dict()
+    for cell_type_code, cell_type_predictions in cell_type_predictions_dict.items():
+        cell_type_str = cell_type_from_code_dict[cell_type_code]
+        data_hist_dict[cell_type_str] = cell_type_predictions
+        print(f"For {cell_type_str}, mean {np.round(np.mean(cell_type_predictions), 2)}, "
+              f"std {np.round(np.std(cell_type_predictions), 2)}, "
+              f"min {np.round(np.min(cell_type_predictions), 2)}, "
+              f"max {np.round(np.max(cell_type_predictions), 2)}")
+        plot_hist_distribution(distribution_data=[p*100 for p in cell_type_predictions],
+                               description=f"hist_prediction_distribution_{cell_type_str}",
                                path_results=results_path,
-                               tight_x_range=True,
+                               tight_x_range=False,
                                twice_more_bins=True,
-                               xlabel=f"{cell_type}",
+                               xlabel=f"{cell_type_str}",
                                save_formats="png")
+    print("-" * 100)
 
 else:
     movie_file_name = os.path.join(data_path, "p1_artificial_1.tif")
@@ -288,7 +385,6 @@ else:
     # stat_suite2p_file_name = os.path.join(data_path, "suite2p", "demo_deepcinac_stat_1.npy")
     # cinac_recording.set_rois_from_suite_2p(is_cell_file_name=is_cell_suite2p_file_name,
     #                                        stat_file_name=stat_suite2p_file_name)
-
 
     # ------------------------------------------------------
     # options 2: contours coordinate (such as CaImAn, Fiji)
@@ -334,7 +430,6 @@ else:
     # name_seg_plane = ""
     # cinac_recording.set_rois_from_nwb(nwb_data=nwb_data, name_module=name_module,
     #                                   name_segmentation=name_segmentation, name_seg_plane=name_seg_plane)
-
 
     # -----------------------
     # options 4: Pixel masks
@@ -409,11 +504,10 @@ else:
     """
 
     # you could decomment this line to make sure the GPU is used
-    #with tf.device('/device:GPU:0'):
+    # with tf.device('/device:GPU:0'):
 
     # predictions are saved in the results_path and return as a dict,
     predictions_dict = cinac_predictor.predict(results_path=results_path, output_file_formats="npy",
                                                overlap_value=0, cell_type_classifier_mode=True)
 
     print(f"predictions_dict {predictions_dict}")
-
