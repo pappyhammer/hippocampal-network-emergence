@@ -89,9 +89,9 @@ def main():
         test_avi()
         return
 
-    subject_id = "p6_20_01_14"
-    cam_folder_id_1 = "cam1" # "cam2"
-    cam_folder_id_2 = "a000" # a000 a001 a002 a003
+    subject_id = "P12_20_01_20" # P12_20_01_20 p8_20_01_16
+    cam_folder_id_1 = "cam2" # "cam2"
+    cam_folder_id_2 = "a001" # a000  a001
     if cam_folder_id_2 is None:
         cam_folder_id = "20190430_a002"  # ex cam1_a002, movie1, etc...
     else:

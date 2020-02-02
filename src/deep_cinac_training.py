@@ -31,7 +31,7 @@ if __name__ == '__main__':
     results_path = os.path.join(results_path, time_str)
     os.mkdir(results_path)
 
-    cell_type_classifier_mode = True
+    cell_type_classifier_mode = False
 
     if not cell_type_classifier_mode:
         tiffs_dirname = os.path.join(data_path, "tiffs_for_cell_activity_classifier")
@@ -44,9 +44,12 @@ if __name__ == '__main__':
 
         partly_trained_model = "/media/julien/Not_today/hne_not_today/data/test_cinac_gui/transient_classifier_full_model_02-0.9817.h5"
         cinac_model = CinacModel(results_path=results_path,
-                                 n_epochs=20, verbose=1, batch_size=8,
-                                 lstm_layers_size=[128], bin_lstm_size=128,
+                                 n_epochs=30, verbose=1, batch_size=4,
+                                 lstm_layers_size=[32], bin_lstm_size=32,
+                                 window_len=100,
                                  # lstm_layers_size=[128, 256], bin_lstm_size=256,
+                                 conv_filters=(64, 64, 128, 128),
+                                 # conv_filters=(32, 32, 64, 64),
                                  cell_type_classifier_mode=False,
                                    # partly_trained_model=partly_trained_model,
                                    #  learning_rate_start = 0.001,
@@ -62,7 +65,7 @@ if __name__ == '__main__':
         # cinac_model.add_input_data(cinac_file_names=artificial_movie_1)
 
         cinac_model.prepare_model(verbose=1)
-        cinac_model.fit()
+        # cinac_model.fit()
     else:
         tiffs_dirname = os.path.join(data_path, "tiffs_for_cell_type_classifier")
         """
@@ -73,11 +76,14 @@ if __name__ == '__main__':
                 """
 
         partly_trained_model = "/media/julien/Not_today/hne_not_today/data/test_cinac_gui/"
-        cinac_model = CinacModel(results_path=results_path, n_epochs=4, verbose=1, batch_size=4,
+        cinac_model = CinacModel(results_path=results_path, n_epochs=5, verbose=1, batch_size=4,
                                  cell_type_classifier_mode=True,
                                  max_width=10, max_height=10,
-                                 window_len=1000, max_n_transformations=1,
-                                 lstm_layers_size=[64], bin_lstm_size=64,
+                                 window_len=1000, max_n_transformations=0,
+                                 n_windows_len_to_keep_by_cell=2,
+                                 conv_filters=(64, 64, 128, 128),
+                                 # conv_filters=(32, 32, 64, 64),
+                                 lstm_layers_size=[32], bin_lstm_size=32,
                                  overlap_value=0.5,
                                  frames_to_avoid_for_cell_type=[2500, 5000, 7500, 10000],
                                  tiffs_dirname=tiffs_dirname,

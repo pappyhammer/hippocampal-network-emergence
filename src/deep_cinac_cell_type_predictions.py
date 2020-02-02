@@ -61,12 +61,14 @@ weights_file_name, json_file_name = find_weight_and_model_file_in_dir(dir_name=
                                                                       os.path.join(data_path,
                                                                                    "cinac_cell_type_ground_truth",
                                                                                    "cell_type_classifier_models",
-                                                                                   "training_20_epoch_3"))
-# training_17_epoch_3 multi_class_training_test
+                                                                                   "training_28_epoch_5"))
+# training_17_epoch_3 multi_class_training_test colab_1_epoch_3
 # cell_type_yaml_file = os.path.join(data_path, "cinac_cell_type_ground_truth", "cell_type_yaml_files",
 #                                    "pyr_vs_ins_binary.yaml")
 cell_type_yaml_file = os.path.join(data_path, "cinac_cell_type_ground_truth", "cell_type_yaml_files",
                                    "pyr_vs_ins_multi_class.yaml")
+# cell_type_yaml_file = os.path.join(data_path, "cinac_cell_type_ground_truth", "cell_type_yaml_files",
+#                                    "pyr_vs_ins_vs_noise_multi_class.yaml")
 
 # "sunday_19_01_20_acc_87-5_epoch_4", "sunday_19_01_20_acc_90-38" sunday_19_01_20_epoch_2
 # weights_file_name = os.path.join(root_path, "transient_classifier_full_model_02-0.9883.h5")
