@@ -1,4 +1,5 @@
 from deepcinac.cinac_predictor import *
+from deepcinac.cinac_structures import *
 import tensorflow as tf
 import numpy as np
 import hdf5storage

@@ -22,6 +22,7 @@ def build_spike_nums_dur(spike_nums, peak_nums):
             spike_nums_dur[cell, onset_index:peak_after + 1] = 1
     return spike_nums_dur
 
+
 if __name__ == '__main__':
     # root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
     root_path = "/media/julien/Not_today/hne_not_today/"
@@ -36,10 +37,10 @@ if __name__ == '__main__':
     if not cell_type_classifier_mode:
         tiffs_dirname = os.path.join(data_path, "tiffs_for_cell_activity_classifier")
         """
-        To start training from a full saved model from another training, it is necessary to:
-        - During the previous training, to put as argument: save_only_the_weitghs=False
-        - then specify the .h5 containing the model using partly_trained_model
-        - finally setting the learning rate so it is the same as the last epoch trained, using learning_rate_start
+            To start training from a full saved model from another training, it is necessary to:
+            - During the previous training, to put as argument: save_only_the_weitghs=False
+            - then specify the .h5 containing the model using partly_trained_model
+            - finally setting the learning rate so it is the same as the last epoch trained, using learning_rate_start
         """
 
         partly_trained_model = "/media/julien/Not_today/hne_not_today/data/test_cinac_gui/transient_classifier_full_model_02-0.9817.h5"
@@ -73,13 +74,13 @@ if __name__ == '__main__':
                 - During the previous training, to put as argument: save_only_the_weitghs=False
                 - then specify the .h5 containing the model using partly_trained_model
                 - finally setting the learning rate so it is the same as the last epoch trained, using learning_rate_start
-                """
+        """
 
         partly_trained_model = "/media/julien/Not_today/hne_not_today/data/test_cinac_gui/"
-        cinac_model = CinacModel(results_path=results_path, n_epochs=5, verbose=1, batch_size=4,
+        cinac_model = CinacModel(results_path=results_path, n_epochs=4, verbose=1, batch_size=4,
                                  cell_type_classifier_mode=True,
-                                 max_width=10, max_height=10,
-                                 window_len=1000, max_n_transformations=0,
+                                 max_width=15, max_height=15,
+                                 window_len=500, max_n_transformations=0,
                                  n_windows_len_to_keep_by_cell=2,
                                  conv_filters=(64, 64, 128, 128),
                                  # conv_filters=(32, 32, 64, 64),

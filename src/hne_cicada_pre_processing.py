@@ -5,7 +5,7 @@ from cicada.preprocessing.cicada_data_to_nwb import convert_data_to_nwb
 def main():
     root_path = "/media/julien/Not_today/hne_not_today/"
     # root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
-    dir_to_explore = os.path.join(root_path, "data")
+    dir_to_explore = os.path.join(root_path, "data/red_ins")
     default_convert_to_nwb_yml_file = "/home/julien/these_inmed/hne_project/cicada_gitlab/cicada/src/cicada/preprocessing/pre_processing_default.yaml"
 
     session_dirs = find_dir_to_convert(dir_to_explore=dir_to_explore,
@@ -68,7 +68,10 @@ def main():
         #     continue
         # if session_dir_name not in ["p8_19_09_29_0_a000"]:
         #     continue
-        if session_dir_name not in ["p13_19_10_04"]:
+        # if session_dir_name not in ["p13_19_10_04"]:
+        #     continue
+        # p5: 191210_a001, p7: 200110_a000, p9:190930_a001
+        if session_dir_name not in ["191210_a001", "200110_a000", "190930_a001"]:
             continue
         # if session_dir_name not in ["p7_19_03_27_a000"]:
         #     continue

@@ -23,8 +23,8 @@ class DataForMs(p_disc_tools_param.Parameters):
         self.best_order_data_path = None
 
 
-def create_cinac_file(ms, session_dict, param):
-    file_name = os.path.join(param.path_results, f"gt_{session_dict['id']}.cinac")
+def create_cinac_file(ms, session_dict, param, bonus_str):
+    file_name = os.path.join(param.path_results, f"gt_{session_dict['id']}_{bonus_str}.cinac")
 
     cinac_writer = CinacFileWriter(file_name=file_name)
 
@@ -207,9 +207,9 @@ def main_convert_gt_to_cinac():
     data_dict["p7_171012_a000_ms"]["id"] = "p7_17_10_12_a000"
     data_dict["p7_171012_a000_ms"]["path"] = "p7/p7_17_10_12_a000"
     # data_dict["p7_171012_a000_ms"]["gt_cells"] = [3, 8, 11, 12, 14, 17, 18, 24] # for training
-    # data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 25] # for benchmarks
-    data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 3, 8, 11, 12, 14, 17, 18, 24, 25] # all
-    data_dict["p7_171012_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 25] # for benchmarks
+    # data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 3, 8, 11, 12, 14, 17, 18, 24, 25] # all
+    # data_dict["p7_171012_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
     # data_dict["p7_171012_a000_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["p8_18_10_24_a005_ms"] = dict()
@@ -225,33 +225,33 @@ def main_convert_gt_to_cinac():
     data_dict["p8_18_10_24_a006_ms"]["path"] = "p8/p8_18_10_24_a006"
     # data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [0, 1, 6, 7, 9, 10, 11, 18, 24]  # for training
     data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [28, 32, 33] # for benchmarks # TODO: use RD GT
-    data_dict["p8_18_10_24_a006_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p8_18_10_24_a006_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
     # data_dict["p8_18_10_24_a006_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["p11_17_11_24_a000_ms"] = dict()
     data_dict["p11_17_11_24_a000_ms"]["id"] = "p11_17_11_24_a000"
     data_dict["p11_17_11_24_a000_ms"]["path"] = "p11/p11_17_11_24_a000"
     # data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [3, 17, 22, 24, 25, 29, 30, 33, 45] # all
-    data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [17, 22, 24, 25, 29, 30, 33] # for training
-    # data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [3, 45] # for benchmarks
-    data_dict["p11_17_11_24_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [17, 22, 24, 25, 29, 30, 33] # for training
+    data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [3, 45] # for benchmarks
+    # data_dict["p11_17_11_24_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
     # data_dict["p11_17_11_24_a000_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["p12_171110_a000_ms"] = dict()
     data_dict["p12_171110_a000_ms"]["id"] = "p12_17_11_10_a000"
     data_dict["p12_171110_a000_ms"]["path"] = "p12/p12_17_11_10_a000"
-    data_dict["p12_171110_a000_ms"]["gt_cells"] = [0, 3, 6, 7, 12, 14, 15, 19] # for training
+    # data_dict["p12_171110_a000_ms"]["gt_cells"] = [0, 3, 6, 7, 12, 14, 15, 19] # for training
     data_dict["p12_171110_a000_ms"]["gt_cells"] = [9, 10] # for benchmarks
-    data_dict["p12_171110_a000_ms"]["gt_cells"] = [0, 3, 6, 7, 9, 10, 12, 14, 15, 19] # all
+    # data_dict["p12_171110_a000_ms"]["gt_cells"] = [0, 3, 6, 7, 9, 10, 12, 14, 15, 19] # all
     # data_dict["p12_171110_a000_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["p13_18_10_29_a001_ms"] = dict()
     data_dict["p13_18_10_29_a001_ms"]["id"] = "p13_18_10_29_a001"
     data_dict["p13_18_10_29_a001_ms"]["path"] = "p13/p13_18_10_29_a001"
-    data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [0, 2, 5, 12, 13, 31, 42, 44, 48, 51]  # for training
+    # data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [0, 2, 5, 12, 13, 31, 42, 44, 48, 51]  # for training
     # data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [0, 2, 5, 12, 13, 31, 42, 44, 48, 51] # all
-    # data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [77, 117] # for benchmarks, but load RD GT
-    data_dict["p13_18_10_29_a001_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [77, 117] # for benchmarks, but load RD GT
+    # data_dict["p13_18_10_29_a001_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
     # data_dict["p13_18_10_29_a001_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["artificial_ms_1"] = dict()
@@ -315,6 +315,13 @@ def main_convert_gt_to_cinac():
     # data_dict["p12_17_11_10_a002_ms"]["segmentation_tool"] = "suite2p"
 
     ms_to_use = ["p8_18_10_24_a006_ms"]
+    # for training
+    bonus_str = "for_training"
+    ms_to_use = list(data_dict.keys())
+    bonus_str = "for_benchmarks"
+    # ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
+    #              "p13_18_10_29_a001_ms"]
+    ms_to_use = ["p8_18_10_24_a005_ms"]
 
     # we need to change in mouse_session_loader the type of segmentation to use
 
@@ -331,7 +338,8 @@ def main_convert_gt_to_cinac():
     # for each given mouse session, we create a unique .cinac file
 
     for ms_id in ms_to_use:
-        create_cinac_file(ms=ms_str_to_ms_dict[ms_id] , session_dict=data_dict[ms_id], param=param)
+        create_cinac_file(ms=ms_str_to_ms_dict[ms_id], session_dict=data_dict[ms_id], param=param,
+                          bonus_str=bonus_str)
 
 if __name__ == "__main__":
     main_convert_gt_to_cinac()

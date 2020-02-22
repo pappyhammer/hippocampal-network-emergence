@@ -226,9 +226,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         #               "P6_18_02_07_a001_predictions__2019_05_07.17-26-16_GT_epoch_11_all_cells.mat",
         #     prediction_threshold=0.5, variables_mapping=variables_mapping)
 
-        if not p6_18_02_07_a001_ms.use_suite_2p:
-            if not for_cell_classifier:
-                p6_18_02_07_a001_ms.clean_data_using_cells_to_remove()
+        # if not p6_18_02_07_a001_ms.use_suite_2p:
+        #     if not for_cell_classifier:
+        #         p6_18_02_07_a001_ms.clean_data_using_cells_to_remove()
 
         ms_str_to_ms_dict["p6_18_02_07_a001_ms"] = p6_18_02_07_a001_ms
 
@@ -350,9 +350,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                     file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_raw_Traces.mat",
                     variables_mapping=variables_mapping)
 
-        if not p7_171012_a000_ms.use_suite_2p:
-            if not for_cell_classifier:
-                p7_171012_a000_ms.clean_data_using_cells_to_remove()
+        # if not p7_171012_a000_ms.use_suite_2p:
+        #     if not for_cell_classifier:
+        #         p7_171012_a000_ms.clean_data_using_cells_to_remove()
 
         ms_str_to_ms_dict["p7_171012_a000_ms"] = p7_171012_a000_ms
 
@@ -754,9 +754,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_CellDetect.mat",
                 variables_mapping=variables_mapping)
 
-        if not p8_18_10_24_a005_ms.use_suite_2p:
-            if not for_cell_classifier:
-                p8_18_10_24_a005_ms.clean_data_using_cells_to_remove()
+        # if not p8_18_10_24_a005_ms.use_suite_2p:
+        #     if not for_cell_classifier:
+        #         p8_18_10_24_a005_ms.clean_data_using_cells_to_remove()
 
         ms_str_to_ms_dict["p8_18_10_24_a005_ms"] = p8_18_10_24_a005_ms
 
@@ -796,8 +796,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a006/p8_18_10_24_a006_CellDetect.mat",
                                                     variables_mapping=variables_mapping)
 
-            if not for_cell_classifier:
-                p8_18_10_24_a006_ms.clean_data_using_cells_to_remove()
+            # if not for_cell_classifier:
+            #     p8_18_10_24_a006_ms.clean_data_using_cells_to_remove()
 
         ms_str_to_ms_dict["p8_18_10_24_a006_ms"] = p8_18_10_24_a006_ms
 
@@ -1144,8 +1144,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
                 variables_mapping=variables_mapping)
 
-            if not for_cell_classifier:
-                p11_17_11_24_a000_ms.clean_data_using_cells_to_remove()
+            # if not for_cell_classifier:
+            #     p11_17_11_24_a000_ms.clean_data_using_cells_to_remove()
 
         ms_str_to_ms_dict["p11_17_11_24_a000_ms"] = p11_17_11_24_a000_ms
 
@@ -1319,9 +1319,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             #                                        variables_mapping=variables_mapping,
             #                                        save_caiman_apart=True)
 
-        if not p12_171110_a000_ms.use_suite_2p:
-            if not for_cell_classifier:
-                p12_171110_a000_ms.clean_data_using_cells_to_remove()
+        # if not p12_171110_a000_ms.use_suite_2p:
+        #     if not for_cell_classifier:
+        #         p12_171110_a000_ms.clean_data_using_cells_to_remove()
 
         ms_str_to_ms_dict["p12_171110_a000_ms"] = p12_171110_a000_ms
 
@@ -1430,7 +1430,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "inter_neurons_from_gui": "inter_neurons",
                                      "doubtful_frames_nums": "doubtful_frames_nums"}
                 p13_18_10_29_a001_ms.load_data_from_file(file_name_to_load=
-                                                         "p13/p13_18_10_29_a001/p13_18_10_29_a001_fusion_validation.mat",
+                                                         "p13/p13_18_10_29_a001/p13_18_10_29_a001_GUI_transients_RD.mat",
                                                          variables_mapping=variables_mapping,
                                                          from_gui=True)
                 # p13_18_10_29_a001_GUI_transients_RD.mat p13_18_10_29_a001_fusion_validation.mat
@@ -1457,8 +1457,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                      "p13/p13_18_10_29_a001/p13_18_10_29_a001_CellDetect.mat",
                                                      variables_mapping=variables_mapping)
 
-            if not for_cell_classifier:
-                p13_18_10_29_a001_ms.clean_data_using_cells_to_remove()
+            # if not for_cell_classifier:
+            #     p13_18_10_29_a001_ms.clean_data_using_cells_to_remove()
 
             if load_abf:
                 p13_18_10_29_a001_ms.load_abf_file(abf_file_name="p13/p13_18_10_29_a001/p13_18_10_29_a001.abf",

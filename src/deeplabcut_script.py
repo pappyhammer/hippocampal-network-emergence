@@ -70,7 +70,7 @@ def change_video_resolution(file_name, new_width=1024, new_height=None, using_cr
     print(f"new_avi_file_name {new_avi_file_name}")
     return new_avi_file_name
 
- """
+"""
     Installing DLC using conda :
     https://github.com/AlexEMG/DeepLabCut/blob/master/conda-environments/README.md
 
@@ -104,19 +104,35 @@ Protocol timing
 if __name__ == "__main__":
     root_path = "/media/julien/Not_today/hne_not_today/data/deeplabcut_test/"
 
-    working_dir = os.path.join(root_path, "test_29_12_19")
-    movie_file = os.path.join(root_path, "res_dpk_1024_640_behavior_p8_19_09_29_1_cam_22983298_cam1_a000_fps_20.avi")
+    working_dir = os.path.join(root_path, "test_17_02_20")
+    movie_file = os.path.join(root_path, "videos_to_use")
 
     new_videos_to_add = []
-    config_path = os.path.join(working_dir, "test_2-Robin-2019-12-29", "config.yaml")
+    config_path = os.path.join(working_dir, "test_valentin-Robin-2020-02-17", "config.yaml")
 
     # ['Full path of video or videofolder']
-    videos_to_analyze = []
+    # p5_191205_191210_0_191210_a001
+    # videos_to_analyze = [os.path.join(root_path, "videos_to_use", "p5_191205_191210_0_191210_a000_behavior_cam_22983298_cam1_fps_20.avi")]
+
+    # videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p8_19_09_29_0_cam_23109588_cam2_a000_fps_20.avi")]
+    # videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p6_19_12_03_cam_23109588_cam2_a000_fps_20.avi")]
+    # videos_to_analyze = [os.path.join(root_path, "videos_to_use", "p7_190921_190928_0_190928_a001_behavior_cam_23109588_cam2_fps_20.avi")]
+
+    # new after iteration 2
+    # videos_to_analyze = [
+    #     os.path.join(root_path, "videos_to_use", "behavior_p5_19_12_10_0_cam_23109588_cam2_a001_fps_20.avi")]
+    # videos_to_analyze = [
+    #     os.path.join(root_path, "videos_to_use", "behavior_p8_19_09_29_1_cam_23109588_cam2_a001_fps_20.avi")]
+
+    # new after iteration 3
+    videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p6_19_12_03_cam_22983298_cam1_a000_fps_20.avi")]
+    # videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p6_19_09_27_1_cam_22983298_cam1_a000_fps_20.avi")]
+
     # full video paths for those 3 variables
-    videos_to_filter_predictions = []
-    videos_to_plot_trajectories = []
-    videos_to_create_with_labels = []
-    videos_to_extract_outlier_frames = []
+    videos_to_filter_predictions = videos_to_analyze
+    videos_to_plot_trajectories = videos_to_analyze
+    videos_to_create_with_labels = videos_to_analyze
+    videos_to_extract_outlier_frames = videos_to_analyze
 
     try_project_manager_gui = False
 
@@ -132,6 +148,10 @@ if __name__ == "__main__":
         change_video_resolution(file_name=file_name, new_width=1024, new_height=None, using_croping=True)
         raise Exception('do_change_video_resolution OVER')
 
+    # to downsample: deeplabcut.DownSampleVideo
+
+    # useful scripts for DLC: https://github.com/AlexEMG/DLCutils/
+
     # keys are:
     # "step_2" or "create_new_project"
     # "step_2_bis" or "add_new_videos"
@@ -144,23 +164,22 @@ if __name__ == "__main__":
     # "step_11" or "analyze_videos" (set videos_to_analyze to analyse)
     # "filterpredictions" (set videos_to_filter_predictions variable)
     # "step_12" or "plot_trajectories" (set videos_to_plot_trajectories variable)
+    # 'step_12_bis" or "analyzeskeleton"
     # "step_13" or "create_labeled_video" (set videos_to_create_with_labels variable)
     # "step_14" or "extract_outlier_frames" (set videos_to_extract_outlier_frames variable)
     # "step_15" or "refine_labels"
     # "step_16" or "merge_datasets"
-    stages_to_run = ["create_new_project"]
+    stages_to_run = ["step_9"]
 
     # ------------------------------------------------------------------
     # STAGE I: Stage I: opening DeepLabCut and creation of a new project
     # Steps 1, 2
     # ------------------------------------------------------------------
     if "step_2" in stages_to_run or "create_new_project" in stages_to_run:
-        config_path = deeplabcut.create_new_project(project="test_2", experimenter="Robin", videos=[movie_file],
+        config_path = deeplabcut.create_new_project(project="test_valentin", experimenter="Robin", videos=[movie_file],
                                       copy_videos=True,
                                       videotype='.avi',
                                       working_directory=working_dir)
-
-
 
     if "step_2_bis" in stages_to_run or "add_new_videos" in stages_to_run:
         deeplabcut.add_new_videos(config=config_path, videos=new_videos_to_add, copy_videos=True)
@@ -170,7 +189,7 @@ if __name__ == "__main__":
     # STAGE II: configuration of the project, open the config.yaml file
     # Step 3
     # ------------------------------------------------------------------
-
+    # start stop indicate which portion of the movie to extract the frames from, ex 0 & 0.5 means first 50%
     """
     Exemple of config:
     bodyparts:
@@ -181,14 +200,21 @@ if __name__ == "__main__":
     - hindleleg_joint
     - hindleleg_body_jonction
     - tail_prox
+    - tail_dist
 
     skeleton:
     - - forepaw
       - foreleg_joint
+    - - foreleg_joint
       - foreleg_body_jonction
     - - hindlepaw
       - hindleleg_joint
+    - - hindleleg_joint
       - hindleleg_body_jonction
+    - - tail_prox
+      - tail_mid
+    - - tail_mid
+      - tail_dist
     
     start: 0
     stop: 0.5
@@ -215,7 +241,7 @@ if __name__ == "__main__":
 
     if "step_4" in stages_to_run or "data_selection" in stages_to_run:
         deeplabcut.extract_frames(config=config_path,
-                                  mode='automatic', algo='kmeans', crop=False, userfeedback=True, cluster_step=1,
+                                  mode='automatic', algo='kmeans', crop=False, userfeedback=False, cluster_step=1,
                                   cluster_resizewidth=30, cluster_color=False, opencv=True, slider_width=25)
         """
         The extracted frames from all the videos are stored in a separate subdirectory named after the
@@ -318,9 +344,9 @@ if __name__ == "__main__":
     """
     if "step_8" in stages_to_run or "create_training_dataset" in stages_to_run:
         deeplabcut.create_training_dataset(config_path, num_shuffles=1, Shuffles=None,
-                                           windows2linux=False,userfeedback=False,
-                                           trainIndexes=None,testIndexes=None,
-                                           net_type=None,augmenter_type=None)
+                                           windows2linux=False, userfeedback=False,
+                                           trainIndexes=None, testIndexes=None,
+                                           net_type=None, augmenter_type=None)
 
     """
     The set of arguments in the function will shuffle the combined labeled dataset and split it to
@@ -351,9 +377,9 @@ if __name__ == "__main__":
     alter how often the loss is displayed and how often the (intermediate) weights are stored.
     """
     if "step_9" in stages_to_run or "training_network" in stages_to_run:
-        deeplabcut.train_network(config_path, shuffle=1,trainingsetindex=0,
-                                 max_snapshots_to_keep=5, displayiters=10000, saveiters=None, maxiters=None,
-                                 allow_growth=False, gputouse=None, autotune=False, keepdeconvweights=True)  # gputouse=0
+        deeplabcut.train_network(config_path, shuffle=1, trainingsetindex=0,
+                                 max_snapshots_to_keep=None, displayiters=500, saveiters=5000, maxiters=None,
+                                 allow_growth=False, gputouse=0, autotune=False, keepdeconvweights=True)  # gputouse=0
     # saveiters is at 50000 by default
 
     """
@@ -379,7 +405,8 @@ if __name__ == "__main__":
     """
     if "step_10" in stages_to_run or "evaluate_network" in stages_to_run:
         deeplabcut.evaluate_network(config_path, Shuffles=[1], plotting=True, trainingsetindex=0,
-                                    show_errors = True,comparisonbodyparts="all",gputouse=None, rescale=False)
+                                    show_errors = True, comparisonbodyparts="all", gputouse=None, rescale=False)
+    # 450000
     """
     Setting plotting to True plots all the testing and training frames with the manual and
     predicted labels. You should visually check the labeled test (and training) images that are created in
@@ -423,17 +450,16 @@ if __name__ == "__main__":
     the corresponding index of the checkpoint in the variable snapshotindex in the config.yaml file.
     By default, the most recent checkpoint (i.e., last) is used for analyzing the video.
     """
-    # deeplabcut.analyze_videos(os.path.join(path_config, "config.yaml"),
-    #                           [os.path.join(path_config, "test_2.avi")], videotype='avi', shuffle=1,
-    #                           trainingsetindex=0, gputouse=0, save_as_csv=True, destfolder=None, cropping=None)
+
     if "step_11" in stages_to_run or "analyze_videos" in stages_to_run:
         deeplabcut.analyze_videos(config_path, videos_to_analyze,
                                   shuffle=1, save_as_csv=True, videotype='.avi', trainingsetindex=0,
-                                  gputouse=None, destfolder=None, batchsize=None,
+                                  gputouse=0, destfolder=None, batchsize=None,
                                   cropping=None, get_nframesfrommetadata=True,
                                   TFGPUinference=True,
                                   dynamic=(False, .5, 10))
-        # TODO: check if by putting save_as_csv to True, the .h5 file will still be created
+        # if save_as_csv to True, the .h5 file will still be created
+    # iteration 0 best snapshotindex was 25
     """
     The labels are stored in a multi-index Pandas array 43 , which contains the name of the network,
     body part name, (x, y) label position in pixels, and the likelihood for each frame per body part.
@@ -467,6 +493,12 @@ if __name__ == "__main__":
         deeplabcut.plot_trajectories(config_path, videos_to_plot_trajectories, videotype='.avi', shuffle=1,
                                      trainingsetindex=0, filtered=False, showfigures=False, destfolder=None)
 
+    if "step_12_bis" in stages_to_run or "analyzeskeleton" in stages_to_run:
+        deeplabcut.analyzeskeleton(config_path, videos_to_plot_trajectories, videotype='avi', shuffle=1,
+                                   trainingsetindex=0,
+                                   save_as_csv=True,
+                                   destfolder=None)
+
     """
     In addition, the toolbox provides a function to create labeled videos based on the extracted poses by
     plotting the labels on top of the frame and creating a video. To use it to create multiple labeled
@@ -482,7 +514,7 @@ if __name__ == "__main__":
         deeplabcut.create_labeled_video(config_path, videos_to_create_with_labels, videotype='avi',
                                         shuffle=1 ,trainingsetindex=0, filtered=False, save_frames=False,
                                         Frames2plot=None, delete=False, displayedbodyparts='all', codec='mp4v',
-                                        outputframerate=None, destfolder=None, draw_skeleton=False, trailpoints = 0,
+                                        outputframerate=None, destfolder=None, draw_skeleton=True, trailpoints = 5,
                                         displaycropped=False)
 
     # --------------------------------------------------------------------
@@ -520,7 +552,7 @@ if __name__ == "__main__":
     if "step_14" in stages_to_run or "extract_outlier_frames" in stages_to_run:
         deeplabcut.extract_outlier_frames(config_path, videos_to_extract_outlier_frames, videotype='avi',
                                           shuffle=1, trainingsetindex=0, outlieralgorithm='jump',
-                                          comparisonbodyparts='all', epsilon=20, p_bound=.01, ARdegree=3,
+                                          comparisonbodyparts='all', epsilon=50, p_bound=.01, ARdegree=3,
                                           MAdegree=1, alpha=.01, extractionalgorithm='kmeans' ,automatic=False,
                                           cluster_resizewidth=30, cluster_color=False, opencv=True, savelabeled=True,
                                           destfolder=None)

@@ -1,12 +1,9 @@
 from deepcinac.cinac_predictor import *
-from deepcinac.cinac_structures import create_cinac_recording_from_cinac_file_segment, CinacRecording, CinacTiffMovie
+from deepcinac.cinac_structures import CinacRecording, CinacTiffMovie
 import tensorflow as tf
 import numpy as np
-import hdf5storage
 import os
-from deepcinac.utils.cinac_file_utils import CinacFileReader, read_cell_type_categories_yaml_file
-from deepcinac.utils.display import plot_hist_distribution
-import sklearn.metrics
+
 from datetime import datetime
 
 
@@ -61,8 +58,8 @@ weights_file_name, json_file_name = find_weight_and_model_file_in_dir(dir_name=
                                                                       os.path.join(data_path,
                                                                                    "cinac_cell_type_ground_truth",
                                                                                    "cell_type_classifier_models",
-                                                                                   "training_28_epoch_5"))
-# training_17_epoch_3 multi_class_training_test colab_1_epoch_3
+                                                                                   "training_24_epoch_2"))
+# training_22_epoch_2 multi_class_training_test colab_1_epoch_3
 # cell_type_yaml_file = os.path.join(data_path, "cinac_cell_type_ground_truth", "cell_type_yaml_files",
 #                                    "pyr_vs_ins_binary.yaml")
 cell_type_yaml_file = os.path.join(data_path, "cinac_cell_type_ground_truth", "cell_type_yaml_files",
@@ -89,264 +86,13 @@ if device_name != '/device:GPU:0':
     raise SystemError('GPU device not found')
 print('Found GPU at: {}'.format(device_name))
 
-with_cinac_file = True
+evaluate_classifier = True
 
-if with_cinac_file:
+if evaluate_classifier:
     cinac_dir_name = os.path.join(data_path, "cinac_cell_type_ground_truth/for_testing")
 
-    cell_type_from_code_dict, cell_type_to_code_dict, multi_class_arg = \
-        read_cell_type_categories_yaml_file(yaml_file=cell_type_yaml_file, using_multi_class=1)
-
-    print(f"### cell_type_from_code_dict {cell_type_from_code_dict}")
-
-    n_cell_categories = len(cell_type_from_code_dict)
-
-    if n_cell_categories < 2:
-        raise Exception(f"You need at least 2 cell_type categories, you provided {n_cell_categories}: "
-                        f"{list(cell_type_from_code_dict.values())}")
-
-    # if n_class_for_predictions is equal 1, it means we are building a binary classifier
-    # otherwise a multi class one
-
-    if multi_class_arg is not None:
-        if multi_class_arg or (n_cell_categories > 2):
-            n_class_for_predictions = n_cell_categories
-        else:
-            n_class_for_predictions = 1
-    else:
-        if n_cell_categories > 2:
-            n_class_for_predictions = n_cell_categories
-        else:
-            n_class_for_predictions = 1
-
-    cinac_path_w_file_names = []
-    frames_to_keep_dict = None
-    cinac_file_names = []
-    text_file = None
-    tp = 0
-    tn = 0
-    fp = 0
-    fn = 0
-    # used for multiclass
-    more_than_one_cell_type = 0
-    none_of_cell_types = 0
-    # for sklearn metrics
-    # from https://towardsdatascience.com/multi-class-metrics-made-simple-part-i-precision-and-recall-9250280bddc2
-    y_true = []
-    y_pred = []
-    # each key is the code representing the cell_type (see in cell_type_from_code_dict), each value is an int
-    # representing the number of cell by type
-    n_cells_by_type_dict = dict()
-    cell_type_predictions_dict = dict()
-    n_pyr_cell = 0
-    n_in_cell = 0
-    pyr_predictions = []
-    ins_predictions = []
-    # look for filenames in the fisrst directory, if we don't break, it will go through all directories
-    for (dirpath, dirnames, local_filenames) in os.walk(cinac_dir_name):
-        cinac_path_w_file_names = [os.path.join(dirpath, f) for f in local_filenames if f.endswith(".cinac")]
-        cinac_file_names = [f for f in local_filenames if f.endswith(".cinac")]
-        break
-    for file_index, cinac_file_name in enumerate(cinac_path_w_file_names):
-        cinac_file_reader = CinacFileReader(file_name=cinac_file_name)
-        # cinac_movie = get_cinac_movie_from_cinac_file_reader(cinac_file_reader)
-        segments_list = cinac_file_reader.get_all_segments()
-        # identifier = os.path.basename(cinac_file_name)
-        identifier = cinac_file_names[file_index]
-        for segment in segments_list:
-            cinac_recording = create_cinac_recording_from_cinac_file_segment(identifier=identifier,
-                                                                             cinac_file_reader=cinac_file_reader,
-                                                                             segment=segment)
-
-            """
-                Then we decide which network will be used for predicting the cells' activity.
-        
-                A dictionnary with key a tuple of 3 elements is used.
-        
-                The 3 elements are:
-        
-                (string) the model file name (.json extension)
-                (string) the weights of the network file name (.h5 extension)
-                (string) identifier for this configuration, will be used to name the output file
-                The dictionnary will contain as value the cells to be predicted by the key configuration. 
-                If the value is set to None, then all the cells will be predicted using this configuration.
-                """
-
-            model_files_dict = dict()
-            # we just one to predict the cell of interest, which is the first cell
-            model_files_dict[(json_file_name, weights_file_name, identifier)] = np.arange(1)
-
-            """
-            We now create an instance of CinacPredictor and add the CinacRecording we have just created.
-        
-            It's possible to add more than one instance of CinacRecording, they will be predicted on the same run then.
-        
-            The argument removed_cells_mapping allows to remove cells from the segmentation. 
-            This could be useful as the network take in consideration the adjacent cells to predict the activity, 
-            thus if a cell was wrongly added to segmentation, this could lower the accuracy of the classifier.
-            """
-
-            cinac_predictor = CinacPredictor()
-
-            """
-            Args:
-        
-                removed_cells_mapping: integers array of length the original numbers of 
-                    cells (such as defined in CinacRecording)
-                    and as value either of positive int representing the new index of 
-                    the cell or -1 if the cell has been removed
-            """
-
-            cinac_predictor.add_recording(cinac_recording=cinac_recording,
-                                          removed_cells_mapping=None,
-                                          model_files_dict=model_files_dict)
-
-            """
-            Finally, we run the prediction.
-        
-            The output format could be either a matlab file(.mat) and/or numpy one (.npy).
-        
-            If matlab is chosen, the predictions will be available under the key "predictions".
-        
-            The predictions are a 2d float array (n_cells * n_frames) with value between 0 and 1, representing the prediction of our classifier for each frame. 1 means the cell is 100% sure active at that time, 0 is 100% sure not active.
-        
-            A cell is considered active during the rising time of the calcium transient.
-        
-            We use a threshold of 0.5 to binarize the predictions array and make it a raster.
-            """
-
-            # you could decomment this line to make sure the GPU is used
-            # with tf.device('/device:GPU:0'):
-
-            # predictions are saved in the results_path and return as a dict,
-            predictions_dict = cinac_predictor.predict(results_path=results_path, output_file_formats="npy",
-                                                       overlap_value=0, cell_type_classifier_mode=True,
-                                                       n_segments_to_use_for_prediction=4,
-                                                       cell_type_pred_fct=np.mean,
-                                                       create_dir_for_results=False)
-            # mean of the different predictions is already in the dict
-            prediction_value = predictions_dict[list(predictions_dict.keys())[0]][0]
-
-            right_prediction = False
-
-            if cinac_recording.cell_type.strip().lower() not in cell_type_to_code_dict:
-                print(f"cinac_recording.cell_type ({cinac_recording.cell_type}) not in cell_type_to_code_dict")
-                continue
-            cell_type_code = cell_type_to_code_dict[cinac_recording.cell_type.strip().lower()]
-            if cell_type_code not in n_cells_by_type_dict:
-                n_cells_by_type_dict[cell_type_code] = 0
-                cell_type_predictions_dict[cell_type_code] = []
-            n_cells_by_type_dict[cell_type_code] += 1
-            if n_class_for_predictions == 1:
-                cell_type_predictions_dict[cell_type_code].append(prediction_value)
-                if cell_type_code == 0:
-                    if prediction_value >= 0.5:
-                        fp += 1
-                    else:
-                        tn += 1
-                        right_prediction = True
-                else:
-                    if prediction_value >= 0.5:
-                        tp += 1
-                        right_prediction = True
-                    else:
-                        fn += 1
-            else:
-                if len(prediction_value) != n_class_for_predictions:
-                    print("len(prediction_value) != n_class_for_predictions")
-                    continue
-
-                cell_type_predictions_dict[cell_type_code].append(prediction_value[cell_type_code])
-
-                if len(np.where(prediction_value < 0.5)[0]) == len(prediction_value):
-                    # means all values are under the 0.5 threshold, and the cell doesn't belong to any cell type
-                    none_of_cell_types += 1
-                if len(np.where(prediction_value >= 0.5)[0]) >= 2:
-                    # means at least 2 values are over the 0.5 threshold,
-                    # and the cell belong to more than one cell type
-                    more_than_one_cell_type += 1
-
-                # we want to use sklearn metrics for multiclass metrics
-                y_true.append(cell_type_from_code_dict[cell_type_code])
-                predicted_cell_type_code = np.argmax(prediction_value)
-                y_pred.append(cell_type_from_code_dict[predicted_cell_type_code])
-                if cell_type_code == predicted_cell_type_code:
-                    right_prediction = True
-                # if np.argmax(prediction_value) == cell_type_code:
-                #     tp += 1
-                # else:
-                #     fp += 1
-            print(f"Cell {segment[0]} [{cinac_recording.cell_type.strip().lower()}] from {identifier}, predictions: "
-                  f"{prediction_value} {right_prediction}")
-    if n_class_for_predictions == 1:
-        # metrics:
-        if (tp + fn) > 0:
-            sensitivity = tp / (tp + fn)
-        else:
-            sensitivity = 1
-
-        if (tn + fp) > 0:
-            specificity = tn / (tn + fp)
-        else:
-            specificity = 1
-
-        if (tp + tn + fp + fn) > 0:
-            accuracy = (tp + tn) / (tp + tn + fp + fn)
-        else:
-            accuracy = 1
-
-        if (tp + fp) > 0:
-            ppv = tp / (tp + fp)
-        else:
-            ppv = 1
-
-        if (tn + fn) > 0:
-            npv = tn / (tn + fn)
-        else:
-            npv = 1
-
-    print("")
-    print("-" * 100)
-    metrics_title_str = "METRICS for "
-    for cell_type_code, n_cells_by_type in n_cells_by_type_dict.items():
-        cell_type_str = cell_type_from_code_dict[cell_type_code]
-        metrics_title_str = metrics_title_str + f"{n_cells_by_type} {cell_type_str}, "
-    print(f"{metrics_title_str[:-2]}")
-    # print(f"METRICS for {n_pyr_cell} pyramidal cells and {n_in_cell} interneurons")
-    if n_class_for_predictions == 1:
-        print("-" * 100)
-        print(f"Accuracy {accuracy}")
-        print(f"Sensitivity {sensitivity}")
-        print(f"Specificity {specificity}")
-        print(f"PPV {ppv}")
-        print(f"NPV {npv}")
-        print("-" * 100)
-    else:
-        print(f"N cell classified has none of the cell types: {none_of_cell_types}")
-        print(f"N cell classified has more than one cell type: {more_than_one_cell_type}")
-        # Print the confusion matrix
-        print("--- confusion matrix ---")
-        print(sklearn.metrics.confusion_matrix(y_true, y_pred))
-
-        # Print the precision and recall, among other metrics
-        print(sklearn.metrics.classification_report(y_true, y_pred, digits=3))
-
-    data_hist_dict = dict()
-    for cell_type_code, cell_type_predictions in cell_type_predictions_dict.items():
-        cell_type_str = cell_type_from_code_dict[cell_type_code]
-        data_hist_dict[cell_type_str] = cell_type_predictions
-        print(f"For {cell_type_str}, mean {np.round(np.mean(cell_type_predictions), 2)}, "
-              f"std {np.round(np.std(cell_type_predictions), 2)}, "
-              f"min {np.round(np.min(cell_type_predictions), 2)}, "
-              f"max {np.round(np.max(cell_type_predictions), 2)}")
-        plot_hist_distribution(distribution_data=[p*100 for p in cell_type_predictions],
-                               description=f"hist_prediction_distribution_{cell_type_str}",
-                               path_results=results_path,
-                               tight_x_range=False,
-                               twice_more_bins=True,
-                               xlabel=f"{cell_type_str}",
-                               save_formats="png")
-    print("-" * 100)
+    evaluate_cell_type_predictions(cinac_dir_name, cell_type_yaml_file, results_path,
+                                   json_file_name, weights_file_name, save_cell_type_distribution=True)
 
 else:
     movie_file_name = os.path.join(data_path, "p1_artificial_1.tif")
