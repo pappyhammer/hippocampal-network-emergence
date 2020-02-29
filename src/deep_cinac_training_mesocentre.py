@@ -18,12 +18,14 @@ if __name__ == '__main__':
     - then specify the .h5 containing the model using partly_trained_model
     - finally setting the learning rate so it is the same as the last epoch trained, using learning_rate_start
     """
+    tiffs_dirname = os.path.join(root_path, "tiffs_for_classifier")
 
     # partly_trained_model = "/scratch/edenis/deepcinac/transient_classifier_full_model_02-0.9817.h5"
-    cinac_model = CinacModel(results_path=results_path, n_epochs=40, verbose=2, batch_size=4,
+    cinac_model = CinacModel(results_path=results_path, n_epochs=40, verbose=2, batch_size=16,
                              n_gpus=4,
-                               # partly_trained_model=partly_trained_model,
-                               #  learning_rate_start = 0.001,
+                             # tiffs_dirname=tiffs_dirname,
+                             # partly_trained_model=partly_trained_model,
+                             #  learning_rate_start = 0.001,
                              save_only_the_weitghs=True
                              )
 

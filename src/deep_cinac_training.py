@@ -54,7 +54,7 @@ if __name__ == '__main__':
                                  cell_type_classifier_mode=False,
                                    # partly_trained_model=partly_trained_model,
                                    #  learning_rate_start = 0.001,
-                                 tiffs_dirname=tiffs_dirname,
+                                 # tiffs_dirname=tiffs_dirname,
                                  save_only_the_weitghs=False
                                  )
 

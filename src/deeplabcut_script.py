@@ -125,8 +125,11 @@ if __name__ == "__main__":
     #     os.path.join(root_path, "videos_to_use", "behavior_p8_19_09_29_1_cam_23109588_cam2_a001_fps_20.avi")]
 
     # new after iteration 3
-    videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p6_19_12_03_cam_22983298_cam1_a000_fps_20.avi")]
+    # videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p6_19_12_03_cam_22983298_cam1_a000_fps_20.avi")]
     # videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p6_19_09_27_1_cam_22983298_cam1_a000_fps_20.avi")]
+
+    # new after iteration 4
+    videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p5_19_12_10_0_cam_22983298_cam1_a001_fps_20.avi")]
 
     # full video paths for those 3 variables
     videos_to_filter_predictions = videos_to_analyze
@@ -152,6 +155,16 @@ if __name__ == "__main__":
 
     # useful scripts for DLC: https://github.com/AlexEMG/DLCutils/
 
+    """
+    Best so far from iteration 3:
+    Results for 180000  training iterations: 95 1 train error: 3.75 pixels. Test error: 12.72  pixels.
+    With pcutoff of 0.1  train error: 3.75 pixels. Test error: 11.53 pixels
+    
+    From iteration 4:
+    Results for 220000  training iterations: 95 1 train error: 4.07 pixels. Test error: 15.32  pixels.
+With pcutoff of 0.1  train error: 4.07 pixels. Test error: 9.75 pixels
+    """
+
     # keys are:
     # "step_2" or "create_new_project"
     # "step_2_bis" or "add_new_videos"
@@ -169,7 +182,7 @@ if __name__ == "__main__":
     # "step_14" or "extract_outlier_frames" (set videos_to_extract_outlier_frames variable)
     # "step_15" or "refine_labels"
     # "step_16" or "merge_datasets"
-    stages_to_run = ["step_9"]
+    stages_to_run = ["step_12_bis"]
 
     # ------------------------------------------------------------------
     # STAGE I: Stage I: opening DeepLabCut and creation of a new project

@@ -1,8 +1,8 @@
 #!/bin/sh
 #SBATCH -J job_tc
 #SBATCH -A b182
-#SBATCH -p kepler
-#SBATCH --gres=gpu:1
+#SBATCH -p volta
+#SBATCH --gres=gpu:4
 #SBATCH --gres-flags=enforce-binding # active l’affinité CPU:GPU
 #SBATCH --ntasks-per-node=10
 #SBATCH -t 07-00
@@ -14,8 +14,8 @@
 module purge
 module load userspace/all
 module load python3/3.6.3
-module load cuda/9.0
+module load cuda/10.1
 export PYTHONPATH=/scratch/mpicardo/deepcinac/deepcinac_src:$PYTHONPATH
-export LD_LIBRARY_PATH=/scratch/mpicardo/hne_project/libcudnn/usr/lib64:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/scratch/mpicardo/deepcinac/libcudnn_10_1/lib64:$LD_LIBRARY_PATH
 cd /scratch/mpicardo/deepcinac/src
 python3 deep_cinac_training_mesocentre_picardo.py
