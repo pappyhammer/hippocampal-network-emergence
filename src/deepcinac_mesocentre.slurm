@@ -4,7 +4,7 @@
 #SBATCH -p volta
 #SBATCH --gres=gpu:4
 #SBATCH --gres-flags=enforce-binding # active l’affinité CPU:GPU
-#SBATCH --ntasks-per-node=10
+#SBATCH --ntasks-per-node=4
 #SBATCH -t 07-00
 #SBATCH -o %j.%a.out
 #SBATCH -e %j.%a.err

@@ -23,12 +23,13 @@ if __name__ == '__main__':
     # partly_trained_model = "/scratch/edenis/deepcinac/transient_classifier_full_model_02-0.9817.h5"
     cinac_model = CinacModel(results_path=results_path, n_epochs=40, verbose=2, batch_size=16,
                              n_gpus=4,
+                             cell_type_classifier_mode = False,
                              # tiffs_dirname=tiffs_dirname,
                              # partly_trained_model=partly_trained_model,
                              #  learning_rate_start = 0.001,
                              save_only_the_weitghs=True
                              )
-
+    # for 4 GPUS, ntasks-per-node=2  is not enough
     cinac_model.add_input_data_from_dir(dir_name=cinac_dir_name, verbose=1)
 
     cinac_model.prepare_model(verbose=1)
