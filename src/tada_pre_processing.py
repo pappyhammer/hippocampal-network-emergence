@@ -44,7 +44,7 @@ class DraggableRectangle:
         if DraggableRectangle.lock is not None: return
         contains, attrd = self.rect.contains(event)
         if not contains: return
-        print('event contains', self.rect.xy)
+        # print('event contains', self.rect.xy)
         x0, y0 = self.rect.xy
         self.press = x0, y0, event.xdata, event.ydata
         DraggableRectangle.lock = self
@@ -106,6 +106,17 @@ class DraggableRectangle:
         self.rect.figure.canvas.mpl_disconnect(self.cidmotion)
 
 def plot_img_with_rect(img, title="", size_rect=(1600, 1000)):
+    """
+    Build a plot with a image a rectangle of size_rect that can be moved over the image.
+    It returns the bottom_left coin coordinates
+    Args:
+        img:
+        title:
+        size_rect:
+
+    Returns:
+
+    """
     fig = plt.figure()
     plt.title(title)
     ax = fig.add_subplot(111)
@@ -131,7 +142,7 @@ def plot_img_with_rect(img, title="", size_rect=(1600, 1000)):
     drs.append(dr)
 
     plt.show()
-    return dr.rect.xy
+    return [int(value) for value in dr.rect.xy]
 
 class VideoReaderWrapper:
     """
@@ -273,6 +284,7 @@ def get_behaviors_movie_time_stamps(nwb_file, cam_id):
 
     return None
 
+
 def find_files_with_ext(dir_to_explore, extension):
     subfiles = []
     for (dirpath, dirnames, filenames) in os.walk(dir_to_explore):
@@ -280,11 +292,48 @@ def find_files_with_ext(dir_to_explore, extension):
         break
     return [f for f in subfiles if f.endswith(extension)]
 
+
+def convert_npz_cicada_in_frames(npz_file, time_stamps, new_npz_file):
+    """
+    Convert epochs in npz_file in frames, according to new_time_stamps array.
+    Epochs that are starting or finishing after the time limits in new_time_stamps will be removed
+    The new version is registered in new_npz_file
+    Args:
+        npz_file:
+        time_stamps:
+        new_npz_file:
+
+    Returns:
+
+    """
+    npz_content = np.load(npz_file)
+
+    new_content_dict = dict()
+
+    for tag_name, epochs in npz_content.items():
+        print(f"- {tag_name}")
+        tmp_epochs = []
+        for epoch_index in range(epochs.shape[1]):
+            # first we make sure we don't go over the limits
+            if epochs[0, epoch_index] < time_stamps[0]:
+                continue
+            if epochs[1, epoch_index] > time_stamps[-1]:
+                continue
+            first_frame = find_nearest(time_stamps, epochs[0, epoch_index])
+            last_frame = find_nearest(time_stamps, epochs[1, epoch_index])
+            tmp_epochs.append((first_frame, last_frame))
+        new_content_dict[tag_name] = np.zeros((2, len(tmp_epochs)), dtype="int64")
+        for epoch_index, epoch in enumerate(tmp_epochs):
+            new_content_dict[tag_name][0, epoch_index] = epoch[0]
+            new_content_dict[tag_name][1, epoch_index] = epoch[1]
+
+    np.savez(new_npz_file, **new_content_dict)
+
 def main():
 
     root_path = "/media/julien/Not_today/hne_not_today/"
     # root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
-    data_path = os.path.join(root_path, "data/tada_data")
+    data_path = os.path.join(root_path, "data/tada_data/for_training/")
 
     data_id = "p5_191205_191210_0_191210_a001"
 
@@ -295,6 +344,10 @@ def main():
     nwb_file = find_files_with_ext(data_path, "nwb")[0]
 
     npz_file = find_files_with_ext(npz_data_path, "npz")[0]
+
+    npz_base_name = os.path.basename(npz_file)
+    new_npz_base_name = npz_base_name[:-4] + "_in_frames" + ".npz"
+    new_npz_file = os.path.join(data_path, new_npz_base_name)
 
     avi_files = find_files_with_ext(data_path, "avi")
 
@@ -350,20 +403,28 @@ def main():
         last_frame_right = int(find_nearest(right_behavior_time_stamps, last_time_stamp))
         last_frame_right = min(last_frame_right, n_frames_right-1)
 
-    # TODO: build mini GUI to choose left upper corner of the cropping area
-    #  add the coord in the yaml file
+    # list containing as many time_stamps as the movie after removing frames before and after first_frame and last_frame
+    new_time_stamps = left_behavior_time_stamps[first_frame_left:last_frame_left+1]
 
-    x_left, y_left = plot_img_with_rect(left_movie.get_frame(1000), title="left_movie")
+    size_rect = (1600, 1000)
+    x_left, y_left = plot_img_with_rect(left_movie.get_frame(1000), title="left_movie", size_rect=size_rect)
     print(f"x_left {x_left}, y_left {y_left}")
-    x_right, y_right = plot_img_with_rect(right_movie.get_frame(1000), title="right_movie")
+    x_right, y_right = plot_img_with_rect(right_movie.get_frame(1000), title="right_movie", size_rect=size_rect)
     print(f"x_right {x_right}, y_right {y_right}")
-    raise Exception("OVER")
 
     yaml_data = dict()
-    yaml_data["input_1"] = [first_frame_left, last_frame_left]
-    yaml_data["input_2"] = [first_frame_right, last_frame_right]
+    # the yaml file has an entry for each movie with 7 values so far, frames to keep, bottom left corner coordinates
+    # for cropping, the size of the rect used to chose the cropping and the input_order
+    # input_order allows to know in which order the inputs should be given to the model so that it is always the same
+    yaml_data[os.path.basename(left_movie_file)] = [first_frame_left, last_frame_left, x_left, y_left,
+                                                    size_rect[0], size_rect[1], 0]
+    yaml_data[os.path.basename(right_movie_file)] = [first_frame_right, last_frame_right, x_right, y_right,
+                                                    size_rect[0], size_rect[1], 1]
+
     with open(os.path.join(data_path, f'{data_id}_config.yaml'), 'w') as outfile:
         yaml.dump(yaml_data, outfile, default_flow_style=False)
+
+    convert_npz_cicada_in_frames(npz_file, new_time_stamps, new_npz_file)
 
     # TODO: make config yaml file to indicate which behaviors tag to keep for training
 
