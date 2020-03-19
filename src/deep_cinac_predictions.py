@@ -3,6 +3,7 @@ from deepcinac.cinac_structures import *
 import tensorflow as tf
 import numpy as np
 import hdf5storage
+import os
 
 """
 We're going to guide you on how using DeepCINAC to infer the neuronal activity from your calcium imaging data.

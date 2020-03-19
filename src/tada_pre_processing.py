@@ -412,6 +412,11 @@ def main():
     x_right, y_right = plot_img_with_rect(right_movie.get_frame(1000), title="right_movie", size_rect=size_rect)
     print(f"x_right {x_right}, y_right {y_right}")
 
+    new_n_frames_left = last_frame_left - first_frame_left + 1
+    print(f"N frames in left: {new_n_frames_left}")
+    new_n_frames_right = last_frame_right - first_frame_right + 1
+    print(f"N frames in right: {new_n_frames_right}")
+
     yaml_data = dict()
     # the yaml file has an entry for each movie with 7 values so far, frames to keep, bottom left corner coordinates
     # for cropping, the size of the rect used to chose the cropping and the input_order

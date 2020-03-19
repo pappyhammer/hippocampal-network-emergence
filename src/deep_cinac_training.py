@@ -3,6 +3,7 @@ from deepcinac.cinac_model import *
 from deepcinac.cinac_predictor import *
 # import hdf5storage
 from datetime import datetime
+import numpy as np
 
 
 def build_spike_nums_dur(spike_nums, peak_nums):
@@ -35,7 +36,7 @@ if __name__ == '__main__':
     cell_type_classifier_mode = False
 
     if not cell_type_classifier_mode:
-        tiffs_dirname = os.path.join(data_path, "tiffs_for_cell_activity_classifier")
+        tiffs_dirname = os.path.join(data_path, "tiffs_for_transient_classifier")
         """
             To start training from a full saved model from another training, it is necessary to:
             - During the previous training, to put as argument: save_only_the_weitghs=False
@@ -54,7 +55,7 @@ if __name__ == '__main__':
                                  cell_type_classifier_mode=False,
                                    # partly_trained_model=partly_trained_model,
                                    #  learning_rate_start = 0.001,
-                                 # tiffs_dirname=tiffs_dirname,
+                                 tiffs_dirname=tiffs_dirname,
                                  save_only_the_weitghs=False
                                  )
 
