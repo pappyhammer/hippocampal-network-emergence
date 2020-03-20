@@ -22,6 +22,51 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 
+def get_continous_time_periods(binary_array):
+    """
+    take a binary array and return a list of tuples representing the first and last position(included) of continuous
+    positive period
+    This code was copied from another project or from a forum, but i've lost the reference.
+    :param binary_array:
+    :return:
+    """
+    binary_array = np.copy(binary_array).astype("int8")
+    n_times = len(binary_array)
+    d_times = np.diff(binary_array)
+    # show the +1 and -1 edges
+    pos = np.where(d_times == 1)[0] + 1
+    neg = np.where(d_times == -1)[0] + 1
+
+    if (pos.size == 0) and (neg.size == 0):
+        if len(np.nonzero(binary_array)[0]) > 0:
+            return [(0, n_times-1)]
+        else:
+            return []
+    elif pos.size == 0:
+        # i.e., starts on an spike, then stops
+        return [(0, neg[0])]
+    elif neg.size == 0:
+        # starts, then ends on a spike.
+        return [(pos[0], n_times-1)]
+    else:
+        if pos[0] > neg[0]:
+            # we start with a spike
+            pos = np.insert(pos, 0, 0)
+        if neg[-1] < pos[-1]:
+            #  we end with aspike
+            neg = np.append(neg, n_times - 1)
+        # NOTE: by this time, length(pos)==length(neg), necessarily
+        h = np.matrix([pos, neg])
+        if np.any(h):
+            result = []
+            for i in np.arange(h.shape[1]):
+                if h[1, i] == n_times-1:
+                    result.append((h[0, i], h[1, i]))
+                else:
+                    result.append((h[0, i], h[1, i]-1))
+            return result
+    return []
+
 class DraggableRectangle:
     lock = None  # only one can be animated at a time
     def __init__(self, rect):
@@ -329,13 +374,29 @@ def convert_npz_cicada_in_frames(npz_file, time_stamps, new_npz_file):
 
     np.savez(new_npz_file, **new_content_dict)
 
-def main():
+def main(convert_predictions_to_cicada_format=False):
 
     root_path = "/media/julien/Not_today/hne_not_today/"
     # root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
     data_path = os.path.join(root_path, "data/tada_data/for_training/")
 
-    data_id = "p5_191205_191210_0_191210_a001"
+    # main config file
+    config_yaml_file = os.path.join(root_path, "data/tada_data/config_tada.yaml")
+    with open(config_yaml_file, 'r') as stream:
+        config_dict = yaml.load(stream, Loader=yaml.FullLoader)
+    if "actions_tags" not in config_dict:
+        raise Exception(f"actions_tags are not in {config_yaml_file}")
+    actions_tags = config_dict["actions_tags"]
+    # for a given action, give its index, useful to build the labels (ground truth) for the classsifier
+    actions_tags_indices = dict()
+    action_index_to_tag = dict()
+    for action_index, action_tag in enumerate(actions_tags):
+        actions_tags_indices[action_tag] = action_index
+        action_index_to_tag[action_index] = action_tag
+    n_classes = len(actions_tags)
+
+    # data_id = "p5_191205_191210_0_191210_a001"
+    data_id = "p7_200103_200110_200110_a000_2020_02"
 
     data_path = os.path.join(data_path, data_id)
 
@@ -406,32 +467,72 @@ def main():
     # list containing as many time_stamps as the movie after removing frames before and after first_frame and last_frame
     new_time_stamps = left_behavior_time_stamps[first_frame_left:last_frame_left+1]
 
-    size_rect = (1600, 1000)
-    x_left, y_left = plot_img_with_rect(left_movie.get_frame(1000), title="left_movie", size_rect=size_rect)
-    print(f"x_left {x_left}, y_left {y_left}")
-    x_right, y_right = plot_img_with_rect(right_movie.get_frame(1000), title="right_movie", size_rect=size_rect)
-    print(f"x_right {x_right}, y_right {y_right}")
+    if convert_predictions_to_cicada_format:
+        if not os.path.exists(os.path.join(data_path, "predictions")):
+            print(f"Not predictions DIR")
+            return
+        predictions_dir = os.path.join(data_path, "predictions")
+        prediction_file = find_files_with_ext(predictions_dir, "npy")[0]
+        # shape should be (n_frames, n_classes), n_frames could be lower that the number of frames in the movie
+        # as predictions might concern less frames
+        predictions = np.load(prediction_file)
+        for class_index in np.arange(predictions.shape[1]):
+            print(f"{action_index_to_tag[class_index]}: min {np.min(predictions[:, class_index])}, "
+                  f"max {np.max(predictions[:, class_index])}, "
+                  f"> 0.5 {len(np.where(predictions[:, class_index] > 0.5)[0])}")
+        threshold_pred = 0.5
+        # binarizing the predictions
+        actions_activity = np.zeros(predictions.shape, dtype="int8")
+        actions_activity[predictions > threshold_pred] = 1
+        actions_epochs_in_frames = dict()
 
-    new_n_frames_left = last_frame_left - first_frame_left + 1
-    print(f"N frames in left: {new_n_frames_left}")
-    new_n_frames_right = last_frame_right - first_frame_right + 1
-    print(f"N frames in right: {new_n_frames_right}")
+        print("")
 
-    yaml_data = dict()
-    # the yaml file has an entry for each movie with 7 values so far, frames to keep, bottom left corner coordinates
-    # for cropping, the size of the rect used to chose the cropping and the input_order
-    # input_order allows to know in which order the inputs should be given to the model so that it is always the same
-    yaml_data[os.path.basename(left_movie_file)] = [first_frame_left, last_frame_left, x_left, y_left,
-                                                    size_rect[0], size_rect[1], 0]
-    yaml_data[os.path.basename(right_movie_file)] = [first_frame_right, last_frame_right, x_right, y_right,
-                                                    size_rect[0], size_rect[1], 1]
+        for action_index in np.arange(predictions.shape[1]):
+            binary_array = actions_activity[:, action_index]
+            n_frame_active = len(np.where(binary_array > 0)[0])
+            print(f"{action_index_to_tag[action_index]}: n_frames_active {n_frame_active}")
+            epochs = get_continous_time_periods(binary_array)
+            actions_epochs_in_frames[action_index_to_tag[action_index]] = epochs
 
-    with open(os.path.join(data_path, f'{data_id}_config.yaml'), 'w') as outfile:
-        yaml.dump(yaml_data, outfile, default_flow_style=False)
+        # now we want to put the epochs in timestamps and in the format for cicada (2d array of shape (2, n_epochs))
+        actions_epochs_cicada = dict()
+        for action_tag, epochs_in_frames in actions_epochs_in_frames.items():
+            array_cicada = np.zeros((2, len(epochs_in_frames)))
+            for index_epoch, epoch in enumerate(epochs_in_frames):
+                array_cicada[0, index_epoch] = new_time_stamps[epoch[0]]
+                array_cicada[1, index_epoch] = new_time_stamps[epoch[1]]
+            actions_epochs_cicada[action_tag] = array_cicada
 
-    convert_npz_cicada_in_frames(npz_file, new_time_stamps, new_npz_file)
+        np.savez(os.path.join(predictions_dir, f"{data_id}_tada_detections_for_cicada.npz"), **actions_epochs_cicada)
+    else:
+        # We prepare the data for being process by TadaTraining
+        size_rect = (1600, 1000)
+        x_left, y_left = plot_img_with_rect(left_movie.get_frame(1000), title="left_movie", size_rect=size_rect)
+        print(f"x_left {x_left}, y_left {y_left}")
+        x_right, y_right = plot_img_with_rect(right_movie.get_frame(1000), title="right_movie", size_rect=size_rect)
+        print(f"x_right {x_right}, y_right {y_right}")
 
-    # TODO: make config yaml file to indicate which behaviors tag to keep for training
+        new_n_frames_left = last_frame_left - first_frame_left + 1
+        print(f"N frames in left: {new_n_frames_left}")
+        new_n_frames_right = last_frame_right - first_frame_right + 1
+        print(f"N frames in right: {new_n_frames_right}")
+
+        yaml_data = dict()
+        # the yaml file has an entry for each movie with 7 values so far, frames to keep, bottom left corner coordinates
+        # for cropping, the size of the rect used to chose the cropping and the input_order
+        # input_order allows to know in which order the inputs should be given to the model so that it is always the same
+        yaml_data[os.path.basename(left_movie_file)] = [first_frame_left, last_frame_left, x_left, y_left,
+                                                        size_rect[0], size_rect[1], 0]
+        yaml_data[os.path.basename(right_movie_file)] = [first_frame_right, last_frame_right, x_right, y_right,
+                                                        size_rect[0], size_rect[1], 1]
+
+        with open(os.path.join(data_path, f'{data_id}_config.yaml'), 'w') as outfile:
+            yaml.dump(yaml_data, outfile, default_flow_style=False)
+
+        convert_npz_cicada_in_frames(npz_file, new_time_stamps, new_npz_file)
+
 
 if __name__ == "__main__":
-    main()
+    main(convert_predictions_to_cicada_format=True)
+    # main(convert_predictions_to_cicada_format=False)

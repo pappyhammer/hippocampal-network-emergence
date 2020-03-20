@@ -40,8 +40,11 @@ identifier = "art_movie_1"
 # each for different cell of the same recording (for exemple, one
 # network could be specialized for interneurons and the other one for pyramidal
 # cells)
-weights_file_name = os.path.join(root_path, "transient_classifier_weights_19_meso_v4.h5")
-json_file_name = os.path.join(root_path, "transient_classifier_model_architecture_meso_v4.json")
+# weights_file_name = os.path.join(root_path, "transient_classifier_weights_19_meso_v4.h5")
+# json_file_name = os.path.join(root_path, "transient_classifier_model_architecture_meso_v4.json")
+
+weights_file_name = os.path.join(root_path, "meso_v2_epoch_19.h5")
+json_file_name = os.path.join(root_path, "meso_v2_epoch_19.json")
 
 # weights_file_name = os.path.join(root_path, "transient_classifier_weights_art_mov_1_test_05-0.9908.h5")
 # json_file_name = os.path.join(root_path, "transient_classifier_model_architecture_.json")
