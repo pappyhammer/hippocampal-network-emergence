@@ -35,14 +35,18 @@ def create_cinac_file(ms, session_dict, param, bonus_str):
         for cell in np.arange(ms.coord_obj.n_cells):
             if cell in ms.cells_to_remove:
                 invalid_cells[cell] = True
-    cinac_writer.create_full_data_group(save_ci_movie_info=False, save_only_movie_ref=True,
-                                        cells_contour=ms.coord_obj.coord, invalid_cells=invalid_cells)
 
     # list of tuple of 3 ints
     segments_to_add = []
     raster_dur = ms.spike_struct.spike_nums_dur
     n_frames = raster_dur.shape[1]
     ms.normalize_traces()
+
+    cinac_writer.create_full_data_group(save_ci_movie_info=False, save_only_movie_ref=True,
+                                        n_cells=len(ms.coord_obj.coord), n_frames=n_frames,
+                                        cells_contour=ms.coord_obj.coord, invalid_cells=invalid_cells)
+
+
 
     if (n_frames == 12500) or (n_frames == 10000):
 
@@ -110,10 +114,11 @@ def create_cinac_file(ms, session_dict, param, bonus_str):
         raster_dur_to_save = raster_dur[cell, first_frame:last_frame+1]
 
         ms.load_tiff_movie_in_memory()
+        ms.normalize_movie()
         # now getting the movie patch surroung the cell so we save in the file only the pixels
         # surrounding the cell for the given frames
         mask_source_profiles, coords = get_source_profile_param(cell=cell,
-                                                                movie_dimensions=ms.tiff_movie.shape[1:],
+                                                                movie_dimensions=ms.tiff_movie_normalized.shape[1:],
                                                                 coord_obj=ms.coord_obj,
                                                                 pixels_around=0,
                                                                 buffer=1,
@@ -126,7 +131,8 @@ def create_cinac_file(ms, session_dict, param, bonus_str):
         minx, maxx, miny, maxy = coords
         # frames that contains all the pixels surrounding our cell and the overlapping one
         # with a max size of self.segment_window_in_pixels
-        source_profile_frames = ms.tiff_movie[frames, miny:maxy + 1, minx:maxx + 1]
+        # Important to use the normalized movie here
+        source_profile_frames = ms.tiff_movie_normalized[frames, miny:maxy + 1, minx:maxx + 1]
 
         # then we fit it the frame use by the network, padding the surrounding by zero if necessary
         profile_fit = np.zeros((len(frames), segment_window_in_pixels, segment_window_in_pixels))
@@ -209,7 +215,7 @@ def main_convert_gt_to_cinac():
     # data_dict["p7_171012_a000_ms"]["gt_cells"] = [3, 8, 11, 12, 14, 17, 18, 24] # for training
     data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 25] # for benchmarks
     # data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 3, 8, 11, 12, 14, 17, 18, 24, 25] # all
-    # data_dict["p7_171012_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p7_171012_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"] # TODO: comment for benchmark
     # data_dict["p7_171012_a000_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["p8_18_10_24_a005_ms"] = dict()
@@ -217,7 +223,7 @@ def main_convert_gt_to_cinac():
     data_dict["p8_18_10_24_a005_ms"]["path"] = "p8/p8_18_10_24_a005"
     # data_dict["p8_18_10_24_a005_ms"]["gt_file"] = "p8_18_10_24_a005_fusion_validation.mat"
     data_dict["p8_18_10_24_a005_ms"]["gt_cells"] = [0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321] # all with segments
-    # data_dict["p8_18_10_24_a005_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p8_18_10_24_a005_ms"]["segments_folder"] = ["transients_to_add_for_rnn"] # TODO: comment for benchmarks
     # data_dict["p8_18_10_24_a005_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["p8_18_10_24_a006_ms"] = dict()
@@ -225,7 +231,7 @@ def main_convert_gt_to_cinac():
     data_dict["p8_18_10_24_a006_ms"]["path"] = "p8/p8_18_10_24_a006"
     # data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [0, 1, 6, 7, 9, 10, 11, 18, 24]  # for training
     data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [28, 32, 33] # for benchmarks # TODO: use RD GT
-    # data_dict["p8_18_10_24_a006_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p8_18_10_24_a006_ms"]["segments_folder"] = ["transients_to_add_for_rnn"] # TODO: comment for benchmarks
     # data_dict["p8_18_10_24_a006_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["p11_17_11_24_a000_ms"] = dict()
@@ -234,7 +240,7 @@ def main_convert_gt_to_cinac():
     # data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [3, 17, 22, 24, 25, 29, 30, 33, 45] # all
     # data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [17, 22, 24, 25, 29, 30, 33] # for training
     data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [3, 45] # for benchmarks
-    # data_dict["p11_17_11_24_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    # data_dict["p11_17_11_24_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"] # TODO: comment for benchmarks
     # data_dict["p11_17_11_24_a000_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["p12_171110_a000_ms"] = dict()
@@ -250,8 +256,8 @@ def main_convert_gt_to_cinac():
     data_dict["p13_18_10_29_a001_ms"]["path"] = "p13/p13_18_10_29_a001"
     # data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [0, 2, 5, 12, 13, 31, 42, 44, 48, 51]  # for training
     # data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [0, 2, 5, 12, 13, 31, 42, 44, 48, 51] # all
-    data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [77, 117] # for benchmarks, but load RD GT
-    # data_dict["p13_18_10_29_a001_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
+    data_dict["p13_18_10_29_a001_ms"]["gt_cells"] = [77, 117] # TODO for benchmarks, but load RD GT
+    # data_dict["p13_18_10_29_a001_ms"]["segments_folder"] = ["transients_to_add_for_rnn"] # TODO: comment for benchmarks
     # data_dict["p13_18_10_29_a001_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["artificial_ms_1"] = dict()
@@ -314,14 +320,14 @@ def main_convert_gt_to_cinac():
     data_dict["p12_17_11_10_a002_ms"]["segments_folder"] = ["transients_to_add_for_rnn"]
     # data_dict["p12_17_11_10_a002_ms"]["segmentation_tool"] = "suite2p"
 
-    ms_to_use = ["p8_18_10_24_a006_ms"]
-    # for training
-    bonus_str = "for_training"
-    ms_to_use = list(data_dict.keys())
+    # ms_to_use = ["p16_18_11_01_a002_ms", "p9_19_03_14_a001_ms", "p5_19_09_02_a000_ms", "p10_19_03_08_a001_ms", "p12_17_11_10_a002_ms"]
+    # # for training
+    # bonus_str = "for_training"
+    # ms_to_use = list(data_dict.keys())
     bonus_str = "for_benchmarks"
-    # ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
-    #              "p13_18_10_29_a001_ms"]
-    ms_to_use = ["p8_18_10_24_a005_ms"]
+    ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
+                 "p13_18_10_29_a001_ms", "p8_18_10_24_a005_ms"]
+    # ms_to_use = ["p8_18_10_24_a005_ms"]
 
     # we need to change in mouse_session_loader the type of segmentation to use
 

@@ -49,6 +49,8 @@ json_file_name = os.path.join(root_path, "meso_v2_epoch_19.json")
 # weights_file_name = os.path.join(root_path, "transient_classifier_weights_art_mov_1_test_05-0.9908.h5")
 # json_file_name = os.path.join(root_path, "transient_classifier_model_architecture_.json")
 
+classifier_id = "meso_v2_epoch_19"
+
 # path of the directory where the results will be save
 # a directory will be created each time the prediction is run
 # the directory name will be the date and time at which the analysis has been run
@@ -68,8 +70,8 @@ if evaluate_classifier:
     cinac_dir_name = "/media/julien/Not_today/hne_not_today/data/cinac_ground_truth/for_benchmarks"
     tiffs_dirname = "/media/julien/Not_today/hne_not_today/data/tiffs_for_transient_classifier"
 
-    evaluate_activity_predictions(cinac_dir_name, results_path,
-                                  json_file_name, weights_file_name, save_activity_distribution=True)
+    activity_predictions_from_cinac_files(cinac_dir_name, results_path,
+                                  json_file_name, weights_file_name, classifier_id=classifier_id, output_file_formats="npy")
 
 else:
     # ############

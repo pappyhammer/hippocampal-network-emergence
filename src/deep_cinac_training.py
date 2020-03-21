@@ -49,6 +49,8 @@ if __name__ == '__main__':
                                  n_epochs=30, verbose=1, batch_size=4,
                                  lstm_layers_size=[32], bin_lstm_size=32,
                                  window_len=100,
+                                 max_n_transformations=6,
+                                 # main_ratio_balance=(0.65, 0.25, 0.1),
                                  # lstm_layers_size=[128, 256], bin_lstm_size=256,
                                  conv_filters=(64, 64, 128, 128),
                                  # conv_filters=(32, 32, 64, 64),
