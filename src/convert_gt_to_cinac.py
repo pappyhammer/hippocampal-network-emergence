@@ -46,8 +46,6 @@ def create_cinac_file(ms, session_dict, param, bonus_str):
                                         n_cells=len(ms.coord_obj.coord), n_frames=n_frames,
                                         cells_contour=ms.coord_obj.coord, invalid_cells=invalid_cells)
 
-
-
     if (n_frames == 12500) or (n_frames == 10000):
 
         if ms.doubtful_frames_nums is None:
@@ -213,8 +211,8 @@ def main_convert_gt_to_cinac():
     data_dict["p7_171012_a000_ms"]["id"] = "p7_17_10_12_a000"
     data_dict["p7_171012_a000_ms"]["path"] = "p7/p7_17_10_12_a000"
     # data_dict["p7_171012_a000_ms"]["gt_cells"] = [3, 8, 11, 12, 14, 17, 18, 24] # for training
-    data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 25] # for benchmarks
-    # data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 3, 8, 11, 12, 14, 17, 18, 24, 25] # all
+    # data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 25] # for benchmarks
+    data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 3, 8, 11, 12, 14, 17, 18, 24, 25] # all
     # data_dict["p7_171012_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"] # TODO: comment for benchmark
     # data_dict["p7_171012_a000_ms"]["segmentation_tool"] = "caiman"
 
@@ -246,8 +244,8 @@ def main_convert_gt_to_cinac():
     data_dict["p12_171110_a000_ms"] = dict()
     data_dict["p12_171110_a000_ms"]["id"] = "p12_17_11_10_a000"
     data_dict["p12_171110_a000_ms"]["path"] = "p12/p12_17_11_10_a000"
-    # data_dict["p12_171110_a000_ms"]["gt_cells"] = [0, 3, 6, 7, 12, 14, 15, 19] # for training
-    data_dict["p12_171110_a000_ms"]["gt_cells"] = [9, 10] # for benchmarks
+    data_dict["p12_171110_a000_ms"]["gt_cells"] = [0, 3, 6, 7, 12, 14, 15, 19] # for training
+    # data_dict["p12_171110_a000_ms"]["gt_cells"] = [9, 10] # for benchmarks
     # data_dict["p12_171110_a000_ms"]["gt_cells"] = [0, 3, 6, 7, 9, 10, 12, 14, 15, 19] # all
     # data_dict["p12_171110_a000_ms"]["segmentation_tool"] = "caiman"
 
@@ -324,10 +322,13 @@ def main_convert_gt_to_cinac():
     # # for training
     # bonus_str = "for_training"
     # ms_to_use = list(data_dict.keys())
-    bonus_str = "for_benchmarks"
-    ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
-                 "p13_18_10_29_a001_ms", "p8_18_10_24_a005_ms"]
+    # bonus_str = "for_benchmarks"
+    # ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
+    #              "p13_18_10_29_a001_ms", "p8_18_10_24_a005_ms"]
     # ms_to_use = ["p8_18_10_24_a005_ms"]
+    bonus_str = "JD"
+    ms_to_use = ["p11_17_11_24_a000_ms"]
+    #
 
     # we need to change in mouse_session_loader the type of segmentation to use
 
