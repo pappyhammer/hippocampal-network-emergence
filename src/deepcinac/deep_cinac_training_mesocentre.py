@@ -22,8 +22,10 @@ if __name__ == '__main__':
     # tiffs_dirname = None
 
     # partly_trained_model = "/scratch/edenis/deepcinac/transient_classifier_full_model_02-0.9817.h5"
-    cinac_model = CinacModel(results_path=results_path, n_epochs=40, verbose=2, batch_size=8,
-                             n_gpus=4,
+    cinac_model = CinacModel(results_path=results_path, n_epochs=40, verbose=2,
+                             batch_size=16, n_gpus=4,
+                             # learning_rate_start=0.01,
+                             learning_rate_reduction_patience=4,
                              cell_type_classifier_mode=False,
                              tiffs_dirname=tiffs_dirname,
                              max_n_transformations=6,

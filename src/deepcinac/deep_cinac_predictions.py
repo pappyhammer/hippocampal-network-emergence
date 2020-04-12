@@ -1,6 +1,7 @@
 from deepcinac.cinac_predictor import *
 from deepcinac.cinac_structures import *
 from deepcinac.cinac_benchmarks import benchmark_neuronal_activity_inferences
+from deepcinac.utils.cinac_file_utils import create_tiffs_from_movie
 import tensorflow as tf
 import numpy as np
 import hdf5storage
@@ -31,6 +32,29 @@ You can download some there: https://gitlab.com/cossartlab/deepcinac/tree/master
 # root path, just used to avoid copying the path everywhere
 root_path = '/media/julien/Not_today/hne_not_today/data/'
 
+
+create_tiffs = False
+
+if create_tiffs:
+    tiffs_dirname = os.path.join(root_path, "tiffs_for_transient_classifier")
+    tiffs_to_convert_dir = os.path.join(root_path, "movies_to_split")
+    file_names = []
+    # look for filenames in the fisrst directory, if we don't break, it will go through all directories
+    for (dirpath, dirnames, local_filenames) in os.walk(tiffs_to_convert_dir):
+        file_names.extend([x for x in local_filenames])
+        break
+
+    file_names = [f for f in file_names if f.endswith(".tif")]
+
+    for file_name in file_names:
+        movie_id = file_name[:-4]
+        create_tiffs_from_movie(path_for_tiffs=tiffs_dirname,
+                                movie_identifier=movie_id,
+                                movie_file_name=os.path.join(tiffs_to_convert_dir, file_name),
+                                movie_data=None)
+    raise Exception("END of create_tiffs")
+
+
 # path to calcium imaging data
 data_path = root_path # os.path.join(root_path, "data")
 movie_file_name = os.path.join(data_path, "p1_artificial_1.tif")
@@ -45,19 +69,22 @@ identifier = "art_movie_1"
 # weights_file_name = os.path.join(root_path, "transient_classifier_weights_19_meso_v4.h5")
 # json_file_name = os.path.join(root_path, "transient_classifier_model_architecture_meso_v4.json")
 
-model_path = os.path.join(root_path, "transient_classifier_model/meso_v12_epoch_12")
+# model_path = os.path.join(root_path, "transient_classifier_model/meso_v12_epoch_12")
 
-json_file_name = os.path.join(model_path, "transient_classifier_model_architecture.json")
-weights_file_name = os.path.join(model_path, "transient_classifier_weights_12_BO.h5")
+# json_file_name = os.path.join(model_path, "transient_classifier_model_architecture.json")
+# weights_file_name = os.path.join(model_path, "transient_classifier_weights_12_BO.h5")
 
-# weights_file_name = os.path.join(root_path, "meso_v2_epoch_19.h5")
-# json_file_name = os.path.join(root_path, "meso_v2_epoch_19.json")
+
+model_path = os.path.join(root_path, "transient_classifier_model")
+# meso_v2_epoch_19
+weights_file_name = os.path.join(model_path, "transient_classifier_weights_19-0.9710_2019_07_20.00-36-53.h5")
+json_file_name = os.path.join(model_path, "transient_classifier_model_architecture__2019_07_20.00-36-53.json")
 
 # weights_file_name = os.path.join(root_path, "transient_classifier_weights_art_mov_1_test_05-0.9908.h5")
 # json_file_name = os.path.join(root_path, "transient_classifier_model_architecture_.json")
 
-# classifier_id = "meso_v2_epoch_19"
-classifier_id = "meso_v12_epoch_12"
+classifier_id = "meso_v2_epoch_19"
+# classifier_id = "meso_v12_epoch_12"
 
 # path of the directory where the results will be save
 # a directory will be created each time the prediction is run
@@ -72,7 +99,13 @@ if device_name != '/device:GPU:0':
 print('Found GPU at: {}'.format(device_name))
 
 
-evaluate_inferences = False
+# to add in GT:
+# p5: 191205_191210_0_191210_a001 (meso_v2_epoch_19)
+# p6: 190921_190927_0_190927_a000 (meso_v13_epoch_23)
+# p7:200103_200110_200110_a000 (meso_v2_epoch_19)
+# p13: 191122_191205_191205_a000 (meso_v13_epoch_23)
+
+evaluate_inferences = True
 
 if evaluate_inferences:
     inferences_dir = "/media/julien/Not_today/hne_not_today/data/cinac_ground_truth/for_benchmarks/to_benchmark"
@@ -81,7 +114,9 @@ if evaluate_inferences:
     results_path = results_path + f"{time_str}"
     os.mkdir(results_path)
 
-    benchmark_neuronal_activity_inferences(inferences_dir=inferences_dir, results_path=results_path)
+    benchmark_neuronal_activity_inferences(inferences_dir=inferences_dir, results_path=results_path,
+                                           colorfull_boxplots=True, white_background=False,
+                                           color_cell_as_boxplot=True)
 else:
     predict_from_cinal_file = True
 

@@ -6,6 +6,8 @@ the coordinates of the cropping (using a mini-GUI).
 """
 
 from pynwb import NWBHDF5IO
+from pynwb.image import ImageSeries
+from pynwb.ophys import TwoPhotonSeries
 
 import numpy as np
 # import time
@@ -21,6 +23,11 @@ import math
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+import PIL
+from PIL import Image
+from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize, destroyAllWindows, VideoCapture
+from time import time
 
 def get_continous_time_periods(binary_array):
     """
@@ -310,6 +317,35 @@ def find_nearest(array, value, is_sorted=True):
         idx = (np.abs(array - value)).idxmin()
         return idx
 
+def get_ci_movie_sampling_rate(nwb_file, only_2_photons=False, ci_movie_name=None):
+    """
+
+    Args:
+        only_2_photons: if True only 2 photons one are considere
+        ci_movie_name: (string) if not None, return the sampling rate for a given ci_movie, otherwise the first
+        one found
+
+    Returns: (float) sampling rate of the movie, return None if no movie is found
+
+    """
+
+    io = NWBHDF5IO(nwb_file, 'r')
+    nwb_data = io.read()
+
+    for key, acquisition_data in nwb_data.acquisition.items():
+        if ci_movie_name is not None and (key != ci_movie_name):
+            continue
+        if only_2_photons:
+            if isinstance(acquisition_data, ImageSeries) and \
+                    (not isinstance(acquisition_data, TwoPhotonSeries)):
+                continue
+
+        if isinstance(acquisition_data, ImageSeries):
+            image_series = acquisition_data
+            return image_series.rate
+
+    return None
+
 def get_behaviors_movie_time_stamps(nwb_file, cam_id):
     """
 
@@ -374,6 +410,115 @@ def convert_npz_cicada_in_frames(npz_file, time_stamps, new_npz_file):
 
     np.savez(new_npz_file, **new_content_dict)
 
+def insert_frame_to_avi_movie(avi_file, n_frames_to_add_at_beg):
+    movie = OpenCvVideoReader(avi_file)
+    n_frames = movie.length
+
+    dir_name = os.path.dirname(avi_file)
+    base_name = os.path.basename(avi_file)
+
+    size_avi = movie.width, movie.height
+    fps_avi = 20
+    new_avi_file_name = os.path.join(dir_name, f"{base_name[:-4]}_NEW.avi")
+    is_color = True
+    # put fourcc to 0 for no compression
+    # fourcc = 0
+    fourcc = VideoWriter_fourcc(*"XVID")
+    vid_avi = VideoWriter(new_avi_file_name, fourcc, fps_avi, size_avi, is_color)
+
+    for frame_index in np.arange(n_frames_to_add_at_beg):
+        frame_img = movie.get_frame(0)
+        frame_img[:] = 0
+        vid_avi.write(frame_img)
+    # https://stackoverflow.com/questions/44947505/how-to-make-a-movie-out-of-images-in-python
+    start_time = time()
+    for frame_index in np.arange(n_frames):
+        frame_img = movie.get_frame(frame_index)
+        # vid_avi.write(img)
+        vid_avi.write(frame_img)
+    vid_avi.release()
+
+    time_to_convert = time() - start_time
+
+    print(f"time_to_convert: {time_to_convert} sec")
+
+
+def correct_corrupted_data():
+    """
+    Insert frames in behavior movie and shift CICADA GT
+    Returns:
+
+    """
+    n_frames_to_insert = 16
+
+    root_path = "/media/julien/Not_today/hne_not_today/"
+    data_path = os.path.join(root_path, "data/tada_data/for_training/")
+
+    config_yaml_file = os.path.join(root_path, "data/tada_data/config_tada.yaml")
+    with open(config_yaml_file, 'r') as stream:
+        config_dict = yaml.load(stream, Loader=yaml.FullLoader)
+    if "actions_tags" not in config_dict:
+        raise Exception(f"actions_tags are not in {config_yaml_file}")
+    actions_tags = config_dict["actions_tags"]
+    # for a given action, give its index, useful to build the labels (ground truth) for the classsifier
+    actions_tags_indices = dict()
+    action_index_to_tag = dict()
+    for action_index, action_tag in enumerate(actions_tags):
+        actions_tags_indices[action_tag] = action_index
+        action_index_to_tag[action_index] = action_tag
+    n_classes = len(actions_tags)
+
+    data_id = "p7_200103_200110_200110_a000_2020_02"
+
+    data_path = os.path.join(data_path, data_id)
+
+    npz_data_path = os.path.join(data_path, "behaviors_timestamps")
+
+    nwb_file = find_files_with_ext(data_path, "nwb")[0]
+
+    # sampling_rate_ci = get_ci_movie_sampling_rate(nwb_file=nwb_file)
+    right_behavior_time_stamps = get_behaviors_movie_time_stamps(nwb_file, cam_id="22983298")
+    frame_duration_s = (right_behavior_time_stamps[-1] - right_behavior_time_stamps[0]) / len(right_behavior_time_stamps)
+    # # in seconds
+    # frame_duration_s = frame_duration_ms / 1000
+
+    shift_in_s = frame_duration_s * n_frames_to_insert
+
+    npz_file = find_files_with_ext(npz_data_path, "npz")[0]
+
+    npz_base_name = os.path.basename(npz_file)
+    new_npz_base_name = npz_base_name[:-4] + "_16_FRAMES_SHIFTED" + ".npz"
+    new_npz_file = os.path.join(data_path, new_npz_base_name)
+
+    shift_cicada_file = False
+    if shift_cicada_file:
+        print(f"shift_in_s {shift_in_s}, frame_duration_s {frame_duration_s}")
+        npz_content = np.load(npz_file)
+
+        new_content_dict = dict()
+
+        for tag_name, epochs in npz_content.items():
+            print(f"- {tag_name}")
+            new_content_dict[tag_name] = np.zeros((2, epochs.shape[1]))
+            for epoch_index in range(epochs.shape[1]):
+                new_content_dict[tag_name][0, epoch_index] = epochs[0, epoch_index] + shift_in_s
+                new_content_dict[tag_name][1, epoch_index] = epochs[1, epoch_index] + shift_in_s
+
+        np.savez(new_npz_file, **new_content_dict)
+        raise Exception("OVER")
+
+    avi_files = find_files_with_ext(data_path, "avi")
+
+    for avi_file in avi_files:
+        if "22983298" in avi_file:
+            right_movie_file = avi_file
+        else:
+            left_movie_file = avi_file
+
+    insert_frame_to_avi_movie(avi_file=right_movie_file, n_frames_to_add_at_beg=n_frames_to_insert)
+    insert_frame_to_avi_movie(avi_file=left_movie_file, n_frames_to_add_at_beg=n_frames_to_insert)
+
+
 def main(convert_predictions_to_cicada_format=False):
 
     root_path = "/media/julien/Not_today/hne_not_today/"
@@ -396,7 +541,10 @@ def main(convert_predictions_to_cicada_format=False):
     n_classes = len(actions_tags)
 
     # data_id = "p5_191205_191210_0_191210_a001"
-    data_id = "p7_200103_200110_200110_a000_2020_02"
+    data_id = "p6_190921_190927_1_190927_a000"
+    # data_id = "p7_200103_200110_200110_a000_2020_02"
+    # data_id = "p5_191127_191202_191202_a000"
+    # data_id = "p5_191127_191202_191202_a001"
 
     data_path = os.path.join(data_path, data_id)
 
@@ -466,16 +614,23 @@ def main(convert_predictions_to_cicada_format=False):
 
     # list containing as many time_stamps as the movie after removing frames before and after first_frame and last_frame
     new_time_stamps = left_behavior_time_stamps[first_frame_left:last_frame_left+1]
+    new_time_stamps_right = right_behavior_time_stamps[first_frame_right:last_frame_right+1]
+    print(f"First left timestamps {first_frame_left}")
+    print(f"Last left timestamps {last_frame_left}")
+    print(f"First right timestamps {first_frame_right}")
+    print(f"Last right timestamps {last_frame_right}")
+    print(f"len(new_time_stamps) {len(new_time_stamps)}, len(new_time_stamps_right) {len(new_time_stamps_right)}")
 
     if convert_predictions_to_cicada_format:
         if not os.path.exists(os.path.join(data_path, "predictions")):
-            print(f"Not predictions DIR")
+            print(f"No predictions DIR")
             return
         predictions_dir = os.path.join(data_path, "predictions")
         prediction_file = find_files_with_ext(predictions_dir, "npy")[0]
         # shape should be (n_frames, n_classes), n_frames could be lower that the number of frames in the movie
         # as predictions might concern less frames
         predictions = np.load(prediction_file)
+        # print(f"np.sum(predictions, axis=1) {np.max(np.sum(predictions[25000:, :], axis=1))}")
         for class_index in np.arange(predictions.shape[1]):
             print(f"{action_index_to_tag[class_index]}: min {np.min(predictions[:, class_index])}, "
                   f"max {np.max(predictions[:, class_index])}, "
@@ -486,10 +641,28 @@ def main(convert_predictions_to_cicada_format=False):
         actions_activity[predictions > threshold_pred] = 1
         actions_epochs_in_frames = dict()
 
+        # predictions saved in a format that CICADA can open for visualization
+        # key is behavior_tag
+        # value is a 2d array, first line the timestamps in sec, second line the prediction (float bw 0 and 1)
+        predictions_for_cicada = dict()
+        for action_index in np.arange(predictions.shape[1]):
+            action_tag = action_index_to_tag[action_index]
+            predictions_for_cicada[action_tag] = np.zeros((2, predictions.shape[0]))
+            for frame_index in np.arange(predictions.shape[0]):
+                predictions_for_cicada[action_tag][0, frame_index] = new_time_stamps[frame_index]
+                predictions_for_cicada[action_tag][1, frame_index] = predictions[frame_index, action_index]
         print("")
 
         for action_index in np.arange(predictions.shape[1]):
             binary_array = actions_activity[:, action_index]
+            # filling the blank, if there less than 2 frame non active we put 1 in
+            invert_array = np.ones(len(binary_array), dtype='int8') - binary_array
+            pause_epochs = get_continous_time_periods(invert_array)
+            for pause_epoch in pause_epochs:
+                len_epoch = pause_epoch[1] - pause_epoch[0] + 1
+                if len_epoch <= 2:
+                    binary_array[pause_epoch[0]:pause_epoch[1]+1] = 1
+
             n_frame_active = len(np.where(binary_array > 0)[0])
             print(f"{action_index_to_tag[action_index]}: n_frames_active {n_frame_active}")
             epochs = get_continous_time_periods(binary_array)
@@ -505,6 +678,7 @@ def main(convert_predictions_to_cicada_format=False):
             actions_epochs_cicada[action_tag] = array_cicada
 
         np.savez(os.path.join(predictions_dir, f"{data_id}_tada_detections_for_cicada.npz"), **actions_epochs_cicada)
+        np.savez(os.path.join(predictions_dir, f"{data_id}_tada_predictions_for_cicada.npz"), **predictions_for_cicada)
     else:
         # We prepare the data for being process by TadaTraining
         size_rect = (1600, 1000)
@@ -517,6 +691,10 @@ def main(convert_predictions_to_cicada_format=False):
         print(f"N frames in left: {new_n_frames_left}")
         new_n_frames_right = last_frame_right - first_frame_right + 1
         print(f"N frames in right: {new_n_frames_right}")
+
+        if new_n_frames_left != new_n_frames_right:
+            print(f"Movies have a different number of frames")
+            raise Exception("MFH")
 
         yaml_data = dict()
         # the yaml file has an entry for each movie with 7 values so far, frames to keep, bottom left corner coordinates
@@ -534,5 +712,6 @@ def main(convert_predictions_to_cicada_format=False):
 
 
 if __name__ == "__main__":
+    # correct_corrupted_data()
     main(convert_predictions_to_cicada_format=True)
     # main(convert_predictions_to_cicada_format=False)

@@ -13,7 +13,6 @@ from datetime import datetime
 # root path, just used to avoid copying the path everywhere
 root_path = "/media/julien/Not_today/hne_not_today/data/tada_data"
 
-config_yaml_file = os.path.join(root_path, "config_tada.yaml")
 
 model_path = os.path.join(root_path, "models")
 
@@ -24,6 +23,7 @@ os.mkdir(results_path)
 
 # path to data
 data_path = os.path.join(root_path, "for_testing")
+config_yaml_file = os.path.join(data_path, "config_tada_detections.yaml")
 
 # Path to your model data. It's possible to have more than one model, and use
 # each for different cell of the same recording (for exemple, one
@@ -43,8 +43,6 @@ if device_name != '/device:GPU:0':
 print('Found GPU at: {}'.format(device_name))
 
 predictions_results = evaluate_action_detections(tada_dir_name=data_path, results_path=results_path,
-                           config_yaml_file=config_yaml_file,
-                           json_file_name=json_file_name, weights_file_name=weights_file_name,
-                           save_activity_distribution=True)
-
-
+                                                 config_yaml_file=config_yaml_file,
+                                                 json_file_name=json_file_name, weights_file_name=weights_file_name,
+                                                 save_activity_distribution=True)

@@ -6,6 +6,7 @@ from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize, destroyAllWindo
 from time import time
 from sortedcontainers import SortedDict
 import cv2
+import yaml
 # import pims
 
 import os
@@ -35,6 +36,11 @@ def test_avi():
     path_data = "/media/julien/Not_today/hne_not_today/data/p8/p8_19_09_29_1_a001/cams/behavior_p8_19_09_29_1_cam_22983298_cam1_a001_fps_20.avi"
     path_data = "/media/julien/Not_today/hne_not_today/data/p8/p8_19_09_29_1_a001/cams/behavior_p8_19_09_29_1_cam_23109588_cam2_a001_fps_20.avi"
     path_data = "/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/p6_20_01_09/behavior_p6_20_01_09_cam_23109588_cam2_a002_fps_20.avi"
+    path_data = "/media/julien/Not_today/hne_not_today/data/behavior_movies/dlc_predictions/p7_200103_200110_200110_a000_2020_02/data/behavior_p7_20_01_10_cam_22983298_cam1_a000_fps_20.avi"
+
+    file_name = "behavior_p5_20_03_11_rem_cam_23109588_cam2_a001_fps_20.avi"
+    path_data = f"/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/{file_name}"
+
     # 37254
     # vs = pims.Video(path_data)
     # print(f"vs.frame_shape {vs.frame_shape}")
@@ -84,12 +90,12 @@ def test_avi():
     cv2.destroyAllWindows()
 
 def main():
-    open_avi_for_test = False
+    open_avi_for_test = True
     if open_avi_for_test:
         test_avi()
         return
 
-    subject_id = "P12_20_01_20" # P12_20_01_20 p8_20_01_16
+    subject_id = "p5_20_03_11_rem" # P12_20_01_20 p8_20_01_16
     cam_folder_id_1 = "cam2" # "cam2"
     cam_folder_id_2 = "a001" # a000  a001
     if cam_folder_id_2 is None:
@@ -98,9 +104,9 @@ def main():
         cam_folder_id = f"{cam_folder_id_1}_{cam_folder_id_2}"
     tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/'
     tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/to_convert/'
-    tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/basler_recordings/'
+    # tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/basler_recordings/'
     # tiffs_path_dir = '/media/julien/dream team/camera/'
-    # tiffs_path_dir = '/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/'
+    tiffs_path_dir = '/media/julien/Not_today/hne_not_today/data/behavior_movies/to_convert/'
     if cam_folder_id_2 is not None:
         tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_1, cam_folder_id_2)
         # tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_2, cam_folder_id_1)
@@ -134,7 +140,24 @@ def main():
         # print(f"{file_name[-index_:-5]}")
         # break
 
+    # looking for a gap between frames
+    last_tiff_frame = 0
+    error_detected = False
+    for tiff_frame, tiff_file in files_in_dir_dict.items():
+        if tiff_frame - 1 != last_tiff_frame:
+            print(f"Gap between frame n° {last_tiff_frame} and {tiff_frame}. File {tiff_file}")
+            error_detected = True
+        last_tiff_frame = tiff_frame
 
+    if error_detected:
+        raise Exception("ERROR: gap between 2 frames")
+
+    # keep the name of the tiffs files
+    yaml_file_name = os.path.join(results_path, f"behavior_{subject_id}_cam_{cam_id}_{cam_folder_id}.yaml")
+    with open(yaml_file_name, 'w') as outfile:
+        yaml.dump(list(files_in_dir_dict.values()), outfile, default_flow_style=False)
+
+    # raise Exception("TEST YAML")
     # # leave only regular files, insert creation date
     # entries = ((stat[ST_CTIME], path)
     #            for stat, path in entries if S_ISREG(stat[ST_MODE]))

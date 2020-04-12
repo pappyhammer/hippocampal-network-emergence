@@ -24,6 +24,15 @@ class DataForMs(p_disc_tools_param.Parameters):
 
 
 def create_cinac_file(ms, session_dict, param, bonus_str):
+    just_save_cell_1_p8 = False
+    if just_save_cell_1_p8:
+        raster_dur = ms.spike_struct.spike_nums_dur
+        tmp_raster_dur = np.zeros((1, raster_dur.shape[1]), dtype="int8")
+        tmp_raster_dur[0] = raster_dur[1]
+        np.save(os.path.join(param.path_results, "cell_1_raster.npy"), tmp_raster_dur)
+        print("Cell 1 raster saved")
+        return
+
     file_name = os.path.join(param.path_results, f"gt_{session_dict['id']}_{bonus_str}.cinac")
 
     cinac_writer = CinacFileWriter(file_name=file_name)
@@ -213,6 +222,7 @@ def main_convert_gt_to_cinac():
     # data_dict["p7_171012_a000_ms"]["gt_cells"] = [3, 8, 11, 12, 14, 17, 18, 24] # for training
     # data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 25] # for benchmarks
     data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 3, 8, 11, 12, 14, 17, 18, 24, 25] # all
+    data_dict["p7_171012_a000_ms"]["gt_cells"] = np.arange(117) # all ROBIN,TODO: use RD GT
     # data_dict["p7_171012_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"] # TODO: comment for benchmark
     # data_dict["p7_171012_a000_ms"]["segmentation_tool"] = "caiman"
 
@@ -326,8 +336,8 @@ def main_convert_gt_to_cinac():
     # ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
     #              "p13_18_10_29_a001_ms", "p8_18_10_24_a005_ms"]
     # ms_to_use = ["p8_18_10_24_a005_ms"]
-    bonus_str = "JD"
-    ms_to_use = ["p11_17_11_24_a000_ms"]
+    bonus_str = "RD_for_benchmarks"
+    ms_to_use = ["p7_171012_a000_ms"]
     #
 
     # we need to change in mouse_session_loader the type of segmentation to use

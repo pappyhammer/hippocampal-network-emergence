@@ -12,7 +12,9 @@ if __name__ == '__main__':
     results_path = os.path.join(results_path, time_str)
     os.mkdir(results_path)
 
-    action_tags_yaml_file = os.path.join(root_path, "config_tada.yaml")
+    action_tags_yaml_file = os.path.join(data_path, "config_tada_training.yaml")
+    # it's possible to add an entry with the name of directory (session_id) with a list of 2 values
+    # frames_range on which to train (could be also start or end)
 
     images_dirname = os.path.join(root_path, "images_tada")
 
@@ -24,16 +26,19 @@ if __name__ == '__main__':
     """
     # "config_tada.yaml"
     # partly_trained_model = "/media/julien/Not_today/hne_not_today/data/test_cinac_gui/transient_classifier_full_model_02-0.9817.h5"
-    tada_model = TadaModel(results_path=results_path, n_epochs=4, verbose=1, batch_size=4,
+    tada_model = TadaModel(results_path=results_path, n_epochs=1, verbose=1, batch_size=4,
+                           n_gpus=1,
                            width_crop=1600, height_crop=1000,
-                           window_len=10, max_n_transformations=0,
-                           lstm_layers_size=[8], bin_lstm_size=8,
+                           window_len=50, max_n_transformations=6,
+                           lstm_layers_size=[64, 128], bin_lstm_size=64,
                            action_tags_yaml_file=action_tags_yaml_file,
                            overlap_value=0.5,
-                           n_cameras=1,
+                           n_cameras=2,
                            images_dirname=images_dirname,
-                           save_only_the_weitghs=False,
-                           without_bidirectional=True,
+                           split_movies_in_frames=True,
+                           final_height=128,
+                           save_weigths_only=True,
+                           without_bidirectional=False,
                            use_bin_at_al_version=True)
 
     # lstm_layers_size=[128, 256], bin_lstm_size=256,
@@ -43,4 +48,4 @@ if __name__ == '__main__':
     tada_model.add_multiple_input_data_from_dir(dir_name=tada_dir_name)
 
     tada_model.prepare_model()
-    tada_model.fit()
+    # tada_model.fit()
