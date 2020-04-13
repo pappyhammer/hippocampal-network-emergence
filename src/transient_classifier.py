@@ -2429,9 +2429,8 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
     The mask consist on a binary array of with 0 for all pixels in the cell, 1 otherwise
     :return:
     """
-    # given the opposite value, seem to fix the issue at the border
-    len_frame_x = ms.movie_len_y
-    len_frame_y = ms.movie_len_x
+    len_frame_x = ms.movie_len_x
+    len_frame_y = ms.movie_len_y
 
     # determining the size of the square surrounding the cell so it includes all overlapping cells around
     overlapping_cells = ms.coord_obj.intersect_cells[cell]
@@ -2465,9 +2464,12 @@ def get_source_profile_param(cell, ms, max_width, max_height, pixels_around=0,
         miny = max(0, miny - pixels_around)
         # we use max_width and max_height to make sure it won't be bigger than the frame used by the network
         # and we crop the frame if necessary
+        # print(f"minx {minx}, maxx {maxx}, len_frame_x {len_frame_x}")
+        # print(f"miny {miny}, maxy {maxy}, len_frame_y {len_frame_y}")
         maxx = np.min(((len_frame_x - 1), (maxx + pixels_around), (minx + max_height - 1)))
         maxy = np.min(((len_frame_y - 1), (maxy + pixels_around), (miny + max_width - 1)))
-
+        # print(f"minx {minx}, maxx {maxx}")
+        # print(f"miny {miny}, maxy {maxy}")
         len_x = maxx - minx + 1
         len_y = maxy - miny + 1
 
@@ -2710,22 +2712,23 @@ def add_segment_of_cells_for_training(param,
     raster_dur_by_cells_and_session = dict()
 
     dir_to_load = []
+    # cinac comment indicate that the data has been converted
     # CAIMAN version
     # used for v2
-    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_17_10_12_a000", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data, "p8", "p8_18_10_24_a005", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data, "p11", "p11_17_11_24_a000", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_17_10_12_a000", "transients_to_add_for_rnn")) # cinac
+    dir_to_load.append(os.path.join(param.path_data, "p8", "p8_18_10_24_a005", "transients_to_add_for_rnn")) # cinac
+    dir_to_load.append(os.path.join(param.path_data, "p11", "p11_17_11_24_a000", "transients_to_add_for_rnn")) # cinac
 
     # SUITE2P version
     # used for v2
-    dir_to_load.append(os.path.join(param.path_data, "p10", "p10_19_02_21_a005", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_03_25_a001", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_05_a000", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_27_a000", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data, "p16", "p16_18_11_01_a002", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p10", "p10_19_02_21_a005", "transients_to_add_for_rnn"))# cinac
+    dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_03_25_a001", "transients_to_add_for_rnn")) # cinac
+    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_05_a000", "transients_to_add_for_rnn")) # cinac
+    dir_to_load.append(os.path.join(param.path_data, "p7", "p7_19_03_27_a000", "transients_to_add_for_rnn")) # cinac
+    dir_to_load.append(os.path.join(param.path_data, "p16", "p16_18_11_01_a002", "transients_to_add_for_rnn")) # cinac
     # used for v3
-    dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_09_02_a000", "transients_to_add_for_rnn"))
-    dir_to_load.append(os.path.join(param.path_data, "p9", "p9_19_03_14_a001", "transients_to_add_for_rnn"))
+    dir_to_load.append(os.path.join(param.path_data, "p5", "p5_19_09_02_a000", "transients_to_add_for_rnn")) # cinac
+    dir_to_load.append(os.path.join(param.path_data, "p9", "p9_19_03_14_a001", "transients_to_add_for_rnn")) # cinac
     dir_to_load.append(os.path.join(param.path_data, "p10", "p10_19_03_08_a001", "transients_to_add_for_rnn"))
     dir_to_load.append(os.path.join(param.path_data, "p12", "p12_17_11_10_a002", "transients_to_add_for_rnn"))
 
@@ -2812,11 +2815,11 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
     add_doubt_at_movie_concatenation_frames = True
     use_cnn_to_select_cells = False
     use_small_sample = False
-    use_triple_blinded_data = False
+    use_triple_blinded_data = True
     use_test_sample = False
     use_gad_cre_sample = False
     # used for counting how many cells and transients available
-    load_them_all = True
+    load_them_all = False
     load_them_all_gad_cre = False
     # goes with load_them_all, but if True them we load data we use for benchmarks, just use to get some stat
     load_data_for_benchmark = False
@@ -2878,11 +2881,11 @@ def load_data_for_generator(param, split_values, sliding_window_len, overlap_val
                                           np.array([0, 11, 22, 31, 38, 43, 56, 64, 70, 79, 86, 96, 110, 118, 131, 136]),
                                       "artificial_ms_2":
                                           np.array([0, 9, 18, 26, 34, 41, 46, 56, 62, 77, 88, 101, 116, 127, 140, 150]),
-                                      "p7_171012_a000_ms": np.array([3, 8, 11, 12, 14, 17, 18, 24]),
-                                      "p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]),
-                                      "p11_17_11_24_a000_ms": np.array([17, 22, 24, 25, 29, 30, 33]),
-                                      "p12_171110_a000_ms": np.array([0, 3, 6, 7, 12, 14, 15, 19]),
-                                      "p13_18_10_29_a001_ms": np.array([0, 2, 5, 12, 13, 31, 42, 44, 48, 51])}
+                                      "p7_171012_a000_ms": np.array([3, 8, 11, 12, 14, 17, 18, 24]), # cinac
+                                      "p8_18_10_24_a006_ms": np.array([0, 1, 6, 7, 9, 10, 11, 18, 24]), # cinac
+                                      "p11_17_11_24_a000_ms": np.array([17, 22, 24, 25, 29, 30, 33]), # cinac
+                                      "p12_171110_a000_ms": np.array([0, 3, 6, 7, 12, 14, 15, 19]), # cinac
+                                      "p13_18_10_29_a001_ms": np.array([0, 2, 5, 12, 13, 31, 42, 44, 48, 51])} # cinac
 
                 cells_segments_by_session, raster_dur_by_cells_and_session = \
                     add_segment_of_cells_for_training(param,
@@ -4077,7 +4080,7 @@ def train_model():
         create_tiffs_for_data_generator(ms_to_use=ms_for_tiffs,
                                         param=param, path_for_tiffs=path_for_tiffs)
         raise Exception("NOT TODAY")
-    go_predict_from_movie = True
+    go_predict_from_movie = False
 
     if go_predict_from_movie:
         ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms",
@@ -4085,12 +4088,12 @@ def train_model():
                                  "p13_18_10_29_a001_ms", "p8_18_10_24_a005_ms"]
         ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms"]
         ms_for_rnn_benchmarks = ["p41_19_04_30_a000_ms"]
-        ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms"]
-        ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-                                 "p11_17_11_24_a000_ms", "p13_18_10_29_a001_ms", "p12_171110_a000_ms"]
-        ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
-                                 "p11_17_11_24_a000_ms",  "p12_171110_a000_ms"]
-        ms_for_rnn_benchmarks = ["p12_171110_a000_ms"]
+        ms_for_rnn_benchmarks = ["p8_18_10_24_a005_ms", "p12_171110_a000_ms"]
+        # ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+        #                          "p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
+        # ms_for_rnn_benchmarks = ["p7_171012_a000_ms", "p8_18_10_24_a005_ms", "p8_18_10_24_a006_ms",
+        #                          "p11_17_11_24_a000_ms",  "p12_171110_a000_ms"]
+        # ms_for_rnn_benchmarks = ["p12_171110_a000_ms"]
         # ms_for_gad_cre_benchmarks = ["p5_19_03_20_a000_ms", "p6_19_02_18_a000_ms",
         #                              "p11_19_04_30_a001_ms", "p12_19_02_08_a000_ms"]
         # oriens: "p8_18_10_24_a006_ms"
@@ -4104,13 +4107,14 @@ def train_model():
         # ms_for_rnn_benchmarks = ["p11_17_11_24_a000_ms", "p12_171110_a000_ms"]
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
         # for p13_18_10_29_a001_ms and p8_18_10_24_a006_ms use gui_transients from RD
-        cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
-                            "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
-                            "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
-                            "p11_17_11_24_a000_ms": np.array([3, 45]),
-                            "p12_171110_a000_ms": np.array([9, 10])} #,
-        cells_to_predict = {"p12_171110_a000_ms": np.array([9, 10])}
-                            # "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
+        # cells_to_predict = {"p7_171012_a000_ms": np.array([2, 25]),
+        #                     "p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
+        #                     "p8_18_10_24_a006_ms": np.array([28, 32, 33]),  # RD
+        #                     "p11_17_11_24_a000_ms": np.array([3, 45]),
+        #                     "p12_171110_a000_ms": np.array([9, 10])} #,
+        # cells_to_predict = {"p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321]),
+        #                     "p12_171110_a000_ms": np.array([9, 10])}
+        #                     # "p13_18_10_29_a001_ms": np.array([77, 117])}  # RD
         # cells_to_predict = {"p11_17_11_24_a000_ms": np.arange(24)}  # np.array([2, 25])} # np.arange(117)
         # cells_to_predict = {"p41_19_04_30_a000_ms": None}
         # cells_to_predict = {"p8_18_10_24_a005_ms": np.array([0, 1, 9, 10, 13, 15, 28, 41, 42, 110, 207, 321])}
@@ -4143,22 +4147,27 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # get it again from Artem computer
 
         # Robin
-        # ms_for_rnn_benchmarks = ["p9_17_12_06_a001_ms", "p9_17_12_20_a001_ms",
-        #                 "p9_18_09_27_a003_ms", "p9_19_02_20_a000_ms",
+        # ms_for_rnn_benchmarks = ["p9_17_12_06_a001_ms",
+        #                 "p9_19_02_20_a000_ms",
         #                 "p9_19_02_20_a001_ms", "p9_19_02_20_a002_ms",
         #                 "p9_19_02_20_a003_ms", "p9_19_03_14_a000_ms",
         #                 "p9_19_03_14_a001_ms", "p9_19_03_22_a000_ms",
-        #                 "p9_19_03_22_a001_ms"]
-        # Artem
-        # ms_for_rnn_benchmarks = ["p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
-        #                 "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
-        #                 "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms", "p11_17_11_24_a001_ms",
-        #                 "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms", "p12_17_11_10_a002_ms",
-        #                 "p13_18_10_29_a000_ms", "p13_19_03_11_a000_ms", "p14_18_10_23_a000_ms",
-        #                 "p14_18_10_30_a001_ms",
-        #                 "p16_18_11_01_a002_ms",
-        #                 "p19_19_04_08_a000_ms", "p19_19_04_08_a001_ms"
-        #                 "p41_19_04_30_a000_ms"]
+        #                 "p9_19_03_22_a001_ms", "p9_17_12_20_a001_ms"]
+        # "p9_18_09_27_a003_ms",
+        # Artem"""
+        """
+        "p10_17_11_16_a003_ms", "p10_19_02_21_a002_ms",
+                        "p10_19_02_21_a003_ms", "p10_19_02_21_a005_ms",
+                        "p10_19_03_08_a000_ms", "p10_19_03_08_a001_ms", "p11_17_11_24_a001_ms",
+                        "p11_19_02_15_a000_ms", "p11_19_02_22_a000_ms", "p12_17_11_10_a002_ms",
+                        
+                        "p13_18_10_29_a000_ms", "p13_19_03_11_a000_ms", "p14_18_10_23_a000_ms",
+                        "p14_18_10_30_a001_ms",
+                        "p16_18_11_01_a002_ms",
+                        "p19_19_04_08_a000_ms",
+        """
+        ms_for_rnn_benchmarks = [ "p19_19_04_08_a001_ms"]
+                        # "p41_19_04_30_a000_ms"]
         # mesocentre
         # ms_for_rnn_benchmarks = ["p12_171110_a000_ms"]
         # cells_to_predict = dict()
@@ -4189,20 +4198,20 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         #
         # cells_to_predict = dict()
 
-
-        ms_for_rnn_benchmarks = ["p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms",
-                                 "p6_18_02_07_a002_ms",
-                      "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
-                      "p7_18_02_08_a003_ms", "p7_19_03_05_a000_ms", "p7_19_03_27_a000_ms", "p7_19_03_27_a001_ms",
-                      "p7_19_03_27_a002_ms",
-                      "p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
-                      "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms"]
+        # "p5_19_03_25_a000_ms", "p5_19_03_25_a001_ms", "p6_18_02_07_a001_ms", "p7_17_10_18_a004_ms", "p7_18_02_08_a000_ms", "p7_18_02_08_a001_ms", "p7_18_02_08_a002_ms",
+        # ms_for_rnn_benchmarks = ["p8_18_02_09_a000_ms", "p8_18_02_09_a001_ms", "p8_18_10_17_a000_ms", "p8_18_10_17_a001_ms",
+        #               "p8_18_10_24_a005_ms", "p8_19_03_19_a000_ms", "p6_18_02_07_a002_ms", "p7_18_02_08_a003_ms"]
         # cells_p14_18_10_23_a000_ms = np.array([])
         # cells_to_predict = dict()
         # cells_to_predict["p14_18_10_23_a000_ms"] = cells_p14_18_10_23_a000_ms
         # cells_to_predict = {"p12_17_11_10_a002_ms": None}
 
-        # ms_for_rnn_benchmarks = ["p5_19_09_02_a000_ms"]
+        # ms_for_rnn_benchmarks = ["p9_17_12_20_a001_ms"]
+        # cells_to_predict = dict()
+        # cells_p9_17_12_20_a001_ms = np.arange(19, 21)
+        # # cells_p9_17_12_20_a001_ms = np.setdiff1d(cells_p9_17_12_20_a001_ms, np.arange(19, 21))
+        # cells_to_predict["p9_17_12_20_a001_ms"] = cells_p9_17_12_20_a001_ms
+
         # cells_to_predict = {"p7_171012_a000_ms": np.arange(117)}
 
         # ms_for_rnn_benchmarks = ms_for_gad_cre_benchmarks
@@ -4210,6 +4219,12 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         # # # predicting all cells
         for ms in ms_for_rnn_benchmarks:
             cells_to_predict[ms] = None
+        # cells_p6_18_02_07_a002_ms = np.arange(497)
+        # cells_p6_18_02_07_a002_ms = np.setdiff1d(cells_p6_18_02_07_a002_ms, np.array([256, 296, 302]))
+        # cells_to_predict["p6_18_02_07_a002_ms"] = cells_p6_18_02_07_a002_ms
+        # cells_p7_18_02_08_a003_ms = np.arange(657)
+        # cells_p7_18_02_08_a003_ms = np.setdiff1d(cells_p7_18_02_08_a003_ms, np.array([352]))
+        # cells_to_predict["p7_18_02_08_a003_ms"] = cells_p7_18_02_08_a003_ms
         # cells_p8_18_10_24_a005_ms = np.arange(361)
         # # for Caiman segmentation
         # cells_p8_18_10_24_a005_ms = np.setdiff1d(cells_p8_18_10_24_a005_ms, np.array([168]))
@@ -4258,9 +4273,9 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
     without_bidirectional = False
     lstm_layers_size = [128, 256]
     """
-    n_gpus = 4
+    n_gpus = 1
     using_multi_class = 1  # 1 or 3 so far
-    n_epochs = 30  # TODO: 30
+    n_epochs = 35  # TODO: 30
     # multiplying by the number of gpus used as batches will be distributed to each GPU
     batch_size = 8 * n_gpus
     window_len = 100  # TODO: 100
@@ -4422,7 +4437,7 @@ IndexError: index 1 is out of bounds for axis 0 with size 1
         parallel_model = multi_gpu_model(model, gpus=n_gpus)
     else:
         parallel_model = model
-    raise Exception("YOU KNOW NOTHING JON SNOW")
+    # raise Exception("YOU KNOW NOTHING JON SNOW")
 
     # Save the model architecture
     with open(

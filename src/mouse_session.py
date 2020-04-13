@@ -4976,8 +4976,9 @@ class MouseSession:
         avg_cell_map_img = np.mean(self.tiff_movie, axis=0)
         fig = self.coord_obj.plot_cells_map(param=self.param,
                                             data_id=self.description, show_polygons=False,
-                                            fill_polygons=False,
-                                            dont_fill_cells_not_in_groups=True,
+                                            fill_polygons=True,
+                                            dont_fill_cells_not_in_groups=False,
+                                            default_cells_color=(1, 0, 0, 0.3),
                                             default_edge_color="red",
                                             with_edge=True,
                                             title_option="all cells", connections_dict=None,
@@ -5078,6 +5079,8 @@ class MouseSession:
 
         n_assemblies = len(self.cell_assemblies)
         cells_groups_colors = []
+        cells_groups_edge_colors = []
+        cells_groups_alpha = []
         for i in np.arange(n_assemblies):
             # print(f"cm.nipy_spectral(float(i + 1) / (n_assemblies + 1)) "
             #       f"{cm.nipy_spectral(float(i + 1) / (n_assemblies + 1))}")
@@ -5087,20 +5090,36 @@ class MouseSession:
             # else:
             #     color = (213 / 255, 38 / 255, 215 / 255, 1)  # #D526D7
             cells_groups_colors.append(color)
+            cells_groups_edge_colors.append(color)
+            cells_groups_alpha.append(0.3)
         # print(f"cells_groups_colors {cells_groups_colors}")
         # self.coord_obj.compute_center_coord(cells_groups=self.cell_assemblies,
         #                                     cells_groups_colors=cells_groups_colors,
         #                                     dont_fill_cells_not_in_groups=True)
+        avg_cell_map_img = mpimg.imread("/media/julien/Not_today/hne_not_today/data/p9/p9_18_09_27_a003/p9_18_09_27_a003_AVG.png")
 
         self.coord_obj.plot_cells_map(param=self.param,
-                                      data_id=self.description, show_polygons=True,
-                                      fill_polygons=True,
+                                      data_id=self.description, show_polygons=False,
+                                      fill_polygons=False,
                                       title_option="cell_assemblies", connections_dict=None,
                                       with_edge=True,
                                       cells_groups=self.cell_assemblies,
                                       cells_groups_colors=cells_groups_colors,
-                                      dont_fill_cells_not_in_groups=True,
+                                      img_on_background=avg_cell_map_img,
+                                      dont_fill_cells_not_in_groups=False,
+                                      cells_groups_alpha=cells_groups_alpha,
+                                      default_cells_color=(1, 1, 1, 0.3),
+                                      default_edge_color="white",
                                       with_cell_numbers=False, save_formats=save_formats)
+        # self.coord_obj.plot_cells_map(param=self.param,
+        #                               data_id=self.description, show_polygons=True,
+        #                               fill_polygons=True,
+        #                               title_option="cell_assemblies", connections_dict=None,
+        #                               with_edge=True,
+        #                               cells_groups=self.cell_assemblies,
+        #                               cells_groups_colors=cells_groups_colors,
+        #                               dont_fill_cells_not_in_groups=True,
+        #                               with_cell_numbers=False, save_formats=save_formats)
 
     def set_low_activity_threshold(self, threshold, percentile_value):
         self.low_activity_threshold_by_percentile[percentile_value] = threshold
@@ -6093,8 +6112,10 @@ class MouseSession:
                         else:
                             continue
                         break
+                    if (data is not None) or (predictions is not None):
+                        break
             if (data is None) and (predictions is None):
-                print(f"load_raster_dur_from_predictions no file_name with {prediction_key} found in "
+                print(f"load_raster_dur_from_predictions no file_name with {prediction_keys} found in "
                           f"{os.path.join(self.param.path_data, path_name)}")
                 return
         else:
@@ -6585,9 +6606,9 @@ class MouseSession:
                 matlab_format = False
                 data = np.load(os.path.join(self.param.path_data, file_name_to_load))
             else:
-                data = hdf5storage.loadmat(self.param.path_data + file_name_to_load)
+                data = hdf5storage.loadmat(os.path.join(self.param.path_data, file_name_to_load))
         except (FileNotFoundError, OSError) as e:
-            print(f"File not found: {file_name_to_load}")
+            print(f"File not found: {os.path.join(self.param.path_data, file_name_to_load)}")
             return
         # print(f'load_data_from_file: {list(data.keys())}')
         if "shift_periods_bool" in variables_mapping:
@@ -6687,6 +6708,9 @@ class MouseSession:
         self.cells_to_remove = cells_to_remove
 
     def clean_data_using_cells_to_remove(self):
+        # temporarly deactivated for converting GT to cinac format
+        # return
+
         if (self.cells_to_remove is None) or len(self.cells_to_remove) == 0:
             return
         n_cells = self.spike_struct.n_cells
@@ -6737,6 +6761,16 @@ class MouseSession:
 
     def detect_n_in_n_out(self):
         self.spike_struct.detect_n_in_n_out()
+
+    def build_default_doubtful_frames(self):
+        """
+        Build an empty doubtful_frames matrix (none of the frames are doubtful then)
+        self.spike_struct.spike_nums_dur should not be none
+        Returns:
+
+        """
+        if self.spike_struct.spike_nums_dur is not None:
+            self.doubtful_frames_nums = np.zeros(self.spike_struct.spike_nums_dur.shape, dtype="int8")
 
     def build_spike_nums_dur(self):
         # build spike_nums_dur based on peak_nums and spike_nums

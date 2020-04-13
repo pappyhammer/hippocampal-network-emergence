@@ -37,6 +37,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                               from_gui=True)
 
             artificial_ms.build_spike_nums_dur()
+            artificial_ms.build_default_doubtful_frames()
             artificial_ms.load_tiff_movie_in_memory()
             # artificial_ms.normalize_movie()
             artificial_ms.raw_traces = artificial_ms.build_raw_traces_from_movie()
@@ -63,6 +64,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                               from_gui=True)
 
             artificial_ms.build_spike_nums_dur()
+            artificial_ms.build_default_doubtful_frames()
             artificial_ms.load_tiff_movie_in_memory()
             # artificial_ms.normalize_movie()
             artificial_ms.raw_traces = artificial_ms.build_raw_traces_from_movie()
@@ -224,9 +226,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         #               "P6_18_02_07_a001_predictions__2019_05_07.17-26-16_GT_epoch_11_all_cells.mat",
         #     prediction_threshold=0.5, variables_mapping=variables_mapping)
 
-        if not p6_18_02_07_a001_ms.use_suite_2p:
-            if not for_cell_classifier:
-                p6_18_02_07_a001_ms.clean_data_using_cells_to_remove()
+        # if not p6_18_02_07_a001_ms.use_suite_2p:
+        #     if not for_cell_classifier:
+        #         p6_18_02_07_a001_ms.clean_data_using_cells_to_remove()
 
         ms_str_to_ms_dict["p6_18_02_07_a001_ms"] = p6_18_02_07_a001_ms
 
@@ -322,10 +324,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "inter_neurons_from_gui": "inter_neurons",
                                      "doubtful_frames_nums": "doubtful_frames_nums"}
                 p7_171012_a000_ms.load_data_from_file(file_name_to_load=
-                                                      "p7/p7_17_10_12_a000/p7_17_10_12_a000_fusion_validation.mat",
+                                                      "p7/p7_17_10_12_a000/p7_17_10_12_a000_GUI_transients_RD.mat",
                                                       variables_mapping=variables_mapping,
                                                       from_gui=True)
                 # p7_17_10_12_a000_fusion_validation.mat
+                # p7_17_10_12_a000_GUI_transients_RD.mat
+                # p7_17_10_12_a000_GUI_transients_JD.mat
 
                 p7_171012_a000_ms.build_spike_nums_dur()
                 if for_cell_classifier:
@@ -348,9 +352,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                     file_name_to_load="p7/p7_17_10_12_a000/p7_17_10_12_a000_raw_Traces.mat",
                     variables_mapping=variables_mapping)
 
-        if not p7_171012_a000_ms.use_suite_2p:
-            if not for_cell_classifier:
-                p7_171012_a000_ms.clean_data_using_cells_to_remove()
+        # if not p7_171012_a000_ms.use_suite_2p:
+        #     if not for_cell_classifier:
+        #         p7_171012_a000_ms.clean_data_using_cells_to_remove()
 
         ms_str_to_ms_dict["p7_171012_a000_ms"] = p7_171012_a000_ms
 
@@ -710,8 +714,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         # if True will  use the coord from suite2p, if False, will just load the info concerning suite2p in
         # if the dict suit2p_data in mouse_session
         p8_18_10_24_a005_ms.use_suite_2p = True
-        # if for_transient_classifier:
-        #     p8_18_10_24_a005_ms.use_suite_2p = False
+        if for_transient_classifier:
+            p8_18_10_24_a005_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         # p8_18_10_24_a005_ms.activity_threshold =
@@ -727,6 +731,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                         "p8/p8_18_10_24_a005/p8_18_10_24_a005_fusion_validation.mat",
                                                         variables_mapping=variables_mapping,
                                                         from_gui=True)
+                # p8_18_10_24_a005_fusion_validation.mat
+                # p8_18_10_24_a005_GUI_transientsRD.mat
+                # p8_18_10_24_a005_GUI_transientsJD.mat
                 # p8_18_10_24_a005_GUI_Transiant MP.mat
                 p8_18_10_24_a005_ms.build_spike_nums_dur()
             else:
@@ -752,9 +759,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 file_name_to_load="p8/p8_18_10_24_a005/p8_18_10_24_a005_CellDetect.mat",
                 variables_mapping=variables_mapping)
 
-        if not p8_18_10_24_a005_ms.use_suite_2p:
-            if not for_cell_classifier:
-                p8_18_10_24_a005_ms.clean_data_using_cells_to_remove()
+        # if not p8_18_10_24_a005_ms.use_suite_2p:
+        #     if not for_cell_classifier:
+        #         p8_18_10_24_a005_ms.clean_data_using_cells_to_remove()
 
         ms_str_to_ms_dict["p8_18_10_24_a005_ms"] = p8_18_10_24_a005_ms
 
@@ -794,8 +801,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             p8_18_10_24_a006_ms.load_data_from_file(file_name_to_load="p8/p8_18_10_24_a006/p8_18_10_24_a006_CellDetect.mat",
                                                     variables_mapping=variables_mapping)
 
-            if not for_cell_classifier:
-                p8_18_10_24_a006_ms.clean_data_using_cells_to_remove()
+            # if not for_cell_classifier:
+            #     p8_18_10_24_a006_ms.clean_data_using_cells_to_remove()
 
         ms_str_to_ms_dict["p8_18_10_24_a006_ms"] = p8_18_10_24_a006_ms
 
@@ -1118,9 +1125,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "inter_neurons_from_gui": "inter_neurons",
                                      "doubtful_frames_nums": "doubtful_frames_nums"}
                 p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load=
-                                                         "p11/p11_17_11_24_a000/p11_17_11_24_a000_fusion_validation.mat",
+                                                         "p11/p11_17_11_24_a000/p11_17_11_24_a000_GUI_transientsJD.mat",
                                                          variables_mapping=variables_mapping,
                                                          from_gui=True)
+                # p11_17_11_24_a000_fusion_validation.mat
+                # p11_17_11_24_a000_GUI_transientsRD.mat
+                # p11_17_11_24_a000_transients_GUI_JD.mat
                 p11_17_11_24_a000_ms.build_spike_nums_dur()
             else:
                 variables_mapping = {"predictions": "predictions"}
@@ -1142,8 +1152,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 file_name_to_load="p11/p11_17_11_24_a000/p11_17_11_24_a000_CellDetect.mat",
                 variables_mapping=variables_mapping)
 
-            if not for_cell_classifier:
-                p11_17_11_24_a000_ms.clean_data_using_cells_to_remove()
+            # if not for_cell_classifier:
+            #     p11_17_11_24_a000_ms.clean_data_using_cells_to_remove()
 
         ms_str_to_ms_dict["p11_17_11_24_a000_ms"] = p11_17_11_24_a000_ms
 
@@ -1234,7 +1244,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         p12_171110_a000_ms.use_suite_2p = True
         if for_transient_classifier or for_cell_classifier:
-            p12_171110_a000_ms.use_suite_2p = True
+            p12_171110_a000_ms.use_suite_2p = False
 
         # calculated with 99th percentile on raster dur
         # p12_171110_a000_ms.activity_threshold = 13
@@ -1247,22 +1257,27 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
 
         if not p12_171110_a000_ms.use_suite_2p:
             if for_cell_classifier or for_transient_classifier:
-                variables_mapping = {"spike_nums_dur": "rasterdur"}  # rasterdur before
-                p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                                                       "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur.mat",
-                                                       variables_mapping=variables_mapping,
-                                                       save_caiman_apart=True)
-                # variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
-                #                      "peak_nums": "LocPeakMatrix_Python",
-                #                      "cells_to_remove": "cells_to_remove",
-                #                      "inter_neurons_from_gui": "inter_neurons",
-                #                      "doubtful_frames_nums": "doubtful_frames_nums"}
+                # variables_mapping = {"spike_nums_dur": "rasterdur"}  # rasterdur before
                 # p12_171110_a000_ms.load_data_from_file(file_name_to_load=
-                #                                        "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_fusion_validation.mat",
+                #                                        "p12/p12_17_11_10_a000/p12_17_11_10_a000_RasterDur.mat",
                 #                                        variables_mapping=variables_mapping,
-                #                                        from_gui=True)
+                #                                        save_caiman_apart=True)
+                variables_mapping = {"spike_nums": "Bin100ms_spikedigital_Python",
+                                     "peak_nums": "LocPeakMatrix_Python",
+                                     "cells_to_remove": "cells_to_remove",
+                                     "inter_neurons_from_gui": "inter_neurons",
+                                     "doubtful_frames_nums": "doubtful_frames_nums"}
+                p12_171110_a000_ms.load_data_from_file(file_name_to_load=
+                                                       "p12/p12_17_11_10_a000/p12_17_11_10_a000_GUI_fusion_validation.mat",
+                                                       variables_mapping=variables_mapping,
+                                                       from_gui=True)
+                p12_171110_a000_ms.build_spike_nums_dur()
+                # JD GT: p12_17_11_10_a000_GUI_JD.mat
+                # MP GT: p12_17_11_10_a000_GUI_JDMP.mat
+                # RD GT: p12_17_11_10_a000_GUI_transientsRD_2.mat
+                # fusion GT: p12_17_11_10_a000_GUI_fusion_validation.mat
                 # # keeping JD gui selection for test, then using: p12_17_11_10_a000_GUI_JD.mat
-                # p12_171110_a000_ms.build_spike_nums_dur()
+
                 # if for_cell_classifier:
                 #     p12_171110_a000_ms.load_cells_to_remove_from_txt(file_name="p12/p12_17_11_10_a000/"
                 #                                                                "p12_17_11_10_a000_cell_to_suppress_ground_truth.txt")
@@ -1317,9 +1332,9 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             #                                        variables_mapping=variables_mapping,
             #                                        save_caiman_apart=True)
 
-        if not p12_171110_a000_ms.use_suite_2p:
-            if not for_cell_classifier:
-                p12_171110_a000_ms.clean_data_using_cells_to_remove()
+        # if not p12_171110_a000_ms.use_suite_2p:
+        #     if not for_cell_classifier:
+        #         p12_171110_a000_ms.clean_data_using_cells_to_remove()
 
         ms_str_to_ms_dict["p12_171110_a000_ms"] = p12_171110_a000_ms
 
@@ -1413,7 +1428,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         p13_18_10_29_a001_ms = MouseSession(age=13, session_id="18_10_29_a001", sampling_rate=10, param=param,
                                             weight=9.4)
 
-        p13_18_10_29_a001_ms.use_suite_2p = False
+        p13_18_10_29_a001_ms.use_suite_2p = True
         if for_transient_classifier:
             p13_18_10_29_a001_ms.use_suite_2p = False
 
@@ -1455,8 +1470,8 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                                      "p13/p13_18_10_29_a001/p13_18_10_29_a001_CellDetect.mat",
                                                      variables_mapping=variables_mapping)
 
-            if not for_cell_classifier:
-                p13_18_10_29_a001_ms.clean_data_using_cells_to_remove()
+            # if not for_cell_classifier:
+            #     p13_18_10_29_a001_ms.clean_data_using_cells_to_remove()
 
             if load_abf:
                 p13_18_10_29_a001_ms.load_abf_file(abf_file_name="p13/p13_18_10_29_a001/p13_18_10_29_a001.abf",
@@ -1706,7 +1721,6 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             file_name_to_load="p60/p60_a529_2015_02_25/MotCorre_529_15_02_25_CellDetect.mat",
             variables_mapping=variables_mapping)
 
-        # TODO: LOAD SPEED
         speed_file = os.path.join(param.path_data, "p60/p60_a529_2015_02_25",
                                   "data_bonus", "Speed.mat")
         speed_data = hdf5storage.loadmat(speed_file)
@@ -1878,12 +1892,12 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
         if ms.spike_struct.spike_nums_dur is None:
             prediction_threshold = 0.5
             # key that should be on the prediction file_name to be loaded
-            prediction_key = ["meso_v2_epoch_19", "meso_v1_epoch_9"] #"meso_v2_epoch_19" #"meso_v2_caiman_epoch_19" #"meso_v1_epoch_9"
+            prediction_keys = ["meso_v2_epoch_19", "meso_v1_epoch_9"] #"meso_v2_epoch_19" #"meso_v2_caiman_epoch_19" #"meso_v1_epoch_9"
             # prediction_key = "gad_cre_v1_epoch_15"
             variables_mapping = {"predictions": "predictions"}
             ms.load_raster_dur_from_predictions(
                 path_name=f"p{ms.age}/{ms.description.lower()}/predictions/",
-                prediction_keys=prediction_key,
+                prediction_keys=prediction_keys,
                 prediction_threshold=prediction_threshold,
                 variables_mapping=variables_mapping, use_filtered_version=False)
 
