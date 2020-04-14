@@ -541,10 +541,14 @@ def main(convert_predictions_to_cicada_format=False):
     n_classes = len(actions_tags)
 
     # data_id = "p5_191205_191210_0_191210_a001"
-    data_id = "p6_190921_190927_1_190927_a000"
+    # data_id = "p6_190921_190927_1_190927_a000"
     # data_id = "p7_200103_200110_200110_a000_2020_02"
     # data_id = "p5_191127_191202_191202_a000"
     # data_id = "p5_191127_191202_191202_a001"
+    # data_id = "p8_190921_190929_1_190929_a000"
+    # REM DATA
+    data_id = "p5_200306_200311_200311_a000"
+
 
     data_path = os.path.join(data_path, data_id)
 
@@ -681,7 +685,8 @@ def main(convert_predictions_to_cicada_format=False):
         np.savez(os.path.join(predictions_dir, f"{data_id}_tada_predictions_for_cicada.npz"), **predictions_for_cicada)
     else:
         # We prepare the data for being process by TadaTraining
-        size_rect = (1600, 1000)
+        # size_rect = (1600, 1000)
+        size_rect = (1100, 1100)
         x_left, y_left = plot_img_with_rect(left_movie.get_frame(1000), title="left_movie", size_rect=size_rect)
         print(f"x_left {x_left}, y_left {y_left}")
         x_right, y_right = plot_img_with_rect(right_movie.get_frame(1000), title="right_movie", size_rect=size_rect)
@@ -713,5 +718,5 @@ def main(convert_predictions_to_cicada_format=False):
 
 if __name__ == "__main__":
     # correct_corrupted_data()
-    main(convert_predictions_to_cicada_format=True)
-    # main(convert_predictions_to_cicada_format=False)
+    # main(convert_predictions_to_cicada_format=True)
+    main(convert_predictions_to_cicada_format=False)
