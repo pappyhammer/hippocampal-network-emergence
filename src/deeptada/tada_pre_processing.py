@@ -419,7 +419,7 @@ def insert_frame_to_avi_movie(avi_file, n_frames_to_add_at_beg):
 
     size_avi = movie.width, movie.height
     fps_avi = 20
-    new_avi_file_name = os.path.join(dir_name, f"{base_name[:-4]}_NEW.avi")
+    new_avi_file_name = os.path.join(dir_name, f"{base_name[:-4]}_NEW_SHIFT_{n_frames_to_add_at_beg}_frames.avi")
     is_color = True
     # put fourcc to 0 for no compression
     # fourcc = 0
@@ -453,6 +453,21 @@ def correct_corrupted_data():
 
     root_path = "/media/julien/Not_today/hne_not_today/"
     data_path = os.path.join(root_path, "data/tada_data/for_training/")
+
+    just_insert_frames = True
+
+    if just_insert_frames:
+        avi_files = find_files_with_ext(data_path, "avi")
+
+        for avi_file in avi_files:
+            if "22983298" in avi_file:
+                right_movie_file = avi_file
+            else:
+                left_movie_file = avi_file
+
+        insert_frame_to_avi_movie(avi_file=right_movie_file, n_frames_to_add_at_beg=238)
+        insert_frame_to_avi_movie(avi_file=left_movie_file, n_frames_to_add_at_beg=212)
+        raise Exception("just_insert_frames OVER")
 
     config_yaml_file = os.path.join(root_path, "data/tada_data/config_tada.yaml")
     with open(config_yaml_file, 'r') as stream:
@@ -543,11 +558,13 @@ def main(convert_predictions_to_cicada_format=False):
     # data_id = "p5_191205_191210_0_191210_a001"
     # data_id = "p6_190921_190927_1_190927_a000"
     # data_id = "p7_200103_200110_200110_a000_2020_02"
-    # data_id = "p5_191127_191202_191202_a000"
     # data_id = "p5_191127_191202_191202_a001"
-    # data_id = "p8_190921_190929_1_190929_a000"
+    data_id = "p8_190921_190929_1_190929_a000"
     # REM DATA
-    data_id = "p5_200306_200311_200311_a000"
+    # data_id = "p5_200306_200311_200311_a000"
+
+    # soon
+    # data_id = "p5_191127_191202_191202_a000"
 
 
     data_path = os.path.join(data_path, data_id)
@@ -717,6 +734,6 @@ def main(convert_predictions_to_cicada_format=False):
 
 
 if __name__ == "__main__":
-    # correct_corrupted_data()
+    correct_corrupted_data()
     # main(convert_predictions_to_cicada_format=True)
-    main(convert_predictions_to_cicada_format=False)
+    # main(convert_predictions_to_cicada_format=False)

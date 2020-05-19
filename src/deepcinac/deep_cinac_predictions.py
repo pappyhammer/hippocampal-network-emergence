@@ -7,7 +7,6 @@ import numpy as np
 import hdf5storage
 import os
 
-
 """
 We're going to guide you on how using DeepCINAC to infer the neuronal activity from your calcium imaging data.
 
@@ -32,31 +31,8 @@ You can download some there: https://gitlab.com/cossartlab/deepcinac/tree/master
 # root path, just used to avoid copying the path everywhere
 root_path = '/media/julien/Not_today/hne_not_today/data/'
 
-
-create_tiffs = False
-
-if create_tiffs:
-    tiffs_dirname = os.path.join(root_path, "tiffs_for_transient_classifier")
-    tiffs_to_convert_dir = os.path.join(root_path, "movies_to_split")
-    file_names = []
-    # look for filenames in the fisrst directory, if we don't break, it will go through all directories
-    for (dirpath, dirnames, local_filenames) in os.walk(tiffs_to_convert_dir):
-        file_names.extend([x for x in local_filenames])
-        break
-
-    file_names = [f for f in file_names if f.endswith(".tif")]
-
-    for file_name in file_names:
-        movie_id = file_name[:-4]
-        create_tiffs_from_movie(path_for_tiffs=tiffs_dirname,
-                                movie_identifier=movie_id,
-                                movie_file_name=os.path.join(tiffs_to_convert_dir, file_name),
-                                movie_data=None)
-    raise Exception("END of create_tiffs")
-
-
 # path to calcium imaging data
-data_path = root_path # os.path.join(root_path, "data")
+data_path = root_path  # os.path.join(root_path, "data")
 movie_file_name = os.path.join(data_path, "p1_artificial_1.tif")
 
 # string used to identify the recording from which you want to predict activity
@@ -77,13 +53,29 @@ identifier = "art_movie_1"
 
 model_path = os.path.join(root_path, "transient_classifier_model")
 # meso_v2_epoch_19
-weights_file_name = os.path.join(model_path, "transient_classifier_weights_19-0.9710_2019_07_20.00-36-53.h5")
-json_file_name = os.path.join(model_path, "transient_classifier_model_architecture__2019_07_20.00-36-53.json")
+# weights_file_name = os.path.join(model_path, "cinac_weights_v2_epoch_19.h5")
+# json_file_name = os.path.join(model_path, "cinac_model_v2.json")
+
+
+# weights_file_name = os.path.join(model_path, "chen_v2_10_hz", "chen_v2_weights_18.h5")
+# json_file_name = os.path.join(model_path, "chen_v2_10_hz", "chen_v2_model.json")
+
+# weights_file_name = os.path.join(model_path, "chen_v4", "chen_v4_weights_8.h5")
+# json_file_name = os.path.join(model_path, "chen_v4", "chen_v4_model.json")
+
+# weights_file_name = os.path.join(model_path, "meso_v24_epoch_6", "cinac_weights_v24_epoch_6.h5")
+# json_file_name = os.path.join(model_path, "meso_v24_epoch_6", "cinac_model_v24.json")
+
+weights_file_name = os.path.join(model_path, "meso_v15_epoch_23", "cinac_weights_v15_epoch_23.h5")
+json_file_name = os.path.join(model_path, "meso_v15_epoch_23", "cinac_model_v15.json")
 
 # weights_file_name = os.path.join(root_path, "transient_classifier_weights_art_mov_1_test_05-0.9908.h5")
 # json_file_name = os.path.join(root_path, "transient_classifier_model_architecture_.json")
 
-classifier_id = "meso_v2_epoch_19"
+# classifier_id = "meso_v2_epoch_19"
+# classifier_id = "chen_v4"
+# classifier_id = "meso_v24_epoch_6"
+classifier_id = "meso_v15_epoch_23"
 # classifier_id = "meso_v12_epoch_12"
 
 # path of the directory where the results will be save
@@ -98,7 +90,6 @@ if device_name != '/device:GPU:0':
     raise SystemError('GPU device not found')
 print('Found GPU at: {}'.format(device_name))
 
-
 # to add in GT:
 # p5: 191205_191210_0_191210_a001 (meso_v2_epoch_19)
 # p6: 190921_190927_0_190927_a000 (meso_v13_epoch_23)
@@ -109,14 +100,20 @@ evaluate_inferences = True
 
 if evaluate_inferences:
     inferences_dir = "/media/julien/Not_today/hne_not_today/data/cinac_ground_truth/for_benchmarks/to_benchmark"
+    # inferences_dir = "/media/julien/Not_today/hne_not_today/data/cinac_ground_truth/for_benchmarks/to_benchmark_chen"
+    # inferences_dir = "/media/julien/Not_today/hne_not_today/data/cinac_ground_truth/for_benchmarks/to_benchmark_ins"
     results_path = "/media/julien/Not_today/hne_not_today/results_hne/"
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     results_path = results_path + f"{time_str}"
     os.mkdir(results_path)
 
     benchmark_neuronal_activity_inferences(inferences_dir=inferences_dir, results_path=results_path,
-                                           colorfull_boxplots=True, white_background=False,
-                                           color_cell_as_boxplot=True)
+                                           colorfull_boxplots=False, white_background=True,
+                                           # colorfull_boxplots=False, white_background=True,
+                                           with_legend=True, put_metric_as_y_axis_label=True,
+                                           alpha_scatter=0.3,
+                                           using_patch_for_legend=True, predictions_stat_by_metrics=False,
+                                           color_cell_as_boxplot=False, with_cells=True, with_cell_number=True)
 else:
     predict_from_cinal_file = True
 
@@ -170,7 +167,6 @@ else:
         # cinac_recording.set_rois_from_suite_2p(is_cell_file_name=is_cell_suite2p_file_name,
         #                                        stat_file_name=stat_suite2p_file_name)
 
-
         # ------------------------------------------------------
         # options 2: contours coordinate (such as CaImAn, Fiji)
         # ------------------------------------------------------
@@ -216,7 +212,6 @@ else:
         # cinac_recording.set_rois_from_nwb(nwb_data=nwb_data, name_module=name_module,
         #                                   name_segmentation=name_segmentation, name_seg_plane=name_seg_plane)
 
-
         # -----------------------
         # options 4: Pixel masks
         # -----------------------
@@ -245,10 +240,25 @@ else:
         The dictionnary will contain as value the cells to be predicted by the key configuration. 
         If the value is set to None, then all the cells will be predicted using this configuration.
         """
-
-        model_files_dict = dict()
-        # predicting 10 first cells with this model, weights and string identifying the network
-        model_files_dict[(json_file_name, weights_file_name, identifier)] = np.arange(20)
+        # if using cell_type_predictions
+        using_cell_type_predictions = False
+        if using_cell_type_predictions:
+            # TODO: test it on google colab
+            cell_type_config_file = ""
+            data = np.load(file_name, allow_pickle=True)
+            cell_type_predictions = data["predictions"]
+            cell_type_to_classifier = {"pyramidal": (json_file_name, weights_file_name, identifier)}
+            default_classifier = (json_file_name, weights_file_name, identifier)
+            model_files_dict = \
+                select_activity_classifier_on_cell_type_outputs(cell_type_config_file=cell_type_config_file,
+                                                                cell_type_predictions=cell_type_predictions,
+                                                                cell_type_to_classifier=cell_type_to_classifier,
+                                                                default_classifier=default_classifier)
+            print(f"model_files_dict {model_files_dict}")
+        else:
+            model_files_dict = dict()
+            # predicting 10 first cells with this model, weights and string identifying the network
+            model_files_dict[(json_file_name, weights_file_name, identifier)] = np.arange(20)
 
         """
         We now create an instance of CinacPredictor and add the CinacRecording we have just created.
@@ -260,7 +270,7 @@ else:
         thus if a cell was wrongly added to segmentation, this could lower the accuracy of the classifier.
         """
 
-        cinac_predictor = CinacPredictor()
+        cinac_predictor = CinacPredictor(verbose=1)
 
         """
         Args:
@@ -290,7 +300,7 @@ else:
         """
 
         # you could decomment this line to make sure the GPU is used
-        #with tf.device('/device:GPU:0'):
+        # with tf.device('/device:GPU:0'):
 
         # predictions are saved in the results_path and return as a dict,
         predictions_dict = cinac_predictor.predict(results_path=results_path, output_file_formats="npy")
