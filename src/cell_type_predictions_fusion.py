@@ -3,6 +3,7 @@ from datetime import datetime
 # from deepcinac.cinac_predictor import fusion_cell_type_predictions, fusion_cell_type_predictions_by_type
 import numpy as np
 from deepcinac.utils.cinac_file_utils import read_cell_type_categories_yaml_file
+from collections import Counter
 
 
 def fusion_cell_type_predictions_by_type(cell_type_preds_dict, default_cell_type_pred,
@@ -50,18 +51,18 @@ def fusion_cell_type_predictions_by_type(cell_type_preds_dict, default_cell_type
 
     # now we look at how much intersects between cell_type
     # without intersects
-    cells_by_type_clean = dict()
-    cells_predictions_by_type_clean = dict()
-    for cell_type_code in cell_type_codes:
-        cells_by_type_clean[cell_type_code] = []
-        cells_predictions_by_type_clean[cell_type_code] = []
+
     # cells that don't have predictions yet
     cells_to_classify = []
 
     # final predictions
     fusion_predictions = np.zeros((n_cells, len(cell_type_codes)))
+
     n_cells_that_interesect = 0
     n_cells_non_predicted = 0
+    interesect_association = []
+    if cell_type_from_code_dict is not None:
+        print(f"Cells with multiple cell type (-> default that will the final one):")
     for cell in range(n_cells):
         cell_type_code_associated = []
         cell_predictions = None
@@ -73,12 +74,16 @@ def fusion_cell_type_predictions_by_type(cell_type_preds_dict, default_cell_type
         if len(cell_type_code_associated) == 1:
             cell_type_code = cell_type_code_associated[0]
             fusion_predictions[cell] = cell_predictions
-            cells_by_type_clean[cell_type_code].append(cell)
-            cells_predictions_by_type_clean[cell_type_code].append(cell_predictions)
         else:
             if len(cell_type_code_associated) == 0:
                 n_cells_non_predicted += 1
             else:
+                if cell_type_from_code_dict is not None:
+                    interesect_association.append(tuple([cell_type_from_code_dict[c]
+                                                         for c in cell_type_code_associated]))
+
+                    print(f"Cell {cell}: {[cell_type_from_code_dict[c] for c in cell_type_code_associated]} -> "
+                          f"{cell_type_from_code_dict[np.argmax(default_cell_type_pred[cell])]}")
                 n_cells_that_interesect += 1
             cells_to_classify.append(cell)
             fusion_predictions[cell] = default_cell_type_pred[cell]
@@ -86,6 +91,7 @@ def fusion_cell_type_predictions_by_type(cell_type_preds_dict, default_cell_type
     if cell_type_config_file is not None:
         print(f"N cells without predictions on first round: {n_cells_non_predicted}")
         print(f"N cells with more than on cell type on first round: {n_cells_that_interesect}")
+        print(f"Associations that intersect: {Counter(interesect_association)}")
 
     if filename_to_save is not None:
         if not filename_to_save.endswith(".npy"):
