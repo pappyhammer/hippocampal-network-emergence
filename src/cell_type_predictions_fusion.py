@@ -7,6 +7,7 @@ from collections import Counter
 
 
 def fusion_cell_type_predictions_by_type(cell_type_preds_dict, default_cell_type_pred,
+                                         cell_type_to_skip_if_conflict=None,
                                          cell_type_config_file=None, filename_to_save=None):
     """
     Allows to associate a cell type to a prediction (a prediction being a 2d array of n_cells * n_classes)
@@ -17,6 +18,9 @@ def fusion_cell_type_predictions_by_type(cell_type_preds_dict, default_cell_type
         Same length as cell_type_preds_dict
         cell_type_config_file:
         filename_to_save:
+        cell_type_to_skip_if_conflict: int representing the cell type code, if given and there is a conflict between
+        two classifier including this cell type, then the other one in conflict will be chosen. If a conflict with more
+        than 2 cell types, then the default one is chosen.
 
     Returns:
 
@@ -52,9 +56,6 @@ def fusion_cell_type_predictions_by_type(cell_type_preds_dict, default_cell_type
     # now we look at how much intersects between cell_type
     # without intersects
 
-    # cells that don't have predictions yet
-    cells_to_classify = []
-
     # final predictions
     fusion_predictions = np.zeros((n_cells, len(cell_type_codes)))
 
@@ -72,21 +73,32 @@ def fusion_cell_type_predictions_by_type(cell_type_preds_dict, default_cell_type
                 index_cell = np.where(np.array(cells) == cell)[0][0]
                 cell_predictions = cells_predictions_by_type[cell_type_code][index_cell]
         if len(cell_type_code_associated) == 1:
-            cell_type_code = cell_type_code_associated[0]
+            # cell_type_code = cell_type_code_associated[0]
             fusion_predictions[cell] = cell_predictions
         else:
+            use_default = True
             if len(cell_type_code_associated) == 0:
                 n_cells_non_predicted += 1
             else:
                 if cell_type_from_code_dict is not None:
+                    new_cell_type_code = np.argmax(default_cell_type_pred[cell])
                     interesect_association.append(tuple([cell_type_from_code_dict[c]
                                                          for c in cell_type_code_associated]))
-
+                    if (cell_type_to_skip_if_conflict is not None) and len(cell_type_code_associated) == 2:
+                        if cell_type_to_skip_if_conflict in cell_type_code_associated:
+                            use_default = False
+                            if cell_type_to_skip_if_conflict == cell_type_code_associated[0]:
+                                new_cell_type_code = cell_type_code_associated[1]
+                            else:
+                                new_cell_type_code = cell_type_code_associated[0]
+                            cells = cells_by_type[new_cell_type_code]
+                            index_cell = np.where(np.array(cells) == cell)[0][0]
+                            fusion_predictions[cell] = cells_predictions_by_type[new_cell_type_code][index_cell]
                     print(f"Cell {cell}: {[cell_type_from_code_dict[c] for c in cell_type_code_associated]} -> "
-                          f"{cell_type_from_code_dict[np.argmax(default_cell_type_pred[cell])]}")
+                          f"{cell_type_from_code_dict[new_cell_type_code]}")
                 n_cells_that_interesect += 1
-            cells_to_classify.append(cell)
-            fusion_predictions[cell] = default_cell_type_pred[cell]
+            if use_default:
+                fusion_predictions[cell] = default_cell_type_pred[cell]
 
     if cell_type_config_file is not None:
         print(f"N cells without predictions on first round: {n_cells_non_predicted}")
@@ -134,9 +146,11 @@ if __name__ == "__main__":
     do_it_by_type = True
 
     if do_it_by_type:
-        age = 5
-        animal_id = "190320_190325"
-        session_id = "190325_a000"
+        age = 12
+        animal_id = "171029_171110"
+        session_id = "171110_a000"
+       # p12 171029_171110 171110_a000
+        # p5 190320_190325 190325_a000
         global_id = animal_id + "_" + session_id
         cell_type_dir = f"cell_type_predictions_{global_id}"
         path_data = os.path.join(path_data, "SWISS_data", f"p{age}", animal_id, session_id, cell_type_dir)
@@ -172,9 +186,11 @@ if __name__ == "__main__":
                         break
 
         print(f"for {global_id}")
+        # skipping noise if conflict
         fusion_cell_type_predictions_by_type(cell_type_preds_dict, default_cell_type_pred,
                                              cell_type_config_file=cell_type_config_file,
-                                             filename_to_save=filename_to_save)
+                                             filename_to_save=filename_to_save,
+                                             cell_type_to_skip_if_conflict=2)
         """
         Allows to associate a cell type to a prediction (a prediction being a 2d array of n_cells * n_classes)
         Args:
