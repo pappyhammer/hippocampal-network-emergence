@@ -127,7 +127,19 @@ def fusion_cell_type_predictions_by_type(cell_type_preds_dict, default_cell_type
                 cell_type_name = cell_type_from_code_dict[cell_type_code]
                 print(f"{n_wrong} wrongs {cell_type_name}")
 
-    return predictions
+        print(" ")
+        # we display to count by cell type in the fusion predictions
+        cell_count_by_type = np.zeros(fusion_predictions.shape[1], dtype="int16")
+        for cell in np.arange(len(fusion_predictions)):
+            cell_type_code = np.argmax(fusion_predictions[cell])
+            cell_count_by_type[cell_type_code] += 1
+        print(" ")
+        print(f"Number of cells for each cell type after fusion:")
+        for code in np.arange(len(cell_type_from_code_dict)):
+            print(f"{cell_count_by_type[code]} {cell_type_from_code_dict[code]}")
+        print(" ")
+
+    return fusion_predictions
 
 
 if __name__ == "__main__":
@@ -146,11 +158,11 @@ if __name__ == "__main__":
     do_it_by_type = True
 
     if do_it_by_type:
-        age = 12
-        animal_id = "171029_171110"
-        session_id = "171110_a000"
-       # p12 171029_171110 171110_a000
-        # p5 190320_190325 190325_a000
+        age = 41
+        animal_id = "190320_190410"
+        session_id = "190430_a000"
+        #
+
         global_id = animal_id + "_" + session_id
         cell_type_dir = f"cell_type_predictions_{global_id}"
         path_data = os.path.join(path_data, "SWISS_data", f"p{age}", animal_id, session_id, cell_type_dir)
