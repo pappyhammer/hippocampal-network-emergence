@@ -26,13 +26,14 @@ if __name__ == '__main__':
     """
     # "config_tada.yaml"
     # partly_trained_model = "/media/julien/Not_today/hne_not_today/data/test_cinac_gui/transient_classifier_full_model_02-0.9817.h5"
-    tada_model = TadaModel(results_path=results_path, n_epochs=10, verbose=2, batch_size=8,
+    tada_model = TadaModel(results_path=results_path, n_epochs=10, verbose=2, batch_size=8, # TODO: change n_epochs to
                            n_gpus=4,
                            width_crop=1100, height_crop=1100,
                            final_height=128,
                            square_image=True,
-                           window_len=75, max_n_transformations=0,
-                           lstm_layers_size=[128, 256], bin_lstm_size=128,
+                           window_len=100, max_n_transformations=8,
+                           lstm_layers_size=[64, 128], bin_lstm_size=128,
+                           # lstm_layers_size=[128, 256], bin_lstm_size=256,
                            action_tags_yaml_file=action_tags_yaml_file,
                            overlap_value=0.9,
                            ratio_action_no_action=(0.85, 0.15),
