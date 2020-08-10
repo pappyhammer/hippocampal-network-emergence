@@ -10,7 +10,7 @@ import yaml
 class AnalysisOfMvt:
 
     def __init__(self, data_path, results_path, identifier, nwb_file, left_cam_id, right_cam_id,
-                 config_citnps_yaml_file,
+                 config_citnps_yaml_file, mandatory_piezo_threshold=None,
                  bodyparts_to_fusion=None,
                  cicada_file=None):
         """
@@ -40,13 +40,18 @@ class AnalysisOfMvt:
         self.left_cam_id = left_cam_id
         self.right_cam_id = right_cam_id
 
+        self.mandatory_piezo_threshold = mandatory_piezo_threshold
+
         # each key is a bodypart + "_" + side, each value is a float representing the piezo signal threshold
         self.threshold_z_score_mvt = dict()
         if os.path.isfile(config_citnps_yaml_file):
             with open(config_citnps_yaml_file, 'r') as stream:
                 citnps_config = yaml.load(stream, Loader=yaml.FullLoader)
                 for bodypart, bodypart_config_dict in citnps_config.items():
-                    self.threshold_z_score_mvt[bodypart] = bodypart_config_dict["piezo_threshold"]
+                    if mandatory_piezo_threshold is not None:
+                        self.threshold_z_score_mvt[bodypart] = mandatory_piezo_threshold
+                    else:
+                        self.threshold_z_score_mvt[bodypart] = bodypart_config_dict["piezo_threshold"]
         else:
             raise Exception("No config_citnps_yaml_file given")
 
@@ -258,12 +263,13 @@ class AnalysisOfMvt:
 
         # key being the bodypart
         still_vs_mvt_dict = dict()
+        still_vs_mvt_matrix = np.zeros(self.binary_mvt_matrix.shape, dtype="int8")
         # first key key to put in npz and value a list of periods
         periods_by_type_of_mvt = dict()
         periods_by_type_of_mvt["complex_mvt"] = np.zeros(self.n_frames, dtype="int8")
         periods_by_type_of_mvt["startle"] = np.zeros(self.n_frames, dtype="int8")
 
-        for bodypart in self.bodyparts:
+        for bodypart_index, bodypart in enumerate(self.bodyparts):
             periods_by_type_of_mvt[f"twitch_{bodypart}"] = np.zeros(self.n_frames, dtype="int8")
             periods_by_type_of_mvt[f"mvt_{bodypart}"] = np.zeros(self.n_frames, dtype="int8")
 
@@ -271,13 +277,14 @@ class AnalysisOfMvt:
 
             invert_still_vs_mvt = 1 - still_vs_mvt
             still_periods = get_continous_time_periods(invert_still_vs_mvt)
-            gap_to_fill = 3
+            gap_to_fill = 2
             # feeling the gap of 2 frames without mvt
             for still_period in still_periods:
                 if (still_period[1] - still_period[0] + 1) <= gap_to_fill:
                     still_vs_mvt[still_period[0]:still_period[1] + 1] = 1
             # TODO: See to remove mvt of less than 2 frames here
             still_vs_mvt_dict[bodypart] = still_vs_mvt
+            still_vs_mvt_matrix[bodypart_index] = still_vs_mvt
             print(f"{bodypart} np.sum(still_vs_mvt) {np.sum(still_vs_mvt)}")
 
         # now we want to identify startle and complex_mvt
@@ -512,16 +519,16 @@ class AnalysisOfMvt:
                         #         continue
         print(f"n_loops_of_modif final:  {n_loops_of_modif}")
 
-        for action_str in ["cicada", "evaluate"]:
+        for action_str in ["cicada", "citnps_tag"]:
             # will be saved in the npz
             # each key is the tag, and value is a 2d array (2x n_intervals) with start and finish in sec on lines,
             # each column is an interval
-            # the evaluate version will have the original as key for the behavior
-            # the cicada version will have added in front the original key, "citnps_" so it could be distinguish
+            # the cicada version will have the original as key for the behavior
+            # the citnps_tag version will have added in front the original key, "citnps_" so it could be distinguish
             # from a potential manual ground truth
             behaviors_encoding_dict = dict()
             for key_behavior, binary_array in periods_by_type_of_mvt.items():
-                if action_str == "evaluate":
+                if action_str == "cicada":
                     key_to_use = key_behavior
                 else:
                     key_to_use = "citnps_" + key_behavior
@@ -534,16 +541,31 @@ class AnalysisOfMvt:
                     behaviors_encoding_dict[key_to_use] = \
                         encode_period_with_timestamps(periods=periods,
                                                       timestamps=self.behavior_right_time_stamps)
-            if self.gt_behavior is not None and (action_str == "evaluate"):
+            if self.gt_behavior is not None and (action_str == "cicada"):
                 evaluate_behavior_predictions(ground_truth_labels=self.gt_behavior,
                                               other_labels=behaviors_encoding_dict,
                                               n_frames=self.n_frames,
                                               behavior_timestamps=self.behavior_right_time_stamps)
-
-            np.savez(os.path.join(self.results_path, f"citnps_{self.identifier}_{action_str}.npz"),
+            to_add_to_filename = ""
+            if self.mandatory_piezo_threshold is not None:
+                to_add_to_filename = f"_piezo_threshold_{np.round(self.mandatory_piezo_threshold, 1)}.npz"
+            np.savez(os.path.join(self.results_path, f"citnps_{self.identifier}_{action_str}{to_add_to_filename}.npz"),
                      **behaviors_encoding_dict)
 
-
+        # extracting just when mouvement happens
+        still_vs_mvt_vector = np.sum(still_vs_mvt_matrix, axis=0)
+        still_vs_mvt_vector[still_vs_mvt_vector > 1] = 1
+        periods = get_continous_time_periods(still_vs_mvt_vector)
+        # print(f"sum periods {len(periods)}")
+        behaviors_encoding_dict = dict()
+        behaviors_encoding_dict["citnps_mvt"] = \
+            encode_period_with_timestamps(periods=periods,
+                                          timestamps=self.behavior_right_time_stamps)
+        file_name = f"citnps_{self.identifier}_1_category_mvt.npz"
+        if self.mandatory_piezo_threshold is not None:
+            file_name = f"citnps_{self.identifier}_1_category_mvt_piezo_threshold_{np.round(self.mandatory_piezo_threshold, 1)}.npz"
+        np.savez(os.path.join(self.results_path, file_name),
+                 **behaviors_encoding_dict)
 
 def encode_frames_from_cicada(cicada_file, nwb_file, cam_id, side_to_exclude=None, no_behavior_str="still"):
     """
@@ -999,25 +1021,42 @@ def find_dirs_with_keyword(dir_to_explore, keyword, go_deep=False):
     return selected_dirnames
 
 def citnps_main(extract_piezo_signal):
-    age = 5
-    animal_id = "191127_191202"
-    session_id = "191202_a001"
+    # -------------------------------------------- #
+    # -------------------------------------------- #
+    # age = 5
+    # animal_id = "191127_191202"
+    # session_id = "191202_a001"
+    # animal_id = "200306_200311"
+    # session_id = "200311_a000"
+    age = 7
+    animal_id = "200206_200213"
+    session_id = "200213_a000"
+    # directory in hne_not_today
+    type_of_recording = "red_ins"
+    # if CITNPS has already be run for this session
+    # yaml_config_file = "/media/julien/Not_today/hne_not_today/data/red_ins/p5/191127_191202/191202_a001/behavior_191127_191202_191202_a001/p5_191127_191202_191202_a001_citnps_config.yaml"
+    yaml_config_file = "/media/julien/Not_today/hne_not_today/data/red_ins/p7/200206_200213/200213_a000/behavior_200206_200213_200213_a000/p7_200206_200213_200213_a000_citnps_config.yaml"
+    # yaml_config_file = None
+
+    # if not None, force the threshold for all bodypart to this value
+    mandatory_piezo_threshold = 0.5
+
+    # Note that a NWB file should exist for this session
+    # -------------------------------------------- #
+    # -------------------------------------------- #
 
     left_cam_id = "23109588"
     right_cam_id = "22983298"
 
     movie_queue_size = 2000
     citnps_movies_dict = dict()
-    bodyparts_dict = dict()
 
     root_path = "/media/julien/Not_today/hne_not_today/"
 
     nwb_path = os.path.join(root_path, "data", "nwb_files")
 
+    # a directory with timestamps will be created in results directory when using the GUI
     results_path = os.path.join(root_path, "results_hne")
-    # time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
-    # results_path = os.path.join(results_path, time_str)
-    # os.mkdir(results_path)
 
     data_id = f"p{age}_{animal_id}_{session_id}"
 
@@ -1028,7 +1067,7 @@ def citnps_main(extract_piezo_signal):
                         f"in path {nwb_path}")
     nwb_file = nwb_files[0]
 
-    data_path = os.path.join(root_path, "data", "red_ins", f"p{age}", animal_id, session_id)
+    data_path = os.path.join(root_path, "data", type_of_recording, f"p{age}", animal_id, session_id)
 
     piezo_signals_data_path = os.path.join(data_path, f"signal_{animal_id}_{session_id}")
 
@@ -1162,13 +1201,11 @@ def citnps_main(extract_piezo_signal):
             cicada_file = cicada_file[0]
 
         AnalysisOfMvt(data_path=piezo_signals_data_path, results_path=results_path, identifier=data_id,
+                      mandatory_piezo_threshold=mandatory_piezo_threshold,
                       nwb_file=nwb_file, left_cam_id=left_cam_id, right_cam_id=right_cam_id,
                       config_citnps_yaml_file=config_citnps_yaml_file,
                       bodyparts_to_fusion=["tail"], cicada_file=cicada_file)
         return
-
-    yaml_config_file = "/media/julien/Not_today/hne_not_today/data/red_ins/p5/191127_191202/191202_a001/behavior_191127_191202_191202_a001/p5_191127_191202_191202_a001_citnps_config.yaml"
-    # yaml_config_file = None
 
     run_citnps(movies_dict=citnps_movies_dict, from_cicada=False, data_id=data_id,
                luminosity_change_dict=luminosity_change_dict,

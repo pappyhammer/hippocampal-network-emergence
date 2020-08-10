@@ -19,13 +19,16 @@ def organize_data_files(path_data):
     main_dir_names = [ABF_DIR, ACTIVITY_PRED_DIR, BEHAVIOR_DIR, CELL_TYPE_PRED, CI_DATA_DIR, CONTOURS_FINAL_DIR,
                       FIJI_MAPS_DIR, SUITE2P_DIR, TMP_CONTOURS_DIR]
     n_levels_root = path_data.count("/")
-    print(f"n_levels_root {n_levels_root}")
+
     for (dirpath, dirnames, local_filenames) in os.walk(path_data):
         level = dirpath.count("/") - n_levels_root
+
         if level != 3:
             continue
+
         dirs_at_each_level = dirpath.split("/")
         animal_id = dirs_at_each_level[-2] + "_" + dirs_at_each_level[-1]
+        # continue
         all_files_by_session[dirpath] = local_filenames
         # now we want to create directories and move files accordingly
         # keys is the name of the dir (without the session_id) and value is a list of files to put in
@@ -72,6 +75,7 @@ def organize_data_files(path_data):
         # now we create dirs to put files in
         for main_dir_name in main_dir_names:
             dir_to_create = os.path.join(dirpath, main_dir_name + "_" + animal_id)
+            print(f"dir_to_create {dir_to_create}")
             if not os.path.isdir(dir_to_create):
                 os.mkdir(dir_to_create)
 
