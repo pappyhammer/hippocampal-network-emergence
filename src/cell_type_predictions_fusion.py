@@ -20,9 +20,9 @@ if __name__ == "__main__":
 
     do_it_by_type = True
     fusion_with_gt = True
-    age = 5
-    animal_id = "191127_191202"
-    session_id = "191202_a000"
+    age = 6
+    animal_id = "190921_190927_1"
+    session_id = "190927_a000"
 
     global_id = animal_id + "_" + session_id
 
@@ -117,6 +117,8 @@ if __name__ == "__main__":
                                 f"in {os.path.join(path_data, tmp_contours_dir)}")
         cell_type_pred_2 = np.load(cell_type_pred_2, allow_pickle=True)
 
+        # cell_types_to_not_fusion_with_gt=[2] means Noise is not replaced by INs
         fusion_cell_type_predictions(cell_type_pred_1=cell_type_pred_1, cell_type_pred_2=cell_type_pred_2,
                                      cell_type_config_file=cell_type_config_file,
-                                     filename_to_save=filename_to_save)
+                                     filename_to_save=filename_to_save,
+                                     cell_types_to_not_fusion_with_gt=[2])
