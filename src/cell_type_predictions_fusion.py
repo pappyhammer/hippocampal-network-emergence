@@ -2,6 +2,7 @@ import os
 # from datetime import datetime
 from deepcinac.cinac_predictor import fusion_cell_type_predictions, fusion_cell_type_predictions_by_type
 import numpy as np
+
 # from deepcinac.utils.cinac_file_utils import read_cell_type_categories_yaml_file
 # from collections import Counter
 
@@ -20,9 +21,9 @@ if __name__ == "__main__":
 
     do_it_by_type = True
     fusion_with_gt = True
-    age = 6
-    animal_id = "190921_190927_1"
-    session_id = "190927_a000"
+    age = 5
+    animal_id = "191205_191210_0"
+    session_id = "191210_a000"
 
     global_id = animal_id + "_" + session_id
 
@@ -118,7 +119,9 @@ if __name__ == "__main__":
         cell_type_pred_2 = np.load(cell_type_pred_2, allow_pickle=True)
 
         # cell_types_to_not_fusion_with_gt=[2] means Noise is not replaced by INs
+        # with new category (0, 3) means interneurons in GT will be labeled red_ins
         fusion_cell_type_predictions(cell_type_pred_1=cell_type_pred_1, cell_type_pred_2=cell_type_pred_2,
                                      cell_type_config_file=cell_type_config_file,
                                      filename_to_save=filename_to_save,
-                                     cell_types_to_not_fusion_with_gt=[2])
+                                     cell_types_to_not_fusion_with_gt=[2],
+                                     with_new_category=[(0, 3)])
