@@ -324,7 +324,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "inter_neurons_from_gui": "inter_neurons",
                                      "doubtful_frames_nums": "doubtful_frames_nums"}
                 p7_171012_a000_ms.load_data_from_file(file_name_to_load=
-                                                      "p7/p7_17_10_12_a000/p7_17_10_12_a000_GUI_transients_RD.mat",
+                                                      "p7/p7_17_10_12_a000/p7_17_10_12_a000_fusion_validation.mat",
                                                       variables_mapping=variables_mapping,
                                                       from_gui=True)
                 # p7_17_10_12_a000_fusion_validation.mat
@@ -1125,7 +1125,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                                      "inter_neurons_from_gui": "inter_neurons",
                                      "doubtful_frames_nums": "doubtful_frames_nums"}
                 p11_17_11_24_a000_ms.load_data_from_file(file_name_to_load=
-                                                         "p11/p11_17_11_24_a000/p11_17_11_24_a000_GUI_transientsJD.mat",
+                                                         "p11/p11_17_11_24_a000/p11_17_11_24_a000_fusion_validation.mat",
                                                          variables_mapping=variables_mapping,
                                                          from_gui=True)
                 # p11_17_11_24_a000_fusion_validation.mat
@@ -1324,7 +1324,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
                 file_name_to_load="p12/p12_17_11_10_a000/p12_17_11_10_a000_CellDetect.mat",
                 variables_mapping=variables_mapping)
 
-            # p12_171110_a000_ms.load_caiman_results(path_data="p12/p12_17_11_10_a000/")
+            p12_171110_a000_ms.load_caiman_results(path_data="p12/p12_17_11_10_a000/")
 
             # variables_mapping = {"spike_nums_dur": "rasterdur"}  # rasterdur before
             # p12_171110_a000_ms.load_data_from_file(file_name_to_load=
@@ -1893,6 +1893,7 @@ def load_mouse_sessions(ms_str_to_load, param, load_traces, load_abf=True, load_
             prediction_threshold = 0.5
             # key that should be on the prediction file_name to be loaded
             prediction_keys = ["meso_v2_epoch_19", "meso_v1_epoch_9"] #"meso_v2_epoch_19" #"meso_v2_caiman_epoch_19" #"meso_v1_epoch_9"
+            prediction_keys = ["meso_v31_epoch_6"]
             # prediction_key = "gad_cre_v1_epoch_15"
             variables_mapping = {"predictions": "predictions"}
             ms.load_raster_dur_from_predictions(

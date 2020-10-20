@@ -120,16 +120,21 @@ if __name__ == "__main__":
 
     # new after iteration 2
     # videos_to_analyze = [
-    #     os.path.join(root_path, "videos_to_use", "behavior_p5_19_12_10_0_cam_23109588_cam2_a001_fps_20.avi")]
+        # os.path.join(root_path, "videos_to_use", "behavior_p5_19_12_10_0_cam_23109588_cam2_a001_fps_20.avi")]
     # videos_to_analyze = [
     #     os.path.join(root_path, "videos_to_use", "behavior_p8_19_09_29_1_cam_23109588_cam2_a001_fps_20.avi")]
 
     # new after iteration 3
     # videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p6_19_12_03_cam_22983298_cam1_a000_fps_20.avi")]
-    # videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p6_19_09_27_1_cam_22983298_cam1_a000_fps_20.avi")]
+    videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p6_19_09_27_1_cam_22983298_cam1_a000_fps_20.avi")]
 
     # new after iteration 4
-    videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p5_19_12_10_0_cam_22983298_cam1_a001_fps_20.avi")]
+    # videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p5_19_12_10_0_cam_22983298_cam1_a001_fps_20.avi")]
+    # videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p7_20_01_10_cam_22983298_cam1_a000_fps_20.avi")]
+    # videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p7_20_01_10_cam_23109588_cam2_a000_fps_20.avi")]
+
+    # new videos just for predictions
+    # videos_to_analyze = [os.path.join(root_path, "videos_to_use", "behavior_p6_19_09_27_1_cam_23109588_cam2_a000_fps_20.avi")]
 
     # full video paths for those 3 variables
     videos_to_filter_predictions = videos_to_analyze
@@ -163,6 +168,9 @@ if __name__ == "__main__":
     From iteration 4:
     Results for 220000  training iterations: 95 1 train error: 4.07 pixels. Test error: 15.32  pixels.
 With pcutoff of 0.1  train error: 4.07 pixels. Test error: 9.75 pixels
+
+    From iteration 5:
+    Try (440000 / 5000) - 1: 87
     """
 
     # keys are:
@@ -182,7 +190,7 @@ With pcutoff of 0.1  train error: 4.07 pixels. Test error: 9.75 pixels
     # "step_14" or "extract_outlier_frames" (set videos_to_extract_outlier_frames variable)
     # "step_15" or "refine_labels"
     # "step_16" or "merge_datasets"
-    stages_to_run = ["step_12_bis"]
+    stages_to_run = ["analyzeskeleton"]
 
     # ------------------------------------------------------------------
     # STAGE I: Stage I: opening DeepLabCut and creation of a new project
@@ -527,7 +535,7 @@ With pcutoff of 0.1  train error: 4.07 pixels. Test error: 9.75 pixels
         deeplabcut.create_labeled_video(config_path, videos_to_create_with_labels, videotype='avi',
                                         shuffle=1 ,trainingsetindex=0, filtered=False, save_frames=False,
                                         Frames2plot=None, delete=False, displayedbodyparts='all', codec='mp4v',
-                                        outputframerate=None, destfolder=None, draw_skeleton=True, trailpoints = 5,
+                                        outputframerate=None, destfolder=None, draw_skeleton=True, trailpoints=5,
                                         displaycropped=False)
 
     # --------------------------------------------------------------------

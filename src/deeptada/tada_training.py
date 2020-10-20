@@ -26,19 +26,21 @@ if __name__ == '__main__':
     """
     # "config_tada.yaml"
     # partly_trained_model = "/media/julien/Not_today/hne_not_today/data/test_cinac_gui/transient_classifier_full_model_02-0.9817.h5"
-    tada_model = TadaModel(results_path=results_path, n_epochs=1, verbose=1, batch_size=8,
+    tada_model = TadaModel(results_path=results_path, n_epochs=5, verbose=1, batch_size=4,
                            n_gpus=1,
                            width_crop=1100, height_crop=1100,
-                           window_len=150, max_n_transformations=8,
-                           lstm_layers_size=[128, 256], bin_lstm_size=128,
+                           final_height=128,
+                           square_image=True,
+                           window_len=100, max_n_transformations=8,
+                           # lstm_layers_size=[64, 128], bin_lstm_size=128,
+                           lstm_layers_size=[64], bin_lstm_size=64,
                            action_tags_yaml_file=action_tags_yaml_file,
-                           overlap_value=0.5,
+                           overlap_value=0.9,
                            n_cameras=2,
                            ratio_action_no_action=(0.85, 0.15),
                            images_dirname=images_dirname,
+                           learning_rate_reduction_patience=3,
                            split_movies_in_frames=False,
-                           final_height=128,
-                           square_image=True,
                            save_weigths_only=True,
                            without_bidirectional=False,
                            use_bin_at_al_version=True)
@@ -50,4 +52,4 @@ if __name__ == '__main__':
     tada_model.add_multiple_input_data_from_dir(dir_name=tada_dir_name)
 
     tada_model.prepare_model()
-    # tada_model.fit()
+    tada_model.fit()

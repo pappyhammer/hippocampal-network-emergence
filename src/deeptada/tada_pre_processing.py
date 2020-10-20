@@ -558,14 +558,13 @@ def main(convert_predictions_to_cicada_format=False):
     # data_id = "p5_191205_191210_0_191210_a001"
     # data_id = "p6_190921_190927_1_190927_a000"
     # data_id = "p7_200103_200110_200110_a000_2020_02"
-    # data_id = "p5_191127_191202_191202_a001"
-    data_id = "p8_190921_190929_1_190929_a000"
+    data_id = "p5_191127_191202_191202_a001"
+    # data_id = "p8_190921_190929_1_190929_a000"
     # REM DATA
     # data_id = "p5_200306_200311_200311_a000"
 
     # soon
     # data_id = "p5_191127_191202_191202_a000"
-
 
     data_path = os.path.join(data_path, data_id)
 
@@ -734,6 +733,6 @@ def main(convert_predictions_to_cicada_format=False):
 
 
 if __name__ == "__main__":
-    correct_corrupted_data()
-    # main(convert_predictions_to_cicada_format=True)
+    # correct_corrupted_data()
+    main(convert_predictions_to_cicada_format=True)
     # main(convert_predictions_to_cicada_format=False)

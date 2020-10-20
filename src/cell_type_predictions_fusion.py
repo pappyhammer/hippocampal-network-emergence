@@ -20,14 +20,15 @@ if __name__ == "__main__":
                                          "pyr_vs_ins_vs_noise_multi_class.yaml")
 
     do_it_by_type = True
-    fusion_with_gt = True
-    age = 5
-    animal_id = "191205_191210_0"
-    session_id = "191210_a000"
+    fusion_with_gt = False
+    age = 6
+    animal_id = "180201_180207"
+    session_id = "180207_a002"
 
     global_id = animal_id + "_" + session_id
 
-    path_data = os.path.join(path_data, "red_ins", f"p{age}", animal_id, session_id)
+    # path_data = os.path.join(path_data, "red_ins", f"p{age}", animal_id, session_id)
+    path_data = os.path.join(path_data, "SWISS_data", f"p{age}", animal_id, session_id)
     cell_type_dir = f"cell_type_predictions_{global_id}"
 
     tmp_contours_dir = None

@@ -58,14 +58,15 @@ weights_file_name, json_file_name = find_weight_and_model_file_in_dir(dir_name=
                                                                       os.path.join(data_path,
                                                                                    "cinac_cell_type_ground_truth",
                                                                                    "cell_type_classifier_models",
-                                                                                   "training_24_epoch_2"))
+                                                                                   "training_62_epoch_6"))
+# training_44_epoch_7"
 # training_22_epoch_2 multi_class_training_test colab_1_epoch_3
 # cell_type_yaml_file = os.path.join(data_path, "cinac_cell_type_ground_truth", "cell_type_yaml_files",
 #                                    "pyr_vs_ins_binary.yaml")
-cell_type_yaml_file = os.path.join(data_path, "cinac_cell_type_ground_truth", "cell_type_yaml_files",
-                                   "pyr_vs_ins_multi_class.yaml")
 # cell_type_yaml_file = os.path.join(data_path, "cinac_cell_type_ground_truth", "cell_type_yaml_files",
-#                                    "pyr_vs_ins_vs_noise_multi_class.yaml")
+#                                    "pyr_vs_ins_multi_class.yaml")
+cell_type_yaml_file = os.path.join(data_path, "cinac_cell_type_ground_truth", "cell_type_yaml_files",
+                                   "pyr_vs_ins_vs_noise_multi_class.yaml")
 
 # "sunday_19_01_20_acc_87-5_epoch_4", "sunday_19_01_20_acc_90-38" sunday_19_01_20_epoch_2
 # weights_file_name = os.path.join(root_path, "transient_classifier_full_model_02-0.9883.h5")
@@ -75,10 +76,7 @@ cell_type_yaml_file = os.path.join(data_path, "cinac_cell_type_ground_truth", "c
 # a directory will be created each time the prediction is run
 # the directory name will be the date and time at which the analysis has been run
 # the predictions will be in this directory.
-results_path = os.path.join(root_path, "results_hne")
-time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
-results_path = os.path.join(results_path, f"{time_str}/")
-os.mkdir(results_path)
+
 
 # not mandatory, just to test if you GPU is accessible
 device_name = tf.test.gpu_device_name()
@@ -86,15 +84,152 @@ if device_name != '/device:GPU:0':
     raise SystemError('GPU device not found')
 print('Found GPU at: {}'.format(device_name))
 
-evaluate_classifier = True
+evaluate_classifier = False
+multiple_classifiers = True
 
 if evaluate_classifier:
+    results_path = os.path.join(root_path, "results_hne")
+    time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
+    results_path = os.path.join(results_path, f"{time_str}/")
+    os.mkdir(results_path)
     cinac_dir_name = os.path.join(data_path, "cinac_cell_type_ground_truth/for_testing")
 
     evaluate_cell_type_predictions(cinac_dir_name, cell_type_yaml_file, results_path,
-                                   json_file_name, weights_file_name, save_cell_type_distribution=True)
+                                   json_file_name, weights_file_name, save_cell_type_distribution=True,
+                                   all_pixels=True)
+elif multiple_classifiers:
+    original_data_path = data_path
+    # n_sessions = 8
 
+    ages = [5]*2
+    animal_ids = ["191205_191210_1", "191205_191210_1"]
+    session_ids = ["191210_a000", "191210_a001"]
+    with_full_suite2ps = [False, False]
+    #
+    for index in range(len(ages)):
+        age = ages[index]
+        animal_id = animal_ids[index]
+        session_id = session_ids[index]
+        with_full_suite2p = with_full_suite2ps[index]
+
+        # path to calcium imaging data
+        data_path = os.path.join(original_data_path, "red_ins", f"p{age}", animal_id, session_id)
+
+        # ------------------------------------------------------------ #
+        # ------------------------------------------------------------ #
+        # string used to identify the recording from which you want to predict activity
+        identifier = animal_id + "_" + session_id
+        # ------------------------------------------------------------ #
+        # ------------------------------------------------------------ #
+
+        movie_file_name = os.path.join(data_path, f"ci_data_{identifier}", f"{identifier}_MotCorr.tif")
+
+        cell_type_classifier_mode = False
+
+        versions = [58, 60, 61]
+        epochs = [7, 4, 8]
+        weights_file_names = []
+        json_file_names = []
+        id_classifiers = []
+
+        for index in range(len(versions)):
+            version = versions[index]
+            epoch = epochs[index]
+            weights_file_name = os.path.join(root_path, "data", "cinac_cell_type_ground_truth",
+                                             "cell_type_classifier_models", "combo",
+                                             f"cell_type_classifier_weights_v{version}_e{epoch}.h5")
+            json_file_name = os.path.join(root_path, "data", "cinac_cell_type_ground_truth",
+                                             "cell_type_classifier_models", "combo",
+                                          f"cell_type_classifier_v{version}.json")
+            id_classifier = f"v{version}_e{epoch}"
+            weights_file_names.append(weights_file_name)
+            json_file_names.append(json_file_name)
+            id_classifiers.append(id_classifier)
+
+        results_path = os.path.join(data_path, f"cell_type_predictions_{identifier}")
+
+        cinac_recording = CinacRecording(identifier=identifier)
+
+        # Creating and adding to cinac_recoding the calcium imaging movie data
+        cinac_movie = CinacTiffMovie(tiff_file_name=movie_file_name)
+
+        cinac_recording.set_movie(cinac_movie)
+
+        if with_full_suite2p:
+            is_cell_suite2p_file_name = os.path.join(data_path, f"suite2p_{identifier}",
+                                                     "iscell.npy")
+            stat_suite2p_file_name = os.path.join(data_path, f"suite2p_{identifier}",
+                                                  "stat.npy")
+        else:
+            # finding the right directory
+            dir_names = []
+            for (dirpath, dirnames, local_filenames) in os.walk(data_path):
+                dir_names = dirnames
+                break
+            contours_dir_name = None
+            for dir_name in dir_names:
+                if "tmp_contour" in dir_name:
+                    contours_dir_name = os.path.join(data_path, dir_name)
+                    break
+            if contours_dir_name is None:
+                raise Exception(f"No tmp_contours found in {data_path}")
+            is_cell_suite2p_file_name = None
+            stat_suite2p_file_name = os.path.join(data_path,
+                                                  contours_dir_name,
+                                                  f"{identifier}_new_contours_Add & Replace_suite2p.npy")
+            if not os.path.isfile(stat_suite2p_file_name):
+                stat_suite2p_file_name = os.path.join(data_path,
+                                                      contours_dir_name,
+                                                      f"p{age}_{identifier}_new_contours_Add & Replace_suite2p.npy")
+
+        cinac_recording.set_rois_from_suite_2p(is_cell_file_name=is_cell_suite2p_file_name,
+                                               stat_file_name=stat_suite2p_file_name)
+
+        cinac_predictor = CinacPredictor(verbose=1)
+
+        for index in range(len(versions)):
+            model_files_dict = dict()
+            model_files_dict[(json_file_names[index],
+                              weights_file_names[index],
+                              id_classifiers[index])] = None
+
+            cinac_predictor.add_recording(cinac_recording=cinac_recording,
+                                          removed_cells_mapping=None,
+                                          model_files_dict=model_files_dict)
+
+        with tf.device('/device:GPU:0'):
+            # predictions are saved in the results_path and return as a dict,
+            # with keys the CinacRecording identifiers and value a 2d array.
+            predictions_dict = cinac_predictor.predict(results_path=results_path,
+                                                       output_file_formats="npy",
+                                                       n_segments_to_use_for_prediction=2,
+                                                       cell_type_classifier_mode=True,
+                                                       all_pixels=True,
+                                                       create_dir_for_results=False,
+                                                       time_verbose=False)
+
+        cell_type_config_file = os.path.join(root_path, "data", "cinac_cell_type_ground_truth", "cell_type_yaml_files",
+                                             "pyr_vs_ins_vs_noise_multi_class.yaml")
+        cell_type_from_code_dict, cell_type_to_code_dict, multi_class_arg = \
+            read_cell_type_categories_yaml_file(yaml_file=cell_type_config_file)
+        for ids, predictions in predictions_dict.items():
+            session_id, classifier_id = ids
+            cell_count_by_type = np.zeros(predictions.shape[1], dtype="int16")
+            for cell in np.arange(len(predictions)):
+                cell_type_code = np.argmax(predictions[cell])
+                cell_count_by_type[cell_type_code] += 1
+            print(" ")
+            print(f"For {session_id} with classifier {classifier_id}")
+            print(f"Number of cells predicted in each cell type:")
+            for code in np.arange(len(cell_type_from_code_dict)):
+                print(f"{cell_count_by_type[code]} {cell_type_from_code_dict[code]}")
+            print(" ")
 else:
+    results_path = os.path.join(root_path, "results_hne")
+    time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
+    results_path = os.path.join(results_path, f"{time_str}/")
+    os.mkdir(results_path)
+
     movie_file_name = os.path.join(data_path, "p1_artificial_1.tif")
     # string used to identify the recording from which you want to predict activity
     identifier = "art_movie_1"

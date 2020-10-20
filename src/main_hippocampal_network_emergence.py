@@ -3065,8 +3065,8 @@ def compute_stat_about_seq_with_slope(files_path, param,
                                 for coord in coords:
                                     # print(f"coord {coord}")
                                     if (coord[0] >= frames_to_use[0]) or (coord[1] <= frames_to_use[1]):
-                                        if cells_pair_tuple not in lines_to_display_update:
-                                            lines_to_display_update[cells_pair_tuple] = []
+                                        if cells_pair_tuple not in span_area_coords_update:
+                                            span_area_coords_update[cells_pair_tuple] = []
                                         spike_1 = coord[0] - frames_to_use[0]
                                         spike_2 = coord[1] - frames_to_use[0]
                                         sub_list.append((spike_1, spike_2))
@@ -3081,7 +3081,7 @@ def compute_stat_about_seq_with_slope(files_path, param,
                                                                           without_sum_activity_traces=True,
                                                                           range_around_slope_in_frames=
                                                                           range_around_slope_in_frames,
-                                                                          span_area_coords=span_area_coords,
+                                                                          span_area_coords=span_area_coords_update,
                                                                           span_area_colors=span_area_colors,
                                                                           save_formats=save_formats)
 
@@ -5129,11 +5129,11 @@ def plot_connectivity_graph(ms_to_analyse, param, save_formats="pdf"):
 
 def plot_twitch_ratio_activity(ms_to_analyse, param, time_around=20, save_formats="pdf"):
     """
-    For each session, look around twitches, and calculte a ratio definin if the sum of activity is greater
-    after or before each twitch
-    :param ms_to_analyse:
-    :param time_around:
-    :return:
+        For each session, look around twitches, and calculte a ratio definin if the sum of activity is greater
+        after or before each twitch
+        :param ms_to_analyse:
+        :param time_around:
+        :return:
     """
 
     # qualitative 12 colors : http://colorbrewer2.org/?type=qualitative&scheme=Paired&n=12
@@ -6662,8 +6662,8 @@ def robin_loading_process(param, load_traces, load_abf=False):
     # ms_str_to_load = ["p5_19_03_20_a000_ms"]
     # ms_str_to_load = ["p6_19_02_18_a000_ms"]
 
-    # ms_str_to_load = ["p7_19_03_27_a000_ms"]
-    ms_str_to_load = ["p5_19_03_25_a000_ms", "p9_17_12_20_a001_ms", "p12_17_11_10_a002_ms", "p41_19_04_30_a000_ms"]
+    ms_str_to_load = ["p12_171110_a000_ms"]
+    # ms_str_to_load = ["p5_19_03_25_a000_ms", "p9_17_12_20_a001_ms", "p12_17_11_10_a002_ms", "p41_19_04_30_a000_ms"]
 
     ms_str_to_ms_dict = load_mouse_sessions(ms_str_to_load=ms_str_to_load, param=param,
                                             load_traces=load_traces, load_abf=load_abf)
@@ -6674,6 +6674,10 @@ def robin_loading_process(param, load_traces, load_abf=False):
 
 
 def main():
+    import pyqtgraph.examples
+    pyqtgraph.examples.run()
+    return
+
     # for line in np.arange(15):
     #     print_surprise_for_michou(n_lines=15, actual_line=line)
 
@@ -6801,9 +6805,9 @@ def main():
     just_do_stat_on_pca = False
     just_analyse_lfp = False
     just_run_cilva = False
-    just_evaluate_overlaps_accuracy = False
+    just_evaluate_overlaps_accuracy = True
 
-    just_do_spatial_pattern_detector = True
+    just_do_spatial_pattern_detector = False
 
     # to merge contour map, like between fiji and caiman
     just_merge_coords_map = False
