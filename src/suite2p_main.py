@@ -241,10 +241,10 @@ def main():
     # p8_19_09_29_1_a001.h5
     db = {
         # 'h5py': '/Users/pappyhammer/Documents/academique/these_inmed/suite2p/suite2p_tiffs/MichelMotC_p8_19_09_29_1_a000.h5',  # a single h5 file path
-        'h5py': '/home/julien/these_inmed/suite2p/suite2p_tiffs/p12_19_02_08_a003_part1.h5',
+        # 'h5py': '/home/julien/these_inmed/suite2p/suite2p_tiffs/181016_181029_a002_concat.h5',
         # 'h5py_key': 'data',
         'look_one_level_down': False,  # whether to look in ALL subfolders when searching for tiffs
-        # 'data_path': ['/home/julien/these_inmed/suite2p/suite2p_tiffs'],  # a list of folders with tiffs
+        'data_path': ['/home/julien/these_inmed/suite2p/suite2p_tiffs'],  # a list of folders with tiffs
         # 'data_path': ['/Users/pappyhammer/Documents/academique/these_inmed/suite2p/suite2p_tiffs'],
         # (or folder of folders with tiffs if look_one_level_down is True, or subfolders is not empty)
 

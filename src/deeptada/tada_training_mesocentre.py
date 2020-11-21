@@ -26,7 +26,7 @@ if __name__ == '__main__':
     """
     # "config_tada.yaml"
     # partly_trained_model = "/media/julien/Not_today/hne_not_today/data/test_cinac_gui/transient_classifier_full_model_02-0.9817.h5"
-    tada_model = TadaModel(results_path=results_path, n_epochs=10, verbose=2, batch_size=8, # TODO: change n_epochs to
+    tada_model = TadaModel(results_path=results_path, n_epochs=10, verbose=2, batch_size=8,  # TODO: change n_epochs to
                            n_gpus=4,
                            width_crop=1100, height_crop=1100,
                            final_height=128,

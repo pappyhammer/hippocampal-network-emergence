@@ -101,7 +101,12 @@ evaluate_inferences = True
 if evaluate_inferences:
     inferences_dir = "/media/julien/Not_today/hne_not_today/data/cinac_ground_truth/for_benchmarks/to_benchmark"
     # inferences_dir = "/media/julien/Not_today/hne_not_today/data/cinac_ground_truth/for_benchmarks/to_benchmark_chen"
+    #
     # inferences_dir = "/media/julien/Not_today/hne_not_today/data/cinac_ground_truth/for_benchmarks/to_benchmark_ins"
+    # inferences_dir = "/media/julien/Not_today/hne_not_today/data/cinac_ground_truth/for_benchmarks/to_benchmark_geco"
+    # inferences_dir = "/media/julien/Not_today/hne_not_today/data/cinac_ground_truth/for_benchmarks/to_benchmark_laura"
+    # inferences_dir = "/media/julien/Not_today/hne_not_today/data/cinac_ground_truth/for_benchmarks/to_benchmark_arnaud"
+    # inferences_dir = "/media/julien/Not_today/hne_not_today/data/cinac_ground_truth/for_benchmarks_clean_online/figure_8C"
     results_path = "/media/julien/Not_today/hne_not_today/results_hne/"
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     results_path = results_path + f"{time_str}"
@@ -111,8 +116,9 @@ if evaluate_inferences:
                                            colorfull_boxplots=False, white_background=True,
                                            # colorfull_boxplots=False, white_background=True,
                                            with_legend=True, put_metric_as_y_axis_label=True,
-                                           alpha_scatter=0.3,
+                                           alpha_scatter=0.2, save_formats="png",
                                            using_patch_for_legend=True, predictions_stat_by_metrics=False,
+                                           plot_proportion_frames_in_transients=False,
                                            color_cell_as_boxplot=False, with_cells=True, with_cell_number=True)
 else:
     predict_from_cinal_file = True

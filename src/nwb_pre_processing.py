@@ -5,12 +5,16 @@ from cicada.preprocessing.cicada_data_to_nwb import convert_data_to_nwb
 def main():
     root_path = "/media/julien/Not_today/hne_not_today/"
     # root_path = "/Users/pappyhammer/Documents/academique/these_inmed/robin_michel_data/"
-    dir_to_explore = os.path.join(root_path, "data/red_ins")
+    # dir_to_explore = os.path.join(root_path, "data/red_ins/p6/191205_191211_1")
     # dir_to_explore = os.path.join(root_path, "data/rem_data")
     # dir_to_explore = os.path.join(root_path, "data/chronic")
     # dir_to_explore = os.path.join(root_path, "data/artem_data")
+    # dir_to_explore = os.path.join(root_path, "data/marco_data")
+    # dir_to_explore = os.path.join(root_path, "data")
+    dir_to_explore = os.path.join(root_path, "data/SWISS_data/p9/190211_190220_0")
+    # dir_to_explore = os.path.join(root_path, "data/rem_data/200219_200226/")
     default_convert_to_nwb_yml_file = "/home/julien/these_inmed/hne_project/cicada_gitlab/cicada/src/cicada/preprocessing/pre_processing_default.yaml"
-
+    # default_convert_to_nwb_yml_file = f"{dir_to_explore}/pre_processing_marco.yaml"
     session_dirs = find_dir_to_convert(dir_to_explore=dir_to_explore,
                                        keywords=[["session_data"], ["subject_data"]],
                                        extensions=("yaml", "yml"))
@@ -65,42 +69,56 @@ def main():
 
 
         """
+        # for marco
+        # mb048
+        # 20200211
+        # 20200212
+        # claire_52
+        # claire_153
+        # if session_dir_name not in ["claire_153"]:
+        #     continue
+        # if session_dir_name not in ["p60_a529_2015_02_25"]:
+        #     continue
         # if session_dir_name not in ["p8_19_09_29_1_a000", "p8_19_09_29_1_a001"]:
         #     continue
         # if session_dir_name not in ["p8_19_09_29_0_a000", "p8_19_09_29_0_a001"]:
         #     continue
-        # if session_dir_name not in ["p8_19_09_29_0_a000"]:
+        # if session_dir_name not in ["171124_a001"]:
         #     continue
-        # if session_dir_name not in ["p13_19_10_04"]:
+        # if session_dir_name not in ["181023_a000"]:
         #     continue
         # p5: 191210_0_191210_a001, p7: 200110_a000, p9:190930_a001
+        # if session_dir_name not in ["191210_a001"]:
+        #     continue
         # if session_dir_name not in ["191210_a001", "200110_a000", "190930_a001"]:
         #     continue
         # p8 190921_190929_0_190929_a000
-        if session_dir_name not in ["190929_a000"]:
-            continue
+        # if session_dir_name not in ["171124_a001"]:
+        #     continue
         # p5 rem
         # if session_dir_name not in ["200311_a001", "200311_a000"]:
         #     continue
-        # if session_dir_name not in ["200110_a000"]:
+        # if session_dir_name not in ["190902_a000"]:
         #     continue
         # p5191127_191202_191202_a000 : 191202_a000
         # p5191127_191202_191202_a001 : 191202_a001
-        # if session_dir_name not in ["191202_a000"]:
+        # if session_dir_name not in ["190923_a001"]:
         #     continue
-        # if session_dir_name not in ["191202_a001"]:
+        # if session_dir_name not in ["171110_a002"]:
+        #     continue
+        # if session_dir_name not in ["180207_a002"]:
         #     continue
         # if session_dir_name not in ["simulated_data_v1"]:
         #     continue
         # artem_191119
-        # if session_dir_name not in ["191119"]:
+        # if session_dir_name not in ["171018_a002"]:
         #     continue
         # p13 chronic 181016_181029_180929_a001 (then p14 & p15)
         # if session_dir_name not in ["181029_a001"]:
         #     continue
         # if session_dir_name not in ["181030_a001"]:
         #     continue
-        # if session_dir_name not in ["181031_a001"]:
+        # if session_dir_name not in ["200311_a001"]:
         #     continue
         # p13 chronic 181016_181029_180929_a002 (then p14 & p15, p16)
         # if session_dir_name not in ["181029_a002"]:
@@ -109,21 +127,21 @@ def main():
         #     continue
         # if session_dir_name not in ["181031_a002"]:
         #     continue
-        # if session_dir_name not in ["181101_a002"]:
+        # if session_dir_name not in ["191210_a001"]:
         #     continue
         # if session_dir_name not in ["181029_a002", "181030_a002", "181031_a002", "181101_a002"]:
         #     continue
         # 190929_a000: p8 190921_190929_0
-        # if session_dir_name not in ["190929_a000"]:
+        # if session_dir_name not in ["180209_a004"]:
         #     continue
-        # if session_dir_name not in ["191210_a001"]:
-        #     continue
+        if session_dir_name not in ["190220_a001"]:
+            continue
         # if session_dir_name not in ["200110_a001"]:
         #     continue
         # p6 190921_190927_1_190927_a000
         # if session_dir_name not in ["190927_a000"]:
         #     continue
-        # if session_dir_name not in ["p7_19_03_27_a000"]:
+        # if session_dir_name not in ["p12_17_11_10_a000"]:
         #     continue
         # if session_dir_name[1:3] not in ["41"] or session_dir_name in sessions_to_exclude:
         #     continue

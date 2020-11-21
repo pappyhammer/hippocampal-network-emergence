@@ -219,12 +219,27 @@ def main_convert_gt_to_cinac():
     data_dict["p7_171012_a000_ms"] = dict()
     data_dict["p7_171012_a000_ms"]["id"] = "p7_17_10_12_a000"
     data_dict["p7_171012_a000_ms"]["path"] = "p7/p7_17_10_12_a000"
-    # data_dict["p7_171012_a000_ms"]["gt_cells"] = [3, 8, 11, 12, 14, 17, 18, 24] # for training
+    data_dict["p7_171012_a000_ms"]["gt_cells"] = [3, 8, 11, 12, 14, 17, 18, 24] # for training
     # data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 25] # for benchmarks
-    data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 3, 8, 11, 12, 14, 17, 18, 24, 25] # all
-    data_dict["p7_171012_a000_ms"]["gt_cells"] = np.arange(117) # all ROBIN,TODO: use RD GT
+    # data_dict["p7_171012_a000_ms"]["gt_cells"] = [2, 3, 8, 11, 12, 14, 17, 18, 24, 25] # all
+    # data_dict["p7_171012_a000_ms"]["gt_cells"] = np.arange(117) # all ROBIN,TODO: use RD GT
     # data_dict["p7_171012_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"] # TODO: comment for benchmark
     # data_dict["p7_171012_a000_ms"]["segmentation_tool"] = "caiman"
+
+    # gadcre ORIENS movie
+    data_dict["p6_19_02_18_a000_ms"] = dict()
+    data_dict["p6_19_02_18_a000_ms"]["id"] = "p6_19_02_18_a000"
+    data_dict["p6_19_02_18_a000_ms"]["path"] = "p6/p6_19_02_18_a000"
+    # data_dict["p6_19_02_18_a000_ms"]["gt_cells"] = np.arange(3)  # for training
+    # data_dict["p6_19_02_18_a000_ms"]["gt_cells"] = [3]  # for benchmarks
+    data_dict["p6_19_02_18_a000_ms"]["gt_cells"] = np.arange(4)  # all
+
+    data_dict["p11_19_04_30_a001_ms"] = dict()
+    data_dict["p11_19_04_30_a001_ms"]["id"] = "p11_19_04_30_a001_ms"
+    data_dict["p11_19_04_30_a001_ms"]["path"] = "p11/p11_19_04_30_a001"
+    # data_dict["p11_19_04_30_a001_ms"]["gt_cells"] = [0, 2, 3]  # for training
+    # data_dict["p11_19_04_30_a001_ms"]["gt_cells"] = [4]  # for benchmarks
+    data_dict["p11_19_04_30_a001_ms"]["gt_cells"] = [0, 2, 3, 4]  # all
 
     data_dict["p8_18_10_24_a005_ms"] = dict()
     data_dict["p8_18_10_24_a005_ms"]["id"] = "p8_18_10_24_a005"
@@ -239,15 +254,14 @@ def main_convert_gt_to_cinac():
     data_dict["p8_18_10_24_a006_ms"]["path"] = "p8/p8_18_10_24_a006"
     # data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [0, 1, 6, 7, 9, 10, 11, 18, 24]  # for training
     data_dict["p8_18_10_24_a006_ms"]["gt_cells"] = [28, 32, 33] # for benchmarks # TODO: use RD GT
-    # data_dict["p8_18_10_24_a006_ms"]["segments_folder"] = ["transients_to_add_for_rnn"] # TODO: comment for benchmarks
     # data_dict["p8_18_10_24_a006_ms"]["segmentation_tool"] = "caiman"
 
     data_dict["p11_17_11_24_a000_ms"] = dict()
     data_dict["p11_17_11_24_a000_ms"]["id"] = "p11_17_11_24_a000"
     data_dict["p11_17_11_24_a000_ms"]["path"] = "p11/p11_17_11_24_a000"
     # data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [3, 17, 22, 24, 25, 29, 30, 33, 45] # all
-    # data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [17, 22, 24, 25, 29, 30, 33] # for training
-    data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [3, 45] # for benchmarks
+    data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [17, 22, 24, 25, 29, 30, 33] # for training
+    # data_dict["p11_17_11_24_a000_ms"]["gt_cells"] = [3, 45] # for benchmarks
     # data_dict["p11_17_11_24_a000_ms"]["segments_folder"] = ["transients_to_add_for_rnn"] # TODO: comment for benchmarks
     # data_dict["p11_17_11_24_a000_ms"]["segmentation_tool"] = "caiman"
 
@@ -330,14 +344,16 @@ def main_convert_gt_to_cinac():
 
     # ms_to_use = ["p16_18_11_01_a002_ms", "p9_19_03_14_a001_ms", "p5_19_09_02_a000_ms", "p10_19_03_08_a001_ms", "p12_17_11_10_a002_ms"]
     # # for training
-    # bonus_str = "for_training"
+    bonus_str = "for_training_v1"
     # ms_to_use = list(data_dict.keys())
     # bonus_str = "for_benchmarks"
     # ms_to_use = ["p7_171012_a000_ms", "p8_18_10_24_a006_ms", "p11_17_11_24_a000_ms", "p12_171110_a000_ms",
     #              "p13_18_10_29_a001_ms", "p8_18_10_24_a005_ms"]
     # ms_to_use = ["p8_18_10_24_a005_ms"]
-    bonus_str = "RD_for_benchmarks"
-    ms_to_use = ["p7_171012_a000_ms"]
+    # bonus_str = "for_benchmarks"
+    # ms_to_use = ["p6_19_02_18_a000_ms"]
+    bonus_str = "all"
+    ms_to_use = ["p11_19_04_30_a001_ms"]
     #
 
     # we need to change in mouse_session_loader the type of segmentation to use

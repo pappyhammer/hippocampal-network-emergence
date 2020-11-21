@@ -1279,9 +1279,10 @@ class MouseSession:
 
         add_other = False
         if add_other:
-            file_name = "p12/p12_17_11_10_a000/predictions/P12_17_11_10_a000_predictions_cre_meso_v1_caiman_epoch_15_.mat"
-            data = hdf5storage.loadmat(os.path.join(self.param.path_data, file_name))
-            predictions = data["predictions"]
+            file_name = "p12/p12_17_11_10_a000/predictions/p12_17_11_10_a000_predictions_caiman_meso_v26_epoch_5.npz"
+            predictions = np.load(os.path.join(self.param.path_data, file_name))["predictions"]
+            # data = hdf5storage.loadmat(os.path.join(self.param.path_data, file_name))
+            # predictions = data["predictions"]
             prediction_threshold = 0.5
             predicted_raster_dur_dict = np.zeros((len(predictions), len(predictions[0])), dtype="int8")
             for cell in np.arange(len(predictions)):
@@ -6012,6 +6013,7 @@ class MouseSession:
             return
         file_names = []
 
+
         # look for filenames in the fisrst directory, if we don't break, it will go through all directories
         for (dirpath, dirnames, local_filenames) in os.walk(os.path.join(self.param.path_data, path)):
             file_names.extend(local_filenames)
@@ -6023,8 +6025,9 @@ class MouseSession:
             file_name_original = file_name
             file_name = file_name.lower()
             descr = self.description.lower() + ".tif"
+            descr_mot_corr = self.description.lower() + "_motcorr" + ".tif"
             descr_ff = self.description.lower() + ".tiff"
-            if (descr != file_name) and (descr_ff != file_name):
+            if (descr != file_name) and (descr_ff != file_name) and (descr_mot_corr != file_name):
                 continue
             self.tif_movie_file_name = os.path.join(self.param.path_data, path, file_name_original)
             # print(f"self.tif_movie_file_name {self.tif_movie_file_name}")

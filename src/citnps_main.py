@@ -1023,20 +1023,38 @@ def find_dirs_with_keyword(dir_to_explore, keyword, go_deep=False):
 def citnps_main(extract_piezo_signal):
     # -------------------------------------------- #
     # -------------------------------------------- #
-    # age = 5
-    # animal_id = "191127_191202"
-    # session_id = "191202_a001"
+    age = 6
+    animal_id = "200228_200305_2"
+    session_id = "200305_a001"
     # animal_id = "200306_200311"
     # session_id = "200311_a000"
-    age = 7
-    animal_id = "200206_200213"
-    session_id = "200213_a000"
+    # age = 7
+    # animal_id = "200206_200213"
+    # session_id = "200213_a000"
+    # age = 6
+    # animal_id = "191127_191203"
+    # session_id = "191203_a000"
+    # age = 8
+    # animal_id = "190921_190929_1"
+    # session_id = "190929_a002"
+    # age = 9
+    # animal_id = "190921_190930"
+    # session_id = "190930_a000"
+    # age = 7
+    # animal_id = "200103_200110_0"
+    # session_id = "200110_a001"
+
     # directory in hne_not_today
     type_of_recording = "red_ins"
     # if CITNPS has already be run for this session
+    yaml_config_file = None
     # yaml_config_file = "/media/julien/Not_today/hne_not_today/data/red_ins/p5/191127_191202/191202_a001/behavior_191127_191202_191202_a001/p5_191127_191202_191202_a001_citnps_config.yaml"
-    yaml_config_file = "/media/julien/Not_today/hne_not_today/data/red_ins/p7/200206_200213/200213_a000/behavior_200206_200213_200213_a000/p7_200206_200213_200213_a000_citnps_config.yaml"
-    # yaml_config_file = None
+    # yaml_config_file = "/media/julien/Not_today/hne_not_today/data/red_ins/p7/200206_200213/200213_a000/behavior_200206_200213_200213_a000/p7_200206_200213_200213_a000_citnps_config.yaml"
+    # yaml_config_file = "/media/julien/Not_today/hne_not_today/data/red_ins/p6/191127_191203/191203_a000/behavior_191127_191203_191203_a000/p6_191127_191203_191203_a000_citnps_config.yaml"
+    # yaml_config_file = "/media/julien/Not_today/hne_not_today/data/red_ins/p8/190921_190929_1/190929_a000/behavior_190921_190929_1_190929_a000/p8_190921_190929_1_190929_a000_citnps_config.yaml"
+    # yaml_config_file = "/media/julien/Not_today/hne_not_today/data/red_ins/p9/190921_190930/190930_a000/behavior_190921_190930_190930_a000/p9_190921_190930_190930_a000_citnps_config.yaml"
+    yaml_config_file = "/media/julien/Not_today/hne_not_today/data/red_ins/p6/200228_200305_2/200305_a001/behavior_200228_200305_2_200305_a001/p6_200228_200305_2_200305_a001_citnps_config.yaml"
+
 
     # if not None, force the threshold for all bodypart to this value
     mandatory_piezo_threshold = 0.5
@@ -1047,6 +1065,9 @@ def citnps_main(extract_piezo_signal):
 
     left_cam_id = "23109588"
     right_cam_id = "22983298"
+    # in case it would be inverted
+    # left_cam_id = "22983298"
+    # right_cam_id = "23109588"
 
     movie_queue_size = 2000
     citnps_movies_dict = dict()
@@ -1086,7 +1107,7 @@ def citnps_main(extract_piezo_signal):
         config_citnps_yaml_file = None
 
     avi_files = find_files_with_ext(behavior_data_path, extension="avi")
-
+    print(f"avi_files {avi_files}")
     for avi_file in avi_files:
         if "22983298" in avi_file:
             citnps_movies_dict["right"] = avi_file
@@ -1218,4 +1239,4 @@ def citnps_main(extract_piezo_signal):
 if __name__ == "__main__":
     # if extract_piezo_signal == True, then we extract the "piezo" signal from the movie
     # if False, then we analyze this "piezo" signal, to identify the behavior epochs
-    citnps_main(extract_piezo_signal=False)
+    citnps_main(extract_piezo_signal=True)

@@ -38,7 +38,7 @@ def test_avi():
     path_data = "/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/p6_20_01_09/behavior_p6_20_01_09_cam_23109588_cam2_a002_fps_20.avi"
     path_data = "/media/julien/Not_today/hne_not_today/data/behavior_movies/dlc_predictions/p7_200103_200110_200110_a000_2020_02/data/behavior_p7_20_01_10_cam_22983298_cam1_a000_fps_20.avi"
 
-    file_name = "behavior_p5_20_03_11_rem_cam_23109588_cam2_a001_fps_20.avi"
+    file_name = "behavior_p7_20_03_13_rem_cam_23109588_cam2_a001_fps_20.avi"
     path_data = f"/media/julien/Not_today/hne_not_today/data/behavior_movies/converted_so_far/{file_name}"
 
     # 37254
@@ -90,12 +90,16 @@ def test_avi():
     cv2.destroyAllWindows()
 
 def main():
-    open_avi_for_test = True
+    # test_file = "/run/user/1000/gvfs/smb-share:server=cossartlab.local,share=picardoteam/Behavior Camera/p5_20_02_17/cam 1"
+    # print(f"is dir {os.path.isdir(test_file)}")
+    # return
+
+    open_avi_for_test = False
     if open_avi_for_test:
         test_avi()
         return
 
-    subject_id = "p5_20_03_11_rem" # P12_20_01_20 p8_20_01_16
+    subject_id = "p8_20_02_27" # P12_20_01_20 p8_20_01_16
     cam_folder_id_1 = "cam2" # "cam2"
     cam_folder_id_2 = "a001" # a000  a001
     if cam_folder_id_2 is None:
@@ -107,11 +111,14 @@ def main():
     # tiffs_path_dir = '/media/julien/My Book/robin_tmp/cameras/basler_recordings/'
     # tiffs_path_dir = '/media/julien/dream team/camera/'
     tiffs_path_dir = '/media/julien/Not_today/hne_not_today/data/behavior_movies/to_convert/'
+    # On NAS
+    # tiffs_path_dir = '/run/user/1000/gvfs/smb-share:server=cossartlab.local,share=picardoteam/Behavior Camera/'
     if cam_folder_id_2 is not None:
         tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_1, cam_folder_id_2)
         # tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id_2, cam_folder_id_1)
     else:
         tiffs_path_dir = os.path.join(tiffs_path_dir, subject_id, cam_folder_id)
+    # print(f"is dir {os.path.isdir(tiffs_path_dir)}")
     if cam_folder_id_1 is None:
         cam_id = "22983298"
     elif cam_folder_id_1 == "cam1":
@@ -192,6 +199,7 @@ def main():
             if size_avi is None:
                 img = PIL.Image.open(os.path.join(tiffs_path_dir, tiff_file))
                 img = np.array(img)
+                print(f"img.shape {img.shape}")
                 size_avi = img.shape[1], img.shape[0]
             # vid_avi = VideoWriter(avi_file_name, fourcc, float(fps_avi), size_avi, is_color)
             vid_avi = VideoWriter(avi_file_name, fourcc, fps_avi, size_avi, is_color)
