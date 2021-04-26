@@ -9,27 +9,31 @@ import numpy as np
 # ----------------------
 EXT_AGE_COL = 0
 EXT_SUBJECT_ID_COL = 1
-EXT_IMAGING_DATE_COL = 2
-EXT_SESSION_COL = 3
-EXT_SESSION_ID_COL = 4
-EXT_PLANE_LOC_COL = 5
-EXT_PIEZO_CH_COL = 8
-EXT_TREADMMILL_CH_COL = 9
-EXT_BEHAVIOR_1_CH_COL = 10
-EXT_BEHAVIOR_2_CH_COL = 11
-EXT_LFP_CH_COL = 15
+EXT_EXPERIMENTER_COL = 2
+EXT_IMAGING_DATE_COL = 3
+EXT_SESSION_COL = 4
+EXT_SESSION_ID_COL = 6
+EXT_PLANE_LOC_COL = 7
+EXT_PIEZO_CH_COL = 10
+EXT_TREADMMILL_CH_COL = 11
+EXT_BEHAVIOR_1_CH_COL = 12
+EXT_BEHAVIOR_2_CH_COL = 13
+EXT_LFP_CH_COL = 14
+EXT_NUCHAL_EMG = 15
 
 
-MAIN_SURGERY_DATA_COL = 0
-MAIN_SUBJECT_ID_COL = 2
-MAIN_RECORDING_DATE_COL = 9
-MAIN_LINE_COL = 5
-MAIN_AGE_INJECTION_COL = 7
-MAIN_VIRUS_COL = 8
-MAIN_WEIGHT_COL = 4
-MAIN_IMAGING_FILMS_COL = 11
-MAIN_IMAGING_NOTES_COL = 12
-MAIN_SURGERY_NOTES_COL = 13
+MAIN_SURGERY_DATA_COL = 1
+MAIN_SUBJECT_ID_COL = 3
+MAIN_WEIGHT_COL = 5
+MAIN_LINE_COL = 6
+MAIN_LINE_QUALITY = 7
+MAIN_AGE_INJECTION_COL = 8
+MAIN_VIRUS_COL = 9
+MAIN_VIRUS_EXPRESSION = 10
+MAIN_RECORDING_DATE_COL = 11
+MAIN_IMAGING_FILMS_COL = 13
+MAIN_IMAGING_NOTES_COL = 14
+MAIN_SURGERY_NOTES_COL = 15
 
 
 class SessionNwbYamlGenerator:
@@ -39,8 +43,11 @@ class SessionNwbYamlGenerator:
         self.index_session_ext_df = index_session_ext_df
         self.session = subject_ext_df.iloc[index_session_ext_df, EXT_SESSION_COL]
         self.ext_session_id = subject_ext_df.iloc[index_session_ext_df, EXT_SESSION_ID_COL]
-        self.imaging_date = subject_ext_df.iloc[index_session_ext_df, EXT_IMAGING_DATE_COL]
+        self.imaging_date = str(subject_ext_df.iloc[index_session_ext_df, EXT_IMAGING_DATE_COL])
         self.imaging_date = datetime.strptime(self.imaging_date, '%y_%m_%d')
+        self.experimenter = subject_ext_df.iloc[index_session_ext_df, EXT_EXPERIMENTER_COL]
+        if self.experimenter == 'nan':
+            self.experimenter = 'RD'
         # Oriens or pyramidale
         self.image_plane_location = str(subject_ext_df.iloc[index_session_ext_df, EXT_PLANE_LOC_COL])
         if self.image_plane_location == "nan":
@@ -56,6 +63,7 @@ class SessionNwbYamlGenerator:
         # from the session id we get the date of recording
         recording_date_str = self.ext_session_id[:6]
         self.recording_date = datetime.strptime(recording_date_str, '%y%m%d')
+        # print(f"recording_date_str: {recording_date_str}")
         # self.recording_date_main_format = self.recording_date.strftime("%d/%m/%Y")
         # print(f"self.subject_id {self.subject_id} {self.recording_date_main_format}")
         # print(f"self.main_df.iloc[:, MAIN_RECORDING_DATE_COL] {self.main_df.iloc[10, MAIN_RECORDING_DATE_COL]}")
@@ -64,6 +72,7 @@ class SessionNwbYamlGenerator:
 
         self.main_session_df = self.main_df.loc[(self.main_df.iloc[:, MAIN_SUBJECT_ID_COL] == self.subject_id) &
                                                 (self.main_df.iloc[:, MAIN_RECORDING_DATE_COL] == self.recording_date)]
+
         if len(self.main_session_df) == 0:
             print(f"0 main_session_df: self.subject_id {self.subject_id}, self.recording_date {self.recording_date}")
             # print(f"len(session_df) {len(self.main_session_df)}")
@@ -73,12 +82,12 @@ class SessionNwbYamlGenerator:
 
         # Surgery date
         self.surgery_date = self.main_session_df.iloc[0, MAIN_SURGERY_DATA_COL]
-
+        # print(f"surgery date: {self.surgery_date}")
         # getting the weight of the animal, if it exists, otherwise None
         self.weight = None
         weight = self.main_session_df.iloc[0, MAIN_WEIGHT_COL]
         weight = str(weight).strip()
-        if weight not in ["nan", "xxx"]:
+        if weight not in ["nan", "xxx", 'na']:
             # - when it's chronic recording
             # TODO: see what to do with that
             if not (weight[0] == "-"):
@@ -89,9 +98,14 @@ class SessionNwbYamlGenerator:
         # else:
         #     print(f"weight {weight}")
         # we create a directory that will contains the files
-        session_dir_name = f"p{self.age}_{self.recording_date.strftime('%y_%m_%d')}_{self.ext_session_id[-4:]}"
-        self.path_results = os.path.join(path_results, f"p{self.age}", session_dir_name)
-
+        # session_dir_name = f"p{self.age}_{self.recording_date.strftime('%y_%m_%d')}_{self.ext_session_id[-4:]}"
+        # self.path_results = os.path.join(path_results, f"p{self.age}", session_dir_name)
+        path_data = "D:/Robin/data_hne/yaml_creation"
+        path_results = os.path.join(path_data, "yaml_files")
+        folder_name = self.subject_id + '_' + self.ext_session_id
+        saving_directory = os.path.join(path_results, folder_name)
+        os.mkdir(saving_directory)
+        self.path_results = saving_directory
         if os.path.exists(self.path_results):
             self.generate_yaml_files()
 
@@ -136,20 +150,25 @@ class SessionNwbYamlGenerator:
 
         lfp_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_LFP_CH_COL]).strip()
         if lfp_channel not in ["nan"]:
-            abf_dict["lfp_channel"] = int(lfp_channel)
+            abf_dict["lfp_channel"] = int(float(lfp_channel))
 
         behavior_channels = []
         beh_1 = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_BEHAVIOR_1_CH_COL]).strip()
         if beh_1 not in ["nan"]:
-            behavior_channels.append(int(beh_1))
+            behavior_channels.append(int(float(beh_1)))
         beh_2 = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_BEHAVIOR_2_CH_COL]).strip()
         if beh_2 not in ["nan"]:
-            behavior_channels.append(int(beh_2))
+            behavior_channels.append(int(float(beh_2)))
         if len(behavior_channels) > 0:
             if len(behavior_channels) == 1:
                 abf_dict["behavior_channels"] = behavior_channels[0]
+                if beh_1 not in ["nan"]:
+                    abf_dict["behavior_adc_names"] = ["22983298"]
+                else:
+                    abf_dict["behavior_adc_names"] = ["23109588"]
             else:
                 abf_dict["behavior_channels"] = behavior_channels
+                abf_dict["behavior_adc_names"] = ["23109588", "22983298"]
 
         with open(os.path.join(self.path_results, "nwb_abf_" + self.subject_id + ".yaml"), 'w') as outfile:
             yaml.dump(abf_dict, outfile, default_flow_style=False, explicit_start=True)
@@ -163,7 +182,7 @@ class SessionNwbYamlGenerator:
         session_dict = dict()
 
         # session_description MANDATORY: (str) a description of the session where this data was generated
-        session_dict["session_description"] = f"Recording of session {self.ext_session_id} from subject {self.subject_id}"
+        session_dict["session_description"] = f"Session: {self.ext_session_id}, from subject: {self.subject_id}"
 
         # identifier (str) lab-specific ID for the session
         session_dict["identifier"] = self.session_description
@@ -175,7 +194,7 @@ class SessionNwbYamlGenerator:
         session_dict["session_start_time"] = self.recording_date.strftime("%m/%d/%y %H:%M:%S")
 
         # device
-        session_dict["device"] = "2Pdevice"
+        session_dict["device"] = "2P microscope"
 
         # emission_lambda
         session_dict["emission_lambda"] = 510.0
@@ -186,7 +205,7 @@ class SessionNwbYamlGenerator:
         # image_plane_location
         # TODO: See how to get it
         if self.image_plane_location != "":
-            session_dict["image_plane_location"] = self.image_plane_location
+            session_dict["image_plane_location"] = "stratum " + self.image_plane_location
 
         indicator_str = str(self.main_session_df.iloc[0, MAIN_VIRUS_COL])
         # indicator
@@ -197,17 +216,43 @@ class SessionNwbYamlGenerator:
             indicator_str = "GCaMP6s"
             session_dict["indicator"] = indicator_str
 
+        # viruses
+        virus_remark = str(self.main_session_df.iloc[0, MAIN_VIRUS_EXPRESSION])
+        if virus_remark.lower() in ['x', 'nan']:
+            virus_comment = "Good"
+        elif virus_remark.lower() in ['leak', 'leaked', 'leaky']:
+            virus_comment = "Leaked"
+        else:
+            virus_comment = virus_remark.capitalize()
+
+        virus_id = "none"
+        viral_volume = "NA"
+        if indicator_str.strip() not in ["nan", "x"]:
+            used_indicator = indicator_str.strip()
+            if used_indicator == "GCaMP6s":
+                virus_id = "AAV1.Syn.GCaMP6s.WPRE.SV40"
+                viral_volume = "2 uL"
+            if used_indicator == "GCaMP6f flex":
+                virus_id = "AAV1.Syn.Flex.GCaMP6f.WPRE.SV40"
+                viral_volume = "2 uL"
+            if used_indicator == "flex-Tomato + GCaMP6s":
+                virus_id = "AAV1.Syn.GCaMP6s.WPRE.SV40 and AAV9.CAG.Flex.tdTomato"
+                viral_volume = "1.3 uL and 0.7 uL respectively"
+            if used_indicator == "flex-axon-GCaMP6s":
+                virus_id = "AAV9-hSynapsin1.Flex.axon-GCaMP6s"
+                viral_volume = "2 uL"
+
         # lab
         session_dict["lab"] = "Cossart Lab"
 
         # institution
-        session_dict["lab"] = "INMED"
+        session_dict["lab"] = "INMED - INSERMU1249"
 
         # experimenter
-        session_dict["experimenter"] = "Robin Dard"
+        session_dict["experimenter"] = self.experimenter
 
         # experiment_description (str)  – general description of the experiment
-        session_dict["experiment_description"] = "recording with head fixed"
+        session_dict["experiment_description"] = "In-vivo 2P calcium imaging on head fixed mouse pup"
 
         # keywords
         session_dict["keywords"] = ["pup", "calcium imaging"]
@@ -228,7 +273,8 @@ class SessionNwbYamlGenerator:
 
         # pharmacology (str): Description of drugs used, including how and when they were administered.
         # Anesthesia(s), painkiller(s), etc., plus dosage, concentration, etc.
-        # session_dict["pharmacology"] = ""
+        session_dict["pharmacology"] = 'Anesthesia: Isoflurane 1-3% in a 90% O2 / 10% air mix,  ' \
+                                       'Painkillers: Buprenorphine 0.025 mg.kg-1'
 
         # protocol: (str) Experimental protocol, if applicable. E.g., include IACUC protocol
         # session_dict["protocol"] = ""
@@ -237,10 +283,10 @@ class SessionNwbYamlGenerator:
         # session_dict["related_publications"]= ""
 
         # (str) – Narrative description about surgery/surgeries, including date(s) and who performed surgery.
-        surgery_str = f"performed by Robin Dard on the {self.surgery_date.strftime('%m/%d/%y')}"
-        if str(self.main_session_df.iloc[0, MAIN_SURGERY_NOTES_COL]) != "nan":
-            surgery_str = surgery_str + ", notes: " + str(self.main_session_df.iloc[0, MAIN_SURGERY_NOTES_COL])
-            # print(f"surgery_str {surgery_str}")
+        surgery_str = f"Performed by {self.experimenter} on {self.surgery_date.strftime('%m/%d/%y')}"
+        # if str(self.main_session_df.iloc[0, MAIN_SURGERY_NOTES_COL]) != "nan":
+        #     surgery_str = surgery_str + ", notes: " + str(self.main_session_df.iloc[0, MAIN_SURGERY_NOTES_COL])
+
         session_dict["surgery"] = surgery_str
 
         # virus (str) – Information about virus(es) used in experiments,
@@ -255,11 +301,51 @@ class SessionNwbYamlGenerator:
                     virus_str = f"Injection at {age_injection.strip()}"
             elif age_injection.strip().lower()[0] == "p":
                 if indicator_str is not None:
-                    virus_str = f"Ventricular injection of {indicator_str} at {age_injection.strip()}"
+                    virus_str = f"Age at injection: {age_injection.strip()}, Injection-site: left lateral ventricle, " \
+                                f"VirusID: {virus_id}, Volume: {viral_volume}, " \
+                                f"Expression/Labelling: {virus_comment}, Source: Addgene"
                 else:
-                    virus_str = f"Ventricular i at {age_injection.strip()}"
+                    virus_str = f"Age at injection: {age_injection.strip()}"
         if virus_str != "":
             session_dict["virus"] = virus_str
+
+        # Supplementary behavioral monitoring
+        monitoring = ""
+        piezo_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_PIEZO_CH_COL]).strip()
+        if piezo_channel not in ["nan"]:
+            if len(monitoring) >= 1:
+                monitoring = monitoring + ", Piezzo recording"
+            else:
+                monitoring = monitoring + "Piezzo recording"
+        run_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_TREADMMILL_CH_COL]).strip()
+        if run_channel not in ["nan"]:
+            if len(monitoring) >= 1:
+                monitoring = monitoring + ", Treadmill analysis"
+            else:
+                monitoring = monitoring + "Treadmill analysis"
+        lfp_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_LFP_CH_COL]).strip()
+        if lfp_channel not in ["nan"]:
+            if len(monitoring) >= 1:
+                monitoring = monitoring + ", LFPs recording"
+            else:
+                monitoring = monitoring + "LFPs recording"
+        beh_1 = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_BEHAVIOR_1_CH_COL]).strip()
+        beh_2 = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_BEHAVIOR_2_CH_COL]).strip()
+        if beh_1 not in ["nan"] or beh_2 not in ["nan"]:
+            if len(monitoring) >= 1:
+                monitoring = monitoring + ", Video recording"
+            else:
+                monitoring = monitoring + "Video recording"
+        is_emg = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_NUCHAL_EMG]).strip()
+        if is_emg not in ["nan", "no", "na"]:
+            if len(monitoring) >= 1:
+                monitoring = monitoring + ", Nuchal EMG recording"
+            else:
+                monitoring = monitoring + "Nuchal EMG recording"
+        if monitoring != "":
+            session_dict["supplementary_behavioral_monitoring"] = monitoring
+        else:
+            session_dict["supplementary_behavioral_monitoring"] = "None"
 
         """
         # Description of slices, including information about preparation thickness, orientation, temperature and bath solution
@@ -303,9 +389,14 @@ class SessionNwbYamlGenerator:
         line = str(self.main_session_df.iloc[0, MAIN_LINE_COL])
         if line not in ["nan"]:
             if line.lower() == "swiss":
-                subject_dict["genotype"] = "wild type"
+                subject_dict["genotype"] = "Wild-type"
             else:
                 subject_dict["genotype"] = line
+        line_remark = str(self.main_session_df.iloc[0, MAIN_LINE_QUALITY])
+        if line_remark.lower() not in ['nan', 'x']:
+            remark = ' with ' + line_remark.lower()
+            subject_dict["genotype"] = line + remark
+
         # species
         subject_dict["species"] = "SWISS"
 
@@ -318,34 +409,61 @@ class SessionNwbYamlGenerator:
         with open(os.path.join(self.path_results, "nwb_subject_data_" + self.subject_id + ".yaml"), 'w') as outfile:
             yaml.dump(subject_dict, outfile, default_flow_style=False, explicit_start=True)
 
+
 def main():
     # loading the root_path
-    root_path = None
-    with open("param_hne.txt", "r", encoding='UTF-8') as file:
-        for nb_line, line in enumerate(file):
-            line_list = line.split('=')
-            root_path = line_list[1]
-    if root_path is None:
-        raise Exception("Root path is None")
+    # root_path = None
+    # with open("param_hne.txt", "r", encoding='UTF-8') as file:
+    #     for nb_line, line in enumerate(file):
+    #         line_list = line.split('=')
+    #         root_path = line_list[1]
+    # if root_path is None:
+    #     raise Exception("Root path is None")
 
-    path_data = root_path + "data/"
-    path_results = path_data #root_path + "results_nwb_yaml_generator/"
+    path_data = "D:/Robin/data_hne/yaml_creation"
+    path_results = os.path.join(path_data, "yaml_files")
 
-    main_excel_file = os.path.join(path_data, "excel_files_for_nwb", "Pups_13_11_18_version_9th_sept.xlsx")
-    external_info_excel_file = os.path.join(path_data, "excel_files_for_nwb", "pups_external_info.xlsx")
+    main_excel_file = os.path.join(path_data, "pups_experiments_for_yaml.xlsx")
+    external_info_excel_file = os.path.join(path_data, "pups_info_for_yaml.xlsx")
 
-    main_df = pd.read_excel(main_excel_file, sheet_name=f"Experiments")
-    swiss_df = pd.read_excel(external_info_excel_file, sheet_name=f"SWISS")
-    gad_cre_df = pd.read_excel(external_info_excel_file, sheet_name=f"GadCre")
-    # removing the first line
-    gad_cre_df = gad_cre_df.iloc[1:, ]
+    main_df = pd.read_excel(main_excel_file, sheet_name=f"Imaging Experiments")
+    # swiss_df = pd.read_excel(external_info_excel_file, sheet_name=f"SWISS")
+    # gadcre_redins_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name=f"GadCre-RedINs-GCAmP")
+    # gadcre_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name=f"GadCre-GCamP")
+    # gadcre_axon_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name="GadCre_flexAxonGCaMP")
+    sstcre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SstCre_hM4DGi_GCaMP")
+
+    # removing the first lines
+    # swiss_df = swiss_df.iloc[1:, ]
+    # gadcre_redins_gcamp_df = gadcre_redins_gcamp_df.iloc[1:, ]
+    # gadcre_gcamp_df = gadcre_gcamp_df.iloc[1:, ]
+    # gadcre_axon_gcamp_df = gadcre_axon_gcamp_df.iloc[1:, ]
+
     # concatenating the 2 dataframe
-    frames = [swiss_df, gad_cre_df]
+
+    # SWISS
+    # frames = [swiss_df]
+    # ext_df = pd.concat(frames)
+
+    # # GadCre red-INs
+    # frames = [gadcre_redins_gcamp_df]
+    # ext_df = pd.concat(frames)
+
+    # GadCre-GCaMP
+    # frames = [gadcre_gcamp_df]
+    # ext_df = pd.concat(frames)
+
+    # GadCre flex axon GCaMP
+    # frames = [gadcre_axon_gcamp_df]
+    # ext_df = pd.concat(frames)
+
+    # SstCre_hM4DGi_GCaMP
+    frames = [sstcre_dreadd_df]
     ext_df = pd.concat(frames)
 
-
-    # print(f"main_df {main_df}")
-    # print(f"ext_df {ext_df.head(5)}")
+    # print(f"main_df: {main_df}")
+    # print(f"ext_df:")
+    # print(f"{ext_df}")
 
     # ------------------------------------------------
     # First we clean the external info data frame
@@ -358,8 +476,7 @@ def main():
 
     # print(ext_df.iloc[:, EXT_SUBJECT_ID_COL])
     # print(ext_df.iloc[2, EXT_AGE_COL])
-    print(f"ext_df {ext_df.head(5)}")
-
+    # print(f"ext_df {ext_df}")
 
     # We want to identify all unique animals ID from ext_df
     animal_ids = list(set(ext_df.iloc[:, EXT_SUBJECT_ID_COL]))
@@ -368,15 +485,16 @@ def main():
     # First we clean the main data frame
     # ------------------------------------------------
     # removing the first line
-    main_df = main_df.iloc[1:, ]
+    # main_df = main_df.iloc[1:, ]
     # then filling the NAN created by the merged cells
     for col_index in [MAIN_SUBJECT_ID_COL, MAIN_SURGERY_DATA_COL, MAIN_AGE_INJECTION_COL]:
         main_df.iloc[:, col_index] = pd.Series(main_df.iloc[:, col_index]).fillna(method='ffill')
 
-    print(f"{len(animal_ids)} animals{animal_ids}")
+    print(f"{len(animal_ids)} animal(s): {animal_ids}")
 
     n_sessions = 0
     for animal_id in animal_ids:
+        print(f"animal ID: {animal_id}")
         subject_ext_df = ext_df.loc[ext_df.iloc[:, EXT_SUBJECT_ID_COL] == animal_id]
         for index in range(len(subject_ext_df)):
             n_sessions += 1
@@ -386,6 +504,7 @@ def main():
                                                         subject_id=animal_id, path_results=path_results)
 
     print(f"n_sessions: {n_sessions}")
+
 
 if __name__ == "__main__":
     main()
