@@ -29,11 +29,12 @@ MAIN_LINE_COL = 6
 MAIN_LINE_QUALITY = 7
 MAIN_AGE_INJECTION_COL = 8
 MAIN_VIRUS_COL = 9
-MAIN_VIRUS_EXPRESSION = 10
-MAIN_RECORDING_DATE_COL = 11
-MAIN_IMAGING_FILMS_COL = 13
-MAIN_IMAGING_NOTES_COL = 14
-MAIN_SURGERY_NOTES_COL = 15
+MAIN_VIRUS_INJECTION_SITE = 10
+MAIN_VIRUS_EXPRESSION = 11
+MAIN_RECORDING_DATE_COL = 12
+MAIN_IMAGING_FILMS_COL = 14
+MAIN_IMAGING_NOTES_COL = 15
+MAIN_SURGERY_NOTES_COL = 16
 
 
 class SessionNwbYamlGenerator:
@@ -225,22 +226,47 @@ class SessionNwbYamlGenerator:
         else:
             virus_comment = virus_remark.capitalize()
 
+        virus_injection_site = str(self.main_session_df.iloc[0, MAIN_VIRUS_INJECTION_SITE])
+        if virus_injection_site is None:
+            vir_inj_site = "left lateral ventricle"
+        else:
+            vir_inj_site = virus_injection_site.strip()
+
         virus_id = "none"
         viral_volume = "NA"
         if indicator_str.strip() not in ["nan", "x"]:
             used_indicator = indicator_str.strip()
+            # classic GCaMP6s injection in ventricle
             if used_indicator == "GCaMP6s":
                 virus_id = "AAV1.Syn.GCaMP6s.WPRE.SV40"
                 viral_volume = "2 uL"
+            # only INs in Gadcre
             if used_indicator == "GCaMP6f flex":
                 virus_id = "AAV1.Syn.Flex.GCaMP6f.WPRE.SV40"
                 viral_volume = "2 uL"
+            # manip redINs in GadCre animals
             if used_indicator == "flex-Tomato + GCaMP6s":
                 virus_id = "AAV1.Syn.GCaMP6s.WPRE.SV40 and AAV9.CAG.Flex.tdTomato"
                 viral_volume = "1.3 uL and 0.7 uL respectively"
+            # manip flex axon GCaMP in gadCre animals robin
             if used_indicator == "flex-axon-GCaMP6s":
-                virus_id = "AAV9-hSynapsin1.Flex.axon-GCaMP6s"
+                virus_id = "AAV9-hSynapsin.Flex.axon-GCaMP6s"
                 viral_volume = "2 uL"
+            # manip sstcre dreadd
+            if used_indicator == "flex-hM4DGi + GCaMP6s":
+                virus_id = "AAV9-hSynapsin.Flex-hM4DGi and AAV1.Syn.GCaMP6s.WPRE.SV40"
+                viral_volume = "10 nL and 2 uL respectively"
+            # manip gad cre axon robin, axon vmt erwan, axon entorhinal ctx erwan
+            if used_indicator == "flex-axon-GCaMP6s + TdTomato":
+                virus_id = "AAV9-hSynapsin.Flex.axon-GCaMP6s and AAV9.CAG.tdTomato"
+                if vir_inj_site == "left lateral ventricle" or vir_inj_site == "ventricle":
+                    viral_volume = "1.3 uL and 0.7 uL respectively"
+                else:
+                    viral_volume = "10 nL and 2 uL respectively"
+            # manip axon vmt erwan, axon entorhinal ctx erwan
+            if used_indicator == "flex-axon-GCaMP6s + flex-TdTomato":
+                virus_id = "AAV9-hSynapsin.Flex.axon-GCaMP6s and AAV9.CAG.Flex.tdTomato"
+                viral_volume = "10 nL and 2 uL respectively"
 
         # lab
         session_dict["lab"] = "Cossart Lab"
@@ -301,7 +327,7 @@ class SessionNwbYamlGenerator:
                     virus_str = f"Injection at {age_injection.strip()}"
             elif age_injection.strip().lower()[0] == "p":
                 if indicator_str is not None:
-                    virus_str = f"Age at injection: {age_injection.strip()}, Injection-site: left lateral ventricle, " \
+                    virus_str = f"Age at injection: {age_injection.strip()}, Injection-site: {vir_inj_site} , " \
                                 f"VirusID: {virus_id}, Volume: {viral_volume}, " \
                                 f"Expression/Labelling: {virus_comment}, Source: Addgene"
                 else:
