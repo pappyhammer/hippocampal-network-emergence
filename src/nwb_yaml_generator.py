@@ -327,7 +327,7 @@ class SessionNwbYamlGenerator:
                     virus_str = f"Injection at {age_injection.strip()}"
             elif age_injection.strip().lower()[0] == "p":
                 if indicator_str is not None:
-                    virus_str = f"Age at injection: {age_injection.strip()}, Injection-site: {vir_inj_site} , " \
+                    virus_str = f"Age at injection: {age_injection.strip()}, Injection-site: {vir_inj_site}, " \
                                 f"VirusID: {virus_id}, Volume: {viral_volume}, " \
                                 f"Expression/Labelling: {virus_comment}, Source: Addgene"
                 else:
@@ -457,7 +457,9 @@ def main():
     # gadcre_redins_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name=f"GadCre-RedINs-GCAmP")
     # gadcre_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name=f"GadCre-GCamP")
     # gadcre_axon_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name="GadCre_flexAxonGCaMP")
-    sstcre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SstCre_hM4DGi_GCaMP")
+    # sstcre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SstCre_hM4DGi_GCaMP")
+    # emx1cre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="Emx1Cre")
+    vglut2cre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="Vglut2Cre")
 
     # removing the first lines
     # swiss_df = swiss_df.iloc[1:, ]
@@ -484,7 +486,15 @@ def main():
     # ext_df = pd.concat(frames)
 
     # SstCre_hM4DGi_GCaMP
-    frames = [sstcre_dreadd_df]
+    # frames = [sstcre_dreadd_df]
+    # ext_df = pd.concat(frames)
+
+    # Emx1Cre_hM4DGi_GCaMP Erwan
+    # frames = [emx1cre_dreadd_df]
+    # ext_df = pd.concat(frames)
+
+    # Vglut2Cre_hM4DGi_GCaMP Erwan
+    frames = [vglut2cre_dreadd_df]
     ext_df = pd.concat(frames)
 
     # print(f"main_df: {main_df}")
