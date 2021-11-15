@@ -244,10 +244,13 @@ class SessionNwbYamlGenerator:
             if used_indicator == "GCaMP6f flex":
                 virus_id = "AAV1.Syn.Flex.GCaMP6f.WPRE.SV40"
                 viral_volume = "2 uL"
-            # manip redINs in GadCre animals
-            if used_indicator == "flex-Tomato + GCaMP6s":
+            # manip redINs in GadCre animals + ctrl in sstcre no dreadd with cno
+            if used_indicator in ["flex-Tomato + GCaMP6s", "flex-TdTomato + GCaMP6s"]:
                 virus_id = "AAV1.Syn.GCaMP6s.WPRE.SV40 and AAV9.CAG.Flex.tdTomato"
-                viral_volume = "1.3 uL and 0.7 uL respectively"
+                if vir_inj_site == "left lateral ventricle" or vir_inj_site == "ventricle":
+                    viral_volume = "1.3 uL and 0.7 uL respectively"
+                else:
+                    viral_volume = "2 µL and 10 nL respectively"
             # manip flex axon GCaMP in gadCre animals robin
             if used_indicator == "flex-axon-GCaMP6s":
                 virus_id = "AAV9-hSynapsin.Flex.axon-GCaMP6s"
@@ -300,7 +303,7 @@ class SessionNwbYamlGenerator:
         # pharmacology (str): Description of drugs used, including how and when they were administered.
         # Anesthesia(s), painkiller(s), etc., plus dosage, concentration, etc.
         session_dict["pharmacology"] = 'Anesthesia: Isoflurane 1-3% in a 90% O2 / 10% air mix,  ' \
-                                       'Painkillers: Buprenorphine 0.025 mg.kg-1'
+                                       'Painkillers: Buprenorphine [0.05-0.1] mg.kg-1'
 
         # protocol: (str) Experimental protocol, if applicable. E.g., include IACUC protocol
         # session_dict["protocol"] = ""
@@ -449,7 +452,7 @@ def main():
     path_data = "D:/Robin/data_hne/yaml_creation"
     path_results = os.path.join(path_data, "yaml_files")
 
-    main_excel_file = os.path.join(path_data, "pups_experiments_for_yaml.xlsx")
+    main_excel_file = os.path.join(path_data, "pups_experiments_for_yaml_robin.xlsx")
     external_info_excel_file = os.path.join(path_data, "pups_info_for_yaml.xlsx")
 
     main_df = pd.read_excel(main_excel_file, sheet_name=f"Imaging Experiments")
@@ -458,8 +461,11 @@ def main():
     # gadcre_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name=f"GadCre-GCamP")
     # gadcre_axon_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name="GadCre_flexAxonGCaMP")
     # sstcre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SstCre_hM4DGi_GCaMP")
+    sstcre_nodreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SSTCre_nodreadd_cno")
+    # sstcre_dreadd_salin_df = pd.read_excel(external_info_excel_file, sheet_name="SSTCre_dreadd_salin")
     # emx1cre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="Emx1Cre")
-    vglut2cre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="Vglut2Cre")
+    # vglut2cre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="Vglut2Cre")
+    # swiss_vpa_df = pd.read_excel(external_info_excel_file, sheet_name=f"SWISS_VPA")
 
     # removing the first lines
     # swiss_df = swiss_df.iloc[1:, ]
@@ -489,13 +495,25 @@ def main():
     # frames = [sstcre_dreadd_df]
     # ext_df = pd.concat(frames)
 
+    # SstCre_dreadd_salin
+    # frames = [sstcre_dreadd_salin_df]
+    # ext_df = pd.concat(frames)
+
+    # SstCre_no_dreadd_cno_GCaMP
+    frames = [sstcre_nodreadd_df]
+    ext_df = pd.concat(frames)
+
     # Emx1Cre_hM4DGi_GCaMP Erwan
     # frames = [emx1cre_dreadd_df]
     # ext_df = pd.concat(frames)
 
     # Vglut2Cre_hM4DGi_GCaMP Erwan
-    frames = [vglut2cre_dreadd_df]
-    ext_df = pd.concat(frames)
+    # frames = [vglut2cre_dreadd_df]
+    # ext_df = pd.concat(frames)
+
+    # SWISS VPA
+    # frames = [swiss_vpa_df]
+    # ext_df = pd.concat(frames)
 
     # print(f"main_df: {main_df}")
     # print(f"ext_df:")
