@@ -12,13 +12,14 @@ CONTOURS_FINAL_DIR = "contours_final"
 FIJI_MAPS_DIR = "fiji_maps"
 SUITE2P_DIR = "suite2p"
 TMP_CONTOURS_DIR = "tmp_contours_and_type_predictions_files"
+SIGNAL = "signal"
 
 
 def organize_data_files(path_data):
     # key is the full path containing all the files to sort, value is a list of files
     all_files_by_session = dict()
     main_dir_names = [ABF_DIR, ACTIVITY_PRED_DIR, BEHAVIOR_DIR, CELL_TYPE_PRED, CI_DATA_DIR, CONTOURS_FINAL_DIR,
-                      FIJI_MAPS_DIR, SUITE2P_DIR, TMP_CONTOURS_DIR]
+                      FIJI_MAPS_DIR, SUITE2P_DIR, TMP_CONTOURS_DIR, SIGNAL]
     n_levels_root = path_data.count("\\")
 
     for (dirpath, dirnames, local_filenames) in os.walk(path_data):
