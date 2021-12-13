@@ -250,7 +250,14 @@ class SessionNwbYamlGenerator:
                 if vir_inj_site == "left lateral ventricle" or vir_inj_site == "ventricle":
                     viral_volume = "1.3 uL and 0.7 uL respectively"
                 else:
-                    viral_volume = "2 µL and 10 nL respectively"
+                    viral_volume = "2 uL and 10 nL respectively"
+            # manip ctrl in sstcre no dreadd (mCherry) with cno
+            if used_indicator in ["flex-mCherry + GCaMP6s"]:
+                virus_id = "AAV1.Syn.GCaMP6s.WPRE.SV40 and AAV9.CAG.Flex.mCherry"
+                if vir_inj_site == "left lateral ventricle" or vir_inj_site == "ventricle":
+                    viral_volume = "1.3 uL and 0.7 uL respectively"
+                else:
+                    viral_volume = "2 uL and 10 nL respectively"
             # manip flex axon GCaMP in gadCre animals robin
             if used_indicator == "flex-axon-GCaMP6s":
                 virus_id = "AAV9-hSynapsin.Flex.axon-GCaMP6s"
