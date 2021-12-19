@@ -15,16 +15,21 @@ if __name__ == "__main__":
     # if not os.path.isdir(result_path):
     #     os.mkdir(result_path)
 
-    cell_type_config_file = os.path.join(path_data, "pyr_vs_ins_vs_noise_multi_class.yaml")
-
-    do_it_by_type = True
-    fusion_with_gt = False
-    no_gt_to_add = True
-    subfolder = "SSTCre_Dreadd"
-    animal_id = "210402_210411_2"
-    session_id = "210411_a000"
-    age = 9
+    do_it_by_type = False  # mean just fusion of 3 classifiers (no ground truth here)
+    fusion_with_gt = True  # mean fusion with ground truth from a previous fusion between classifiers
+    no_gt_to_add = True  # mean fusion between classifiers without future ground truth to add
+    subfolder = "old_session_to_save"
+    animal_id = "200306_200311"
+    session_id = "200311_a000"
+    age = 5
     global_id = animal_id + "_" + session_id
+
+    if fusion_with_gt is True:
+        cell_type_config_file = os.path.join(path_data, "cell_types_yaml_files", "with_red_ins",
+                                             "pyr_vs_ins_vs_noise_multi_class.yaml")
+    else:
+        cell_type_config_file = os.path.join(path_data, "cell_types_yaml_files", "original",
+                                             "pyr_vs_ins_vs_noise_multi_class.yaml")
 
     path_data = os.path.join(path_data, subfolder, animal_id, session_id)
     cell_type_dir = f"cell_type_predictions_{global_id}"
