@@ -16,10 +16,12 @@ EXT_SESSION_ID_COL = 6
 EXT_PLANE_LOC_COL = 7
 EXT_PIEZO_CH_COL = 10
 EXT_TREADMMILL_CH_COL = 11
-EXT_BEHAVIOR_1_CH_COL = 12
-EXT_BEHAVIOR_2_CH_COL = 13
-EXT_LFP_CH_COL = 14
-EXT_NUCHAL_EMG = 15
+EXT_TREAD_DIRECTION_CH_COL = 12
+EXT_BELT_LENGTH = 13
+EXT_BEHAVIOR_1_CH_COL = 14
+EXT_BEHAVIOR_2_CH_COL = 15
+EXT_LFP_CH_COL = 16
+EXT_NUCHAL_EMG = 17
 
 
 MAIN_SURGERY_DATA_COL = 1
@@ -148,6 +150,18 @@ class SessionNwbYamlGenerator:
             except ValueError:
                 # means that the value is a float
                 abf_dict["run_channel"] = int(float(run_channel))
+
+        direction_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_TREAD_DIRECTION_CH_COL]).strip()
+        if direction_channel not in ["nan"]:
+            try:
+                abf_dict["direction_channel"] = int(direction_channel)
+            except ValueError:
+                # means that the value is a float
+                abf_dict["direction_channel"] = int(float(direction_channel))
+
+        belt_length = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_BELT_LENGTH]).strip()
+        if belt_length not in ["nan"]:
+            abf_dict["belt_length"] = int(float(belt_length))
 
         lfp_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_LFP_CH_COL]).strip()
         if lfp_channel not in ["nan"]:
@@ -467,8 +481,8 @@ def main():
     # gadcre_redins_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name=f"GadCre-RedINs-GCAmP")
     # gadcre_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name=f"GadCre-GCamP")
     # gadcre_axon_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name="GadCre_flexAxonGCaMP")
-    # sstcre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SstCre_hM4DGi_GCaMP")
-    sstcre_nodreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SSTCre_nodreadd_cno")
+    sstcre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SstCre_hM4DGi_GCaMP")
+    # sstcre_nodreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SSTCre_nodreadd_cno")
     # sstcre_dreadd_salin_df = pd.read_excel(external_info_excel_file, sheet_name="SSTCre_dreadd_salin")
     # emx1cre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="Emx1Cre")
     # vglut2cre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="Vglut2Cre")
@@ -499,16 +513,16 @@ def main():
     # ext_df = pd.concat(frames)
 
     # SstCre_hM4DGi_GCaMP
-    # frames = [sstcre_dreadd_df]
-    # ext_df = pd.concat(frames)
+    frames = [sstcre_dreadd_df]
+    ext_df = pd.concat(frames)
 
     # SstCre_dreadd_salin
     # frames = [sstcre_dreadd_salin_df]
     # ext_df = pd.concat(frames)
 
     # SstCre_no_dreadd_cno_GCaMP
-    frames = [sstcre_nodreadd_df]
-    ext_df = pd.concat(frames)
+    # frames = [sstcre_nodreadd_df]
+    # ext_df = pd.concat(frames)
 
     # Emx1Cre_hM4DGi_GCaMP Erwan
     # frames = [emx1cre_dreadd_df]
