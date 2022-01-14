@@ -25,6 +25,7 @@ EXT_NUCHAL_EMG = 17
 
 
 MAIN_SURGERY_DATA_COL = 1
+MAIN_MOUSE_DOB = 2
 MAIN_SUBJECT_ID_COL = 3
 MAIN_WEIGHT_COL = 5
 MAIN_LINE_COL = 6
@@ -60,8 +61,12 @@ class SessionNwbYamlGenerator:
         self.subject_id = subject_id
 
         # from the subject id we get the date of birth
-        birth_date_str = self.subject_id[:6]
-        self.birth_date = datetime.strptime(birth_date_str, '%y%m%d')
+        try:
+            birth_date_str = self.subject_id[:6]
+            self.birth_date = datetime.strptime(birth_date_str, '%y%m%d')
+            get_dob_from_main = False
+        except ValueError:
+            get_dob_from_main = True
 
         # from the session id we get the date of recording
         recording_date_str = self.ext_session_id[:6]
@@ -75,6 +80,9 @@ class SessionNwbYamlGenerator:
 
         self.main_session_df = self.main_df.loc[(self.main_df.iloc[:, MAIN_SUBJECT_ID_COL] == self.subject_id) &
                                                 (self.main_df.iloc[:, MAIN_RECORDING_DATE_COL] == self.recording_date)]
+
+        if get_dob_from_main:
+            self.birth_date = self.main_session_df.iloc[0, MAIN_MOUSE_DOB]
 
         if len(self.main_session_df) == 0:
             print(f"0 main_session_df: self.subject_id {self.subject_id}, self.recording_date {self.recording_date}")
