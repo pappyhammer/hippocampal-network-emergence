@@ -27,17 +27,19 @@ EXT_NUCHAL_EMG = 17
 MAIN_SURGERY_DATA_COL = 1
 MAIN_MOUSE_DOB = 2
 MAIN_SUBJECT_ID_COL = 3
-MAIN_WEIGHT_COL = 5
-MAIN_LINE_COL = 6
-MAIN_LINE_QUALITY = 7
-MAIN_AGE_INJECTION_COL = 8
-MAIN_VIRUS_COL = 9
-MAIN_VIRUS_INJECTION_SITE = 10
-MAIN_VIRUS_EXPRESSION = 11
-MAIN_RECORDING_DATE_COL = 12
-MAIN_IMAGING_FILMS_COL = 14
-MAIN_IMAGING_NOTES_COL = 15
-MAIN_SURGERY_NOTES_COL = 16
+MAIN_SUBJECT_SEX = 4
+MAIN_WEIGHT_COL = 6
+MAIN_LINE_COL = 7
+MAIN_LINE_QUALITY = 8
+MAIN_TAMOXIFEN_GAVAGE = 9
+MAIN_AGE_INJECTION_COL = 10
+MAIN_VIRUS_COL = 11
+MAIN_VIRUS_INJECTION_SITE = 12
+MAIN_VIRUS_EXPRESSION = 13
+MAIN_RECORDING_DATE_COL = 14
+MAIN_IMAGING_FILMS_COL = 16
+MAIN_IMAGING_NOTES_COL = 17
+MAIN_SURGERY_NOTES_COL = 18
 
 
 class SessionNwbYamlGenerator:
@@ -436,6 +438,18 @@ class SessionNwbYamlGenerator:
         subject_dict = dict()
 
         # sex: is unknown
+        sex = str(self.main_session_df.iloc[0, MAIN_SUBJECT_SEX])
+        if sex not in ["NA"]:
+            subject_dict["sex"] = sex
+        else:
+            subject_dict["sex"] = "Unknown"
+
+        # Tamoxifen induction:
+        tamox_age = str(self.main_session_df.iloc[0, MAIN_TAMOXIFEN_GAVAGE])
+        if sex not in ["x", "NA"]:
+            subject_dict["tamoxifen induction"] = tamox_age
+        else:
+            subject_dict["tamoxifen induction"] = "None"
 
         # date of birth
         subject_dict["date_of_birth"] = self.birth_date.strftime("%m/%d/%Y")
