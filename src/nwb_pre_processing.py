@@ -6,7 +6,16 @@ import os
 def main():
     # root_path = "D:/Robin/data_hne"
     # dir_to_explore = os.path.join(root_path, "/NWB_to_create")
-    dir_to_explore = "D:/Robin/data_hne/NWB_to_create"
+    base_dir_to_explore = "D:/Robin/data_hne/NWB_to_create"
+
+    with_subfolder = True
+    subfolder = "test_sanziana"
+
+    if with_subfolder:
+        dir_to_explore = os.path.join(base_dir_to_explore, subfolder)
+    else:
+        dir_to_explore = base_dir_to_explore
+
     # dir_to_explore = os.path.join(root_path, "data/chronic")
 
     print(f"dir to explore: {dir_to_explore}")
@@ -116,7 +125,7 @@ def main():
         #     continue
         # 190929_a000: p8 190921_190929_0
 
-        if session_dir_name not in ["210411_a001_to_test"]:
+        if session_dir_name not in ["day1_a001"]:
             continue
 
         # if session_dir_name not in ["191202_a000"]:
