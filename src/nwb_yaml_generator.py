@@ -446,10 +446,10 @@ class SessionNwbYamlGenerator:
 
         # Tamoxifen induction:
         tamox_age = str(self.main_session_df.iloc[0, MAIN_TAMOXIFEN_GAVAGE])
-        if sex not in ["x", "NA"]:
-            subject_dict["tamoxifen induction"] = tamox_age
+        if sex not in ["x", "NA", "nan"]:
+            subject_dict["tamoxifen_induction"] = tamox_age
         else:
-            subject_dict["tamoxifen induction"] = "None"
+            subject_dict["tamoxifen_induction"] = "None"
 
         # date of birth
         subject_dict["date_of_birth"] = self.birth_date.strftime("%m/%d/%Y")
