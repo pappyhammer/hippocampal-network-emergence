@@ -48,7 +48,7 @@ class SessionNwbYamlGenerator:
         self.subject_ext_df = subject_ext_df
         self.index_session_ext_df = index_session_ext_df
         self.session = subject_ext_df.iloc[index_session_ext_df, EXT_SESSION_COL]
-        self.ext_session_id = subject_ext_df.iloc[index_session_ext_df, EXT_SESSION_ID_COL]
+        self.ext_session_id = str(subject_ext_df.iloc[index_session_ext_df, EXT_SESSION_ID_COL])
         self.imaging_date = str(subject_ext_df.iloc[index_session_ext_df, EXT_IMAGING_DATE_COL])
         self.imaging_date = datetime.strptime(self.imaging_date, '%y_%m_%d')
         self.experimenter = subject_ext_df.iloc[index_session_ext_df, EXT_EXPERIMENTER_COL]
@@ -71,8 +71,9 @@ class SessionNwbYamlGenerator:
             get_dob_from_main = True
 
         # from the session id we get the date of recording
-        recording_date_str = self.ext_session_id[:6]
-        self.recording_date = datetime.strptime(recording_date_str, '%y%m%d')
+        # recording_date_str = self.ext_session_id[:6]
+        # self.recording_date = datetime.strptime(recording_date_str, '%y%m%d')
+        self.recording_date = self.imaging_date
         # print(f"recording_date_str: {recording_date_str}")
         # self.recording_date_main_format = self.recording_date.strftime("%d/%m/%Y")
         # print(f"self.subject_id {self.subject_id} {self.recording_date_main_format}")
@@ -444,13 +445,6 @@ class SessionNwbYamlGenerator:
         else:
             subject_dict["sex"] = "Unknown"
 
-        # Tamoxifen induction:
-        tamox_age = str(self.main_session_df.iloc[0, MAIN_TAMOXIFEN_GAVAGE])
-        if sex not in ["x", "NA", "nan"]:
-            subject_dict["tamoxifen_induction"] = tamox_age
-        else:
-            subject_dict["tamoxifen_induction"] = "None"
-
         # date of birth
         subject_dict["date_of_birth"] = self.birth_date.strftime("%m/%d/%Y")
         # age
@@ -466,8 +460,12 @@ class SessionNwbYamlGenerator:
                 subject_dict["genotype"] = line
         line_remark = str(self.main_session_df.iloc[0, MAIN_LINE_QUALITY])
         if line_remark.lower() not in ['nan', 'x']:
-            remark = ' with ' + line_remark.lower()
+            remark = line_remark.lower()
             subject_dict["genotype"] = line + remark
+        # Tamoxifen induction:
+        tamox_age = str(self.main_session_df.iloc[0, MAIN_TAMOXIFEN_GAVAGE])
+        if tamox_age not in ["x", "NA", "nan"]:
+            subject_dict["genotype"] = line + f" + tamox. {tamox_age}"
 
         # species
         subject_dict["species"] = "SWISS"
