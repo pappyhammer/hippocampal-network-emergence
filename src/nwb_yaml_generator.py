@@ -439,7 +439,7 @@ class SessionNwbYamlGenerator:
 
         # sex: is unknown
         sex = str(self.main_session_df.iloc[0, MAIN_SUBJECT_SEX])
-        if sex not in ["NA"]:
+        if sex not in ["NA", "nan", "x"]:
             subject_dict["sex"] = sex
         else:
             subject_dict["sex"] = "Unknown"
