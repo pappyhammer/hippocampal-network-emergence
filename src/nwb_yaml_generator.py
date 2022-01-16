@@ -461,7 +461,7 @@ class SessionNwbYamlGenerator:
         line_remark = str(self.main_session_df.iloc[0, MAIN_LINE_QUALITY])
         if line_remark.lower() not in ['nan', 'x']:
             remark = line_remark.lower()
-            subject_dict["genotype"] = line + remark
+            subject_dict["genotype"] = line + f" {remark}"
         # Tamoxifen induction:
         tamox_age = str(self.main_session_df.iloc[0, MAIN_TAMOXIFEN_GAVAGE])
         if tamox_age not in ["x", "NA", "nan"]:
