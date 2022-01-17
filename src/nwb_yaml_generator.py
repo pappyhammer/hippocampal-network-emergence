@@ -18,10 +18,11 @@ EXT_PIEZO_CH_COL = 10
 EXT_TREADMMILL_CH_COL = 11
 EXT_TREAD_DIRECTION_CH_COL = 12
 EXT_BELT_LENGTH = 13
-EXT_BEHAVIOR_1_CH_COL = 14
-EXT_BEHAVIOR_2_CH_COL = 15
-EXT_LFP_CH_COL = 16
-EXT_NUCHAL_EMG = 17
+EXT_BELT_TYPE = 14
+EXT_BEHAVIOR_1_CH_COL = 15
+EXT_BEHAVIOR_2_CH_COL = 16
+EXT_LFP_CH_COL = 17
+EXT_NUCHAL_EMG = 18
 
 
 MAIN_SURGERY_DATA_COL = 1
@@ -209,6 +210,10 @@ class SessionNwbYamlGenerator:
 
         # session_description MANDATORY: (str) a description of the session where this data was generated
         session_dict["session_description"] = f"Session: {self.ext_session_id}, from subject: {self.subject_id}"
+        belt_type = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_BELT_TYPE]).strip()
+        if belt_type not in ["nan"]:
+            session_dict["session_description"] = f"Session: {self.ext_session_id}, from subject: {self.subject_id}, " \
+                                                  f"on {belt_type.lower()} belt"
 
         # identifier (str) lab-specific ID for the session
         session_dict["identifier"] = self.session_description
@@ -229,7 +234,6 @@ class SessionNwbYamlGenerator:
         session_dict["excitation_lambda"] = 920.0
 
         # image_plane_location
-        # TODO: See how to get it
         if self.image_plane_location != "":
             session_dict["image_plane_location"] = "stratum " + self.image_plane_location
 
