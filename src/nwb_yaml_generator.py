@@ -218,6 +218,9 @@ class SessionNwbYamlGenerator:
         # identifier (str) lab-specific ID for the session
         session_dict["identifier"] = self.session_description
 
+        # identifier (str) lab-specific ID for the session
+        session_dict["session_id"] = self.ext_session_id
+
         # session_start_time MANDATORY: Use to fill the session_start_time field,
         # you have to indicate the date and the time:
         # in this format: '%m/%d/%y %H:%M:%S' representing the start of the recording session
@@ -459,20 +462,20 @@ class SessionNwbYamlGenerator:
         line = str(self.main_session_df.iloc[0, MAIN_LINE_COL])
         if line not in ["nan"]:
             if line.lower() == "swiss":
-                subject_dict["genotype"] = "Wild-type"
+                subject_dict["genotype"] = "SWISS Wild-type"
             else:
-                subject_dict["genotype"] = line
+                subject_dict["genotype"] = "SWISS " + line
         line_remark = str(self.main_session_df.iloc[0, MAIN_LINE_QUALITY])
         if line_remark.lower() not in ['nan', 'x']:
             remark = line_remark.lower()
-            subject_dict["genotype"] = line + f" {remark}"
+            subject_dict["genotype"] = "SWISS " + line + f" {remark}"
         # Tamoxifen induction:
         tamox_age = str(self.main_session_df.iloc[0, MAIN_TAMOXIFEN_GAVAGE])
         if tamox_age not in ["x", "NA", "nan"]:
-            subject_dict["genotype"] = line + f" + tamox. {tamox_age}"
+            subject_dict["genotype"] = "SWISS " + line + f" + tamox. {tamox_age}"
 
         # species
-        subject_dict["species"] = "SWISS"
+        subject_dict["species"] = "house mouse"
 
         # Description: empty for now
 
@@ -504,8 +507,8 @@ def main():
     # swiss_df = pd.read_excel(external_info_excel_file, sheet_name=f"SWISS")
     # gadcre_redins_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name=f"GadCre-RedINs-GCAmP")
     # gadcre_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name=f"GadCre-GCamP")
-    # gadcre_axon_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name="GadCre_flexAxonGCaMP")
-    sstcre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SstCre_hM4DGi_GCaMP")
+    gadcre_axon_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name="GadCre_flexAxonGCaMP")
+    # sstcre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SstCre_hM4DGi_GCaMP")
     # sstcre_nodreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SSTCre_nodreadd_cno")
     # sstcre_dreadd_salin_df = pd.read_excel(external_info_excel_file, sheet_name="SSTCre_dreadd_salin")
     # emx1cre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="Emx1Cre")
@@ -533,12 +536,12 @@ def main():
     # ext_df = pd.concat(frames)
 
     # GadCre flex axon GCaMP
-    # frames = [gadcre_axon_gcamp_df]
-    # ext_df = pd.concat(frames)
+    frames = [gadcre_axon_gcamp_df]
+    ext_df = pd.concat(frames)
 
     # SstCre_hM4DGi_GCaMP
-    frames = [sstcre_dreadd_df]
-    ext_df = pd.concat(frames)
+    # frames = [sstcre_dreadd_df]
+    # ext_df = pd.concat(frames)
 
     # SstCre_dreadd_salin
     # frames = [sstcre_dreadd_salin_df]
