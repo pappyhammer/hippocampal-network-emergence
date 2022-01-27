@@ -8,21 +8,23 @@ import numpy as np
 #      columns indices
 # ----------------------
 EXT_AGE_COL = 0
-EXT_SUBJECT_ID_COL = 1
-EXT_EXPERIMENTER_COL = 2
-EXT_IMAGING_DATE_COL = 3
-EXT_SESSION_COL = 4
-EXT_SESSION_ID_COL = 6
-EXT_PLANE_LOC_COL = 7
-EXT_PIEZO_CH_COL = 10
-EXT_TREADMMILL_CH_COL = 11
-EXT_TREAD_DIRECTION_CH_COL = 12
-EXT_BELT_LENGTH = 13
-EXT_BELT_TYPE = 14
-EXT_BEHAVIOR_1_CH_COL = 15
-EXT_BEHAVIOR_2_CH_COL = 16
-EXT_LFP_CH_COL = 17
-EXT_NUCHAL_EMG = 18
+EXT_AGE_UNIT_COL = 1
+EXT_SUBJECT_ID_COL = 2
+EXT_EXPERIMENTER_COL = 3
+EXT_IMAGING_DATE_COL = 4
+EXT_SESSION_COL = 5
+EXT_SESSION_ID_COL = 7
+EXT_PLANE_LOC_COL = 8
+EXT_NWB_NOTES_COL = 9
+EXT_PIEZO_CH_COL = 12
+EXT_TREADMMILL_CH_COL = 13
+EXT_TREAD_DIRECTION_CH_COL = 14
+EXT_BELT_LENGTH = 15
+EXT_BELT_TYPE = 16
+EXT_BEHAVIOR_1_CH_COL = 17
+EXT_BEHAVIOR_2_CH_COL = 18
+EXT_LFP_CH_COL = 19
+EXT_NUCHAL_EMG = 20
 
 
 MAIN_SURGERY_DATA_COL = 1
@@ -38,9 +40,6 @@ MAIN_VIRUS_COL = 11
 MAIN_VIRUS_INJECTION_SITE = 12
 MAIN_VIRUS_EXPRESSION = 13
 MAIN_RECORDING_DATE_COL = 14
-MAIN_IMAGING_FILMS_COL = 16
-MAIN_IMAGING_NOTES_COL = 17
-MAIN_SURGERY_NOTES_COL = 18
 
 
 class SessionNwbYamlGenerator:
@@ -60,6 +59,7 @@ class SessionNwbYamlGenerator:
         if self.image_plane_location == "nan":
             self.image_plane_location = ""
         self.age = int(subject_ext_df.iloc[index_session_ext_df, EXT_AGE_COL])
+        self.age_unit = str(subject_ext_df.iloc[index_session_ext_df, EXT_AGE_UNIT_COL]).capitalize()
 
         self.subject_id = subject_id
 
@@ -326,18 +326,13 @@ class SessionNwbYamlGenerator:
         session_dict["keywords"] = ["pup", "calcium imaging"]
 
         # notes (str) Notes about the experiment
-        notes_str = ""
-        notes_1 = str(self.main_session_df.iloc[0, MAIN_IMAGING_FILMS_COL])
-        notes_2 = str(self.main_session_df.iloc[0, MAIN_IMAGING_NOTES_COL])
-        if (notes_1 != "nan") or (notes_2 != "nan"):
-            notes_str = notes_str + "Notes on imaging: "
-            if notes_1 != "nan":
-                notes_str = notes_str + notes_1 + ". "
-            if notes_2 != "nan":
-                notes_str = notes_str + notes_2 + ". "
-            # print(f"notes_str {notes_str}")
-        if notes_str != "":
-            session_dict["notes"] = ""
+        notes = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_NWB_NOTES_COL])
+        if notes == 'nan':
+            notes_str = "No given note for this NWB"
+        else:
+            notes_str = notes
+
+        session_dict["notes"] = notes_str
 
         # pharmacology (str): Description of drugs used, including how and when they were administered.
         # Anesthesia(s), painkiller(s), etc., plus dosage, concentration, etc.
@@ -455,7 +450,7 @@ class SessionNwbYamlGenerator:
         # date of birth
         subject_dict["date_of_birth"] = self.birth_date.strftime("%m/%d/%Y")
         # age
-        subject_dict["age"] = self.age
+        subject_dict["age"] = f"P{self.age}{self.age_unit}"
         # subject_id
         subject_dict["subject_id"] = self.subject_id
         # genotype
@@ -475,7 +470,7 @@ class SessionNwbYamlGenerator:
             subject_dict["genotype"] = "SWISS " + line + f" + tamox. {tamox_age}"
 
         # species
-        subject_dict["species"] = "house mouse"
+        subject_dict["species"] = "Mus musculus"
 
         # Description: empty for now
 
@@ -504,10 +499,10 @@ def main():
     external_info_excel_file = os.path.join(path_data, "pups_info_for_yaml.xlsx")
 
     main_df = pd.read_excel(main_excel_file, sheet_name=f"Imaging Experiments")
-    # swiss_df = pd.read_excel(external_info_excel_file, sheet_name=f"SWISS")
+    swiss_df = pd.read_excel(external_info_excel_file, sheet_name=f"SWISS")
     # gadcre_redins_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name=f"GadCre-RedINs-GCAmP")
     # gadcre_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name=f"GadCre-GCamP")
-    gadcre_axon_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name="GadCre_flexAxonGCaMP")
+    # gadcre_axon_gcamp_df = pd.read_excel(external_info_excel_file, sheet_name="GadCre_flexAxonGCaMP")
     # sstcre_dreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SstCre_hM4DGi_GCaMP")
     # sstcre_nodreadd_df = pd.read_excel(external_info_excel_file, sheet_name="SSTCre_nodreadd_cno")
     # sstcre_dreadd_salin_df = pd.read_excel(external_info_excel_file, sheet_name="SSTCre_dreadd_salin")
@@ -524,8 +519,8 @@ def main():
     # concatenating the 2 dataframe
 
     # SWISS
-    # frames = [swiss_df]
-    # ext_df = pd.concat(frames)
+    frames = [swiss_df]
+    ext_df = pd.concat(frames)
 
     # # GadCre red-INs
     # frames = [gadcre_redins_gcamp_df]
@@ -536,8 +531,8 @@ def main():
     # ext_df = pd.concat(frames)
 
     # GadCre flex axon GCaMP
-    frames = [gadcre_axon_gcamp_df]
-    ext_df = pd.concat(frames)
+    # frames = [gadcre_axon_gcamp_df]
+    # ext_df = pd.concat(frames)
 
     # SstCre_hM4DGi_GCaMP
     # frames = [sstcre_dreadd_df]
