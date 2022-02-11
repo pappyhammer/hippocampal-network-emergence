@@ -80,7 +80,7 @@ class SessionNwbYamlGenerator:
         # print(f"self.subject_id {self.subject_id} {self.recording_date_main_format}")
         # print(f"self.main_df.iloc[:, MAIN_RECORDING_DATE_COL] {self.main_df.iloc[10, MAIN_RECORDING_DATE_COL]}")
 
-        self.session_description = f"p{self.age}_{self.subject_id}_{self.ext_session_id}"
+        self.session_description = f"P{self.age}{self.age_unit}_{self.subject_id}_{self.ext_session_id}"
 
         self.main_session_df = self.main_df.loc[(self.main_df.iloc[:, MAIN_SUBJECT_ID_COL] == self.subject_id) &
                                                 (self.main_df.iloc[:, MAIN_RECORDING_DATE_COL] == self.recording_date)]
@@ -457,20 +457,23 @@ class SessionNwbYamlGenerator:
         line = str(self.main_session_df.iloc[0, MAIN_LINE_COL])
         if line not in ["nan"]:
             if line.lower() == "swiss":
-                subject_dict["genotype"] = "SWISS Wild-type"
+                subject_dict["genotype"] = "Wild-type"
             else:
-                subject_dict["genotype"] = "SWISS " + line
+                subject_dict["genotype"] = line
         line_remark = str(self.main_session_df.iloc[0, MAIN_LINE_QUALITY])
         if line_remark.lower() not in ['nan', 'x']:
             remark = line_remark.lower()
-            subject_dict["genotype"] = "SWISS " + line + f" {remark}"
+            subject_dict["genotype"] = line + f" {remark}"
         # Tamoxifen induction:
         tamox_age = str(self.main_session_df.iloc[0, MAIN_TAMOXIFEN_GAVAGE])
         if tamox_age not in ["x", "NA", "nan"]:
-            subject_dict["genotype"] = "SWISS " + line + f" + tamox. {tamox_age}"
+            subject_dict["genotype"] = line + f" + tamox. {tamox_age}"
 
         # species
         subject_dict["species"] = "Mus musculus"
+
+        # strain
+        subject_dict["strain"] = "SWISS"  # put "C57BL/6J" "CD1", ..... here
 
         # Description: empty for now
 
