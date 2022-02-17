@@ -86,7 +86,8 @@ class SessionNwbYamlGenerator:
                                                 (self.main_df.iloc[:, MAIN_RECORDING_DATE_COL] == self.recording_date)]
 
         if get_dob_from_main:
-            self.birth_date = self.main_session_df.iloc[0, MAIN_MOUSE_DOB]
+            birth_date_str = str(self.main_session_df.iloc[0, MAIN_MOUSE_DOB])
+            self.birth_date = datetime.strptime(birth_date_str, '%d/%m/%Y')
 
         if len(self.main_session_df) == 0:
             print(f"0 main_session_df: self.subject_id {self.subject_id}, self.recording_date {self.recording_date}")
@@ -314,7 +315,7 @@ class SessionNwbYamlGenerator:
         session_dict["lab"] = "Cossart Lab"
 
         # institution
-        session_dict["lab"] = "INMED - INSERMU1249"
+        session_dict["institution"] = "INMED - INSERMU1249"
 
         # experimenter
         session_dict["experimenter"] = self.experimenter
@@ -445,7 +446,7 @@ class SessionNwbYamlGenerator:
         if sex not in ["NA", "nan", "x"]:
             subject_dict["sex"] = sex
         else:
-            subject_dict["sex"] = "Unknown"
+            subject_dict["sex"] = "U"
 
         # date of birth
         subject_dict["date_of_birth"] = self.birth_date.strftime("%m/%d/%Y")
