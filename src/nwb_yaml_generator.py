@@ -458,6 +458,7 @@ class SessionNwbYamlGenerator:
         line = str(self.main_session_df.iloc[0, MAIN_LINE_COL])
         if line not in ["nan"]:
             if line.lower() == "swiss":
+                line = 'Wild-type'
                 subject_dict["genotype"] = "Wild-type"
             else:
                 subject_dict["genotype"] = line
