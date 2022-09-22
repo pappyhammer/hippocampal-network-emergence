@@ -21,10 +21,11 @@ EXT_TREADMMILL_CH_COL = 13
 EXT_TREAD_DIRECTION_CH_COL = 14
 EXT_BELT_LENGTH = 15
 EXT_BELT_TYPE = 16
-EXT_BEHAVIOR_1_CH_COL = 17
-EXT_BEHAVIOR_2_CH_COL = 18
-EXT_LFP_CH_COL = 19
-EXT_NUCHAL_EMG = 20
+EXT_BELT_MODEL = 17
+EXT_BEHAVIOR_1_CH_COL = 18
+EXT_BEHAVIOR_2_CH_COL = 19
+EXT_LFP_CH_COL = 20
+EXT_NUCHAL_EMG = 21
 
 
 MAIN_SURGERY_DATA_COL = 1
@@ -175,6 +176,10 @@ class SessionNwbYamlGenerator:
         belt_length = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_BELT_LENGTH]).strip()
         if belt_length not in ["nan"]:
             abf_dict["belt_length"] = int(float(belt_length))
+
+        belt_model = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_BELT_MODEL]).strip()
+        if belt_length not in ["nan"]:
+            abf_dict["belt_model"] = belt_model
 
         lfp_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_LFP_CH_COL]).strip()
         if lfp_channel not in ["nan"]:
