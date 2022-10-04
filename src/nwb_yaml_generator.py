@@ -17,15 +17,16 @@ EXT_SESSION_ID_COL = 7
 EXT_PLANE_LOC_COL = 8
 EXT_NWB_NOTES_COL = 9
 EXT_PIEZO_CH_COL = 12
-EXT_TREADMMILL_CH_COL = 13
-EXT_TREAD_DIRECTION_CH_COL = 14
-EXT_BELT_LENGTH = 15
-EXT_BELT_TYPE = 16
-EXT_BELT_MODEL = 17
-EXT_BEHAVIOR_1_CH_COL = 18
-EXT_BEHAVIOR_2_CH_COL = 19
-EXT_LFP_CH_COL = 20
-EXT_NUCHAL_EMG = 21
+EXT_IMAGING_ABF_CHANNEL = 13
+EXT_TREADMMILL_CH_COL = 14
+EXT_TREAD_DIRECTION_CH_COL = 15
+EXT_BELT_LENGTH = 16
+EXT_BELT_TYPE = 17
+EXT_BELT_MODEL = 18
+EXT_BEHAVIOR_1_CH_COL = 19
+EXT_BEHAVIOR_2_CH_COL = 20
+EXT_LFP_CH_COL = 21
+EXT_NUCHAL_EMG = 22
 
 
 MAIN_SURGERY_DATA_COL = 1
@@ -145,7 +146,15 @@ class SessionNwbYamlGenerator:
         behaviors_channel
         """
 
-        abf_dict["frames_channel"] = int(0)
+        imaging_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_IMAGING_ABF_CHANNEL]).strip()
+        if imaging_channel not in ["nan"]:
+            try:
+                abf_dict["frames_channel"] = int(imaging_channel)
+            except ValueError:
+                # means that the value is a float
+                abf_dict["frames_channel"] = int(float(imaging_channel))
+        else:
+            abf_dict["frames_channel"] = int(0)
 
         piezo_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_PIEZO_CH_COL]).strip()
         if piezo_channel not in ["nan"]:
