@@ -18,15 +18,19 @@ EXT_PLANE_LOC_COL = 8
 EXT_NWB_NOTES_COL = 9
 EXT_PIEZO_CH_COL = 12
 EXT_IMAGING_ABF_CHANNEL = 13
-EXT_TREADMMILL_CH_COL = 14
-EXT_TREAD_DIRECTION_CH_COL = 15
-EXT_BELT_LENGTH = 16
-EXT_BELT_TYPE = 17
-EXT_BELT_MODEL = 18
-EXT_BEHAVIOR_1_CH_COL = 19
-EXT_BEHAVIOR_2_CH_COL = 20
-EXT_LFP_CH_COL = 21
-EXT_NUCHAL_EMG = 22
+EXT_IMAGING_SETUP = 14
+EXT_N_PLANS = 15
+EXT_PLAN_ID = 16
+EXT_FRAME_PER_PLAN = 17
+EXT_TREADMMILL_CH_COL = 18
+EXT_TREAD_DIRECTION_CH_COL = 19
+EXT_BELT_LENGTH = 20
+EXT_BELT_TYPE = 21
+EXT_BELT_MODEL = 22
+EXT_BEHAVIOR_1_CH_COL = 23
+EXT_BEHAVIOR_2_CH_COL = 24
+EXT_LFP_CH_COL = 25
+EXT_NUCHAL_EMG = 26
 
 
 MAIN_SURGERY_DATA_COL = 1
@@ -155,6 +159,36 @@ class SessionNwbYamlGenerator:
                 abf_dict["frames_channel"] = int(float(imaging_channel))
         else:
             abf_dict["frames_channel"] = int(0)
+
+        imaging_setup = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_IMAGING_SETUP]).strip()
+        if imaging_setup not in ["nan"]:
+            abf_dict["imaging_setup"] = imaging_setup
+        else:
+            abf_dict["imaging_setup"] = "LaVision"
+
+        n_imaging_planes = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_N_PLANS]).strip()
+        if n_imaging_planes not in ["nan"]:
+            try:
+                abf_dict["n_imaging_planes"] = int(n_imaging_planes)
+            except ValueError:
+                # means that the value is a float
+                abf_dict["n_imaging_planes"] = int(float(n_imaging_planes))
+
+        plan_id = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_PLAN_ID]).strip()
+        if plan_id not in ["nan"]:
+            try:
+                abf_dict["plan_id"] = int(plan_id)
+            except ValueError:
+                # means that the value is a float
+                abf_dict["plan_id"] = int(float(plan_id))
+
+        n_frames_per_plan = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_FRAME_PER_PLAN]).strip()
+        if n_frames_per_plan not in ["nan"]:
+            try:
+                abf_dict["n_frames_per_plan"] = int(n_frames_per_plan)
+            except ValueError:
+                # means that the value is a float
+                abf_dict["n_frames_per_plan"] = int(float(n_frames_per_plan))
 
         piezo_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_PIEZO_CH_COL]).strip()
         if piezo_channel not in ["nan"]:
