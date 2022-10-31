@@ -5,6 +5,7 @@ import pyabf
 import matplotlib.pyplot as plt
 import os
 from tkinter import filedialog as fd
+import pickle
 
 
 def compute_position(abf_data_rate, run_data, direction_data, different_speed, belt_length):
@@ -151,7 +152,7 @@ def main():
                                 different_speed=different_speed, belt_length=belt_length)
     print(f'Done')
 
-    fig, axes = plt.subplots(nrows=2, ncols=1,
+    fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True,
                              gridspec_kw={'width_ratios': [1]},
                              figsize=(15, 15), dpi=300)
 
@@ -165,7 +166,11 @@ def main():
     axes[1].set_xlabel("Time (s)")
     axes[1].set_ylabel("Position (cm)")
 
+    print(f"Save in PDF format:")
     fig.savefig(os.path.join(saving_path, f'speed_and_position.pdf'))
+    print(f"Save in interactive python format:")
+    with open(os.path.join(saving_path, f'speed_and_position.pickle'), 'wb') as f:
+        pickle.dump(fig, f, pickle.HIGHEST_PROTOCOL)
 
 
 main()
