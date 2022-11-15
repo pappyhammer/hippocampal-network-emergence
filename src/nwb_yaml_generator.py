@@ -24,13 +24,14 @@ EXT_PLAN_ID = 16
 EXT_FRAME_PER_PLAN = 17
 EXT_TREADMMILL_CH_COL = 18
 EXT_TREAD_DIRECTION_CH_COL = 19
-EXT_BELT_LENGTH = 20
-EXT_BELT_TYPE = 21
-EXT_BELT_MODEL = 22
-EXT_BEHAVIOR_1_CH_COL = 23
-EXT_BEHAVIOR_2_CH_COL = 24
-EXT_LFP_CH_COL = 25
-EXT_NUCHAL_EMG = 26
+EXT_BELT_LAP_UP_CH = 20
+EXT_BELT_LENGTH = 21
+EXT_BELT_TYPE = 22
+EXT_BELT_MODEL = 23
+EXT_BEHAVIOR_1_CH_COL = 24
+EXT_BEHAVIOR_2_CH_COL = 25
+EXT_LFP_CH_COL = 26
+EXT_NUCHAL_EMG = 27
 
 
 MAIN_SURGERY_DATA_COL = 1
@@ -215,6 +216,14 @@ class SessionNwbYamlGenerator:
             except ValueError:
                 # means that the value is a float
                 abf_dict["direction_channel"] = int(float(direction_channel))
+
+        lap_channel = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_BELT_LAP_UP_CH]).strip()
+        if lap_channel not in ["nan"]:
+            try:
+                abf_dict["lap_channel"] = int(lap_channel)
+            except ValueError:
+                # means that the value is a float
+                abf_dict["lap_channel"] = int(float(lap_channel))
 
         belt_length = str(self.subject_ext_df.iloc[self.index_session_ext_df, EXT_BELT_LENGTH]).strip()
         if belt_length not in ["nan"]:
